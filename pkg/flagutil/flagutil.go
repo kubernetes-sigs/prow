@@ -14,25 +14,21 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package clone
+// Package flagutil contains utilities and interfaces shared between
+// several test-infra commands.
+package flagutil
 
 import (
-	"k8s.io/test-infra/prow/kube"
+	"flag"
 )
 
-// Record is a trace of what the desired
-// git state was, what steps we took to get there,
-// and whether or not we were successful.
-type Record struct {
-	Refs     kube.Refs `json:"refs"`
-	Commands []Command `json:"commands"`
-	Failed   bool      `json:"failed"`
-}
+// OptionGroup provides an interface which can be implemented by an
+// option handler (e.g. for GitHub or Kubernetes) to support generic
+// option-group handling.
+type OptionGroup interface {
+	// AddFlags injects options into the given FlagSet.
+	AddFlags(fs *flag.FlagSet)
 
-// Command is a trace of a command executed
-// while achieving the desired git state.
-type Command struct {
-	Command string `json:"command"`
-	Output  string `json:"output,omitempty"`
-	Error   string `json:"error,omitempty"`
+	// Validate validates options.
+	Validate(dryRun bool) error
 }
