@@ -36,8 +36,8 @@ set -o pipefail
 #  gcloud-deployer-service-account.sh --interactive
 
 # Globals:
-PROJECT_BUILD="${PROJECT_BUILD:=''}"
-SERVICE_ACCOUNT="${SERVICE_ACCOUNT:='prow-deployer'}"
+PROJECT_BUILD="${PROJECT_BUILD:=}"
+SERVICE_ACCOUNT="${SERVICE_ACCOUNT:=prow-deployer}"
 # PROJECT => "required"
 # DESCRIPTION => "required"
 
