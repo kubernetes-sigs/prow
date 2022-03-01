@@ -1,7 +1,7 @@
 [build]
 base = "site/"
-publish = "site/public/"
-command = "hugo"
+publish = "public/"
+command = "make netlify-build"
 
 [build.environment]
 HUGO_VERSION = "0.91.2"
@@ -11,7 +11,7 @@ HUGO_ENV = "production"
 HUGO_BASEURL = "https://docs.prow.k8s.io/"
 
 [context.deploy-preview]
-command = "hugo --enableGitInfo --buildFuture -b $DEPLOY_PRIME_URL"
+command = "make netlify-deploy-preview"
 
 [context.branch-deploy]
-command = "hugo --enableGitInfo --buildFuture -b $DEPLOY_PRIME_URL"
+command = "make netlify-deploy-preview"
