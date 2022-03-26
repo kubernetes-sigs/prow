@@ -192,3 +192,9 @@ enable = false
   url = "https://groups.google.com/forum/#!forum/kubernetes-sig-testing"
   icon = "fa fa-envelope"
   desc = "Discuss development issues around the project"
+
+# Enable MermaidJS integration.
+[params.mermaid]
+enable = true
+# Allow HTML styling inside MermaidJS diagrams, as well as clickable nodes.
+securityLevel = "loose"

@@ -1,0 +1,19 @@
+/*
+ * Custom CSS. These override the docsy theme's CSS rules.
+ *
+ */
+
+// NOTE(listx): This is a workaround from
+// https://github.com/mermaid-js/mermaid/issues/1984#issuecomment-963280101.
+// Basically mermaidjs currently adds large amounts of whitespace above and
+// below the diagram for tall windows. This fix gets around that by making the
+// height automatically scale.
+//
+// When mermaidjs fixes the linked issue above, and when docsy starts using this
+// new version of mermaidjs, we can drop this workaround.
+.mermaid svg { height: auto; }
+
+// Override artificial constraint on maximum width for mermaid diagrams. Otherwise we get limited to just 80%.
+.td-content pre.mermaid {
+    max-width: 100%;
+}
