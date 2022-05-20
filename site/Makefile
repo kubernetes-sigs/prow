@@ -19,6 +19,7 @@ init-theme:
 
 # Update the "docsy" Hugo theme.
 update-theme: init-theme
+	git submodule update --remote
 	npm update
 
 .PHONY: \
