@@ -2,6 +2,7 @@
 base = "site/"
 publish = "public/"
 command = "make netlify-build"
+ignore = "false"
 
 [build.environment]
 HUGO_VERSION = "0.91.2"
