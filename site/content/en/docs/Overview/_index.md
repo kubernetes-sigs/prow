@@ -1,6 +1,5 @@
 ---
 title: "Overview"
-linkTitle: "Overview"
 weight: 1
 description: >
   A brief guide about Prow and its ecosystem
