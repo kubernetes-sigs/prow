@@ -18,12 +18,10 @@
 set -euo pipefail
 
 # All files to migrate over. These are all *.md files under the "prow/"
-# directory in kubernetes/test-infra.
+# directory in kubernetes/test-infra, except for prow/README.md.
 declare -ra FILES_TO_MIGRATE=(
     prow/ANNOUNCEMENTS.md
-    prow/README.md
     prow/build_test_update.md
-    prow/cmd/README.md
     prow/cmd/branchprotector/README.md
     prow/cmd/checkconfig/README.md
     prow/cmd/clonerefs/README.md
