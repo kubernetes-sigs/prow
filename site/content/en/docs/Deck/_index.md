@@ -51,3 +51,15 @@ Rerunning can also be done on Spyglass:
 ![Example](./spyglass_rerun.png)
 
 This is also available for non github prow if the frontend is secured and [`allow_anyone`](https://github.com/kubernetes/test-infra/blob/95cc9f4b68d0ce5702c3b3e009221de0fe0a482a/prow/apis/prowjobs/v1/types.go#L190-L191) is set to true for the job.
+
+## Abort Prow Job via Prow UI
+
+Aborting a prow job can be done by visiting the prow UI, locate the prow job and abort the job by clicking on the ✕ button, and then clicking `Confirm` button. For prow on github, the permission is controlled by github membership, and configured as part of deck configuration, see [`rerun_auth_configs`](https://github.com/kubernetes/test-infra/blob/0dfe42533307f9733f22d4a6abf08e1df2229fcb/config/prow/config.yaml#L92) for k8s prow. Note, the abort functionality uses the same field as rerun for permissions.
+
+See example below:
+![Example](./prow_abort.png)
+
+Aborting can also be done on Spyglass:
+![Example](./spyglass_abort.png)
+
+This is also available for non github prow if the frontend is secured and [`allow_anyone`](https://github.com/kubernetes/test-infra/blob/95cc9f4b68d0ce5702c3b3e009221de0fe0a482a/prow/apis/prowjobs/v1/types.go#L190-L191) is set to true for the job.
