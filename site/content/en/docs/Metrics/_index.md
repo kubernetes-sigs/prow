@@ -1,3 +1,10 @@
+---
+title: "Metrics"
+weight: 10
+description: >
+  Prometheues metrics that can be used for monitoring and alerting.
+---
+
 # Prometheus Metrics
 
 Some Prow components expose Prometheus metrics that can be used for monitoring
