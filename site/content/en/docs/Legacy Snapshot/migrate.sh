@@ -17,70 +17,20 @@
 
 set -euo pipefail
 
-# All files to migrate over. These are all *.md files under the "prow/"
-# directory in kubernetes/test-infra, except for prow/README.md.
-declare -ra FILES_TO_MIGRATE=(
-    prow/ANNOUNCEMENTS.md
-    prow/build_test_update.md
-    prow/cmd/branchprotector/README.md
-    prow/cmd/checkconfig/README.md
-    prow/cmd/clonerefs/README.md
-    prow/cmd/cm2kc/README.md
-    prow/cmd/config-bootstrapper/README.md
-    prow/cmd/crier/README.md
-    prow/cmd/deck/README.md
-    prow/cmd/deck/csrf.md
-    prow/cmd/deck/github_oauth_setup.md
-    prow/cmd/entrypoint/README.md
-    prow/cmd/exporter/README.md
-    prow/cmd/gcsupload/README.md
-    prow/cmd/generic-autobumper/README.md
-    prow/cmd/gerrit/README.md
-    prow/cmd/hmac/README.md
-    prow/cmd/initupload/README.md
-    prow/cmd/invitations-accepter/README.md
-    prow/cmd/jenkins-operator/README.md
-    prow/cmd/peribolos/README.md
-    prow/cmd/phaino/README.md
-    prow/cmd/phony/README.md
-    prow/cmd/prow-controller-manager/README.md
-    prow/cmd/sidecar/README.md
-    prow/cmd/status-reconciler/README.md
-    prow/cmd/sub/README.md
-    prow/cmd/tide/README.md
-    prow/cmd/tide/config.md
-    prow/cmd/tide/maintainers.md
-    prow/cmd/tide/pr-authors.md
-    prow/cmd/tot/fallbackcheck/README.md
-    prow/config/README.md
-    prow/external-plugins/cherrypicker/README.md
-    prow/gerrit/README.md
-    prow/getting_started_deploy.md
-    prow/getting_started_develop.md
-    prow/github/README.md
-    prow/inrepoconfig.md
-    prow/jobs.md
-    prow/life_of_a_prow_job.md
-    prow/metadata_artifacts.md
-    prow/metrics/README.md
-    prow/more_prow.md
-    prow/plank/README.md
-    prow/plugins/README.md
-    prow/plugins/approve/approvers/README.md
-    prow/plugins/branchcleaner/README.md
-    prow/plugins/lgtm/README.md
-    prow/plugins/updateconfig/README.md
-    prow/pod-utilities.md
-    prow/private_deck.md
-    prow/prow_secrets.md
-    prow/scaling.md
-    prow/spyglass/README.md
-    prow/spyglass/architecture.md
-    prow/spyglass/lenses/restcoverage/README.md
-    prow/spyglass/write-a-lens.md
-    prow/test/integration/README.md
-    prow/test/integration/cmd/fakegitserver/README.md
-)
+SCRIPT_ROOT="$(cd "$(dirname "$0")" && pwd)"
+
+declare -a FILES_TO_MIGRATE=()
+
+# Find all files to migrate over. These are all *.md files under the "prow/"
+# directory in kubernetes/test-infra.
+function identify_files_to_migrate() {
+    local test_infra_path
+    test_infra_path="${1}"
+
+    >/dev/null pushd "${test_infra_path}"
+    find prow -type f -name \*.md | sort
+    >/dev/null popd
+}
 
 function migrate() {
     local test_infra_path
@@ -115,6 +65,7 @@ function main() {
         echo >&2 "Usage: $0 [kubernetes/test-infra directory]"
     fi
 
+    mapfile -t FILES_TO_MIGRATE < <(identify_files_to_migrate "${1}")
     migrate "${1}"
 }
 
