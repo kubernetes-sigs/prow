@@ -193,7 +193,7 @@ directories, which is usually what you want in this context.
 Fragment URLs (the part after the `#`) are supported fairly transparently, despite being in an iframe.
 The parent page muxes all the lens's fragments and ensures that if the page is loaded, each lens
 receives the fragment it expects. Changing your fragment will automatically update the parent page's
-fragment. If the fragment matches the ID or name of an element, the page will scroll such that
+fragment. If the fragment matches the ID or name of an element, the page will scroll such that that
 element is visible.  
 
 Anchor links (`<a href="#something">`) would usually not work well in conjunction with the `<base>`
