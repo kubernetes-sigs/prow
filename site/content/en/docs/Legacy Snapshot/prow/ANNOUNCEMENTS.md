@@ -7,6 +7,13 @@ title: "prow/ANNOUNCEMENTS.md"
 ## New features
 
 New features added to each component:
+  - *August 4, 2022* override plugin will now override checkruns set by GitHub Actions and other CI
+    systems on a PR.
+  - *June 8, 2022* `deck.rerun_auth_configs` can optionally be replaced with
+    `deck.default_rerun_auth_configs` which supports a new format
+    that is a slice of filters with associated rerun auth configs rather than a
+    map. Currently entries can filter by repo and/or cluster. The old field is still
+    supported and will not be deprecated.
   - *April 6, 2022* Highlight and pin interesting lines. To do this,
     shift-click on log lines in the buildlog lens. The URL fragment
     causes the same lines to be highlighted next page load. Additionally,
@@ -192,6 +199,12 @@ state and no claims of backwards compatibility are made for any external API.
 Note: versions specified in these announcements may not include bug fixes made
 in more recent versions so it is recommended that the most recent versions are
 used when updating deployments.
+ - *August 24th, 2022* Deck by default validating storage buckets, can still opt
+   out by setting `deck.skip_storage_path_validation: true` in your Prow config.
+   Buckets specified in job configs (`<job>.gcs_configuration.bucket`) and plank
+   configs (`plank.default_decoration_configs[*].gcs_configuration.bucket`) are
+   automatically allowed access. Additional buckets can be allowed by adding
+   them to the `deck.additional_allowed_buckets` list.
  - *May 27th, 2022* Crier flags `--gcs-workers` and `--kubernetes-gcs-workers` are
    removed in favor of `--blob-storage-workers` and `--kubernetes-blob-storage-workers`.
  - *May 27th, 2022* The `owners_dir_blacklist` field in prow config is removed

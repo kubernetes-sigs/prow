@@ -18,7 +18,7 @@ Related Issues:
 3. #10699: Unify *.json structures, was partially covered as part of #10703
 
 ## Format Source of Truth
-There has not been a consistent source of truth for the format of these two files, which has caused issues. From discussion in the community it seems that the [TestGrid job definition](https://github.com/GoogleCloudPlatform/testgrid/blob/master/metadata/job.go).
+There has not been a consistent source of truth for the format of these two files, which has caused issues. From discussion in the community it seems that the the [TestGrid job definition](https://github.com/GoogleCloudPlatform/testgrid/blob/master/metadata/job.go).
 
 ## Current Standards
 There are currently different flavors of data format depending on if the job is Bootstrap or PodUtils. Ex of differences:
