@@ -9,7 +9,7 @@ weight: 100
 ## Legacy Snapshot
 
 Due to historical reasons, almost all of Prow's documentation resides in the
-[kubernetes/test-infra](k/t-i) ("k/t-i") repo. As part of the [migration
+[kubernetes/test-infra][k/t-i] ("k/t-i") repo. As part of the [migration
 effort](https://github.com/kubernetes-sigs/prow/issues/4), this page captures
 Prow documentation in the [k/t-i][] repository as of [October
 25,

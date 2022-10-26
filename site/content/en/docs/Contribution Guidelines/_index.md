@@ -37,7 +37,7 @@ engine. You write the pages in Markdown (or HTML if you want), and Hugo wraps th
 
 * [Docsy user guide](https://www.docsy.dev/docs/): All about Docsy (the Hugo theme used on this site).
 
-[k/t-i/prow]:https://github.com/kubernetes/test-infra/prow
+[k/t-i/prow]:https://github.com/kubernetes/test-infra/tree/master/prow
 [k-s/prow]:https://github.com/kubernetes-sigs/prow
 [l-s]:{{< relref "../Legacy Snapshot" >}}
 [orig-freeze]:https://github.com/kubernetes/test-infra/pull/26458

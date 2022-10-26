@@ -4,10 +4,10 @@ title: "prow/jobs.md"
 
 # ProwJobs
 
-For a brief overview of how Prow runs jobs take a look at ["Life of a Prow Job"](/prow/life_of_a_prow_job.md).
+For a brief overview of how Prow runs jobs take a look at ["Life of a Prow Job"](https://github.com/kubernetes/test-infra/tree/master/prow/life_of_a_prow_job.md).
 
 For a brief cookbook for jobs intended for [prow.k8s.io](https://prow.k8s.io/), please refer to
-[`config/jobs/README.md`](/config/jobs/README.md)
+[`config/jobs/README.md`](https://github.com/kubernetes/test-infra/tree/master/config/jobs/README.md)
 
 Make sure Prow has been [deployed] correctly:
 
@@ -20,15 +20,15 @@ Make sure Prow has been [deployed] correctly:
 
 ## How to configure new jobs
 
-To configure a new job you'll need to add an entry into [config.yaml](/config/prow/config.yaml).
-If you have [update-config](/prow/plugins/updateconfig) plugin deployed then the
+To configure a new job you'll need to add an entry into [config.yaml](https://github.com/kubernetes/test-infra/tree/master/config/prow/config.yaml).
+If you have [update-config](https://github.com/kubernetes/test-infra/tree/master/prow/plugins/updateconfig) plugin deployed then the
 config will be automatically updated once the PR is merged, else you will need
 to run `make update-config`. This does not require redeploying any binaries,
 and will take effect within a few minutes.
 
-Alternatively, the [inrepoconfig](/prow/inrepoconfig.md) feature can be used to version Presubmit jobs
+Alternatively, the [inrepoconfig](https://github.com/kubernetes/test-infra/tree/master/prow/inrepoconfig.md) feature can be used to version Presubmit jobs
 in the same repository that also contains the code and have Prow load them dynamically.
-See [its documentation](/prow/inrepoconfig.md) for more details.
+See [its documentation](https://github.com/kubernetes/test-infra/tree/master/prow/inrepoconfig.md) for more details.
 
 Prow requires you to have a basic understanding of kubernetes, such
 that you can define pods in yaml.  Please see kubernetes documentation
@@ -299,11 +299,11 @@ postsubmits:
     ...
 ```
 
-You can learn more about creating and using build clusters in [`scaling.md`](scaling.md#separate-build-clusters) and [`getting_started_deploy.md`](getting_started_deploy.md#Run-test-pods-in-different-clusters).
+You can learn more about creating and using build clusters in [`scaling.md`](https://github.com/kubernetes/test-infra/tree/master/prow/scaling.md#separate-build-clusters) and [`getting_started_deploy.md`](https://github.com/kubernetes/test-infra/tree/master/prow/getting_started_deploy.md#Run-test-pods-in-different-clusters).
 
 ## Pod Utilities
 
-If you are adding a new job that will execute on a Kubernetes cluster (`agent: kubernetes`, the default value) you should consider using the [Pod Utilities](/prow/pod-utilities.md). The pod utils decorate jobs with additional containers that transparently provide source code checkout and log/metadata/artifact uploading to GCS.
+If you are adding a new job that will execute on a Kubernetes cluster (`agent: kubernetes`, the default value) you should consider using the [Pod Utilities](https://github.com/kubernetes/test-infra/tree/master/prow/pod-utilities.md). The pod utils decorate jobs with additional containers that transparently provide source code checkout and log/metadata/artifact uploading to GCS.
 
 ## Job Environment Variables
 
@@ -354,7 +354,7 @@ Batch Job:
 
 ## Testing a new job
 
-See ["How to test a ProwJob"](/prow/build_test_update.md#How-to-test-a-ProwJob).
+See ["How to test a ProwJob"](https://github.com/kubernetes/test-infra/tree/master/prow/build_test_update.md#How-to-test-a-ProwJob).
 
 ## Badges
 
@@ -365,8 +365,8 @@ The format to send your `deck` URL is `/badge.svg?jobs=single-job-name` or `/bad
 <!-- links -->
 
 [Pod overview]: https://kubernetes.io/docs/concepts/workloads/pods/pod-overview/#pod-templates
-[PodSpec api reference]: https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.16/#podspec-v1-core
+[PodSpec api reference]: https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#podspec-v1-core
 [`Presets`]: https://github.com/kubernetes/test-infra/blob/3afb608d28630b99e49e09dd101a96c201268739/prow/config/jobs.go#L33-L40
-[`plugins.yaml`]: /config/prow/plugins.yaml
+[`plugins.yaml`]: https://github.com/kubernetes/test-infra/tree/master/config/prow/plugins.yaml
 [deployed]: https://github.com/kubernetes/test-infra/blob/master/prow/getting_started_deploy.md
 [regular expression]: https://golang.org/pkg/regexp/syntax/
