@@ -195,16 +195,16 @@ This will build an image with your local changes, push it to `<YOUR_REGISTRY>`
 
 ### Deploy cronjob to production
 
-[branchprotector image](gcr.io/k8s-prow/branchprotector) is automatically built
+[branchprotector image](https://gcr.io/k8s-prow/branchprotector) is automatically built
 as part of prow, see
-[build_test_update.md#how-to-update-the-cluster](/prow/build_test_update.md#how-to-update-the-cluster)
+[build_test_update.md#how-to-update-the-cluster](https://github.com/kubernetes/test-infra/tree/master/prow/build_test_update.md#how-to-update-the-cluster)
 for more details.
 
 Branchprotector runs as a prow periodic job, for example
 [ci-test-infra-branchprotector](https://github.com/kubernetes/test-infra/blob/6155b657d8958e60e6767be6569863e4dd08c413/config/jobs/kubernetes/test-infra/test-infra-trusted.yaml#L662).
 
-[`branch_protection.go`]: /prow/config/branch_protection.go
-[`config.yaml`]: /config/prow/config.yaml
-[github branch protection]: https://help.github.com/articles/about-protected-branches/
+[`branch_protection.go`]: https://github.com/kubernetes/test-infra/tree/master/prow/config/branch_protection.go
+[`config.yaml`]: https://github.com/kubernetes/test-infra/tree/master/config/prow/config.yaml
+[github branch protection]: https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/defining-the-mergeability-of-pull-requests/about-protected-branches
 [status contexts]: https://developer.github.com/v3/repos/statuses/#create-a-status
 [protection api]: https://developer.github.com/v3/repos/branches/#update-branch-protection

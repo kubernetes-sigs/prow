@@ -29,9 +29,9 @@ $ go run ./prow/cmd/prow-controller-manager --help
 
 ### Configuration
 
-* [Deployment manifest](/config/prow/cluster/prow_controller_manager_deployment.yaml)
-* [RBAC manifest](/config/prow/cluster/prow_controller_manager_rbac.yaml)
+* [Deployment manifest](https://github.com/kubernetes/test-infra/tree/master/config/prow/cluster/prow_controller_manager_deployment.yaml)
+* [RBAC manifest](https://github.com/kubernetes/test-infra/tree/master/config/prow/cluster/prow_controller_manager_rbac.yaml)
 
-[Plank]: /prow/plank
-[Sinker]: /prow/cmd/sinker
-[Crier]: /prow/cmd/crier
+[Plank]: https://github.com/kubernetes/test-infra/tree/master/prow/plank
+[Sinker]: https://github.com/kubernetes/test-infra/tree/master/prow/cmd/sinker
+[Crier]: https://github.com/kubernetes/test-infra/tree/master/prow/cmd/crier

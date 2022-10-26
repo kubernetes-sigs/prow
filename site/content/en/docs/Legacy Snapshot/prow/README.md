@@ -2,7 +2,7 @@
 title: "prow/README.md"
 ---
 
-# ![Prow](logo_horizontal_solid.png)
+# ![Prow](https://github.com/kubernetes/test-infra/tree/master/prow/logo_horizontal_solid.png)
 
 Prow is a Kubernetes based CI/CD system. Jobs can be triggered by various types of events and report their status to many different services. In addition to job execution, Prow provides GitHub automation in the form of policy enforcement, chat-ops via `/foo` style commands, and automatic PR merging.
 
@@ -10,7 +10,7 @@ See the [GoDoc](https://godoc.org/k8s.io/test-infra/prow) for library docs.
 Please note that these libraries are intended for use by prow only, and we do
 not make any attempt to preserve backwards compatibility.
 
-For a brief overview of how Prow runs jobs take a look at ["Life of a Prow Job"](/prow/life_of_a_prow_job.md).
+For a brief overview of how Prow runs jobs take a look at ["Life of a Prow Job"](https://github.com/kubernetes/test-infra/tree/master/prow/life_of_a_prow_job.md).
 
 To see common Prow usage and interactions flow, see the pull request interactions [sequence diagram](https://raw.githubusercontent.com/kubernetes/test-infra/master/prow/docs/pr-interactions-sequence.svg?sanitize=true).
 
@@ -33,29 +33,29 @@ To see common Prow usage and interactions flow, see the pull request interaction
 
 ### Getting started
 
-* With your own Prow deployment: [`getting_started_deploy.md`](/prow/getting_started_deploy.md)
-* With developing for Prow: [`getting_started_develop.md`](/prow/getting_started_develop.md)
-* As a job author: [`jobs.md`](/prow/jobs.md)
+* With your own Prow deployment: [`getting_started_deploy.md`](https://github.com/kubernetes/test-infra/tree/master/prow/getting_started_deploy.md)
+* With developing for Prow: [`getting_started_develop.md`](https://github.com/kubernetes/test-infra/tree/master/prow/getting_started_develop.md)
+* As a job author: [`jobs.md`](https://github.com/kubernetes/test-infra/tree/master/prow/jobs.md)
 
 ### More details
-- [Components](/prow/cmd/README.md)
-- [Plugins](/prow/plugins/README.md)
-- [ProwJobs](/prow/jobs.md)
-- [Building, Testing, and Updating](/prow/build_test_update.md)
-- [General Configuration](/prow/config/README.md)
-- [Pod Utilities](/prow/pod-utilities.md)
-- [Scaling Prow](/prow/scaling.md)
-- [Tide](/prow/cmd/tide/README.md)
-- [Metrics](/prow/metrics/README.md)
-- ["Life of a Prow Job"](/prow/life_of_a_prow_job.md)
-- [Getting more out of Prow](/prow/more_prow.md)
+- [Components](https://github.com/kubernetes/test-infra/tree/master/prow/cmd/README.md)
+- [Plugins](https://github.com/kubernetes/test-infra/tree/master/prow/plugins/README.md)
+- [ProwJobs](https://github.com/kubernetes/test-infra/tree/master/prow/jobs.md)
+- [Building, Testing, and Updating](https://github.com/kubernetes/test-infra/tree/master/prow/build_test_update.md)
+- [General Configuration](https://github.com/kubernetes/test-infra/tree/master/prow/config/README.md)
+- [Pod Utilities](https://github.com/kubernetes/test-infra/tree/master/prow/pod-utilities.md)
+- [Scaling Prow](https://github.com/kubernetes/test-infra/tree/master/prow/scaling.md)
+- [Tide](https://github.com/kubernetes/test-infra/tree/master/prow/cmd/tide/README.md)
+- [Metrics](https://github.com/kubernetes/test-infra/tree/master/prow/metrics/README.md)
+- ["Life of a Prow Job"](https://github.com/kubernetes/test-infra/tree/master/prow/life_of_a_prow_job.md)
+- [Getting more out of Prow](https://github.com/kubernetes/test-infra/tree/master/prow/more_prow.md)
 
 ### Tests
 
 The stability of prow is heavily relying on unit tests and integration tests.
 
 * Unit tests are co-located with prow source code
-* [Integration tests](./test/integration) utilizes [kind](https://kind.sigs.k8s.io/) with hermetic integration tests. See [instructions for adding new integration tests](./test/integration#add-new-integration-tests) for more details
+* [Integration tests](https://github.com/kubernetes/test-infra/tree/master/prow/test/integration) utilizes [kind](https://kind.sigs.k8s.io/) with hermetic integration tests. See [instructions for adding new integration tests](https://github.com/kubernetes/test-infra/tree/master/prow/test/integration#add-new-integration-tests) for more details
 
 ## Useful Talks
 
@@ -122,7 +122,7 @@ Prow is used by the following organizations and projects:
 If you need to contact the maintainers of Prow you have a few options:
 1. Open an issue in the [kubernetes/test-infra](https://github.com/kubernetes/test-infra) repo.
 1. Reach out to the `#prow` channel of the [Kubernetes Slack](https://github.com/kubernetes/community/tree/master/communication#social-media).
-1. Contact one of the code owners in [prow/OWNERS](/prow/OWNERS) or in a more specifically scoped OWNERS file.
+1. Contact one of the code owners in [prow/OWNERS](https://github.com/kubernetes/test-infra/tree/master/prow/OWNERS) or in a more specifically scoped OWNERS file.
 
 ### Bots home
 [@k8s-ci-robot](https://github.com/k8s-ci-robot) lives here and is the face of the Kubernetes Prow instance. Here is a [command list](https://go.k8s.io/bot-commands) for interacting with @k8s-ci-robot and other Prow bots.

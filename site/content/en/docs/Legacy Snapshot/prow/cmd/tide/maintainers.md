@@ -22,4 +22,4 @@ title: "prow/cmd/tide/maintainers.md"
 
 ## Other resources
 
-- [Configuring Tide](/prow/cmd/tide/config.md)
+- [Configuring Tide](https://github.com/kubernetes/test-infra/tree/master/prow/cmd/tide/config.md)

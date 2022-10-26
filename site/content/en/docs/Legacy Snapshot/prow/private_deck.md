@@ -81,7 +81,7 @@ data:
   cookieSecret: ...
 ```
 
-For more information on how to make these secrets take a look at the [Secrets Documentation](/prow/prow_secrets.md)
+For more information on how to make these secrets take a look at the [Secrets Documentation](https://github.com/kubernetes/test-infra/tree/master/prow/prow_secrets.md)
 
 ## 4 [User] Create the new Deck Deployment
 

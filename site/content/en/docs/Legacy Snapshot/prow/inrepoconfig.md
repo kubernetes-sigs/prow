@@ -121,4 +121,4 @@ a large number of jobs and allows fine-grained OWNERS control on them.
 
 The `.prow` directory and `.prow.yaml` file are mutually exclusive; when both are present the `.prow` directory takes precedence.
 
-For more detailed documentation of possible configuration parameters for jobs, please check the [job documentation](/prow/jobs.md)
+For more detailed documentation of possible configuration parameters for jobs, please check the [job documentation](https://github.com/kubernetes/test-infra/tree/master/prow/jobs.md)

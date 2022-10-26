@@ -19,12 +19,12 @@ https://github.com/external-secrets/kubernetes-external-secrets#backends_
 This is performed by prow service/build clusters maintainer.
 
 1. In the cluster that the secrets are synced to, enable workload identity by
-   following [`workload-identity`](/workload-identity/README.md).
+   following [`workload-identity`](https://github.com/kubernetes/test-infra/tree/master/workload-identity/README.md).
 1. Deploy `kubernetes-external-secrets_crd.yaml`,
    `kubernetes-external-secrets_deployment.yaml`,
    `kubernetes-external-secrets_rbac.yaml`,
    and  `kubernetes-external-secrets_service.yaml` under
-   [`config/prow/cluster`](/config/prow/cluster). The deployment file assumes
+   [`config/prow/cluster`](https://github.com/kubernetes/test-infra/tree/master/config/prow/cluster). The deployment file assumes
    using the same service account name as used in step #1
 2. [Optional but recommended] Create postsubmit deploy job for managing the
    deployment, for example
@@ -53,7 +53,7 @@ where the prow service/build clusters are located.
    cluster) is defined in
    [`build_serviceaccounts.yaml`](https://github.com/kubernetes/test-infra/blob/422fd7239bd65aba020adca54948df292c60c10a/config/prow/cluster/build_serviceaccounts.yaml#L43),
    and the secrets are defined in
-   [`build_kubernetes-external-secrets_customresource.yaml`](https://github.com/kubernetes/test-infra/blob/master/config/prow/cluster/build_kubernetes-external-secrets_customresource.yaml).
+   [`build_kubernetes-external-secrets_customresource.yaml`](https://github.com/kubernetes/test-infra/blob/master/config/prow/cluster/build/build_kubernetes-external-secrets_customresource.yaml).
 
 2. Create secret in google secret manager
 3. Create kubernetes external secrets custom resource by:
