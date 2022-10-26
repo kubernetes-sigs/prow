@@ -192,10 +192,10 @@ kubectl create secret -n prow generic github-token --from-file=cert=/path/to/git
 
 ### Update the sample manifest
 
-There are two sample manifests to get you started:
-* [`starter-s3.yaml`](/config/prow/cluster/starter/starter-s3.yaml) sets up a minio as blob storage for logs and is particularly well suited to quickly get something working. NOTE: this method requires 2 PVs of 100Gi each.
-* [`starter-gcs.yaml`](/config/prow/cluster/starter/starter-gcs.yaml) uses GCS as blob storage and requires additional configuration to set up the bucket and ServiceAccounts. See [this](#configure-a-gcs-bucket) for details.
-* [`starter-azure.yaml`](/config/prow/cluster/starter/starter-azure.yaml) uses Azure as blob storage and requires MinIO deployment. See [this](#configure-an-azure-blob-storage) for details.
+There are three sample manifests to get you started:
+* [`starter-s3.yaml`](https://github.com/kubernetes/test-infra/tree/master/config/prow/cluster/starter/starter-s3.yaml) sets up a minio as blob storage for logs and is particularly well suited to quickly get something working. NOTE: this method requires 2 PVs of 100Gi each.
+* [`starter-gcs.yaml`](https://github.com/kubernetes/test-infra/tree/master/config/prow/cluster/starter/starter-gcs.yaml) uses GCS as blob storage and requires additional configuration to set up the bucket and ServiceAccounts. See [this](#configure-a-gcs-bucket) for details.
+* [`starter-azure.yaml`](https://github.com/kubernetes/test-infra/tree/master/config/prow/cluster/starter/starter-azure.yaml) uses Azure as blob storage and requires MinIO deployment. See [this](#configure-an-azure-blob-storage) for details.
 
 **Note**: It will deploy prow in the `prow` namespace of the cluster.
 
@@ -341,13 +341,13 @@ In order to configure the Azure storage, follow the following steps:
     - `prow-logs`
     - `status-reconciler`
     - `tide`
-1. apply [starter-azure.yaml](../config/prow/cluster/starter/starter-azure.yaml).
+1. apply [starter-azure.yaml](https://github.com/kubernetes/test-infra/tree/master/config/prow/cluster/starter/starter-azure.yaml).
 
 ### Configure a GCS bucket
 
 > If you want to persist logs and output in GCS, you need to follow the steps below.
 
-When configuring Prow jobs to use the [Pod utilities](./pod-utilities.md)
+When configuring Prow jobs to use the [Pod utilities](https://github.com/kubernetes/test-infra/tree/master/prow/pod-utilities.md)
 with `decorate: true`, job metadata, logs, and artifacts will be uploaded
 to a GCS bucket in order to persist results from tests and allow for the
 job overview page to load those results at a later point. In order to run
@@ -363,7 +363,7 @@ In order to configure the bucket, follow the following steps:
 1. [grant access](https://cloud.google.com/storage/docs/access-control/using-iam-permissions) to admin the bucket for the service account
 - Either use a Kubernetes service account bound to the GCP service account (recommended on GKE):
     1. Create a Kubernetes service account in the namespace where jobs will run.
-    1. [Bind](/workload-identity#overview) the Kubernetes service account to the GCP service account.
+    1. [Bind](https://github.com/kubernetes/test-infra/tree/master/workload-identity#overview) the Kubernetes service account to the GCP service account.
     1. edit the `plank` configuration for `default_decoration_config_entries[].config.default_service_account_name` to point to the Kubernetes service account.
 - OR use a GCP service account key file:
     1. [serialize](https://cloud.google.com/iam/docs/creating-managing-service-account-keys) a key for the service account
@@ -373,7 +373,7 @@ In order to configure the bucket, follow the following steps:
 After [downloading](https://cloud.google.com/sdk/gcloud/) the `gcloud` tool and authenticating,
 the following collection of commands will execute the above steps for you:
 
-> You will need to change the bucket name from `gs://your-bucket-name/` to a globally unique one and use that instead in [`starter-gcs.yaml`](/config/prow/cluster/starter/starter-gcs.yaml) too.
+> You will need to change the bucket name from `gs://your-bucket-name/` to a globally unique one and use that instead in [`starter-gcs.yaml`](https://github.com/kubernetes/test-infra/tree/master/config/prow/cluster/starter/starter-gcs.yaml) too.
 
 ```sh
 $ gcloud iam service-accounts create prow-gcs-publisher
@@ -396,7 +396,7 @@ v20191108-08fbf64ac
 ```
 Then, we can use that tag to retrieve the corresponding utility images in `default_decoration_config_entries[]` in `config.yaml`:
 
-For more information on how the pod utility images for prow are versioned see [generic-autobumper](/prow/cmd/generic-autobumper/README.md) and the [autobump config used for prow.k8s.io](/config/prow/autobump-config/prow-component-autobump-config.yaml)
+For more information on how the pod utility images for prow are versioned see [generic-autobumper](https://github.com/kubernetes/test-infra/tree/master/prow/cmd/generic-autobumper/README.md) and the [autobump config used for prow.k8s.io](https://github.com/kubernetes/test-infra/tree/master/config/prow/autobump-config/prow-component-autobump-config.yaml)
 
 ```yaml
 plank:
@@ -416,7 +416,7 @@ plank:
 ### Adding more jobs
 
 There are two ways to configure jobs:
-* Using the [inrepoconfig](/prow/inrepoconfig.md) feature to configure jobs inside the repo under test
+* Using the [inrepoconfig](https://github.com/kubernetes/test-infra/tree/master/prow/inrepoconfig.md) feature to configure jobs inside the repo under test
 * Using the static config by editing the `config` configmap, some samples below:
 
 Add the following to `config.yaml`:
@@ -482,7 +482,7 @@ the change within a few minutes.
 
 When you push or merge a new change to the git repo, the postsubmit job will run.
 
-For more information on the job environment, see [`jobs.md`](/prow/jobs.md)
+For more information on the job environment, see [`jobs.md`](https://github.com/kubernetes/test-infra/tree/master/prow/jobs.md)
 
 ### Run test pods in different clusters
 
@@ -490,7 +490,7 @@ You may choose to run test pods in a separate cluster entirely. This is a good p
 One can use a Kubernetes [`kubeconfig`](https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/) file (i.e. `Config` object) to instruct Prow components to use the *build* cluster(s).
 All contexts in `kubeconfig` are used as *build* clusters and the [`InClusterConfig`](https://kubernetes.io/docs/tasks/access-application-cluster/access-cluster/#accessing-the-api-from-a-pod) (or `current-context`) is the *default*.
 
-NOTE: See the [`create-build-cluster.sh` script](create-build-cluster.sh) to help you quickly create and register a GKE cluster as a build cluster for a Prow instance. Continue reading for information about registering a build cluster by hand.
+NOTE: See the [`create-build-cluster.sh` script](https://github.com/kubernetes/test-infra/tree/master/prow/create-build-cluster.sh) to help you quickly create and register a GKE cluster as a build cluster for a Prow instance. Continue reading for information about registering a build cluster by hand.
 
 Create a secret containing a `kubeconfig` like this:
 
@@ -651,14 +651,14 @@ a separate namespace.
 
 ## Further reading
 
-* [Developing for Prow](/prow/getting_started_develop.md)
-* [Getting more out of Prow](/prow/more_prow.md)
+* [Developing for Prow](https://github.com/kubernetes/test-infra/tree/master/prow/getting_started_develop.md)
+* [Getting more out of Prow](https://github.com/kubernetes/test-infra/tree/master/prow/more_prow.md)
 
 [1]: https://github.com/settings/tokens
-[2]: /prow/jobs.md#How-to-configure-new-jobs
+[2]: https://github.com/kubernetes/test-infra/tree/master/prow/jobs.md#How-to-configure-new-jobs
 [3]: https://github.com/jetstack/cert-manager
 [4]: https://kubernetes.io/docs/concepts/services-networking/ingress/#tls
-[5]: /gencred/
-[6]: /prow/cmd/tide/README.md
-[7]: /prow/cmd/tide/config.md
+[5]: https://github.com/kubernetes/test-infra/tree/master/gencred/
+[6]: https://github.com/kubernetes/test-infra/tree/master/prow/cmd/tide/README.md
+[7]: https://github.com/kubernetes/test-infra/tree/master/prow/cmd/tide/config.md
 [8]: https://github.com/kubernetes/test-infra/blob/master/prow/scaling.md#working-around-githubs-limited-acls

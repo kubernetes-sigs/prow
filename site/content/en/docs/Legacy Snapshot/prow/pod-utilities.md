@@ -14,12 +14,12 @@ These utilities are integrated into a test run by adding `InitContainer`s and si
 to the user-provided `PodSpec`, as well as by overwriting the `Container` entrypoint for the test
 `Container` provided by the user. The following utilities exist today:
 
- - [`clonerefs`](./cmd/clonerefs/README.md): clones source code under test
- - [`initupload`](./cmd/initupload/README.md): records the beginning of a test in cloud storage
+ - [`clonerefs`](https://github.com/kubernetes/test-infra/tree/master/prow/cmd/clonerefs/README.md): clones source code under test
+ - [`initupload`](https://github.com/kubernetes/test-infra/tree/master/prow/cmd/initupload/README.md): records the beginning of a test in cloud storage
    and reports the status of the clone operations
- - [`entrypoint`](./cmd/entrypoint/README.md): is injected into the test `Container`, wraps the
+ - [`entrypoint`](https://github.com/kubernetes/test-infra/tree/master/prow/cmd/entrypoint/README.md): is injected into the test `Container`, wraps the
    test code to capture logs and exit status
- - [`sidecar`](./cmd/sidecar/README.md): runs alongside the test `Container`, uploads status, logs
+ - [`sidecar`](https://github.com/kubernetes/test-infra/tree/master/prow/cmd/sidecar/README.md): runs alongside the test `Container`, uploads status, logs
    and test artifacts to cloud storage once the test is finished
 
 ### Why use Pod Utilities?
@@ -28,7 +28,7 @@ Writing a ProwJob that uses the Pod Utilities is much easier than writing one
 that doesn't because the Pod Utilities will transparently handle many of the
 tasks the job would otherwise need to do in order to prepare its environment
 and output more than pass/fail. Historically, this was achieved by wrapping
-every job with a [bootstrap.py](/jenkins/bootstrap.py) script that handled cloning
+every job with a [bootstrap.py](https://github.com/kubernetes/test-infra/tree/master/jenkins/bootstrap.py) script that handled cloning
 source code, preparing the test environment, and uploading job metadata, logs,
 and artifacts. This was cumbersome to configure and required every job to be
 wrapped with the script in the job image. The pod utilities achieve the same goals
@@ -66,7 +66,7 @@ dumped for automatic upload to GCS upon job completion.
 ### How to configure
 
 In order to use the pod utilities, you will need to configure plank with some settings first.
-See plank's [README](/prow/plank) for reference.
+See plank's [README](https://github.com/kubernetes/test-infra/tree/master/prow/plank) for reference.
 
 ProwJobs may request Pod Utility decoration by setting `decorate: true` in their config.
 Example ProwJob configuration:
@@ -127,7 +127,7 @@ the `exta_refs` field. If the cloned path of this repo must be used as a default
 
 ### Migrating from bootstrap.py to Pod Utilities
 
-Jobs using the deprecated [bootstrap.py](/jenkins/bootstrap.py) should switch to the Pod Utilities at
+Jobs using the deprecated [bootstrap.py](https://github.com/kubernetes/test-infra/tree/master/jenkins/bootstrap.py) should switch to the Pod Utilities at
 their earliest convenience. @dims has created a handy [migration guide](https://gist.github.com/dims/c1296f8ed42238baea0a5fcae45f4cf4).
 
 ## Automatic Censoring of Secret Data

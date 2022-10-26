@@ -4,7 +4,7 @@ title: "prow/build_test_update.md"
 
 # Building, Testing, and Updating Prow
 
-This guide is directed at Prow developers and maintainers who want to build/test individual components or deploy changes to an existing Prow cluster. [`getting_started_deploy.md`](/prow/getting_started_deploy.md) is a better reference for deploying a new Prow cluster.
+This guide is directed at Prow developers and maintainers who want to build/test individual components or deploy changes to an existing Prow cluster. [`getting_started_deploy.md`](https://github.com/kubernetes/test-infra/tree/master/prow/getting_started_deploy.md) is a better reference for deploying a new Prow cluster.
 
 ## How to build and test Prow
 
@@ -22,7 +22,7 @@ Unit test with:
 ```shell
 make test
 ```
-Integration test with([more details](./test/integration)):
+Integration test with([more details](https://github.com/kubernetes/test-infra/tree/master/prow/test/integration)):
 ```shell
 ./prow/test/integration/integration-test.sh
 ```
@@ -32,11 +32,11 @@ go build ./prow/cmd/hook
 go test ./prow/plugins/lgtm
 ```
 (Note: `deck` depends on non-go static files, these were tested by integration
-tests, and for e2e test use [`runlocal`](/prow/cmd/deck/runlocal) if desired.)
+tests, and for e2e test use [`runlocal`](https://github.com/kubernetes/test-infra/tree/master/prow/cmd/deck/runlocal) if desired.)
 
 ### How to test a plugin
 
-If you are making changes to a Prow plugin you can test the new behavior by sending fake webhooks to [`hook`](/prow/cmd/hook) with [`phony`](/prow/cmd/phony#phony).
+If you are making changes to a Prow plugin you can test the new behavior by sending fake webhooks to [`hook`](https://github.com/kubernetes/test-infra/tree/master/prow/cmd/hook) with [`phony`](https://github.com/kubernetes/test-infra/tree/master/prow/cmd/phony#phony).
 
 ## How to update the cluster
 
@@ -48,11 +48,11 @@ all prow instances:
 1. [`post-test-infra-push-prow`](https://github.com/kubernetes/test-infra/blob/e7ff9e7ad8a395bc246c4bc38610d4d57d3b011c/config/jobs/kubernetes/test-infra/test-infra-trusted.yaml#L191)
    is automatically triggered, can be found on
    [prow.k8s.io](https://prow.k8s.io?job=post-test-infra-push-prow), which
-   pushes images to [gcr.io/k8s-prow](gcr.io/k8s-prow).
+   pushes images to [gcr.io/k8s-prow](https://gcr.io/k8s-prow).
 1. Periodic job
    [`ci-test-infra-autobump-prow`](https://github.com/kubernetes/test-infra/blob/e7ff9e7ad8a395bc246c4bc38610d4d57d3b011c/config/jobs/kubernetes/test-infra/test-infra-trusted.yaml#L588)
    runs every hour, looking for latest image tags from
-   [gcr.io/k8s-prow](gcr.io/k8s-prow), and creates a PR
+   [gcr.io/k8s-prow](https://gcr.io/k8s-prow), and creates a PR
    ([example](https://github.com/kubernetes/test-infra/pull/25571)) to let prow
    use the latest tag.
 1. Once the periodic job is merged,
@@ -114,7 +114,7 @@ The ProwJob must use `agent: kubernetes` (the default, runs ProwJobs as Pods).
 Each Prow instance can supply a preconfigured variant of pj-on-kind.sh that properly
 defaults the config file locations. [Example](https://github.com/istio/test-infra/blob/01167b0dc9cb19bee40aa8dff958f526cfeeb570/prow/pj-on-kind.sh)
 for [prow.istio.io](https://prow.istio.io).
-To test ProwJobs for the [prow.k8s.io] instance use [`config/pj-on-kind.sh`](/config/pj-on-kind.sh).
+To test ProwJobs for the [prow.k8s.io] instance use [`config/pj-on-kind.sh`](https://github.com/kubernetes/test-infra/tree/master/config/pj-on-kind.sh).
 
 ##### Example
 This command runs the ProwJob [`pull-test-infra-yamllint`](https://github.com/kubernetes/test-infra/blob/170921984a34ca40f2763f9e71d6ce6e033dec03/config/jobs/kubernetes/test-infra/test-infra-presubmits.yaml#L94-L107) locally on Kind.
@@ -142,9 +142,9 @@ export KUBECONFIG='/<path to user dir>/.kube/kind-config-mkpod'
 After pointing to the correct master you will be able to drop into the container using `kubectl exec -it <pod name> <bash/sh/etc>`. **This pod will only last the lifecycle of the job, if you need more time to debug you might add a `sleep` within the job execution.
 
 #### Using Phaino
-[Phaino](/prow/cmd/phaino) lets you interactively mock and run the job locally on
+[Phaino](https://github.com/kubernetes/test-infra/tree/master/prow/cmd/phaino) lets you interactively mock and run the job locally on
 your workstation in a docker container. Detailed instructions can be found in
-Phaino's [Readme](/prow/cmd/phaino/README.md).
+Phaino's [Readme](https://github.com/kubernetes/test-infra/tree/master/prow/cmd/phaino/README.md).
 
 Note: Test containers designed for decorated jobs (configured with `decorate: true`)
 may behave incorrectly or fail entirely without the environment the pod utilities
@@ -184,6 +184,6 @@ to generate ProwJob YAML.
 [Docker]: https://docs.docker.com/install/
 [kubectl]: https://kubernetes.io/docs/tasks/tools/install-kubectl/
 [Kind]: https://sigs.k8s.io/kind
-[mkpj]: /prow/cmd/mkpj
-[mkpod]: /prow/cmd/mkpod
-[pj-on-kind.sh]: /prow/pj-on-kind.sh
+[mkpj]: https://github.com/kubernetes/test-infra/tree/master/prow/cmd/mkpj
+[mkpod]: https://github.com/kubernetes/test-infra/tree/master/prow/cmd/mkpod
+[pj-on-kind.sh]: https://github.com/kubernetes/test-infra/tree/master/prow/pj-on-kind.sh

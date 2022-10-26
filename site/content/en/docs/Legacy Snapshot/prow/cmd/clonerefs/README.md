@@ -39,7 +39,7 @@ status to the specified log file. Clone records have the form:
 Note: the utility _will_ exit with a non-zero status if a fatal error is detected and no clone
 operations can even begin to run.
 
-This utility is intended to be used with [`initupload`](./../initupload/README.md), which will
+This utility is intended to be used with [`initupload`](https://github.com/kubernetes/test-infra/tree/master/prow/cmd/initupload/README.md), which will
 decode the JSON output by `clonerefs` and can format it for human consumption.
 
 `clonerefs` can be configured by either passing in flags or by specifying a full set of options
