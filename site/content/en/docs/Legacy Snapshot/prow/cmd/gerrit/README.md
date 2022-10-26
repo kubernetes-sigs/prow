@@ -31,6 +31,6 @@ it empty for anonymous access to gerrit API.
 
 ## Underlying infra
 
-Also take a look at [gerrit related packages](/prow/gerrit/README.md) for implementation details.
+Also take a look at [gerrit related packages](https://github.com/kubernetes/test-infra/tree/master/prow/gerrit/README.md) for implementation details.
 
-You might also want to deploy [Crier](/prow/cmd/crier) which reports job results back to gerrit.
+You might also want to deploy [Crier](https://github.com/kubernetes/test-infra/tree/master/prow/cmd/crier) which reports job results back to gerrit.

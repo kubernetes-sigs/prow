@@ -83,7 +83,7 @@ See `go run ./prow/cmd/phaino --help` for full option list.
 
 * Go to your [deck deployment](https://prow.k8s.io)
 * Pick a job and click the rerun icon on the left
-* Copy the URL (something like https://prow.k8s.io/rerun?prowjob=d08f1ca5-5d63-11e9-ab62-0a580a6c1281)
+* Copy the URL (something like `https://prow.k8s.io/rerun?prowjob=d08f1ca5-5d63-11e9-ab62-0a580a6c1281`)
 * Paste it as a phaino arg
   - `go run ./prow/cmd/phaino https://prow.k8s.io/rerun?prowjob=d08f1ca5-5d63-11e9-ab62-0a580a6c1281`
   - Alternatively `go run ./prow/cmd/phaino <(curl $URL)`
@@ -91,7 +91,7 @@ See `go run ./prow/cmd/phaino --help` for full option list.
 
 #### Configuration example:
 
-* Use [`mkpj`](/prow/cmd/mkpj) to create the job and pipe this to `phaino`
+* Use [`mkpj`](https://github.com/kubernetes/test-infra/tree/master/prow/cmd/mkpj) to create the job and pipe this to `phaino`
   - For prow.k8s.io jobs use `//config:mkpj`
       ```
       go run ./config:mkpj --job=pull-test-infra-bazel > /tmp/foo

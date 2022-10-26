@@ -8,15 +8,15 @@ title: "prow/gerrit/README.md"
 
 ## Related Deployments
 
-[Adapter](/prow/cmd/gerrit)
+[Adapter](https://github.com/kubernetes/test-infra/tree/master/prow/cmd/gerrit)
 
-[Reporter](/prow/cmd/crier) 
+[Reporter](https://github.com/kubernetes/test-infra/tree/master/prow/cmd/crier) 
 
 ## Related packages
 
 #### Client
 
-We have a [gerrit-client package](/prow/gerrit/client) that provides a thin wrapper around  
+We have a [gerrit-client package](https://github.com/kubernetes/test-infra/tree/master/prow/gerrit/client) that provides a thin wrapper around  
 [andygrunwald/go-gerrit](https://github.com/andygrunwald/go-gerrit), which is a go client library
 for accessing the [Gerrit Code Review REST API](https://gerrit-review.googlesource.com/Documentation/rest-api.html)
 
@@ -71,8 +71,8 @@ If you need them, please send us a PR to support them :-)
 
 
 [Gerrit]: https://www.gerritcodereview.com/
-[Prow]: /prow/README.md
-[grandmatriarch]: /prow/cmd/grandmatriarch
-[crier]: /prow/crier
-[Labels]: /prow/gerrit/client/client.go
+[Prow]: https://github.com/kubernetes/test-infra/tree/master/prow/README.md
+[grandmatriarch]: https://github.com/kubernetes/test-infra/tree/master/prow/cmd/grandmatriarch
+[crier]: https://github.com/kubernetes/test-infra/tree/master/prow/crier
+[Labels]: https://github.com/kubernetes/test-infra/tree/master/prow/gerrit/client/client.go
 [Downward Api]: https://kubernetes.io/docs/tasks/inject-data-application/environment-variable-expose-pod-information/

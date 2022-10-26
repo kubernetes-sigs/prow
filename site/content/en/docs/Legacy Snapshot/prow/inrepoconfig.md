@@ -53,7 +53,7 @@ in `deck.additional_allowed_buckets`.
 
 ### Config verification job
 
-Afterwards, you need to add a config verification job to make sure people get told about
+Afterwards, you need to add a config verification job to make sure people people get told about
 mistakes in their Inrepoconfig rather than the PR being stuck. It makes sense to define this
 job in the central repository rather than the code repository, so the `checkconfig` version used
 stays in sync with the Prow version used. It looks like this:
@@ -68,15 +68,15 @@ presubmits:
     - org: kubernetes
       repo: test-infra
       base_ref: master
-     spec:
-       containers:
-       - image: gcr.io/k8s-prow/checkconfig:v20191205-050b151d0
-         command:
-         - /app/prow/cmd/checkconfig/app.binary
-         args:
-         - --plugin-config=../test-infra/path/to/plugins.yaml
-         - --config-path=../test-infra/path/to/config.yaml
-         - --prow-yaml-repo-name=$(REPO_OWNER)/$(REPO_NAME)
+    spec:
+      containers:
+      - image: gcr.io/k8s-prow/checkconfig:v20191205-050b151d0
+        command:
+        - /app/prow/cmd/checkconfig/app.binary
+        args:
+        - --plugin-config=../test-infra/path/to/plugins.yaml
+        - --config-path=../test-infra/path/to/config.yaml
+        - --prow-yaml-repo-name=$(REPO_OWNER)/$(REPO_NAME)
 ```
 
 After deploying the new config, the only step left is to create jobs. This is done by adding a file
@@ -121,4 +121,4 @@ a large number of jobs and allows fine-grained OWNERS control on them.
 
 The `.prow` directory and `.prow.yaml` file are mutually exclusive; when both are present the `.prow` directory takes precedence.
 
-For more detailed documentation of possible configuration parameters for jobs, please check the [job documentation](/prow/jobs.md)
+For more detailed documentation of possible configuration parameters for jobs, please check the [job documentation](https://github.com/kubernetes/test-infra/tree/master/prow/jobs.md)

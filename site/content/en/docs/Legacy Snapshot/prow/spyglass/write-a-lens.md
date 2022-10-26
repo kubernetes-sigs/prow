@@ -9,7 +9,7 @@ Spyglass lenses consist of two components: a frontend (which may be trivial) and
 ## Lens backend
 
 Today, a lens backend must be linked in to the `deck` binary. As such, lenses must live under
-[`prow/spyglass/lenses`](./lenses). Additionally lenses **must** be in a folder that matches the
+[`prow/spyglass/lenses`](https://github.com/kubernetes/test-infra/tree/master/prow/spyglass/lenses). Additionally lenses **must** be in a folder that matches the
 name of the lens. The content of this folder will be served by `deck`, enabling you to reference
 static content such as images, stylesheets, or scripts.
 
@@ -64,7 +64,7 @@ If you want to read resources included in your lens (such as templates), you can
 provided `resourceDir`.
 
 Finally, you will need to import your lens from `deck` in order to actually link it in. You can do
-this by `import`ing it from [`prow/cmd/deck/main.go`](../cmd/deck/main.go), alongside the other lenses:
+this by `import`ing it from [`prow/cmd/deck/main.go`](https://github.com/kubernetes/test-infra/tree/master/prow/cmd/deck/main.go), alongside the other lenses:
 
 ```go
 import (
@@ -104,7 +104,7 @@ a template called `template.html`, a typescript file called `sample.ts`, a style
 }
 ```
 
-2. Add a line in [prow/cmd/deck/.ts-packages](/prow/cmd/deck/.ts-packages):
+2. Add a line in [prow/cmd/deck/.ts-packages](https://github.com/kubernetes/test-infra/tree/master/prow/cmd/deck/.ts-packages):
 
 ```
 prow/spyglass/lenses/sample/sample.ts->script_bundle.min.js
@@ -193,7 +193,7 @@ directories, which is usually what you want in this context.
 Fragment URLs (the part after the `#`) are supported fairly transparently, despite being in an iframe.
 The parent page muxes all the lens's fragments and ensures that if the page is loaded, each lens
 receives the fragment it expects. Changing your fragment will automatically update the parent page's
-fragment. If the fragment matches the ID or name of an element, the page will scroll such that
+fragment. If the fragment matches the ID or name of an element, the page will scroll such that that
 element is visible.  
 
 Anchor links (`<a href="#something">`) would usually not work well in conjunction with the `<base>`

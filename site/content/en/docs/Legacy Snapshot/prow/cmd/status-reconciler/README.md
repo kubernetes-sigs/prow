@@ -22,4 +22,4 @@ prow instance A, the jobs are not expected to be blindly lablled succeed by prow
 
 Note that `status-reconciler` is edge driven (not level driven) so it can't be used retrospectively.
 To update statuses that were stale before deploying `status-reconciler`,
-you can use the [`migratestatus`](/maintenance/migratestatus) tool.
+you can use the [`migratestatus`](https://github.com/kubernetes/test-infra/tree/master/maintenance/migratestatus) tool.

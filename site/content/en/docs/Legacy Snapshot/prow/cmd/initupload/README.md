@@ -11,7 +11,7 @@ any clone operations failed, as well as if any fatal errors are encountered in t
 
 `initupload` can be configured by either passing in flags or by specifying a full set of options
 as JSON in the `$INITUPLOAD_OPTIONS` environment variable, which has the same form as that for
-`gcsupload`, plus the `"log"` field. See [that documentation](./../gcsupload/README.md) for
+`gcsupload`, plus the `"log"` field. See [that documentation](https://github.com/kubernetes/test-infra/tree/master/prow/cmd/gcsupload/README.md) for
 an explanation.
 
 ```json

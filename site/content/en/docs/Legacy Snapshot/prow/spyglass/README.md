@@ -4,15 +4,15 @@ title: "prow/spyglass/README.md"
 
 # Spyglass
 
-Spyglass is a pluggable artifact viewer framework for [Prow](..). It collects artifacts
+Spyglass is a pluggable artifact viewer framework for [Prow](https://github.com/kubernetes/test-infra/tree/master/prow). It collects artifacts
 (usually files in a storage bucket) from various sources and distributes them to registered viewers, which
 are responsible for consuming them and rendering a view.
 
 A typical Spyglass page might look something like this:
-![](spyglass-example.png)
+![](https://github.com/kubernetes/test-infra/tree/master/prow/spyglass/spyglass-example.png)
 
-If you want to know how to write a Spyglass lens, check [the lens-writing guide](./write-a-lens.md).
-If you're interested in how Spyglass works, check [the architecture summary](./architecture.md).
+If you want to know how to write a Spyglass lens, check [the lens-writing guide](https://github.com/kubernetes/test-infra/tree/master/prow/spyglass/write-a-lens.md).
+If you're interested in how Spyglass works, check [the architecture summary](https://github.com/kubernetes/test-infra/tree/master/prow/spyglass/architecture.md).
 
 ## Configuration
 
