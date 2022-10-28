@@ -20,7 +20,7 @@ init-theme:
 # Update the "docsy" Hugo theme.
 update-theme: init-theme
 	git submodule update --remote
-	npm update
+	npm install
 
 check-broken-links:
 	find ./public -name "*.html" -print0 | sort -z | xargs -0 ./check-broken-links.sh
