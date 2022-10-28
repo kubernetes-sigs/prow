@@ -11,6 +11,7 @@ build:
 netlify-build: init-theme build
 
 netlify-deploy-preview: init-theme
+	cd themes/docsy && npm install
 	hugo --enableGitInfo --buildFuture -b $(DEPLOY_PRIME_URL)
 
 # Used by Netlify to pull in the theme (plain git-clone of our main repo is not enough).
