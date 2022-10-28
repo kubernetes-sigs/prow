@@ -24,4 +24,4 @@ This is an ongoing effort and the goal is to one day delete this snapshot
 altogether (to be replaced by equivalent documentation outside of this folder).
 
 [k8s]: https://github.com/kubernetes/kubernetes
-[k/t-i]: https://github.com/kubernetes/kubernetes
+[k/t-i]: https://github.com/kubernetes/test-infra
