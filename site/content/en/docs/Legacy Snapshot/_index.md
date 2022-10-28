@@ -1,6 +1,5 @@
 ---
 title: "Legacy Snapshot"
-weight: 1
 description: >
   Legacy docs
 weight: 100
