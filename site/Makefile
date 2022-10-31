@@ -11,6 +11,7 @@ build:
 netlify-build: init-theme build
 
 netlify-deploy-preview: init-theme
+	cd themes/docsy && npm install
 	hugo --enableGitInfo --buildFuture -b $(DEPLOY_PRIME_URL)
 
 # Used by Netlify to pull in the theme (plain git-clone of our main repo is not enough).
@@ -20,7 +21,7 @@ init-theme:
 # Update the "docsy" Hugo theme.
 update-theme: init-theme
 	git submodule update --remote
-	npm update
+	npm install
 
 check-broken-links:
 	find ./public -name "*.html" -print0 | sort -z | xargs -0 ./check-broken-links.sh
