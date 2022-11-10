@@ -14,19 +14,19 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package adapter implements a controller that interacts with gerrit instances
-package adapter
+// Package client implements client that interacts with gerrit instances
+package client
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	stdio "io"
 	"sync"
 	"time"
 
 	"github.com/sirupsen/logrus"
-	"k8s.io/test-infra/prow/gerrit/client"
+	"k8s.io/test-infra/prow/config"
 	"k8s.io/test-infra/prow/io"
 )
 
@@ -36,16 +36,23 @@ type opener interface {
 	Writer(ctx context.Context, path string, opts ...io.WriterOptions) (io.WriteCloser, error)
 }
 
-type syncTime struct {
-	val    client.LastSyncState
+type SyncTime struct {
+	val    LastSyncState
 	lock   sync.RWMutex
 	path   string
 	opener opener
 	ctx    context.Context
 }
 
-func (st *syncTime) init(hostProjects client.ProjectsFlag) error {
-	logrus.WithField("projects", hostProjects).Info(st.val)
+func NewSyncTime(path string, opener opener, ctx context.Context) *SyncTime {
+	return &SyncTime{
+		path:   path,
+		opener: opener,
+		ctx:    ctx,
+	}
+}
+
+func (st *SyncTime) Init(hostProjects map[string]map[string]*config.GerritQueryFilter) error {
 	st.lock.RLock()
 	zero := st.val == nil
 	st.lock.RUnlock()
@@ -55,7 +62,7 @@ func (st *syncTime) init(hostProjects client.ProjectsFlag) error {
 	return st.update(hostProjects)
 }
 
-func (st *syncTime) update(hostProjects client.ProjectsFlag) error {
+func (st *SyncTime) update(hostProjects map[string]map[string]*config.GerritQueryFilter) error {
 	timeNow := time.Now()
 	st.lock.Lock()
 	defer st.lock.Unlock()
@@ -69,7 +76,7 @@ func (st *syncTime) update(hostProjects client.ProjectsFlag) error {
 			if _, ok := state[host]; !ok {
 				state[host] = map[string]time.Time{}
 			}
-			for _, project := range projects {
+			for project := range projects {
 				if _, ok := state[host][project]; !ok {
 					state[host][project] = timeNow
 				}
@@ -78,10 +85,10 @@ func (st *syncTime) update(hostProjects client.ProjectsFlag) error {
 		st.val = state
 		logrus.WithField("lastSync", st.val).Infoln("Initialized successfully from lastSyncFallback.")
 	} else {
-		targetState := client.LastSyncState{}
+		targetState := LastSyncState{}
 		for host, projects := range hostProjects {
 			targetState[host] = map[string]time.Time{}
-			for _, project := range projects {
+			for project := range projects {
 				targetState[host][project] = timeNow
 			}
 		}
@@ -90,7 +97,7 @@ func (st *syncTime) update(hostProjects client.ProjectsFlag) error {
 	return nil
 }
 
-func (st *syncTime) currentState() (client.LastSyncState, error) {
+func (st *SyncTime) currentState() (LastSyncState, error) {
 	r, err := st.opener.Reader(st.ctx, st.path)
 	if io.IsNotExist(err) {
 		logrus.Warnf("lastSyncFallback not found at %q", st.path)
@@ -99,11 +106,11 @@ func (st *syncTime) currentState() (client.LastSyncState, error) {
 		return nil, fmt.Errorf("open: %w", err)
 	}
 	defer io.LogClose(r)
-	buf, err := ioutil.ReadAll(r)
+	buf, err := stdio.ReadAll(r)
 	if err != nil {
 		return nil, fmt.Errorf("read: %w", err)
 	}
-	var state client.LastSyncState
+	var state LastSyncState
 	if err := json.Unmarshal(buf, &state); err != nil {
 		// Don't error on unmarshall error, let it default
 		logrus.WithField("lastSync", st.val).Warnln("Failed to unmarshal lastSyncFallback, resetting all last update times to current.")
@@ -112,13 +119,13 @@ func (st *syncTime) currentState() (client.LastSyncState, error) {
 	return state, nil
 }
 
-func (st *syncTime) Current() client.LastSyncState {
+func (st *SyncTime) Current() LastSyncState {
 	st.lock.RLock()
 	defer st.lock.RUnlock()
 	return st.val
 }
 
-func (st *syncTime) Update(newState client.LastSyncState) error {
+func (st *SyncTime) Update(newState LastSyncState) error {
 	st.lock.Lock()
 	defer st.lock.Unlock()
 
