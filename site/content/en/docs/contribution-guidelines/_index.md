@@ -1,6 +1,6 @@
 ---
 title: "Contribution Guidelines"
-weight: 10
+weight: 50
 description: >
   How to contribute to the docs
 ---
@@ -39,5 +39,5 @@ engine. You write the pages in Markdown (or HTML if you want), and Hugo wraps th
 
 [k/t-i/prow]:https://github.com/kubernetes/test-infra/tree/master/prow
 [k-s/prow]:https://github.com/kubernetes-sigs/prow
-[l-s]:{{< relref "../Legacy Snapshot" >}}
+[l-s]:{{< relref "../legacy-snapshot" >}}
 [orig-freeze]:https://github.com/kubernetes/test-infra/pull/26458
