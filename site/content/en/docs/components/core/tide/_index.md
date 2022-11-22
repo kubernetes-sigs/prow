@@ -1,10 +1,11 @@
 ---
-title: "prow/cmd/tide/README.md"
+title: "Tide"
+weight: 70
+description: >
+  
 ---
 
-# Tide
-
-Tide is a [Prow](https://github.com/kubernetes/test-infra/blob/master/prow/README.md)
+Tide is a [Prow](/docs/overview/)
 component for managing a pool of GitHub PRs that match a given set of criteria.
 It will automatically retest PRs that meet the criteria ("tide comes in") and automatically merge
 them when they have up-to-date passing test results ("tide goes out").
@@ -12,19 +13,20 @@ them when they have up-to-date passing test results ("tide goes out").
 [Open Issues](https://github.com/kubernetes/test-infra/issues?utf8=%E2%9C%93&q=is%3Aopen+is%3Aissue+label%3Aarea%2Fprow%2Ftide)
 
 ## Documentation
-- [I JUST WANT MY PR TO MERGE!](https://github.com/kubernetes/test-infra/tree/master/prow/cmd/tide/pr-authors.md)
-- [Configuring Tide](https://github.com/kubernetes/test-infra/tree/master/prow/cmd/tide/config.md)
-- [Maintainer's Guide](https://github.com/kubernetes/test-infra/tree/master/prow/cmd/tide/maintainers.md)
 
+- [I JUST WANT MY PR TO MERGE!](./pr-authors/)
+- [Configuring Tide](./config/)
+- [Maintainer's Guide](./maintainers/)
 
 ## Features
+
 - Automatically runs batch tests and merges multiple PRs together whenever possible.
 - Ensures that PRs are tested against the most recent base branch commit before they are allowed to merge.
 - Maintains a GitHub status context that indicates if each PR is in a pool or what requirements are missing.
 - Supports blocking merge to individual branches or whole repos using specifically labelled GitHub issues.
 - Exposes Prometheus metrics.
 - Supports repos that have 'optional' status contexts that shouldn't be required for merge.
-- Serves live data about current pools and a history of actions which can be consumed by [Deck](https://github.com/kubernetes/test-infra/tree/master/prow/cmd/deck) to populate the [Tide dashboard](https://prow.k8s.io/tide), the [PR dashboard](https://prow.k8s.io/pr), and the [Tide history page](https://prow.k8s.io/tide-history).
+- Serves live data about current pools and a history of actions which can be consumed by [Deck](/docs/components/core/deck/) to populate the [Tide dashboard](https://prow.k8s.io/tide), the [PR dashboard](https://prow.k8s.io/pr), and the [Tide history page](https://prow.k8s.io/tide-history).
 - Scales efficiently so that a single instance with a single bot token can provide merge automation to dozens of orgs and repos with unique merge criteria. Every distinct 'org/repo:branch' combination defines a disjoint merge pool so that merges only affect other PRs in the same branch.
 - Provides configurable merge modes ('merge', 'squash', or 'rebase').
 

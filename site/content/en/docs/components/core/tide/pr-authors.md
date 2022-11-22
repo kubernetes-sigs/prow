@@ -1,8 +1,9 @@
 ---
-title: "prow/cmd/tide/pr-authors.md"
+title: "PR Author's Guide to Tide"
+weight: 10
+description: >
+  
 ---
-
-# PR Author's Guide to Tide
 
 If you just want to figure out how to get your PR to merge this is the document for you!
 
@@ -10,7 +11,7 @@ If you just want to figure out how to get your PR to merge this is the document 
 
 1. The `tide` status context at the bottom of your PR.
 The status either indicates that your PR is in the merge pool or explains why it is not in the merge pool. The 'Details' link will take you to either the Tide or PR dashboard.
-![Tide Status Context](https://github.com/kubernetes/test-infra/tree/master/prow/cmd/tide/status-context.png)
+![Tide Status Context](/docs/components/core/tide/status-context.png)
 1. The PR dashboard at "`<deck-url>`/pr" where `<deck-url>` is something like "https://prow.k8s.io".
 This dashboard shows a card for each of your PRs. Each card shows the current test results for the PR and the difference between the PR state and the merge criteria. [K8s PR dashboard](https://prow.k8s.io/pr)
 1. The Tide dashboard at "`<deck-url>`/tide".

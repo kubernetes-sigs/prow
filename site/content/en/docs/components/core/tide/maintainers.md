@@ -1,8 +1,9 @@
 ---
-title: "prow/cmd/tide/maintainers.md"
+title: "Maintainer's Guide to Tide"
+weight: 10
+description: >
+  
 ---
-
-# Maintainer's Guide to Tide
 
 ## Best practices
 
@@ -22,4 +23,4 @@ title: "prow/cmd/tide/maintainers.md"
 
 ## Other resources
 
-- [Configuring Tide](https://github.com/kubernetes/test-infra/tree/master/prow/cmd/tide/config.md)
+- [Configuring Tide](/docs/components/core/tide/config/)
