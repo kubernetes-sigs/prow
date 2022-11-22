@@ -1,8 +1,9 @@
 ---
-title: "prow/plugins/approve/approvers/README.md"
+title: "Reviewers and Approvers"
+weight: 10
+description: >
+  
 ---
-
-# Reviewers and Approvers
 
 ## Questions this Doc Seeks To Answer
 
@@ -82,7 +83,7 @@ The exact algorithm for selecting approvers is somewhat complex; it is an set co
 
 ## Example
 
-![Directory Structure](https://github.com/kubernetes/test-infra/tree/master/prow/plugins/approve/approvers/images/directory_structure.png)
+![Directory Structure](./directory_structure.png)
 
 Suppose files in directories E and G are changed in a PR created by PRAuthor. Any combination of approver(s) listed below can approve the PR in order to get it merged:
 
@@ -198,9 +199,9 @@ K8s-bot updates comment:
 	You can indicate your approval by writing `/approve` in a comment
 	You can cancel your approval by writing `/approve cancel` in a comment
 
-The PR is now unblocked from merging. If [Tide](https://github.com/kubernetes/test-infra/tree/master/prow/cmd/tide) is configured, the K8s-bot merges the PR, because it has both the **lgtm** and **approved**. It K8s-bot still needs to wait its turn in submit queue and pass tests.
+The PR is now unblocked from merging. If [Tide](/docs/components/core/tide/) is configured, the K8s-bot merges the PR, because it has both the **lgtm** and **approved**. It K8s-bot still needs to wait its turn in submit queue and pass tests.
 
-![Bot Notification for Approval Mechanism](https://github.com/kubernetes/test-infra/tree/master/prow/plugins/approve/approvers/images/bot_notification_for_approval_selection_mechanism.png)
+![Bot Notification for Approval Mechanism](./bot_notification_for_approval_selection_mechanism.png)
 
 ## Configuration options
 
@@ -236,4 +237,3 @@ Approve:
 [prow/plugins/approve/approve.go](https://git.k8s.io/test-infra/prow/plugins/approve/approve.go)
 
 [prow/plugins/approve/approvers/owners.go](https://git.k8s.io/test-infra/prow/plugins/approve/approvers/owners.go)
-

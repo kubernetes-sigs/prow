@@ -1,8 +1,9 @@
 ---
-title: "prow/plugins/updateconfig/README.md"
+title: "updateconfig"
+weight: 10
+description: >
+  
 ---
-
-
 
 `updateconfig` allows prow to update configmaps when files in a repo change.
 
@@ -11,6 +12,7 @@ title: "prow/plugins/updateconfig/README.md"
 ## Usage
 
 Update your `plugins.yaml` file to something along the following lines:
+
 ```yaml
 plugins:
   my-github/repo:
@@ -27,7 +29,7 @@ config_updater:
       name: thing2-config
       # Specify the clusters and namespaces that the configmap targets
       # which requires that the --kubeconfig arg is enabled for Hook
-      # https://github.com/kubernetes/test-infra/blob/master/prow/getting_started_deploy.md#run-test-pods-in-different-clusters
+      # https://docs.prow.k8s.io/docs/getting-started-deploy/#run-test-pods-in-different-clusters
       # if not set or empty, it uses the cluster where prow components are running
       # and the specified namespace(s)
       clusters: 

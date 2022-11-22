@@ -1,8 +1,9 @@
 ---
-title: "prow/external-plugins/cherrypicker/README.md"
+title: "cherrypicker"
+weight: 10
+description: >
+  
 ---
-
-# Cherrypicker
 
 Cherrypicker is an external prow plugin that can also run as a standalone bot.
 It automates cherry-picking merged PRs into different branches. Cherrypicks are
@@ -27,6 +28,6 @@ where XXX is the name of the branch.
 
 The bot uses its own fork to push patches that need to be cherry-picked and opens
 PRs out of those patches. The fork is created automatically by the bot so there is
-no need to set it up manually. 
+no need to set it up manually.
 
 Required scopes for the oauth token that need to be used are `read:org` and `repo`.
