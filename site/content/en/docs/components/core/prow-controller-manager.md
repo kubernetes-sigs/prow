@@ -1,8 +1,9 @@
 ---
-title: "prow/cmd/prow-controller-manager/README.md"
+title: "Prow-Controller-Manager"
+weight: 50
+description: >
+  
 ---
-
-# Prow-Controller-Manager
 
 `prow-controller-manager` manages the job execution and lifecycle for jobs running in k8s.
 
@@ -32,6 +33,6 @@ $ go run ./prow/cmd/prow-controller-manager --help
 * [Deployment manifest](https://github.com/kubernetes/test-infra/tree/master/config/prow/cluster/prow_controller_manager_deployment.yaml)
 * [RBAC manifest](https://github.com/kubernetes/test-infra/tree/master/config/prow/cluster/prow_controller_manager_rbac.yaml)
 
-[Plank]: https://github.com/kubernetes/test-infra/tree/master/prow/plank
-[Sinker]: https://github.com/kubernetes/test-infra/tree/master/prow/cmd/sinker
-[Crier]: https://github.com/kubernetes/test-infra/tree/master/prow/cmd/crier
+[Plank]: /docs/components/deprecated/plank/
+[Sinker]: /docs/components/core/sinker/
+[Crier]: /docs/components/core/crier/

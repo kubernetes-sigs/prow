@@ -1,8 +1,9 @@
 ---
-title: "prow/cmd/crier/README.md"
+title: "Crier"
+weight: 10
+description: >
+  
 ---
-
-# Crier
 
 Crier reports your prowjobs on their status changes.
 
@@ -15,10 +16,10 @@ flag as most of other prow controllers do.
 
 You can enable gerrit reporter in crier by specifying `--gerrit-workers=n` flag.
 
-Similar to the [gerrit adapter](https://github.com/kubernetes/test-infra/tree/master/prow/cmd/gerrit), you'll need to specify `--gerrit-projects` for
+Similar to the [gerrit adapter](/docs/components/optional/gerrit/), you'll need to specify `--gerrit-projects` for
 your gerrit projects, and also `--cookiefile` for the gerrit auth token (leave it unset for anonymous).
 
-Gerrit reporter will send an aggregated summary message, when all [gerrit adapter](https://github.com/kubernetes/test-infra/tree/master/prow/cmd/gerrit)
+Gerrit reporter will send an aggregated summary message, when all [gerrit adapter](/docs/components/optional/gerrit/)
 scheduled prowjobs with the same report label finish on a revision.
 It will also attach a report url so people can find logs of the job.
 
@@ -63,7 +64,8 @@ You can enable the Slack reporter in crier by specifying the `--slack-workers=n`
 The `--slack-token-file` flag takes a path to a file containing a Slack [**OAuth Access Token**](https://api.slack.com/docs/oauth).
 
 The **OAuth Access Token** can be obtained as follows:
-1. Navigate to: https://api.slack.com/apps.
+
+1. Navigate to: <https://api.slack.com/apps>.
 1. Click **Create New App**.
 1. Provide an **App Name** (e.g. Prow Slack Reporter) and **Development Slack Workspace** (e.g. Kubernetes).
 1. Click **Permissions**.
@@ -160,6 +162,7 @@ slack_reporter_configs:
 ```
 
 The `channel`, `job_states_to_report` and `report_template` can be overridden at the ProwJob level via the `reporter_config.slack` field:
+
 ```yaml
 postsubmits:
   some-org/some-repo:
@@ -177,8 +180,10 @@ postsubmits:
             command:
               - echo
 ```
+
 To silence notifications at the ProwJob level you can pass an empty slice to `reporter_config.slack.job_states_to_report`:
 postsubmits:
+
 ```yaml
   some-org/some-repo:
     - name: example-job
@@ -201,17 +206,17 @@ will get prowjob change notifications from a [shared informer](https://github.co
 If you are interested in how client-go works under the hood, the details are explained
 [in this doc](https://github.com/kubernetes/sample-controller/blob/master/docs/controller-client-go.md)
 
-
 ## Adding a new reporter
 
 Each crier controller takes in a reporter.
 
 Each reporter will implement the following interface:
+
 ```go
 type reportClient interface {
-	Report(pj *v1.ProwJob) error
-	GetName() string
-	ShouldReport(pj *v1.ProwJob) bool
+ Report(pj *v1.ProwJob) error
+ GetName() string
+ ShouldReport(pj *v1.ProwJob) bool
 }
 ```
 
@@ -237,28 +242,31 @@ Before migrating, be sure plank is setting the [PrevReportStates field](https://
 by describing a finished presubmit prowjob. Plank started to set this field after commit [2118178](https://github.com/kubernetes/test-infra/pull/10975/commits/211817826fc3c4f3315a02e46f3d6aa35573d22f), if not, you want to upgrade your plank to a version includes this commit before moving forward.
 
 you can check this entry by:
+
 ```sh
 $ kubectl get prowjobs -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.status.prev_report_states.github-reporter}{"\n"}'
 ...
-fafec9e1-3af2-11e9-ad1a-0a580a6c0d12	failure
-fb027a97-3af2-11e9-ad1a-0a580a6c0d12	success
-fb0499d3-3af2-11e9-ad1a-0a580a6c0d12	failure
-fb05935f-3b2b-11e9-ad1a-0a580a6c0d12	success
-fb05e1f1-3af2-11e9-ad1a-0a580a6c0d12	error
-fb06c55c-3af2-11e9-ad1a-0a580a6c0d12	success
-fb09e7d8-3abb-11e9-816a-0a580a6c0f7f	success
+fafec9e1-3af2-11e9-ad1a-0a580a6c0d12 failure
+fb027a97-3af2-11e9-ad1a-0a580a6c0d12 success
+fb0499d3-3af2-11e9-ad1a-0a580a6c0d12 failure
+fb05935f-3b2b-11e9-ad1a-0a580a6c0d12 success
+fb05e1f1-3af2-11e9-ad1a-0a580a6c0d12 error
+fb06c55c-3af2-11e9-ad1a-0a580a6c0d12 success
+fb09e7d8-3abb-11e9-816a-0a580a6c0f7f success
 
 
 ```
 
 You want to add a crier deployment, similar to ours [config/prow/cluster/crier_deployment.yaml](https://github.com/kubernetes/test-infra/blob/de3775a7480fe0a724baacf24a87cbf058cd9fd5/prow/cluster/crier_deployment.yaml),
 flags need to be specified:
+
 - point `config-path` and `--job-config-path` to your prow config and job configs accordingly.
 - Set `--github-worker` to be number of parallel github reporting threads you need
 - Point `--github-endpoint` to ghproxy, if you have set that for plank
 - Bind github oauth token as a secret and set `--github-token-path` if you've have that set for plank.
 
 In your plank deployment, you can
+
 - Remove the `--github-endpoint` flags
 - Remove the github oauth secret, and `--github-token-path` flag if set
 - Flip on `--skip-report`, so plank will skip the reporting logic
