@@ -1,14 +1,17 @@
 ---
-title: "prow/cmd/deck/csrf.md"
+title: "CSRF attacks"
+weight: 20
+description: >
+  
 ---
 
-# CSRF attacks
 In Deck, we make a number of `POST` requests that require user authentication. These requests are susceptible
 to [cross site request forgery (CSRF) attacks](https://en.wikipedia.org/wiki/Cross-site_request_forgery), 
 in which a malicious actor tricks an already authenticated user into submitting a form to one of these endpoints 
 and performing one of these protected actions on their behalf. 
 
-# Protection
+## Protection
+
 If `--cookie-secret` is 32 or more bytes long, CSRF protection is automatically enabled.
 If `--rerun-creates-job` is specified, CSRF protection is required, and accordingly, 
 `--cookie-secret` must be 32 bytes long. 

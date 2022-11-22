@@ -1,8 +1,10 @@
 ---
-title: "prow/cmd/deck/github_oauth_setup.md"
+title: "How to setup GitHub Oauth"
+weight: 10
+description: >
+  
 ---
 
-# How to setup GitHub Oauth
 This document helps configure GitHub Oauth, which is required for [PR Status](https://prow.k8s.io/pr)
 and for the rerun button on [Prow Status](https://prow.k8s.io). 
 If OAuth is configured, Prow will perform GitHub actions on behalf of the authenticated users.
@@ -10,6 +12,7 @@ This is necessary to fetch information about pull requests for the PR Status pag
 authenticate users when checking if they have permission to rerun jobs via the rerun button on Prow Status.
 
 ## Set up secrets
+
 The following steps will show you how to set up an OAuth app.
 1. Create your GitHub Oauth application 
 
@@ -81,6 +84,7 @@ The following steps will show you how to set up an OAuth app.
     * To prevent `deck` from making mutating GitHub API calls, pass in the `--dry-run` flag.
 
 ## Using A GitHub bot
+
 The rerun button can be configured so that certain GitHub teams are allowed to trigger certain jobs
 from the frontend. In order to make API calls to determine whether a user is on a given team, `deck` needs 
 to use the access token of an org member. 
@@ -93,6 +97,7 @@ Then create the access token secret:
 `kubectl create secret generic oauth-token --from-file=secret=<PATH_TO_ACCESS_TOKEN>`
 
 Add the following to `volumes` and `volumeMounts`:
+
 ```yaml
 volumeMounts:
 - name: oauth-token
@@ -111,6 +116,7 @@ Pass the file path to `deck` as a flag:
 You can optionally use [ghproxy](https://github.com/kubernetes/test-infra/blob/master/ghproxy/README.md) to reduce token usage. 
 
 ## Run PR Status endpoint locally
+
 Firstly, you will need a GitHub OAuth app. Please visit step 1 - 3 above. 
 
 When testing locally, pass the path to your secrets to `deck` using the `--github-oauth-config-file`  and `--cookie-secret` flags.
@@ -120,4 +126,5 @@ Run the command:
 `go build . && ./deck --config-path=../../../config/prow/config.yaml --github-oauth-config-file=<PATH_TO_YOUR_GITHUB_OAUTH_SECRET> --cookie-secret=<PATH_TO_YOUR_COOKIE_SECRET> --oauth-url=/pr`
 
 ## Using a test cluster
+
 If hosting your test instance on http instead of https, you will need to use the `--allow-insecure` flag in `deck`.
