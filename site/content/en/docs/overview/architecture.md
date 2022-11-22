@@ -1,6 +1,6 @@
 ---
 title: "Architecture"
-weight: 1
+weight: 10
 description: >
   Prow is made up of a collection of microservices (aka "Prow components") that work together in a **service cluster**, leveraging one or more **build clusters** to schedule Prow Jobs (or just "jobs").
 ---
