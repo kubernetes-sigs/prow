@@ -1,17 +1,20 @@
 ---
-title: "prow/plank/README.md"
+title: "Plank"
+weight: 10
+description: >
+  
 ---
-
-# Plank
 
 Plank is the controller that manages the job execution and lifecycle for jobs running in k8s.
 
 ### Usage
+
 ```bash
-$ go run ./prow/cmd/prow-controller-manager --help
+go run ./prow/cmd/prow-controller-manager --help
 ```
 
 ### Configuration
+
 GCS and S3 are supported as the job log storage.
 
 ```yaml

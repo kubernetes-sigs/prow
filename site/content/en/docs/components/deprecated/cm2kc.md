@@ -1,8 +1,9 @@
 ---
-title: "prow/cmd/cm2kc/README.md"
+title: "cm2kc (clustermap to kubeconfig)"
+weight: 10
+description: >
+  
 ---
-
-# cm2kc (clustermap to kubeconfig)
 
 ## Description
 
@@ -23,9 +24,10 @@ The following is a list of supported options for `cm2kc`:
 
 ## Examples
 
-#### Add a kubeconfig file in a secret: `kubeconfig` from a clustermap file in another secret: `build-cluster` for context: `my-context`.
+#### Add a kubeconfig file in a secret: `kubeconfig` from a clustermap file in another secret: `build-cluster` for context: `my-context`
 
 The following command will:
+
 1. Get a *clustermap* formatted secret: `build-cluster` in key: `cluster` for context: `my-context`.
 1. Base64 decode the secret.
 1. Convert the *clustermap* data to a *kubeconfig* format.
@@ -40,10 +42,10 @@ kubectl --context=my-context get secrets build-cluster -o jsonpath='{.data.clust
 
 Lastly, to begin using this in Prow, update the volume mount and replace `--build-cluster` with `--kubeconfig` in the [deployment](https://github.com/istio/test-infra/pull/1713) of each relevant Prow component (e.g. crier, deck, plank, and sinker).
 
-#### Create a kubeconfig file at path `/path/to/kubeconfig.yaml` from a clustermap file at path `/path/to/clustermap.yaml`.
+#### Create a kubeconfig file at path `/path/to/kubeconfig.yaml` from a clustermap file at path `/path/to/clustermap.yaml`
 
 Ensure the *clustermap* file exists at the specified `--input` path:  
- 
+
 ```yaml
 # /path/to/clustermap.yaml
 
@@ -59,7 +61,7 @@ build:
   endpoint: https://5.6.7.8
 ```
 
-Execute `cm2kc` specifying an `--input` path to the *clustermap* file and an `--output` path to the desired location of the generated *kubeconfig* file: 
+Execute `cm2kc` specifying an `--input` path to the *clustermap* file and an `--output` path to the desired location of the generated *kubeconfig* file:
 
 ```shell
 go run ./prow/cmd/cm2kc --input=/path/to/clustermap.yaml --output=/path/to/kubeconfig.yaml
@@ -103,5 +105,5 @@ users:
     client-key-data: fake-build-ca-cert
 ```
 
-[clustermap docs]: https://github.com/kubernetes/test-infra/blob/1c7d9a4ae0f2ae1e0c11d8357f47163d18521b84/prow/getting_started_deploy.md#run-test-pods-in-different-clusters
+[clustermap docs]: /docs/getting-started-deploy/#run-test-pods-in-different-clusters
 [kubeconfig docs]: https://kubernetes.io/docs/tasks/access-application-cluster/configure-access-multiple-clusters/
