@@ -1,8 +1,9 @@
 ---
-title: "prow/cmd/initupload/README.md"
+title: "initupload"
+weight: 10
+description: >
+  
 ---
-
-# `initupload`
 
 `initupload` reads clone records placed by `clonerefs` in order to determine job status. The status
 and logs from the clone operations are uploaded to cloud storage at a path resolved from the job
@@ -11,7 +12,7 @@ any clone operations failed, as well as if any fatal errors are encountered in t
 
 `initupload` can be configured by either passing in flags or by specifying a full set of options
 as JSON in the `$INITUPLOAD_OPTIONS` environment variable, which has the same form as that for
-`gcsupload`, plus the `"log"` field. See [that documentation](https://github.com/kubernetes/test-infra/tree/master/prow/cmd/gcsupload/README.md) for
+`gcsupload`, plus the `"log"` field. See [that documentation](/docs/components/optional/gcsupload/) for
 an explanation.
 
 ```json

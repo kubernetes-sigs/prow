@@ -1,21 +1,22 @@
 ---
-title: "prow/cmd/sidecar/README.md"
+title: "sidecar"
+weight: 10
+description: >
+  
 ---
-
-# `sidecar`
 
 `sidecar` watches disk for files containing a the `std{out,err}` output from a process as well as
 its exit code; when the exit code has been written, this utility uploads a status object, the logs
 from the process and any other specified artifacts to cloud storage. The utility will exit with the
 exit code of the wrapped process or otherwise non-zero if the utility has a fatal error.
 
-This utility is intended to be used with [`entrypoint`](https://github.com/kubernetes/test-infra/tree/master/prow/cmd/entrypoint/README.md), which will
+This utility is intended to be used with [`entrypoint`](/docs/components/pod-utilities/entrypoint/), which will
 write the files watched by this utility.
 
 `sidecar` can be configured by either passing in flags or by specifying a full set of options
 as JSON in the `$SIDECAR_OPTIONS` environment variable, which has the same form as that for
 `gcsupload`, plus the `"process_log"` and `"marker_file"` fields. See
-[that documentation](https://github.com/kubernetes/test-infra/tree/master/prow/cmd/gcsupload/README.md) for an explanation.
+[that documentation](/docs/components/optional/gcsupload/) for an explanation.
 
 ```json
 {

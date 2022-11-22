@@ -1,8 +1,9 @@
 ---
-title: "prow/cmd/clonerefs/README.md"
+title: "clonerefs"
+weight: 10
+description: >
+  
 ---
-
-# `clonerefs`
 
 `clonerefs` clones code under test at the specified locations. Regardless of the success or failure
 of clone operations, this utility will have an exit code of `0` and will record the clone operation
@@ -39,7 +40,7 @@ status to the specified log file. Clone records have the form:
 Note: the utility _will_ exit with a non-zero status if a fatal error is detected and no clone
 operations can even begin to run.
 
-This utility is intended to be used with [`initupload`](https://github.com/kubernetes/test-infra/tree/master/prow/cmd/initupload/README.md), which will
+This utility is intended to be used with [`initupload`](/docs/components/pod-utilities/initupload/), which will
 decode the JSON output by `clonerefs` and can format it for human consumption.
 
 `clonerefs` can be configured by either passing in flags or by specifying a full set of options
