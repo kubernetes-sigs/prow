@@ -1,8 +1,9 @@
 ---
-title: "prow/pod-utilities.md"
+title: "Pod Utilities"
+weight: 40
+description: >
+  
 ---
-
-# Pod Utilities
 
 Pod utilities are small, focused Go programs used by `plank` to decorate user-provided `PodSpec`s
 in order to increase the ease of integration for new jobs into the entire CI infrastructure. The
@@ -14,12 +15,12 @@ These utilities are integrated into a test run by adding `InitContainer`s and si
 to the user-provided `PodSpec`, as well as by overwriting the `Container` entrypoint for the test
 `Container` provided by the user. The following utilities exist today:
 
- - [`clonerefs`](https://github.com/kubernetes/test-infra/tree/master/prow/cmd/clonerefs/README.md): clones source code under test
- - [`initupload`](https://github.com/kubernetes/test-infra/tree/master/prow/cmd/initupload/README.md): records the beginning of a test in cloud storage
+- [`clonerefs`](/docs/components/pod-utilities/clonerefs/): clones source code under test
+- [`initupload`](/docs/components/pod-utilities/initupload/): records the beginning of a test in cloud storage
    and reports the status of the clone operations
- - [`entrypoint`](https://github.com/kubernetes/test-infra/tree/master/prow/cmd/entrypoint/README.md): is injected into the test `Container`, wraps the
+- [`entrypoint`](/docs/components/pod-utilities/entrypoint/): is injected into the test `Container`, wraps the
    test code to capture logs and exit status
- - [`sidecar`](https://github.com/kubernetes/test-infra/tree/master/prow/cmd/sidecar/README.md): runs alongside the test `Container`, uploads status, logs
+- [`sidecar`](/docs/components/pod-utilities/sidecar/): runs alongside the test `Container`, uploads status, logs
    and test artifacts to cloud storage once the test is finished
 
 ### Why use Pod Utilities?
@@ -40,6 +41,7 @@ and less coupled to Prow.
 ### What the test container can expect
 
 Example test container script:
+
 ```bash
 pwd # my repo root
 ls path/to/file/in/my/repo.txt # access repo file
@@ -49,12 +51,13 @@ echo success > ${ARTIFACTS}/results.txt # result info that will be uploaded to G
 ```
 
 More specifically, a ProwJob using the Pod Utilities can expect the following:
+
 - **Source Code** - Jobs can expect to begin execution with their working
 directory set as the root of the checked out repo. The commit that is checked
 out depends on the type of job:
-	- `presubmit` jobs will have the relevant PR checked out and merged with the base branch.
-	- `postsubmit` jobs will have the upstream commit that triggered the job checked out.
-	- `periodic` jobs will have the working directory set to the root of the repo specified by the first ref in `extra_refs` (if specified).
+  - `presubmit` jobs will have the relevant PR checked out and merged with the base branch.
+  - `postsubmit` jobs will have the upstream commit that triggered the job checked out.
+  - `periodic` jobs will have the working directory set to the root of the repo specified by the first ref in `extra_refs` (if specified).
 See the `extra_refs` field if you need to clone more than one repo.
 - **Metadata and Logs** - Jobs can expect metadata about the job to be uploaded
 before the job starts, and additional metadata and logs to be uploaded when the
@@ -66,10 +69,11 @@ dumped for automatic upload to GCS upon job completion.
 ### How to configure
 
 In order to use the pod utilities, you will need to configure plank with some settings first.
-See plank's [README](https://github.com/kubernetes/test-infra/tree/master/prow/plank) for reference.
+See plank's [README](/docs/components/deprecated/plank/) for reference.
 
 ProwJobs may request Pod Utility decoration by setting `decorate: true` in their config.
 Example ProwJob configuration:
+
 ```yaml
 
   - name: pull-job
@@ -90,10 +94,11 @@ the Dockerfile's ENTRYPOINT directive. Note that the `command` field is a string
 array not just a string. It should point to the test binary location in the container.
 
 Additional fields may be required for some use cases:
+
 - Private repos need to do two things:
-	- Add an ssh secret that gives the bot access to the repo to the build cluster
-	and specify the secret name in the `ssh_key_secrets` field of the job decoration config.
-	- Set the `clone_uri` field of the job spec to `git@github.com:{{.Org}}/{{.Repo}}.git`.
+  - Add an ssh secret that gives the bot access to the repo to the build cluster
+ and specify the secret name in the `ssh_key_secrets` field of the job decoration config.
+  - Set the `clone_uri` field of the job spec to `git@github.com:{{.Org}}/{{.Repo}}.git`.
 - Repos requiring a non-standard clone path can use the `path_alias` field
 to clone the repo to different go import path than the default of `/home/prow/go/src/github.com/{{.Org}}/{{.Repo}}/` (e.g. `path_alias: k8s.io/test-infra` -> `/home/prow/go/src/k8s.io/test-infra`).
 - Jobs that require additional repos to be checked out can arrange for that with
