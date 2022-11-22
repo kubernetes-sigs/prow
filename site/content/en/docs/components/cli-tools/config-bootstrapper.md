@@ -1,8 +1,9 @@
 ---
-title: "prow/cmd/config-bootstrapper/README.md"
+title: "config-bootstrapper"
+weight: 10
+description: >
+  
 ---
-
-# `config-bootstrapper`
 
 `config-bootstrapper` is used to bootstrap a configuration that would be incrementally updated by the
 config-updater Prow plugin.
@@ -15,7 +16,8 @@ base state and hand off ownership to the plugin for updates.
 Provide the config-bootstrapper with the latest state of the Prow configuration (plugins.yaml, config.yaml, any job configuration files) to boot-strap with the latest configuration.
 
 Sample usage:
-```
+
+```shell
 ./config-bootstrapper \
     --dry-run=false \
     --source-path=.  \

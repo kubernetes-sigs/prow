@@ -1,8 +1,9 @@
 ---
-title: "prow/cmd/generic-autobumper/README.md"
+title: "generic-autobumper"
+weight: 10
+description: >
+  
 ---
-
-# Autobumper
 
 This tool automates the version upgrading of images such as the [prow.k8s.io](https://prow.k8s.io) Prow deployment.
 Its workflow is:
@@ -25,6 +26,7 @@ a postsubmit job, e.g., [`post-test-infra-deploy-prow`](https://github.com/kuber
     for [prow.k8s.io](https://prow.k8s.io/) is defined for deploying the yaml files.
 
 ### Requirement
+
 We need to fulfil those requirements to use this tool:
 
 * a "committable" local repo, i.e., `git-commit` command can be executed successfully, e.g., `git-config` is set up correctly.
@@ -44,6 +46,7 @@ We need to fulfil those requirements to use this tool:
 * For info about what should go in the config look at [the documentation for the Options here](https://pkg.go.dev/k8s.io/test-infra/prow/cmd/generic-autobumper/bumper#Options) and look at the example below.
   
 e.g.,
+
 ```yaml
 gitHubLogin: "k8s-ci-robot"
 gitHubToken: "/etc/github-token/oauth"
@@ -86,4 +89,3 @@ prefixes:
     summarise: false
     consistentImages: false
 ```
-

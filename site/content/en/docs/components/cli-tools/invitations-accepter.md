@@ -1,14 +1,16 @@
 ---
-title: "prow/cmd/invitations-accepter/README.md"
+title: "invitations-accepter"
+weight: 10
+description: >
+  
 ---
 
-# Invitations Accepter
-
-The `invitations-accepter` tool approves all pending repository invitations. 
+The `invitations-accepter` tool approves all pending repository invitations.
 
 ## Usage
 
 *example*:
+
 ```sh
 invitations-accepter --dry-run=false --github-token-path=/etc/github/oauth
 ```

@@ -1,8 +1,9 @@
 ---
-title: "prow/cmd/checkconfig/README.md"
+title: "checkconfig"
+weight: 10
+description: >
+  
 ---
-
-# `checkconfig`
 
 `checkconfig` loads the Prow configuration given with `--config-path`,
 `--job-config-path` and `--plugin-config` in order to validate it.

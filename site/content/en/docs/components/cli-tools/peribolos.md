@@ -1,8 +1,9 @@
 ---
-title: "prow/cmd/peribolos/README.md"
+title: "Peribolos"
+weight: 10
+description: >
+  
 ---
-
-# Peribolos Documentation
 
 Peribolos allows the org settings, teams and memberships to be declared in a yaml file. GitHub is then updated to match the declared configuration.
 
@@ -63,18 +64,19 @@ orgs:
 ```
 
 This config will:
+
 * Ensure the org settings match the following:
-  - Set the company, email, name and descriptions fields for the org to foo
-  - Allow projects to be created at the org and repo levels
-  - Give everyone read access to repos by default
-  - Disallow members from creating repositories
+  * Set the company, email, name and descriptions fields for the org to foo
+  * Allow projects to be created at the org and repo levels
+  * Give everyone read access to repos by default
+  * Disallow members from creating repositories
 * Ensure the following memberships exist:
-  - anne and bob are members, carl is an admin
+  * anne and bob are members, carl is an admin
 * Configure the node and another-team in the following manner:
-  - Set node's description and privacy setting.
-  - Rename the backend team to node
-  - Add anne as a member and jane as a maintainer to node
-  - Similar things for another-team (details elided)
+  * Set node's description and privacy setting.
+  * Rename the backend team to node
+  * Add anne as a member and jane as a maintainer to node
+  * Similar things for another-team (details elided)
 * Ensure that the team has admin rights to `some-repo`, read access to `other-repo` and no other privileges
 
 Note that any fields missing from the config will not be managed by peribolos. So if description is missing from the org setting, the current value will remain.
@@ -146,8 +148,6 @@ $ go run ./prow/cmd/peribolos --config-path ~/current.yaml --github-token-path ~
 ...
 ```
 
-
-
 ## Settings
 
 In order to mitigate the chance of applying erroneous configs, the peribolos binary includes a few safety checks:
@@ -164,10 +164,7 @@ This flag is designed to protect against typos in the configuration which might 
 
 * `--confirm=false` - no github mutations will be made until this flag is true. It is safe to run the binary without this flag. It will print what it would do, without actually making any changes.
 
-
 See `go run ./prow/cmd/peribolos --help` for the full and current list of settings that can be configured with flags.
-
-
 
 [`config.yaml`]: https://github.com/kubernetes/test-infra/tree/master/config/prow/config.yaml
 [edit team]: https://developer.github.com/v3/teams/#edit-team
