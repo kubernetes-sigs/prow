@@ -14,9 +14,9 @@ them when they have up-to-date passing test results ("tide goes out").
 
 ## Documentation
 
-- [I JUST WANT MY PR TO MERGE!](./pr-authors/)
-- [Configuring Tide](./config/)
-- [Maintainer's Guide](./maintainers/)
+- [I JUST WANT MY PR TO MERGE!](/docs/components/core/tide/pr-authors/)
+- [Configuring Tide](/docs/components/core/tide/config/)
+- [Maintainer's Guide](/docs/components/core/tide/maintainers/)
 
 ## Features
 

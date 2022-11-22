@@ -246,13 +246,13 @@ you can check this entry by:
 ```sh
 $ kubectl get prowjobs -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.status.prev_report_states.github-reporter}{"\n"}'
 ...
-fafec9e1-3af2-11e9-ad1a-0a580a6c0d12 failure
-fb027a97-3af2-11e9-ad1a-0a580a6c0d12 success
-fb0499d3-3af2-11e9-ad1a-0a580a6c0d12 failure
-fb05935f-3b2b-11e9-ad1a-0a580a6c0d12 success
-fb05e1f1-3af2-11e9-ad1a-0a580a6c0d12 error
-fb06c55c-3af2-11e9-ad1a-0a580a6c0d12 success
-fb09e7d8-3abb-11e9-816a-0a580a6c0f7f success
+fafec9e1-3af2-11e9-ad1a-0a580a6c0d12	failure
+fb027a97-3af2-11e9-ad1a-0a580a6c0d12	success
+fb0499d3-3af2-11e9-ad1a-0a580a6c0d12	failure
+fb05935f-3b2b-11e9-ad1a-0a580a6c0d12	success
+fb05e1f1-3af2-11e9-ad1a-0a580a6c0d12	error
+fb06c55c-3af2-11e9-ad1a-0a580a6c0d12	success
+fb09e7d8-3abb-11e9-816a-0a580a6c0f7f	success
 
 
 ```
