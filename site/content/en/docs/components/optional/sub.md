@@ -1,11 +1,15 @@
 ---
-title: "prow/cmd/sub/README.md"
+title: "Sub"
+weight: 150
+description: >
+  Triggers Prow jobs from Pub/Sub.
 ---
 
-# Sub
-
-Sub is a Prow Cloud Pub/Sub adapter for handling CI Pub/Sub notification requests to create Prow jobs.
-Note that the prow job need to be defined in the configuration.
+Sub is a Prow component that can trigger new Prow jobs (PJs) using Pub/Sub
+messages.  The message does not need to have the full PJ defined; instead you
+just need to have the job name and some other key pieces of information (more on
+this below). The rest of the data needed to create a full-blown PJ is derived
+from the main Prow configuration (or inrepoconfig).
 
 ## Deployment Usage
 
@@ -14,10 +18,75 @@ Sub can listen to Pub/Sub subscriptions (known as "pull subscriptions").
 When deploy the sub component, you need to specify `--config-path` to your prow config, and optionally
 `--job-config-path` to your prowjob config if you have split them up.
 
-Options:
 
+Notable options:
 - `--dry-run`: Dry run for testing. Uses API tokens but does not mutate.
 - `--grace-period`: On shutdown, try to handle remaining events for the specified duration.
+- `--port`: On shutdown, try to handle remaining events for the specified duration.
+- `--github-app-id` and `--github-app-private-key-path=/etc/github/cert`: Used to authenticate to GitHub for cloning operations as a GitHub app. Mutually exclusive with `--cookiefile`.
+- `--cookiefile`: Used to authenticate git when cloning from `https://...` URLs. See `http.cookieFile` in `man git-config`.
+- `--in-repo-config-cache-size`: Used to cache Prow configurations fetched from inrepoconfig-enabled repos.
+
+```mermaid
+flowchart TD
+
+    classDef yellow fill:#ff0
+    classDef cyan fill:#0ff
+    classDef pink fill:#f99
+
+    subgraph Service Cluster
+        PCM[Prow Controller Manager]:::cyan
+        Prowjob:::yellow
+        subgraph Sub
+            staticconfig["Static Config
+                (/etc/job-config)"]
+            inrepoconfig["Inrepoconfig
+                (git clone &lt;inrepoconfig&gt;)"]
+            YesOrNo{"Is my-prow-job-name
+                in the config?"}
+            Yes
+            No
+        end
+    end
+
+    subgraph Build Cluster
+        Pod:::yellow
+    end
+
+    subgraph GCP Project
+        subgraph Pub/Sub
+            Topic
+            Subscription
+        end
+    end
+    
+    subgraph Message
+        Payload["{&quot;data&quot;:
+            {&quot;name&quot;:&quot;my-prow-job-name&quot;,
+            &quot;attributes&quot;:{&quot;prow.k8s.io/pubsub.EventType&quot;: &quot;...&quot;},
+            &quot;data&quot;: ...,
+            ..."]
+    end
+
+    Message --> Topic --> Subscription --> Sub --> |Pulls| Subscription
+    staticconfig --> YesOrNo
+    inrepoconfig -.-> YesOrNo
+    YesOrNo --> Yes --> |Create| Prowjob --> PCM --> |Create| Pod
+    YesOrNo --> No --> |Report failure| Topic
+```
+
+### Sending a Pub/Sub Message
+
+Pub/Sub has a [generic `PubsubMessage` type][pubsubMessage] that has the following JSON structure:
+
+```json
+{
+  "attributes": "...",
+  "data": "...",
+  "attributes": "...",
+  "attributes": "...",
+}
+```
 
 ### Pull Server
 
@@ -40,8 +109,6 @@ account credentials JSON file. The service account used must have the right perm
 subscriptions (`Pub/Sub Subscriber`, and `Pub/Sub Editor`).
 
 More information at https://cloud.google.com/pubsub/docs/access-control.
-
-### Sending a Pub/Sub Notification
 
 #### Periodic Prow Jobs
 
@@ -74,7 +141,7 @@ This will find and start the periodic job `my-periodic-job`, and add / overwrite
 annotations and envs to the Prow job. The `prow.k8s.io/pubsub.*` annotations are
 used to publish job status.
 
-_Note: periodic jobs always clone source code from ref instead of specific SHA, if it's desired to trigger a prowjob on specific SHA you can use [postsubmit job](#postsubmit-prow-jobs)_
+_Note: periodic jobs always clone source code from ref (a branch) instead of a specific SHA. If you need to trigger a job based on a specific SHA you can use a [postsubmit job](#postsubmit-prow-jobs) instead._
 
 #### Presubmit Prow Jobs
 
@@ -153,3 +220,5 @@ Gerrit presubmit and postsubmit jobs require some additional labels and annotati
     prow.k8s.io/gerrit-patchset: "4"
     prow.k8s.io/gerrit-revision: 2b8cafaab9bd3a829a6bdaa819a18f908bc677ca
 ```
+
+[pubsubMessage]: https://cloud.google.com/pubsub/docs/reference/rest/v1/PubsubMessage

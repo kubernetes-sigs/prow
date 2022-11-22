@@ -1,8 +1,9 @@
 ---
-title: "prow/cmd/tot/fallbackcheck/README.md"
+title: "fallbackcheck"
+weight: 10
+description: >
+  
 ---
-
-# fallbackcheck
 
 Ensure your GCS bucket layout is what `tot` expects to use. Useful when you want to transition
 from versioning your GCS buckets away from Jenkins build numbers to build numbers vended
@@ -24,6 +25,7 @@ fallbackcheck -bucket GCS_BUCKET -prow-url LIVE_DECK_DEPLOYMENT
 ```
 
 For example:
+
 ```shell
 fallbackcheck -bucket https://gcsweb-ci.svc.ci.openshift.org/gcs/origin-ci-test/ -prow-url https://deck-ci.svc.ci.openshift.org/
 ```

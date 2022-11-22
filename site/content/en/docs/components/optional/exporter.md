@@ -1,8 +1,9 @@
 ---
-title: "prow/cmd/exporter/README.md"
+title: "Exporter"
+weight: 10
+description: >
+  
 ---
-
-# Exporter
 
 The prow-exporter exposes metrics about prow jobs while the
 metrics are not directly related to a specific prow-component.
@@ -22,5 +23,5 @@ it with other metrics using a [Prometheus matching operator](https://prometheus.
 
 Note that `job_name` is [`.spec.job`](https://github.com/kubernetes/test-infra/blob/98fac12af0e0b98970606dd7a5c48028a72e7f1d/prow/apis/prowjobs/v1/types.go#L117)
 instead of `.metadata.name` as taken in `kube_pod_labels`.
-The gauge value is always `1` because we have another metric [`prowjobs`](https://github.com/kubernetes/test-infra/tree/master/prow/metrics)
+The gauge value is always `1` because we have another metric [`prowjobs`](/docs/metrics/)
 for the number jobs by name. The metric here shows only the existence of such a job with the label set in the cluster.

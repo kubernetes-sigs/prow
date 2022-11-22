@@ -1,8 +1,9 @@
 ---
-title: "prow/cmd/gerrit/README.md"
+title: "Gerrit"
+weight: 10
+description: >
+  
 ---
-
-# Gerrit
 
 Gerrit is a Prow-gerrit adapter for handling CI on gerrit workflows. It can poll gerrit
 changes from multiple gerrit instances, and trigger presubmits on Prow upon new patchsets
@@ -31,6 +32,6 @@ it empty for anonymous access to gerrit API.
 
 ## Underlying infra
 
-Also take a look at [gerrit related packages](https://github.com/kubernetes/test-infra/tree/master/prow/gerrit/README.md) for implementation details.
+Also take a look at [gerrit related packages](/docs/gerrit/) for implementation details.
 
-You might also want to deploy [Crier](https://github.com/kubernetes/test-infra/tree/master/prow/cmd/crier) which reports job results back to gerrit.
+You might also want to deploy [Crier](/docs/components/core/crier/) which reports job results back to gerrit.

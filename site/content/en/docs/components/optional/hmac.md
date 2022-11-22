@@ -1,8 +1,9 @@
 ---
-title: "prow/cmd/hmac/README.md"
+title: "HMAC"
+weight: 10
+description: >
+  
 ---
-
-# HMAC
 
 `hmac` is a tool to update the HMAC token, GitHub webhooks and HMAC secret
 for the orgs/repos as per the `managed_webhooks` configuration changes in the Prow config file.
@@ -13,8 +14,8 @@ To run this tool, you'll need:
 
 1. A github account that has admin permission to the orgs/repos.
 
-1. A [personal access token](https://github.com/settings/tokens) for the github account. 
-Note the token must be granted `admin:repo_hook` and ` admin:org_hook` scopes.
+1. A [personal access token](https://github.com/settings/tokens) for the github account.
+Note the token must be granted `admin:repo_hook` and `admin:org_hook` scopes.
 
 1. Permissions to read&write the hmac secret in the Prow cluster.
 
@@ -74,6 +75,7 @@ managed_webhooks:
 ### Workflow example
 
 Suppose the current `org_repo_config` in the `managed_webhooks` configuration is
+
 ```yaml
 qux:
   token_created_after: 2017-10-02T15:00:00Z
@@ -81,13 +83,14 @@ foo/bar:
   token_created_after: 2018-10-02T15:00:00Z
 foo/baz:
   token_created_after: 2019-10-02T15:00:00Z
-``` 
+```
 
 There can be 3 scenarios to modify the configuration, as explained below:
 
 #### Rotate an existing HMAC token
 
 User updates the `token_created_after` for `foo/baz` to a later time, as shown below:
+
 ```yaml
 qux:
   token_created_after: 2017-10-02T15:00:00Z
@@ -95,7 +98,7 @@ foo/bar:
   token_created_after: 2018-10-02T15:00:00Z
 foo/baz:
   token_created_after: 2020-03-02T15:00:00Z
-``` 
+```
 
 The `hmac` tool will generate a new HMAC token for the `foo/baz` repo,
 add the new token to the secret, and update the webhook for the repo.
@@ -104,6 +107,7 @@ And after the update finishes, it will delete the old token.
 #### Onboard a new repo
 
 User adds a new repo `foo/bax` in the `managed_webhooks` configuration, as shown below:
+
 ```yaml
 qux:
   token_created_after: 2017-10-02T15:00:00Z
@@ -113,7 +117,7 @@ foo/baz:
   token_created_after: 2019-10-02T15:00:00Z
 foo/bax:
   token_created_after: 2020-03-02T15:00:00Z
-``` 
+```
 
 The `hmac` tool will generate an HMAC token for the `foo/bax` repo,
 add the token to the secret, and add the webhook for the repo.
@@ -121,12 +125,13 @@ add the token to the secret, and add the webhook for the repo.
 #### Remove an existing repo
 
 User deletes the repo `foo/baz` from the `managed_webhooks` configuration, as shown below:
+
 ```yaml
 qux:
   token_created_after: 2017-10-02T15:00:00Z
 foo/bar:
   token_created_after: 2018-10-02T15:00:00Z
-``` 
+```
 
 The `hmac` tool will delete the HMAC token for the `foo/baz` repo from
 the secret, and delete the corresponding webhook for this repo.

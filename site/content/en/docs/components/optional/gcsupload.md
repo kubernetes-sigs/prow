@@ -1,8 +1,9 @@
 ---
-title: "prow/cmd/gcsupload/README.md"
+title: "gcsupload"
+weight: 10
+description: >
+  
 ---
-
-# `gcsupload`
 
 `gcsupload` uploads artifacts to cloud storage at a path resolved from the job configuration.
 

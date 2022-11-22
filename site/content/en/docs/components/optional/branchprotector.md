@@ -1,8 +1,9 @@
 ---
-title: "prow/cmd/branchprotector/README.md"
+title: "Branchprotector"
+weight: 10
+description: >
+  
 ---
-
-# Branch Protection Documentation
 
 branchprotector configures [github branch protection] according to a specified
 policy.
@@ -38,13 +39,14 @@ presubmits:
 ```
 
 This config will:
-  * Enable protection for every branch in the `kubernetes/test-infra`
+
+* Enable protection for every branch in the `kubernetes/test-infra`
 repo.
-  * Require `extra-process-followed` and `fancy-job-name` [status contexts] to pass
+* Require `extra-process-followed` and `fancy-job-name` [status contexts] to pass
     before allowing a merge
-    - Although it will always allow `oncall-team` to merge, even if required
+  * Although it will always allow `oncall-team` to merge, even if required
       contexts fail.
-    - Note that `fancy-job-name` is pulled in automatically from the
+  * Note that `fancy-job-name` is pulled in automatically from the
       `presubmits` config for the repo, if one exists.
 
 ### Updating
@@ -59,7 +61,6 @@ editor and then send out a PR. When the PR merges prow pushes the updated config
 24hrs).
 
 ### Advanced configuration
-
 
 #### Fields
 
@@ -104,10 +105,7 @@ branch-protection:
         - those
 ```
 
-
-
 #### Scope
-
 
 It is possible to define a policy at the
 `branch-protection`, `org`, `repo` or `branch` level. For example:
@@ -142,23 +140,25 @@ branch-protection:
 ```
 
 The general rule for how to compute child values is:
-  * If the child value is `null` or missing, inherit the parent value.
-  * Otherwise:
-    -   List values (like `contexts`), create a union of the parent and child lists.
-    -   For bool/int values (like `protect`), the child value replaces the parent value.
+
+* If the child value is `null` or missing, inherit the parent value.
+* Otherwise:
+  * List values (like `contexts`), create a union of the parent and child lists.
+  * For bool/int values (like `protect`), the child value replaces the parent value.
 
 So in the example above:
-  * The `secure` branch in `unprotected-org/protected-repo`
-    - enables protection (set a branch level)
-    - requires `foo` `tested` `cla` [status contexts]
+
+* The `secure` branch in `unprotected-org/protected-repo`
+  * enables protection (set a branch level)
+  * requires `foo` `tested` `cla` [status contexts]
       (the latter two are appended by ancestors)
-  * All other branches in `unprotected-org/protected-repo`
-    - disable protection (inherited from org level)
-  * All branches in all other repos in `unprotected-org`
-    - disable protection (set at org level)
-  * All branches in all repos in `different-org`
-    - Enable protection (inherited from branch-protection level)
-    - Require the `cla` context to be green to merge (appended by parent)
+* All other branches in `unprotected-org/protected-repo`
+  * disable protection (inherited from org level)
+* All branches in all other repos in `unprotected-org`
+  * disable protection (set at org level)
+* All branches in all repos in `different-org`
+  * Enable protection (inherited from branch-protection level)
+  * Require the `cla` context to be green to merge (appended by parent)
 
 ## Developer docs
 
@@ -186,6 +186,7 @@ This will say how the binary will actually change github if you add a
 ### Deploy local changes to dev cluster
 
 Run things like the following:
+
 ```sh
 # Build image locally
 make -C prow push-single-image PROW_IMAGE=prow/cmd/branchprotector REGISTRY=<YOUR_REGISTRY>
@@ -197,7 +198,7 @@ This will build an image with your local changes, push it to `<YOUR_REGISTRY>`
 
 [branchprotector image](https://gcr.io/k8s-prow/branchprotector) is automatically built
 as part of prow, see
-[build_test_update.md#how-to-update-the-cluster](https://github.com/kubernetes/test-infra/tree/master/prow/build_test_update.md#how-to-update-the-cluster)
+["How to update the cluster"](/docs/build-test-update/#how-to-update-the-cluster)
 for more details.
 
 Branchprotector runs as a prow periodic job, for example
