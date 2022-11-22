@@ -1,6 +1,6 @@
 ---
 title: "Deck"
-weight: 10
+weight: 20
 description: >
   Shows what jobs are running or have recently run in prow
 ---
