@@ -1,5 +1,8 @@
 ---
 title: "Fake Git Server (FGS)"
+weight: 40
+description: >
+  
 ---
 
 FGS is actually not a fake at all. It is a real web server that serves real Git
