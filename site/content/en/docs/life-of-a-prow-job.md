@@ -84,11 +84,11 @@ status:
   state: triggered
 ```
 
-[**prow-controller-manager**][prow-controller-manager] runs ProwJobs by launching them by creating a new Kubernetes pod.
+[**prow-controller-manager**](/docs/components/core/prow-controller-manager/) runs ProwJobs by launching them by creating a new Kubernetes pod.
 It knows how to schedule new ProwJobs onto the cluster, responding to changes in the ProwJob or cluster health.
 
 When the ProwJob finishes (the containers in the pod have finished running), **prow-controller-manager** updates the ProwJob.
-[**crier**][crier] reports back the status of the ProwJob back to the various external services like GitHub (e.g., as a green check-mark on the PR where the original `/test all` comment was made).
+[**crier**](/docs/components/core/crier/) reports back the status of the ProwJob back to the various external services like GitHub (e.g., as a green check-mark on the PR where the original `/test all` comment was made).
 
 A day later, [**sinker**][sinker] notices that the job and pod are a day old and [deletes them][sinker-clean] from the Kubernetes API server.
 
@@ -142,7 +142,5 @@ Here is a summary of the above:
 [trigger-handleGenericComment-getPresubmits]: https://github.com/kubernetes/test-infra/blob/5df7636b83cab54e248e550a31dbf1e4731197a6/prow/plugins/trigger/generic-comment.go#L56
 
 [prow-repo-sync-point]:                       https://github.com/kubernetes/test-infra/tree/5df7636b83cab54e248e550a31dbf1e4731197a6
-[crier]:                                      https://github.com/kubernetes/test-infra/tree/5df7636b83cab54e248e550a31dbf1e4731197a6/prow/cmd/crier
 [sample-github-webhook-payloads]:             https://github.com/kubernetes/test-infra/tree/5df7636b83cab54e248e550a31dbf1e4731197a6/prow/cmd/phony/examples
-[prow-controller-manager]:                    https://github.com/kubernetes/test-infra/tree/5df7636b83cab54e248e550a31dbf1e4731197a6/prow/cmd/prow-controller-manager
 [prow-plugins-trigger]:                       https://github.com/kubernetes/test-infra/tree/5df7636b83cab54e248e550a31dbf1e4731197a6/prow/plugins/trigger

@@ -5,13 +5,12 @@ description: >
   
 ---
 
-[Gerrit] is a free, web-based team code collaboration tool.
+[Gerrit](https://www.gerritcodereview.com/) is a free, web-based team code collaboration tool.
 
 ## Related Deployments
 
-[Adapter](/docs/components/optional/gerrit/)
-
-[Reporter](/docs/components/core/crier/)
+- Prow-gerrit adapter ([doc](/docs/components/optional/gerrit/), [code](https://github.com/kubernetes/test-infra/tree/master/prow/cmd/gerrit))
+- Crier (the reporter) ([doc](/docs/components/core/crier/), [code](https://github.com/kubernetes/test-infra/tree/master/prow/cmd/crier))
 
 ## Related packages
 
@@ -41,7 +40,7 @@ c.Start(cookiefilePath)
 
 The client will try to refetch token from the path every 10 minutes.
 
-You should also utilize [grandmatriarch] to generate a token from a
+You should also utilize [`grandmatriarch`](/docs/components/undocumented/grandmatriarch/) to generate a token from a
 passed-in service account credential.
 
 If you need extra features, feel free to introduce new gerrit API functions to the client package.
@@ -53,7 +52,7 @@ presubmit and postsubmit jobs based on your prow config.
 
 #### Gerrit Labels
 
-Prow adds the following [Labels] to Gerrit Presubmits that can be accessed in the container by leveraging the [Downward Api].
+Prow adds the following [Labels](https://github.com/kubernetes/test-infra/tree/master/prow/gerrit/client/client.go) to Gerrit Presubmits that can be accessed in the container by leveraging the [Downward API](https://kubernetes.io/docs/tasks/inject-data-application/environment-variable-expose-pod-information/).
 
 - "prow.k8s.io/gerrit-revision": SHA of current patchset from a gerrit change
 - "prow.k8s.io/gerrit-patchset": Numeric ID of the current patchset
@@ -70,8 +69,3 @@ Prow adds the following [Labels] to Gerrit Presubmits that can be accessed in th
 
 The gerrit adapter currently does not support [gerrit hooks](https://gerrit-review.googlesource.com/Documentation/config-hooks.html),
 If you need them, please send us a PR to support them :-)
-
-[Gerrit]: https://www.gerritcodereview.com/
-[grandmatriarch]: /docs/components/undocumented/grandmatriarch/
-[Labels]: https://github.com/kubernetes/test-infra/tree/master/prow/gerrit/client/client.go
-[Downward Api]: https://kubernetes.io/docs/tasks/inject-data-application/environment-variable-expose-pod-information/
