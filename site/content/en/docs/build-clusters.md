@@ -2,7 +2,7 @@
 title: "GKE Build Clusters"
 description: >
   Sometimes you might want to run all of your jobs in a GKE cluster that is separate from Prow (perhaps running in your own GCP project). What you need is a dedicated "build cluster".
-weight: 3
+weight: 40
 ---
 
 *Note: This page discusses build clusters that use GKE. Technically speaking, a
