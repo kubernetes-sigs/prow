@@ -21,6 +21,11 @@ description: >
 1. Tide may merge a PR without retesting if the existing test results are already against the latest base branch commit.
 1. It is possible for `tide` status contexts on PRs to temporarily differ from the Tide dashboard or Tide's behavior. This is because status contexts are updated asynchronously from the main Tide sync loop and have a separate rate limit and loop period.
 
+## Troubleshooting
+1. If Prow's PR dashboard indicates that a PR is ready to merge and it appears to meet all merge requirements, but the PR is being ignored by Tide, you may have encountered a rare bug with GitHub's search indexing. __TLDR: If this is the probelm, then any update to the PR (e.g. adding a comment) will make the PR visible to Tide again after a short delay.__
+The longer explanation is that when GitHub's background jobs for search indexing PRs fail, the search index becomes corrupted and the search API will have some incorrect belief about the affected PR, e.g. that it is missing a required label or still has a forbidden one. This causes the search query Tide uses to identify the mergeable PRs to incorrectly omit the PR. Since the same search engine is used by both the API and GitHub's front end, you can confirm that the affected PR is not included in the query for mergeable PRs by using the appropriate "GitHub search link" from the expandable "Merge Requirements" section on the Tide status page. You can actually determine which particular index is corrupted by incrementally tweaking the query to remove requirements until the PR is included.
+Any update to the PR causes GitHub to kick off a new search indexing job in the background. Once it completes, the corrupted index should be fixed and Tide will be able to see the PR again in query results, allowing Tide to resume processing the PR. It appears any update to the PR is sufficient to trigger reindexing so we typically just leave a comment. [Slack thread](https://kubernetes.slack.com/archives/C7J9RP96G/p1671494352250439) about an example of this.
+
 ## Other resources
 
 - [Configuring Tide](/docs/components/core/tide/config/)
