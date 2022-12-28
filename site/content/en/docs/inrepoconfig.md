@@ -72,6 +72,8 @@ presubmits:
     spec:
       containers:
       - image: gcr.io/k8s-prow/checkconfig:v20221220-5c7fbe528a
+        command:
+          - /ko-app/checkconfig
         args:
         - --plugin-config=../test-infra/path/to/plugins.yaml
         - --config-path=../test-infra/path/to/config.yaml
