@@ -69,7 +69,7 @@ postsubmits:
 
 Postsubmits are run when a push event happens on a repo, hence they are
 configured per-repo. If no `branches` are specified, then they will run against
-every branch.
+every branch, including for open pull requests.
 
 Presubmit config looks like so (see [GoDocs](https://pkg.go.dev/k8s.io/test-infra/prow/config#Presubmit) for complete config):
 
@@ -89,6 +89,8 @@ presubmits:
     trigger: "(?m)qux test this( please)?" # Regexp, see discussion.
     rerun_command: "qux test this please"  # String, see discussion.
 ```
+
+Presubmit jobs are only run for pull requests.
 
 The `trigger` is a regexp that matches the `rerun_command`. Users will be told
 to input the `rerun_command` when they want to rerun the job. Actually, anything
