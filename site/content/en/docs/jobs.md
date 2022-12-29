@@ -72,7 +72,7 @@ configured per-repo. If no `branches` are specified, then they will run on every
 every branch on the given repo.
 
 Postsubmit jobs apply `run_if_changed` and `skip_if_only_changed` filters based on which
-files were modified by the commits included in the specific push even from github.
+files were modified by the commits included in the specific push event from github.
 
 Presubmit config looks like so (see [GoDocs](https://pkg.go.dev/k8s.io/test-infra/prow/config#Presubmit) for complete config):
 
