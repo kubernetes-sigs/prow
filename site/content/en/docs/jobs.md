@@ -69,7 +69,7 @@ postsubmits:
 
 Postsubmits are run when a push event happens on a repo, hence they are
 configured per-repo. If no `branches` are specified, then they will run against
-every branch, including for open pull requests.
+every branch.
 
 Presubmit config looks like so (see [GoDocs](https://pkg.go.dev/k8s.io/test-infra/prow/config#Presubmit) for complete config):
 
