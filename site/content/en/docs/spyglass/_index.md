@@ -48,7 +48,7 @@ The `spyglass` block has the following properties:
 | `testgrid_config` | No | `gs://k8s-testgrid/config` | If you have a TestGrid instance available, `testgrid_config` should point to the TestGrid config proto on GCS. If omitted, no TestGrid link will be visible.
 | `testgrid_root` | No | `https://testgrid.k8s.io/` | If you have a TestGrid instance available, `testgrid_root` should point to the root of the TestGrid web interface. If omitted, no TestGrid link will be visible.
 | `announcement` | No | `"Remember: friendship is magic!"` | If announcement is set, the string will appear at the top of the page. `announcement` is parsed as a Go template. The only value provided is `.ArtifactPath`, which is of the form `gcs-bucket/path/to/job/root/`.
-| `lenses` | Yes | (see below) | `lenses` configures the lenses you want, when they should be visible, what artifacts they should receive, and
+| `lenses` | Yes | (see below) | `lenses` configures the lenses you want, when they should be visible, what artifacts they should receive, and any lens specific configuration
 
 #### Configuring Lenses
 
