@@ -2,7 +2,7 @@
 title: "Metrics"
 weight: 60
 description: >
-  Prometheues metrics that can be used for monitoring and alerting.
+  Prometheus metrics that can be used for monitoring and alerting.
 ---
 
 # Prometheus Metrics
