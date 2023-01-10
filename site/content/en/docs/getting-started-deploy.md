@@ -197,7 +197,8 @@ to start receiving GitHub events!
 
 To set up the webhook, you have to go the GitHub UI and edit your app. Update
 the `Webhook URL` property to `https://prow.<<your-domain.com>>/hook`. Use the URL
-shown above when getting the `Ingress`.
+shown above when getting the `Ingress` and fill in the Webhook secret using the value
+in the `hmac-token` secret created earlier.
 
 ## Install Prow for a GitHub organization or repo
 
