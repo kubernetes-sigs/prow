@@ -198,6 +198,158 @@ postsubmits:
               - echo
 ```
 
+### [Webhook reporter](https://github.com/kubernetes/test-infra/tree/master/prow/crier/reporters/webhook)
+
+You can enable the webhook reporter in crier by specifying the `--webhook-workers=n` and `--webhook-key-file=<path-to-private-key>` flags.
+
+The `--webhook-key-file` flag takes a path to a file containing an ed25519 key, which is a concatenation of an ed25519 private key seed and its corresponding public key.
+
+The **webhook key** can be generated as follows:
+
+```Go
+package main
+
+import (
+	"crypto/ed25519"
+	"crypto/rand"
+	"encoding/base64"
+	"fmt"
+)
+
+func main() {
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Printf("private key: %s\n", base64.StdEncoding.EncodeToString(priv))
+	fmt.Printf("public key: %s\n", base64.StdEncoding.EncodeToString(pub))
+}
+```
+
+You can create a `secret` in the cluster using that value:
+
+```shell
+kubectl create secret generic webhook-key --from-literal=key=<"private key" generated with the script above>
+```
+
+> **NOTE:** The value of "public key" is what the webhook receivers will need to verify the authenticity of the webhooks.
+
+To make the webhook key available to Crier, mount the *webhook-key* `secret` using a `volume` and set the `--webhook-key-file` flag in the deployment spec.
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: crier
+  labels:
+    app: crier
+spec:
+  selector:
+    matchLabels:
+      app: crier
+  template:
+    metadata:
+      labels:
+        app: crier
+    spec:
+      containers:
+      - name: crier
+        image: gcr.io/k8s-prow/crier:v20200205-656133e91
+        args:
+        - --webhook-workers=1
+        - --webhook-key-file=/etc/webhook/key
+        - --config-path=/etc/config/config.yaml
+        - --dry-run=false
+        volumeMounts:
+        - mountPath: /etc/config
+          name: config
+          readOnly: true
+        - name: webhook
+          mountPath: /etc/webhook
+          readOnly: true
+      volumes:
+      - name: webhook
+        secret:
+          secretName: webhook-key
+      - name: config
+        configMap:
+          name: config
+```
+
+Additionally, in order for it to work with Prow you must add the following to your `config.yaml`:
+
+> **NOTE:** `webhook_reporter_configs` is a map of `org`, `org/repo`, or `*` (i.e. catch-all wildcard) to a set of webhook reporter configs.
+
+```yaml
+webhook_reporter_configs:
+
+  # Wildcard (i.e. catch-all) webhook config
+  "*":
+    # default: None
+    job_types_to_report:
+      - presubmit
+      - postsubmit
+    # default: None
+    job_states_to_report:
+      - failure
+      - error
+    # required
+    url: address of the webhook-receiver server
+
+  # "org/repo" webhook config
+  istio/proxy:
+    job_types_to_report:
+      - presubmit
+    job_states_to_report:
+      - error
+    channel: istio-proxy-channel
+
+  # "org" webhook config
+  istio:
+    job_types_to_report:
+      - periodic
+    job_states_to_report:
+      - failure
+    channel: istio-channel
+```
+
+The `url` and `job_states_to_report` fields can be overridden at the ProwJob level via the `reporter_config.webhook` field:
+
+```yaml
+postsubmits:
+  some-org/some-repo:
+    - name: example-job
+      decorate: true
+      reporter_config:
+        webhook:
+          url: 'https://override-url.example.com'
+          job_states_to_report:
+            - success
+      spec:
+        containers:
+          - image: alpine
+            command:
+              - echo
+```
+
+To silence notifications at the ProwJob level you can pass an empty slice to `reporter_config.webhook.job_states_to_report`:
+postsubmits:
+
+```yaml
+  some-org/some-repo:
+    - name: example-job
+      decorate: true
+      reporter_config:
+        webhook:
+          job_states_to_report: []
+      spec:
+        containers:
+          - image: alpine
+            command:
+              - echo
+```
+
 ## Implementation details
 
 Crier supports multiple reporters, each reporter will become a crier controller. Controllers
