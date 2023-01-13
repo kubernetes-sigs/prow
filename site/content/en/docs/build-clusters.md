@@ -157,7 +157,7 @@ flowchart TD
     subgraph your_gcp_project["Your GCP Project"]
       subgraph Build Cluster["GKE K8S CLUSTER (YOUR BUILD CLUSTER)"]
         subgraph testpods_namespace["'test-pods' K8s namespace"]
-          prowjob_pod["K8s Pod\n(prowjob)\n\nRuns as <b>KSA C</b>, bound to <b>GSA C</b> via\nWorkload Identity"]
+          prowjob_pod["K8s Pod\n(prowjob)\n\nRuns as <b>KSA B</b>, bound to <b>GSA C</b> via\nWorkload Identity"]
           KSA_B["<b>KSA B</b>"]
         end
         KSA_A["<b>KSA A</b>\n\nHas cluster-admin access\nfor your cluster"]
