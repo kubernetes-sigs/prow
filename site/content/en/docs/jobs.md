@@ -67,9 +67,12 @@ postsubmits:
     - ^release-.*$
 ```
 
-Postsubmits are run when a push event happens on a repo, hence they are
-configured per-repo. If no `branches` are specified, then they will run against
-every branch.
+Postsubmits are run by the trigger plugin when a push event happens on a repo, hence they are
+configured per-repo. If no `branches` are specified, then they will run on every push to
+every branch on the given repo.
+
+Postsubmit jobs apply `run_if_changed` and `skip_if_only_changed` filters based on which
+files were modified by the commits included in the specific push event from github.
 
 Presubmit config looks like so (see [GoDocs](https://pkg.go.dev/k8s.io/test-infra/prow/config#Presubmit) for complete config):
 
@@ -90,6 +93,8 @@ presubmits:
     rerun_command: "qux test this please"  # String, see discussion.
 ```
 
+Presubmit jobs are run for pull requests by the trigger plugin.
+
 The `trigger` is a regexp that matches the `rerun_command`. Users will be told
 to input the `rerun_command` when they want to rerun the job. Actually, anything
 that matches `trigger` will suffice. This is useful if you want to make one
@@ -103,6 +108,9 @@ pattern when adding new jobs is to start with `always_run` set to false and
 `skip_report` set to true. Test it out a few times by manually triggering,
 then switch `always_run` to true. Watch for a couple days, then switch
 `skip_report` to false.
+
+Presubmit jobs apply `run_if_changed` and `skip_if_only_changed` filters based on which
+files were modified in any of the commits in the pull request.
 
 ## Presets
 
