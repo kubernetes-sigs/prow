@@ -9,6 +9,7 @@ description: >
 
 New features added to each component:
 
+- *January 20, 2023* Remove k8s-ci-robot at-mention autoresponse for instances that does not warrant additional explanation in the details section.
 - *August 4, 2022* override plugin will now override checkruns set by GitHub Actions and other CI
     systems on a PR.
 - *June 8, 2022* `deck.rerun_auth_configs` can optionally be replaced with
