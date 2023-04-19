@@ -340,6 +340,7 @@ the build.
 | `PULL_REFS`     |          |     ✓      |   ✓   |     ✓     | All refs to test.                                                       | `master:123abc,5:qwe456`               |
 | `PULL_NUMBER`   |          |            |       |     ✓     | Pull request number.                                                    | `5`                                    |
 | `PULL_PULL_SHA` |          |            |       |     ✓     | Pull request head SHA.                                                  | `qwe456`                               |
+| `PULL_HEAD_REF` |          |            |       |     ✓     | Pull request branch name.                                               | `fixup-some-stuff`                     |
 
 Examples of the JSON-encoded job specification follow for the different
 job types:
@@ -359,7 +360,7 @@ Postsubmit Job:
 Presubmit Job:
 
 ```json
-{"type":"presubmit","job":"job-name","buildid":"0","prowjobid":"uuid","refs":{"org":"org-name","repo":"repo-name","base_ref":"base-ref","base_sha":"base-sha","pulls":[{"number":1,"author":"author-name","sha":"pull-sha"}]}}
+{"type":"presubmit","job":"job-name","buildid":"0","prowjobid":"uuid","refs":{"org":"org-name","repo":"repo-name","base_ref":"base-ref","base_sha":"base-sha","pulls":[{"number":1,"author":"author-name","sha":"pull-sha","head_ref":"pull-branch"}]}}
 ```
 
 Batch Job:
