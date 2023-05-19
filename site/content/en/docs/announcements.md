@@ -9,6 +9,8 @@ description: >
 
 New features added to each component:
 
+- *May 19, 2023* Use blobless fetches in clonerefs to minimize time and
+    bandwidth required for large projects.
 - *January 20, 2023* Remove k8s-ci-robot at-mention autoresponse for instances that does not warrant additional explanation in the details section.
 - *August 4, 2022* override plugin will now override checkruns set by GitHub Actions and other CI
     systems on a PR.
