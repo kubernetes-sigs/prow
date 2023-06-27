@@ -113,7 +113,7 @@ Prow is used by the following organizations and projects:
 * [Loodse](https://public-prow.loodse.com/)
 * [Feast](https://github.com/gojek/feast)
 * [Falco](http://prow.falco.org)
-* [TiDB](https://prow.tidb.io)
+* [TiDB](https://prow.tidb.net)
 * [Amazon EKS Distro and Amazon EKS Anywhere](https://prow.eks.amazonaws.com/)
 * [KubeSphere](https://prow.kubesphere.io)
 * [OpenYurt](https://github.com/openyurtio/openyurt)
