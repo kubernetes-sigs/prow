@@ -159,6 +159,15 @@ Apply the manifest you edited above by executing one of the following three comm
 * `kubectl apply -f config/prow/cluster/starter/starter-gcs.yaml`
 * `kubectl apply -f config/prow/cluster/starter/starter-azure.yaml`
 
+Note that some of the values, such as `$GITHUB_TOKEN`, are sensitive and should not be checked in version control;
+instead, you can e.g. assign them to environments variables and substitute dynamically:
+
+```
+export GITHUB_TOKEN=<your GitHub token>
+...
+envsubst < starter-azure.yaml | kubectl apply -f -
+```
+
 After a moment, the cluster components will be running.
 
 ```sh
