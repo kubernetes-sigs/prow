@@ -137,12 +137,12 @@ There are three sample manifests to get you started:
 
 Regardless of which object storage you choose, the below adjustments are always needed:
 
-* The GitHub app cert by replacing the `<<insert-downloaded-cert-here>>` string
-* The GitHub app id by replacing the `<<insert-the-app-id-here>>` string
-* The hmac token by replacing the `<< insert-hmac-token-here >>` string
-* The domain by replacing the `<< your-domain.com >>` string
+* The GitHub app cert by replacing the `$GITHUB_TOKEN` string
+* The GitHub app id by replacing the `$GITHUB_APP_ID` string
+* The hmac token by replacing the `$HMAC_TOKEN` string
+* The domain by replacing the `$PROW_HOST` string
 * Optionally, you can update the `cert-manager.io/cluster-issuer:` annotation if you use cert-manager
-* Your GitHub organization(s) by replacing the `<< your_github_org >>` string
+* Your GitHub organization(s) by replacing the `$GITHUB_ORG` string
 
 ### Add the prow components to the cluster
 
@@ -158,6 +158,15 @@ Apply the manifest you edited above by executing one of the following three comm
 * `kubectl apply -f config/prow/cluster/starter/starter-s3.yaml`
 * `kubectl apply -f config/prow/cluster/starter/starter-gcs.yaml`
 * `kubectl apply -f config/prow/cluster/starter/starter-azure.yaml`
+
+Note that some of the values, such as `$GITHUB_TOKEN`, are sensitive and should not be checked in version control;
+instead, you can e.g. assign them to environments variables and substitute dynamically:
+
+```
+export GITHUB_TOKEN=<your GitHub token>
+...
+envsubst < starter-azure.yaml | kubectl apply -f -
+```
 
 After a moment, the cluster components will be running.
 
