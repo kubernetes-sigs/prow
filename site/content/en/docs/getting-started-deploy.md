@@ -20,7 +20,7 @@ app requests (both added and removed) require everyone to re-install it.
 Repository permissions:
 
 * Actions: Read-Only (Only needed when using the merge automation `tide`)
-* Administration: Read-Only (Required to fetch teams and collaborateurs)
+* Administration: Read-Only (Required to fetch teams and collaborators, Read & write needed when using branch protection automation)
 * Checks: Read-Only (Only needed when using the merge automation `tide`)
 * Contents: Read (Read & write needed when using the merge automation `tide`)
 * Issues: Read & write
