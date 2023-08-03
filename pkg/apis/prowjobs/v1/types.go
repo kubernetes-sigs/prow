@@ -538,6 +538,12 @@ type DecorationConfig struct {
 	// defined explicitly on prowjob.
 	DefaultMemoryRequest *resource.Quantity `json:"default_memory_request,omitempty"`
 
+	// SchedulingOptions define the configuration for fields required for pod scheduling.
+	// These fields directly modify the way how pods can be scheduled giving the operator
+	// ability to run workloads on designated node.
+	// If these fields are already present in the pod definition, they will be ignored.
+	SchedulingOptions *SchedulingOptions `json:"scheduling_options,omitempty"`
+
 	// PodPendingTimeout defines how long the controller will wait to perform garbage
 	// collection on pending pods. Specific for OrgRepo or Cluster. If not set, it has a fallback inside plank field.
 	PodPendingTimeout *metav1.Duration `json:"pod_pending_timeout,omitempty"`
@@ -588,6 +594,15 @@ type CensoringOptions struct {
 	// matches a glob in IncludeDirectories. Entries in this list are relative to $ARTIFACTS,
 	// and are parsed with the go-zglob library, allowing for globbed matches.
 	ExcludeDirectories []string `json:"exclude_directories,omitempty"`
+}
+
+type SchedulingOptions struct {
+	// Affinity is the Pod Affinity configuration applied to the ProwJob's pod.
+	// Equivalent to PodSpec's Affinity
+	Affinity *corev1.Affinity `json:"affinity,omitempty"`
+	// Tolerations define list of tolerable taints applied to the ProwJob's pod.
+	// Equivalent to PodSpec's Tolerations
+	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
 }
 
 // ApplyDefault applies the defaults for CensoringOptions decorations. If a field has a zero value,
@@ -745,6 +760,7 @@ func (d *DecorationConfig) ApplyDefault(def *DecorationConfig) *DecorationConfig
 	merged.Resources = merged.Resources.ApplyDefault(def.Resources)
 	merged.GCSConfiguration = merged.GCSConfiguration.ApplyDefault(def.GCSConfiguration)
 	merged.CensoringOptions = merged.CensoringOptions.ApplyDefault(def.CensoringOptions)
+	merged.SchedulingOptions = merged.SchedulingOptions.ApplyDefault(def.SchedulingOptions)
 
 	if merged.Timeout == nil {
 		merged.Timeout = def.Timeout
@@ -827,6 +843,9 @@ func (d *DecorationConfig) ApplyDefault(def *DecorationConfig) *DecorationConfig
 
 	if merged.BloblessFetch == nil {
 		merged.BloblessFetch = def.BloblessFetch
+	}
+	if merged.SchedulingOptions == nil {
+		merged.SchedulingOptions = def.SchedulingOptions
 	}
 	return &merged
 }
