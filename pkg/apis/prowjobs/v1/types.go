@@ -624,6 +624,33 @@ func (g *CensoringOptions) ApplyDefault(def *CensoringOptions) *CensoringOptions
 	return &merged
 }
 
+// ApplyDefault applies the defaults for SchedulingOptions decorations. If a field has a zero value,
+// it replaces that with the value set in def.
+func (g *SchedulingOptions) ApplyDefault(def *SchedulingOptions) *SchedulingOptions {
+	if g == nil && def == nil {
+		return nil
+	}
+	var merged SchedulingOptions
+	if g != nil {
+		merged = *g.DeepCopy()
+	} else {
+		merged = *def.DeepCopy()
+	}
+	if g == nil || def == nil {
+		return &merged
+	}
+
+	if merged.Affinity == nil {
+		merged.Affinity = def.Affinity
+	}
+
+	if merged.Tolerations == nil {
+		merged.Tolerations = def.Tolerations
+	}
+
+	return &merged
+}
+
 // Resources holds resource requests and limits for
 // containers used to decorate a PodSpec
 type Resources struct {
