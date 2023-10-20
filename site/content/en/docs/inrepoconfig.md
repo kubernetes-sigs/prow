@@ -123,3 +123,9 @@ a large number of jobs and allows fine-grained OWNERS control on them.
 The `.prow` directory and `.prow.yaml` file are mutually exclusive; when both are present the `.prow` directory takes precedence.
 
 For more detailed documentation of possible configuration parameters for jobs, please check the [job documentation](/docs/jobs/)
+
+## Symlinks
+
+Symlinks inside the `.prow` directory that point to outside the directory are
+[not
+supported](https://github.com/kubernetes/test-infra/pull/30400#issuecomment-1773207300).

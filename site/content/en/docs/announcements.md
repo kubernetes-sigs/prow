@@ -9,6 +9,12 @@ description: >
 
 New features added to each component:
 
+- *October 20, 2023* The [update to Inrepoconfig
+    handling](https://github.com/kubernetes/test-infra/pull/30400) will break
+    users if they have symlinks inside `.prow/` that point to targets elsewhere
+    in the codebase. See [this
+    comment](https://github.com/kubernetes/test-infra/pull/30400#issuecomment-1773207300)
+    for details.
 - *January 20, 2023* Remove k8s-ci-robot at-mention autoresponse for instances that does not warrant additional explanation in the details section.
 - *August 4, 2022* override plugin will now override checkruns set by GitHub Actions and other CI
     systems on a PR.
