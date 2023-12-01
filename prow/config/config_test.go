@@ -44,14 +44,14 @@ import (
 	utilpointer "k8s.io/utils/pointer"
 	"sigs.k8s.io/yaml"
 
-	prowapi "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	"k8s.io/test-infra/prow/config/secret"
-	"k8s.io/test-infra/prow/git/types"
-	"k8s.io/test-infra/prow/github"
-	"k8s.io/test-infra/prow/github/fakegithub"
-	"k8s.io/test-infra/prow/kube"
-	"k8s.io/test-infra/prow/pod-utils/decorate"
-	"k8s.io/test-infra/prow/pod-utils/downwardapi"
+	prowapi "sigs.k8s.io/prow/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/config/secret"
+	"sigs.k8s.io/prow/git/types"
+	"sigs.k8s.io/prow/github"
+	"sigs.k8s.io/prow/github/fakegithub"
+	"sigs.k8s.io/prow/kube"
+	"sigs.k8s.io/prow/pod-utils/decorate"
+	"sigs.k8s.io/prow/pod-utils/downwardapi"
 )
 
 func pStr(str string) *string {

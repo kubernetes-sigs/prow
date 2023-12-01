@@ -23,7 +23,7 @@ import (
 
 	git "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
-	v1 "k8s.io/test-infra/prow/apis/prowjobs/v1"
+	v1 "sigs.k8s.io/prow/apis/prowjobs/v1"
 )
 
 type FakeChecker struct {

@@ -25,8 +25,8 @@ import (
 
 	"github.com/GoogleCloudPlatform/testgrid/util/gcs"
 
-	prowapi "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	prowflagutil "k8s.io/test-infra/prow/flagutil"
+	prowapi "sigs.k8s.io/prow/apis/prowjobs/v1"
+	prowflagutil "sigs.k8s.io/prow/flagutil"
 )
 
 // NewOptions returns an empty Options with no nil fields.

@@ -25,14 +25,14 @@ import (
 	"net/url"
 	"time"
 
-	"k8s.io/test-infra/prow/flagutil"
+	"sigs.k8s.io/prow/flagutil"
 
 	"github.com/gorilla/sessions"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 	"golang.org/x/net/xsrftoken"
 	"golang.org/x/oauth2"
-	"k8s.io/test-infra/prow/github"
+	"sigs.k8s.io/prow/github"
 )
 
 const (

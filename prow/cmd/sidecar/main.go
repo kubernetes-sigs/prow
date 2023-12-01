@@ -22,8 +22,8 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"k8s.io/test-infra/prow/pod-utils/options"
-	"k8s.io/test-infra/prow/sidecar"
+	"sigs.k8s.io/prow/pod-utils/options"
+	"sigs.k8s.io/prow/sidecar"
 )
 
 func main() {

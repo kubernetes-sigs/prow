@@ -22,8 +22,8 @@ import (
 	"flag"
 	"fmt"
 
-	"k8s.io/test-infra/prow/gcsupload"
-	"k8s.io/test-infra/prow/pod-utils/wrapper"
+	"sigs.k8s.io/prow/gcsupload"
+	"sigs.k8s.io/prow/pod-utils/wrapper"
 )
 
 // NewOptions returns an empty Options with no nil fields

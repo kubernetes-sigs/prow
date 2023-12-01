@@ -26,8 +26,8 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/io"
+	"sigs.k8s.io/prow/config"
+	"sigs.k8s.io/prow/io"
 )
 
 // opener has methods to read and write paths

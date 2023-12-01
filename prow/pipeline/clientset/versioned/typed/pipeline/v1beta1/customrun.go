@@ -27,7 +27,7 @@ import (
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	rest "k8s.io/client-go/rest"
-	scheme "k8s.io/test-infra/prow/pipeline/clientset/versioned/scheme"
+	scheme "sigs.k8s.io/prow/pipeline/clientset/versioned/scheme"
 )
 
 // CustomRunsGetter has a method to return a CustomRunInterface.

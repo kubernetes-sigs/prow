@@ -20,8 +20,8 @@ import (
 	"mime"
 	"strings"
 
-	"k8s.io/test-infra/prow/io"
 	utilpointer "k8s.io/utils/pointer"
+	"sigs.k8s.io/prow/io"
 )
 
 // WriterOptionsFromFileName guesses file attributes from the filename

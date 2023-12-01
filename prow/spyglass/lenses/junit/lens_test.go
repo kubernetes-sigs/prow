@@ -29,8 +29,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	utilpointer "k8s.io/utils/pointer"
 
-	"k8s.io/test-infra/prow/spyglass/api"
-	"k8s.io/test-infra/prow/spyglass/lenses"
+	"sigs.k8s.io/prow/spyglass/api"
+	"sigs.k8s.io/prow/spyglass/lenses"
 )
 
 const (

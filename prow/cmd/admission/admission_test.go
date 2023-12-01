@@ -27,7 +27,7 @@ import (
 	admissionapi "k8s.io/api/admission/v1beta1"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	prowjobv1 "k8s.io/test-infra/prow/apis/prowjobs/v1"
+	prowjobv1 "sigs.k8s.io/prow/apis/prowjobs/v1"
 )
 
 func TestOnlyUpdateStatus(t *testing.T) {

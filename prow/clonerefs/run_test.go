@@ -33,9 +33,9 @@ import (
 	"testing"
 	"time"
 
-	prowapi "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	"k8s.io/test-infra/prow/github"
-	"k8s.io/test-infra/prow/pod-utils/clone"
+	prowapi "sigs.k8s.io/prow/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/github"
+	"sigs.k8s.io/prow/pod-utils/clone"
 )
 
 func TestRun(t *testing.T) {

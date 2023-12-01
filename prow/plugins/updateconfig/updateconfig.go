@@ -37,12 +37,12 @@ import (
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/git/v2"
-	"k8s.io/test-infra/prow/github"
-	"k8s.io/test-infra/prow/kube"
-	"k8s.io/test-infra/prow/pluginhelp"
-	"k8s.io/test-infra/prow/plugins"
+	"sigs.k8s.io/prow/config"
+	"sigs.k8s.io/prow/git/v2"
+	"sigs.k8s.io/prow/github"
+	"sigs.k8s.io/prow/kube"
+	"sigs.k8s.io/prow/pluginhelp"
+	"sigs.k8s.io/prow/plugins"
 )
 
 const (

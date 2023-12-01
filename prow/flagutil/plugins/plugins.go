@@ -20,8 +20,8 @@ import (
 	"flag"
 	"fmt"
 
-	"k8s.io/test-infra/prow/flagutil"
-	"k8s.io/test-infra/prow/plugins"
+	"sigs.k8s.io/prow/flagutil"
+	"sigs.k8s.io/prow/plugins"
 )
 
 type PluginOptions struct {

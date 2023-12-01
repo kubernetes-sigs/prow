@@ -37,12 +37,12 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"k8s.io/test-infra/pkg/flagutil"
-	"k8s.io/test-infra/prow/config"
-	prowflagutil "k8s.io/test-infra/prow/flagutil"
-	configflagutil "k8s.io/test-infra/prow/flagutil/config"
-	"k8s.io/test-infra/prow/ghhook"
-	"k8s.io/test-infra/prow/github"
-	"k8s.io/test-infra/prow/logrusutil"
+	"sigs.k8s.io/prow/config"
+	prowflagutil "sigs.k8s.io/prow/flagutil"
+	configflagutil "sigs.k8s.io/prow/flagutil/config"
+	"sigs.k8s.io/prow/ghhook"
+	"sigs.k8s.io/prow/github"
+	"sigs.k8s.io/prow/logrusutil"
 )
 
 type options struct {

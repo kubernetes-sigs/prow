@@ -17,8 +17,8 @@ limitations under the License.
 package main
 
 import (
-	branchprotection "k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/github"
+	branchprotection "sigs.k8s.io/prow/config"
+	"sigs.k8s.io/prow/github"
 
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/sets"

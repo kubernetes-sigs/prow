@@ -30,7 +30,7 @@ import (
 	_ "gocloud.dev/blob/memblob"
 	"gocloud.dev/blob/s3blob"
 
-	prowv1 "k8s.io/test-infra/prow/apis/prowjobs/v1"
+	prowv1 "sigs.k8s.io/prow/apis/prowjobs/v1"
 )
 
 const (

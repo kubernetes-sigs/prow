@@ -30,9 +30,9 @@ import (
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
-	prowjobv1 "k8s.io/test-infra/prow/apis/prowjobs/v1"
+	prowjobv1 "sigs.k8s.io/prow/apis/prowjobs/v1"
 
-	prowjobscheme "k8s.io/test-infra/prow/client/clientset/versioned/scheme"
+	prowjobscheme "sigs.k8s.io/prow/client/clientset/versioned/scheme"
 )
 
 var (

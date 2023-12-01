@@ -25,9 +25,9 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/test-infra/prow/github"
-	"k8s.io/test-infra/prow/github/fakegithub"
-	"k8s.io/test-infra/prow/labels"
+	"sigs.k8s.io/prow/github"
+	"sigs.k8s.io/prow/github/fakegithub"
+	"sigs.k8s.io/prow/labels"
 )
 
 func formatLabels(labels ...string) []string {

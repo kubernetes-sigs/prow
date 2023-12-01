@@ -41,9 +41,9 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
-	"k8s.io/test-infra/prow/config/secret"
-	"k8s.io/test-infra/prow/flagutil"
-	"k8s.io/test-infra/prow/github"
+	"sigs.k8s.io/prow/config/secret"
+	"sigs.k8s.io/prow/flagutil"
+	"sigs.k8s.io/prow/github"
 
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp" // for gcp auth provider
 )

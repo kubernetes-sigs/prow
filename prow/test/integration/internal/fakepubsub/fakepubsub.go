@@ -28,7 +28,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"k8s.io/test-infra/prow/pubsub/subscriber"
+	"sigs.k8s.io/prow/pubsub/subscriber"
 )
 
 type PubSubMessageForSub struct {

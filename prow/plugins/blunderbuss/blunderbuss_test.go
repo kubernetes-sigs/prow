@@ -32,12 +32,12 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/github"
-	"k8s.io/test-infra/prow/pkg/layeredsets"
-	"k8s.io/test-infra/prow/plugins"
-	"k8s.io/test-infra/prow/plugins/ownersconfig"
-	"k8s.io/test-infra/prow/repoowners"
+	"sigs.k8s.io/prow/config"
+	"sigs.k8s.io/prow/github"
+	"sigs.k8s.io/prow/pkg/layeredsets"
+	"sigs.k8s.io/prow/plugins"
+	"sigs.k8s.io/prow/plugins/ownersconfig"
+	"sigs.k8s.io/prow/repoowners"
 )
 
 type fakeGitHubClient struct {

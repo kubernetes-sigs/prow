@@ -29,11 +29,11 @@ import (
 	"github.com/sirupsen/logrus"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	prowapi "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/crier/reporters/criercommonlib"
-	"k8s.io/test-infra/prow/io/providers"
-	"k8s.io/test-infra/prow/spyglass/api"
+	prowapi "sigs.k8s.io/prow/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/config"
+	"sigs.k8s.io/prow/crier/reporters/criercommonlib"
+	"sigs.k8s.io/prow/io/providers"
+	"sigs.k8s.io/prow/spyglass/api"
 )
 
 const (

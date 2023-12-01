@@ -28,11 +28,11 @@ import (
 	"k8s.io/client-go/kubernetes"
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 
-	prowjobv1 "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	"k8s.io/test-infra/prow/kube"
-	"k8s.io/test-infra/prow/pubsub/subscriber"
-	"k8s.io/test-infra/prow/test/integration/internal/fakegitserver"
-	"k8s.io/test-infra/prow/test/integration/internal/fakepubsub"
+	prowjobv1 "sigs.k8s.io/prow/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/kube"
+	"sigs.k8s.io/prow/pubsub/subscriber"
+	"sigs.k8s.io/prow/test/integration/internal/fakegitserver"
+	"sigs.k8s.io/prow/test/integration/internal/fakepubsub"
 )
 
 func createGerritRepo(id, job string) string {

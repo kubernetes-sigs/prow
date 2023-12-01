@@ -14,9 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// This test imports "k8s.io/test-infra/prow/git/localgit", which also reference
-// "k8s.io/test-infra/prow/git", has to be a separate package to avoid
-// circular dependency(however this file implicitly referencing "k8s.io/test-infra/prow/git")
+// This test imports "sigs.k8s.io/prow/git/localgit", which also reference
+// "sigs.k8s.io/prow/git", has to be a separate package to avoid
+// circular dependency(however this file implicitly referencing "sigs.k8s.io/prow/git")
 package git_test
 
 import (
@@ -29,8 +29,8 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"k8s.io/test-infra/prow/git/localgit"
-	"k8s.io/test-infra/prow/git/types"
+	"sigs.k8s.io/prow/git/localgit"
+	"sigs.k8s.io/prow/git/types"
 )
 
 var defaultBranch = localgit.DefaultBranch("")

@@ -26,11 +26,11 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
-	prowcrd "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/gangway"
-	"k8s.io/test-infra/prow/kube"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	prowcrd "sigs.k8s.io/prow/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/config"
+	"sigs.k8s.io/prow/gangway"
+	"sigs.k8s.io/prow/kube"
 )
 
 const (

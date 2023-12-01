@@ -25,7 +25,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"k8s.io/test-infra/prow/github"
+	"sigs.k8s.io/prow/github"
 )
 
 func TestGitHubOptions_Validate(t *testing.T) {

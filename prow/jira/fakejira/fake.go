@@ -26,7 +26,7 @@ import (
 	"github.com/andygrunwald/go-jira"
 	"github.com/sirupsen/logrus"
 
-	jiraclient "k8s.io/test-infra/prow/jira"
+	jiraclient "sigs.k8s.io/prow/jira"
 )
 
 type FakeClient struct {

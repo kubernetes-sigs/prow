@@ -24,7 +24,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
-	"k8s.io/test-infra/prow/simplifypath"
+	"sigs.k8s.io/prow/simplifypath"
 )
 
 // HttpRequestDuration returns a histogram vector with relevant fields set

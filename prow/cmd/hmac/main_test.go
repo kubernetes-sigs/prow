@@ -26,11 +26,11 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"k8s.io/apimachinery/pkg/util/sets"
 
-	"k8s.io/test-infra/prow/cmd/hmac/fakeghhook"
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/flagutil"
-	configflagutil "k8s.io/test-infra/prow/flagutil/config"
-	"k8s.io/test-infra/prow/github"
+	"sigs.k8s.io/prow/cmd/hmac/fakeghhook"
+	"sigs.k8s.io/prow/config"
+	"sigs.k8s.io/prow/flagutil"
+	configflagutil "sigs.k8s.io/prow/flagutil/config"
+	"sigs.k8s.io/prow/github"
 )
 
 func TestGatherOptions(t *testing.T) {

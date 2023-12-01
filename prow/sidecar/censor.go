@@ -36,7 +36,7 @@ import (
 	"gopkg.in/ini.v1"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 
-	"k8s.io/test-infra/prow/secretutil"
+	"sigs.k8s.io/prow/secretutil"
 )
 
 // defaultBufferSize is the default buffer size, 10MiB.

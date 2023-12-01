@@ -24,11 +24,11 @@ import (
 
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 
-	prowjobv1 "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	"k8s.io/test-infra/prow/gangway"
-	gangwayGoogleClient "k8s.io/test-infra/prow/gangway/client/google"
-	"k8s.io/test-infra/prow/kube"
-	"k8s.io/test-infra/prow/test/integration/internal/fakegitserver"
+	prowjobv1 "sigs.k8s.io/prow/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/gangway"
+	gangwayGoogleClient "sigs.k8s.io/prow/gangway/client/google"
+	"sigs.k8s.io/prow/kube"
+	"sigs.k8s.io/prow/test/integration/internal/fakegitserver"
 )
 
 // TestGangway makes gRPC calls to gangway.

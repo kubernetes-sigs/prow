@@ -27,7 +27,7 @@ import (
 	"cloud.google.com/go/pubsub"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sync/errgroup"
-	"k8s.io/test-infra/prow/config"
+	"sigs.k8s.io/prow/config"
 )
 
 type configToWatch struct {

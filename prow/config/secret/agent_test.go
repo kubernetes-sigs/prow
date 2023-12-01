@@ -27,7 +27,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"k8s.io/test-infra/prow/logrusutil"
+	"sigs.k8s.io/prow/logrusutil"
 )
 
 func TestCensoringFormatter(t *testing.T) {

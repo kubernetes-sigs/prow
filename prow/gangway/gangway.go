@@ -30,11 +30,11 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation"
-	prowcrd "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/kube"
-	"k8s.io/test-infra/prow/pjutil"
-	"k8s.io/test-infra/prow/version"
+	prowcrd "sigs.k8s.io/prow/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/config"
+	"sigs.k8s.io/prow/kube"
+	"sigs.k8s.io/prow/pjutil"
+	"sigs.k8s.io/prow/version"
 )
 
 const (
@@ -44,8 +44,8 @@ const (
 
 type Gangway struct {
 	UnimplementedProwServer
-	ConfigAgent       *config.Agent
-	ProwJobClient     ProwJobClient
+	ConfigAgent        *config.Agent
+	ProwJobClient      ProwJobClient
 	InRepoConfigGetter config.InRepoConfigGetter
 }
 

@@ -30,12 +30,12 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/test-infra/prow/config"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/prow/config"
 
-	"k8s.io/test-infra/prow/io/fakeopener"
+	"sigs.k8s.io/prow/io/fakeopener"
 
-	prowv1 "k8s.io/test-infra/prow/apis/prowjobs/v1"
+	prowv1 "sigs.k8s.io/prow/apis/prowjobs/v1"
 )
 
 type fca struct {

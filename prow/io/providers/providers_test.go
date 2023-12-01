@@ -19,7 +19,7 @@ package providers_test
 import (
 	"testing"
 
-	"k8s.io/test-infra/prow/io/providers"
+	"sigs.k8s.io/prow/io/providers"
 )
 
 func TestHasStorageProviderPrefix(t *testing.T) {

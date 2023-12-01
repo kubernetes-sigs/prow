@@ -28,7 +28,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
-	"k8s.io/test-infra/prow/version"
+	"sigs.k8s.io/prow/version"
 )
 
 func kubeConfigs(loader clientcmd.ClientConfigLoader) (map[string]rest.Config, string, error) {

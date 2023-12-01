@@ -28,9 +28,9 @@ import (
 
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/tide"
-	"k8s.io/test-infra/prow/tide/history"
+	"sigs.k8s.io/prow/config"
+	"sigs.k8s.io/prow/tide"
+	"sigs.k8s.io/prow/tide/history"
 )
 
 type tidePools struct {

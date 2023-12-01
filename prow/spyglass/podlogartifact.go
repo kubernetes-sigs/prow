@@ -23,8 +23,8 @@ import (
 	"io"
 	"net/url"
 
-	prowapi "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	"k8s.io/test-infra/prow/spyglass/lenses"
+	prowapi "sigs.k8s.io/prow/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/spyglass/lenses"
 )
 
 type jobAgent interface {

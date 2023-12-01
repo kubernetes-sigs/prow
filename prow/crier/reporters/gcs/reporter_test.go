@@ -31,12 +31,12 @@ import (
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	prowv1 "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/io"
-	"k8s.io/test-infra/prow/io/fakeopener"
-	"k8s.io/test-infra/prow/io/providers"
-	"k8s.io/test-infra/prow/pod-utils/clone"
+	prowv1 "sigs.k8s.io/prow/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/config"
+	"sigs.k8s.io/prow/io"
+	"sigs.k8s.io/prow/io/fakeopener"
+	"sigs.k8s.io/prow/io/providers"
+	"sigs.k8s.io/prow/pod-utils/clone"
 )
 
 type fca struct {

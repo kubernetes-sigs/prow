@@ -33,8 +33,8 @@ import (
 	utilpointer "k8s.io/utils/pointer"
 	"sigs.k8s.io/yaml"
 
-	"k8s.io/test-infra/prow/bugzilla"
-	"k8s.io/test-infra/prow/plugins/ownersconfig"
+	"sigs.k8s.io/prow/bugzilla"
+	"sigs.k8s.io/prow/plugins/ownersconfig"
 )
 
 func TestValidateExternalPlugins(t *testing.T) {

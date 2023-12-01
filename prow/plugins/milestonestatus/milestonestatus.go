@@ -25,10 +25,10 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/github"
-	"k8s.io/test-infra/prow/pluginhelp"
-	"k8s.io/test-infra/prow/plugins"
+	"sigs.k8s.io/prow/config"
+	"sigs.k8s.io/prow/github"
+	"sigs.k8s.io/prow/pluginhelp"
+	"sigs.k8s.io/prow/plugins"
 )
 
 const pluginName = "milestonestatus"

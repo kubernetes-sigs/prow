@@ -27,10 +27,10 @@ import (
 	"time"
 
 	"github.com/GoogleCloudPlatform/testgrid/metadata"
-	prowv1 "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	"k8s.io/test-infra/prow/pod-utils/clone"
-	"k8s.io/test-infra/prow/pod-utils/downwardapi"
-	"k8s.io/test-infra/prow/pod-utils/gcs"
+	prowv1 "sigs.k8s.io/prow/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/pod-utils/clone"
+	"sigs.k8s.io/prow/pod-utils/downwardapi"
+	"sigs.k8s.io/prow/pod-utils/gcs"
 )
 
 // Run will start the initupload job to upload the artifacts, logs and clone status.

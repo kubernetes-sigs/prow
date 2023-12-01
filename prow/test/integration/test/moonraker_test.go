@@ -28,11 +28,11 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	prowjobv1 "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/git/v2"
-	"k8s.io/test-infra/prow/moonraker"
-	"k8s.io/test-infra/prow/test/integration/internal/fakegitserver"
+	prowjobv1 "sigs.k8s.io/prow/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/config"
+	"sigs.k8s.io/prow/git/v2"
+	"sigs.k8s.io/prow/moonraker"
+	"sigs.k8s.io/prow/test/integration/internal/fakegitserver"
 )
 
 type fakeConfigAgent struct {

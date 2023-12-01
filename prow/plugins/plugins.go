@@ -39,17 +39,17 @@ import (
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"sigs.k8s.io/yaml"
 
-	"k8s.io/test-infra/prow/bugzilla"
-	prowv1 "k8s.io/test-infra/prow/client/clientset/versioned/typed/prowjobs/v1"
-	"k8s.io/test-infra/prow/commentpruner"
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/git/v2"
-	"k8s.io/test-infra/prow/github"
-	"k8s.io/test-infra/prow/jira"
-	"k8s.io/test-infra/prow/pluginhelp"
-	"k8s.io/test-infra/prow/repoowners"
-	"k8s.io/test-infra/prow/slack"
-	"k8s.io/test-infra/prow/version"
+	"sigs.k8s.io/prow/bugzilla"
+	prowv1 "sigs.k8s.io/prow/client/clientset/versioned/typed/prowjobs/v1"
+	"sigs.k8s.io/prow/commentpruner"
+	"sigs.k8s.io/prow/config"
+	"sigs.k8s.io/prow/git/v2"
+	"sigs.k8s.io/prow/github"
+	"sigs.k8s.io/prow/jira"
+	"sigs.k8s.io/prow/pluginhelp"
+	"sigs.k8s.io/prow/repoowners"
+	"sigs.k8s.io/prow/slack"
+	"sigs.k8s.io/prow/version"
 )
 
 var (

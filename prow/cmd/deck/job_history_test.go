@@ -26,9 +26,9 @@ import (
 
 	"github.com/fsouza/fake-gcs-server/fakestorage"
 
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/io"
-	"k8s.io/test-infra/prow/io/providers"
+	"sigs.k8s.io/prow/config"
+	"sigs.k8s.io/prow/io"
+	"sigs.k8s.io/prow/io/providers"
 )
 
 func TestJobHistURL(t *testing.T) {

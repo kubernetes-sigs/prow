@@ -19,7 +19,7 @@ limitations under the License.
 package v1beta1
 
 import (
-	internalinterfaces "k8s.io/test-infra/prow/pipeline/informers/externalversions/internalinterfaces"
+	internalinterfaces "sigs.k8s.io/prow/pipeline/informers/externalversions/internalinterfaces"
 )
 
 // Interface provides access to all the informers in this group version.

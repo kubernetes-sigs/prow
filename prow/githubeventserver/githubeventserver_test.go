@@ -25,7 +25,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"k8s.io/test-infra/prow/plugins"
+	"sigs.k8s.io/prow/plugins"
 )
 
 func TestServeHTTPErrors(t *testing.T) {

@@ -35,12 +35,12 @@ import (
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
 
-	"k8s.io/test-infra/prow/bugzilla"
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/kube"
-	"k8s.io/test-infra/prow/labels"
-	"k8s.io/test-infra/prow/logrusutil"
-	"k8s.io/test-infra/prow/plugins/ownersconfig"
+	"sigs.k8s.io/prow/bugzilla"
+	"sigs.k8s.io/prow/config"
+	"sigs.k8s.io/prow/kube"
+	"sigs.k8s.io/prow/labels"
+	"sigs.k8s.io/prow/logrusutil"
+	"sigs.k8s.io/prow/plugins/ownersconfig"
 )
 
 const (

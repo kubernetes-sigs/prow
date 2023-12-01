@@ -21,7 +21,7 @@ import (
 	"context"
 	"os"
 
-	pkgio "k8s.io/test-infra/prow/io"
+	pkgio "sigs.k8s.io/prow/io"
 )
 
 type FakeOpener struct {

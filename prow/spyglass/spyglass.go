@@ -32,14 +32,14 @@ import (
 
 	"github.com/GoogleCloudPlatform/testgrid/metadata"
 
-	prowapi "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/deck/jobs"
-	pkgio "k8s.io/test-infra/prow/io"
-	"k8s.io/test-infra/prow/io/providers"
-	"k8s.io/test-infra/prow/pod-utils/gcs"
-	"k8s.io/test-infra/prow/spyglass/api"
-	"k8s.io/test-infra/prow/spyglass/lenses"
+	prowapi "sigs.k8s.io/prow/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/config"
+	"sigs.k8s.io/prow/deck/jobs"
+	pkgio "sigs.k8s.io/prow/io"
+	"sigs.k8s.io/prow/io/providers"
+	"sigs.k8s.io/prow/pod-utils/gcs"
+	"sigs.k8s.io/prow/spyglass/api"
+	"sigs.k8s.io/prow/spyglass/lenses"
 )
 
 // Key types specify the way Spyglass will fetch artifact handles

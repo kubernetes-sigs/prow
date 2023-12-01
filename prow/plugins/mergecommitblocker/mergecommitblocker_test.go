@@ -21,10 +21,10 @@ import (
 	"testing"
 
 	"github.com/sirupsen/logrus"
-	"k8s.io/test-infra/prow/commentpruner"
-	"k8s.io/test-infra/prow/git/localgit"
-	"k8s.io/test-infra/prow/github"
-	"k8s.io/test-infra/prow/labels"
+	"sigs.k8s.io/prow/commentpruner"
+	"sigs.k8s.io/prow/git/localgit"
+	"sigs.k8s.io/prow/github"
+	"sigs.k8s.io/prow/labels"
 )
 
 var defaultBranch = localgit.DefaultBranch("")

@@ -28,13 +28,13 @@ import (
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	prowapi "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/gcsupload"
-	"k8s.io/test-infra/prow/github"
-	"k8s.io/test-infra/prow/kube"
-	"k8s.io/test-infra/prow/pod-utils/decorate"
-	"k8s.io/test-infra/prow/pod-utils/downwardapi"
+	prowapi "sigs.k8s.io/prow/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/config"
+	"sigs.k8s.io/prow/gcsupload"
+	"sigs.k8s.io/prow/github"
+	"sigs.k8s.io/prow/kube"
+	"sigs.k8s.io/prow/pod-utils/decorate"
+	"sigs.k8s.io/prow/pod-utils/downwardapi"
 )
 
 // NewProwJob initializes a ProwJob out of a ProwJobSpec.

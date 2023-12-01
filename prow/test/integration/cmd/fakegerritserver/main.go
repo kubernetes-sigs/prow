@@ -30,10 +30,10 @@ import (
 	"github.com/sirupsen/logrus"
 
 	gerrit "github.com/andygrunwald/go-gerrit"
-	"k8s.io/test-infra/prow/gerrit/fakegerrit"
-	"k8s.io/test-infra/prow/interrupts"
-	"k8s.io/test-infra/prow/logrusutil"
-	"k8s.io/test-infra/prow/pjutil"
+	"sigs.k8s.io/prow/gerrit/fakegerrit"
+	"sigs.k8s.io/prow/interrupts"
+	"sigs.k8s.io/prow/logrusutil"
+	"sigs.k8s.io/prow/pjutil"
 )
 
 type options struct {

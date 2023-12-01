@@ -26,13 +26,13 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	prowv1 "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	"k8s.io/test-infra/prow/config"
+	prowv1 "sigs.k8s.io/prow/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/config"
 
-	k8sreporter "k8s.io/test-infra/prow/crier/reporters/gcs/kubernetes"
-	"k8s.io/test-infra/prow/spyglass/api"
-	"k8s.io/test-infra/prow/spyglass/lenses"
-	"k8s.io/test-infra/prow/spyglass/lenses/fake"
+	k8sreporter "sigs.k8s.io/prow/crier/reporters/gcs/kubernetes"
+	"sigs.k8s.io/prow/spyglass/api"
+	"sigs.k8s.io/prow/spyglass/lenses"
+	"sigs.k8s.io/prow/spyglass/lenses/fake"
 )
 
 type FakeArtifact = fake.Artifact

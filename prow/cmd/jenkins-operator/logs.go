@@ -24,7 +24,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"k8s.io/test-infra/prow/jenkins"
+	"sigs.k8s.io/prow/jenkins"
 )
 
 var reJenkinsJobURL = regexp.MustCompile(`^(/?job)/([A-Za-z0-9-._]([A-Za-z0-9-._/]*[A-Za-z0-9-_])?)/(\d+)/consoleText$`)

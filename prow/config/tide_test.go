@@ -29,9 +29,9 @@ import (
 	utilpointer "k8s.io/utils/pointer"
 	"sigs.k8s.io/yaml"
 
-	"k8s.io/test-infra/prow/git/types"
-	"k8s.io/test-infra/prow/git/v2"
-	"k8s.io/test-infra/prow/labels"
+	"sigs.k8s.io/prow/git/types"
+	"sigs.k8s.io/prow/git/v2"
+	"sigs.k8s.io/prow/labels"
 )
 
 var testQuery = TideQuery{

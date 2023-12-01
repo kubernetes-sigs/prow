@@ -19,7 +19,7 @@ package org
 import (
 	"fmt"
 
-	"k8s.io/test-infra/prow/github"
+	"sigs.k8s.io/prow/github"
 )
 
 // FullConfig stores the full configuration to be used by the tool, mapping

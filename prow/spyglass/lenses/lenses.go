@@ -28,8 +28,8 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/spyglass/api"
+	"sigs.k8s.io/prow/config"
+	"sigs.k8s.io/prow/spyglass/api"
 )
 
 var (

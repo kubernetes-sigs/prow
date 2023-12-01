@@ -23,7 +23,7 @@ import (
 	"sync"
 	"time"
 
-	"k8s.io/test-infra/prow/pluginhelp"
+	"sigs.k8s.io/prow/pluginhelp"
 )
 
 // cacheLife is the time that we keep a pluginhelp.Help struct before considering it stale.

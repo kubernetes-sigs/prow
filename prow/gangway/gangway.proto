@@ -3,7 +3,7 @@ syntax = "proto3";
 import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
 
-option go_package = "k8s.io/test-infra/prow/gangway";
+option go_package = "sigs.k8s.io/prow/gangway";
 
 service Prow {
   // FIXME: In the future we can just return a unique token (only), in the same

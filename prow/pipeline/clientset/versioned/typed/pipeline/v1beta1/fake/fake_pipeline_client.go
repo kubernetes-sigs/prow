@@ -21,7 +21,7 @@ package fake
 import (
 	rest "k8s.io/client-go/rest"
 	testing "k8s.io/client-go/testing"
-	v1beta1 "k8s.io/test-infra/prow/pipeline/clientset/versioned/typed/pipeline/v1beta1"
+	v1beta1 "sigs.k8s.io/prow/pipeline/clientset/versioned/typed/pipeline/v1beta1"
 )
 
 type FakeTektonV1beta1 struct {

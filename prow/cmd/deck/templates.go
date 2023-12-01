@@ -23,8 +23,8 @@ import (
 
 	"github.com/gorilla/csrf"
 	"github.com/sirupsen/logrus"
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/version"
+	"sigs.k8s.io/prow/config"
+	"sigs.k8s.io/prow/version"
 )
 
 // This stuff is used in the templates.

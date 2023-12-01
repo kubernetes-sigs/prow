@@ -29,8 +29,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	coreapi "k8s.io/api/core/v1"
-	"k8s.io/test-infra/prow/gcsupload"
-	"k8s.io/test-infra/prow/pod-utils/downwardapi"
+	"sigs.k8s.io/prow/gcsupload"
+	"sigs.k8s.io/prow/pod-utils/downwardapi"
 
 	"github.com/fsouza/fake-gcs-server/fakestorage"
 	"github.com/sirupsen/logrus"
@@ -38,15 +38,15 @@ import (
 
 	tgconf "github.com/GoogleCloudPlatform/testgrid/pb/config"
 
-	prowapi "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/deck/jobs"
-	"k8s.io/test-infra/prow/io"
-	"k8s.io/test-infra/prow/kube"
-	"k8s.io/test-infra/prow/spyglass/api"
-	"k8s.io/test-infra/prow/spyglass/lenses"
-	"k8s.io/test-infra/prow/spyglass/lenses/common"
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
+	prowapi "sigs.k8s.io/prow/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/config"
+	"sigs.k8s.io/prow/deck/jobs"
+	"sigs.k8s.io/prow/io"
+	"sigs.k8s.io/prow/kube"
+	"sigs.k8s.io/prow/spyglass/api"
+	"sigs.k8s.io/prow/spyglass/lenses"
+	"sigs.k8s.io/prow/spyglass/lenses/common"
 )
 
 var (
