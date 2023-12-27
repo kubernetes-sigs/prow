@@ -81,12 +81,18 @@ Pub/Sub has a [generic `PubsubMessage` type][pubsubMessage] that has the followi
 
 ```json
 {
-  "attributes": "...",
-  "data": "...",
-  "attributes": "...",
-  "attributes": "...",
+  "data": string,
+  "attributes": {
+    string: string,
+    ...
+  },
+  "messageId": string,
+  "publishTime": string,
+  "orderingKey": string
 }
 ```
+
+The Prow-specific information is encoded as JSON as the `string` value of the `data` key.
 
 ### Pull Server
 
