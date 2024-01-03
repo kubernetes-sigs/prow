@@ -81,12 +81,18 @@ Pub/Sub has a [generic `PubsubMessage` type][pubsubMessage] that has the followi
 
 ```json
 {
-  "attributes": "...",
-  "data": "...",
-  "attributes": "...",
-  "attributes": "...",
+  "data": string,
+  "attributes": {
+    string: string,
+    ...
+  },
+  "messageId": string,
+  "publishTime": string,
+  "orderingKey": string
 }
 ```
+
+The Prow-specific information is encoded as JSON as the `string` value of the `data` key.
 
 ### Pull Server
 
@@ -112,8 +118,10 @@ More information at https://cloud.google.com/pubsub/docs/access-control.
 
 #### Periodic Prow Jobs
 
-When creating your Pub/Sub message, add an attributes with key `prow.k8s.io/pubsub.EventType`
-and value `prow.k8s.io/pubsub.PeriodicProwJobEvent`, and a payload like so:
+When creating your Pub/Sub message, for the `attributes` field, add a key
+`prow.k8s.io/pubsub.EventType` with value
+`prow.k8s.io/pubsub.PeriodicProwJobEvent`. Then for the `data` field, use the
+following JSON as the value:
 
 ```json
 {
@@ -126,57 +134,35 @@ and value `prow.k8s.io/pubsub.PeriodicProwJobEvent`, and a payload like so:
     "myLabel":"myValue",
   },
   "annotations":{
-    # GCP project where prowjobs statues are published by prow. Must also provide "prow.k8s.io/pubsub.topic" to take effect.
-    # It's highly recommended to configure this even if prowjobs are monitorings by other means, since this is also where errors are
-    # reported when the job failed to be triggered
+    # GCP project where Prow Job statuses are published by Prow. Must also
+    # provide "prow.k8s.io/pubsub.topic" to take effect.
+    #
+    # It's highly recommended to configure this even if prowjobs are monitored
+    # by other means, because this is also where errors are reported when the
+    # jobs are failed to be triggered.
     "prow.k8s.io/pubsub.project":"myProject",
+
+    # Unique run ID.
     "prow.k8s.io/pubsub.runID":"asdfasdfasdf",
-    # GCP pubsub topic where prowjobs statues are published by prow, must be a different topic from where this payload is published to
+
+    # GCP pubsub topic where Prow Job statuses are published by Prow. Must be a
+    # different topic from where this payload is published to.
     "prow.k8s.io/pubsub.topic":"myTopic"
   }
 }
 ```
 
-This will find and start the periodic job `my-periodic-job`, and add / overwrite the
-annotations and envs to the Prow job. The `prow.k8s.io/pubsub.*` annotations are
-used to publish job status.
+_Note: the `#` lines are comments for purposes of explanation in this doc; JSON
+does not permit comments so make sure to remove them in your actual payload._
 
-_Note: periodic jobs always clone source code from ref (a branch) instead of a specific SHA. If you need to trigger a job based on a specific SHA you can use a [postsubmit job](#postsubmit-prow-jobs) instead._
+The above payload will ask Prow to find and trigger the periodic job named
+`my-periodic-job`, and add/overwrite the annotations and environment variables
+on top of the job's default annotations. The `prow.k8s.io/pubsub.*` annotations
+are used to publish job statuses.
 
-#### Presubmit Prow Jobs
-
-Triggering presubmit job is similar to periodic jobs. Two things to change:
-
-- instead of an attributes with key `prow.k8s.io/pubsub.EventType` and value
-  `prow.k8s.io/pubsub.PeriodicProwJobEvent`, replace the value with `prow.k8s.io/pubsub.PresubmitProwJobEvent`
-- requires setting `refs` instructing presubmit jobs how to clone source code:
-
-```json
-{
-  # Common fields as above
-  "name":"my-presubmit-job",
-  "envs":{...},
-  "labels":{...},
-  "annotations":{...},
-
-  "refs":{
-    "org": "org-a",
-    "repo": "repo-b",
-    "base_ref": "main",
-    "base_sha": "abc123",
-    "pulls": [
-      {
-        "sha": "def456"
-      }
-    ]
-  }
-}
-```
-
-This will start presubmit job `my-presubmit-job`, clones source code like pull requests
-defined under `pulls`, which merges to `base_ref` at `base_sha`.
-
-(There are more fields can be supplied, see [full documentation](https://github.com/kubernetes/test-infra/blob/18678b3b8f4bc7c51475f41964927ff7e635f3b9/prow/apis/prowjobs/v1/types.go#L883). For example, if you want the job to be reported on the PR, add `number` field right next to `sha`)
+_Note: periodic jobs always clone source code from ref (a branch) instead of a
+specific SHA. If you need to trigger a job based on a specific SHA you can use a
+[postsubmit job](#postsubmit-prow-jobs) instead._
 
 #### Postsubmit Prow Jobs
 
@@ -208,9 +194,50 @@ at `base_sha`.
 
 (There are more fields can be supplied, see [full documentation](https://github.com/kubernetes/test-infra/blob/18678b3b8f4bc7c51475f41964927ff7e635f3b9/prow/apis/prowjobs/v1/types.go#L883))
 
+#### Presubmit Prow Jobs
+
+Triggering presubmit jobs is similar to postsubmit jobs. Two things to change:
+
+- instead of an `attributes` with key `prow.k8s.io/pubsub.EventType` and value
+  `prow.k8s.io/pubsub.PostsubmitProwJobEvent`, replace the value with `prow.k8s.io/pubsub.PresubmitProwJobEvent`
+- for the `refs` field, additionally supply a `pulls` field, like this:
+
+```json
+{
+  # Common fields as above
+  "name":"my-presubmit-job",
+  "envs":{...},
+  "labels":{...},
+  "annotations":{...},
+
+  "refs":{
+    "org": "org-a",
+    "repo": "repo-b",
+    "base_ref": "main",
+    "base_sha": "abc123",
+    "pulls": [
+      {
+        "sha": "def456"
+      }
+    ]
+  }
+}
+```
+
+This will start presubmit job `my-presubmit-job`, clones source code like pull requests
+defined under `pulls`, which merges to `base_ref` at `base_sha`.
+
+(There are more fields that can be supplied, see [full
+documentation](https://github.com/kubernetes/test-infra/blob/18678b3b8f4bc7c51475f41964927ff7e635f3b9/prow/apis/prowjobs/v1/types.go#L883).
+For example, if you want the job to be reported on the PR, add `number` field
+right next to `sha`)
+
 #### Gerrit Presubmits and Postsubmits
 
-Gerrit presubmit and postsubmit jobs require some additional labels and annotations to be specified in the pubsub payload if you wish for them to report results back to the Gerrit change. Specifically the following annotations must be supplied (values are examples):
+Gerrit presubmit and postsubmit jobs require some additional labels and
+annotations to be specified in the pubsub payload if you wish for them to report
+results back to the Gerrit change. Specifically the following annotations must
+be supplied (values are examples):
 
 ```yaml
   annotations:
