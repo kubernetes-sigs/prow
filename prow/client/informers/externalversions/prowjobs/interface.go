@@ -19,8 +19,8 @@ limitations under the License.
 package prowjobs
 
 import (
-	internalinterfaces "k8s.io/test-infra/prow/client/informers/externalversions/internalinterfaces"
-	v1 "k8s.io/test-infra/prow/client/informers/externalversions/prowjobs/v1"
+	internalinterfaces "sigs.k8s.io/prow/client/informers/externalversions/internalinterfaces"
+	v1 "sigs.k8s.io/prow/client/informers/externalversions/prowjobs/v1"
 )
 
 // Interface provides access to each of this group's versions.
