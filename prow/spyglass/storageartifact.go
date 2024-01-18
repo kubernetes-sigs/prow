@@ -22,8 +22,8 @@ import (
 	"io"
 	"sync"
 
-	pkgio "k8s.io/test-infra/prow/io"
-	"k8s.io/test-infra/prow/spyglass/lenses"
+	pkgio "sigs.k8s.io/prow/io"
+	"sigs.k8s.io/prow/spyglass/lenses"
 )
 
 // StorageArtifact represents some output of a prow job stored in GCS

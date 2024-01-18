@@ -27,16 +27,16 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"k8s.io/test-infra/pkg/flagutil"
-	"k8s.io/test-infra/prow/config/secret"
-	"k8s.io/test-infra/prow/external-plugins/needs-rebase/plugin"
-	prowflagutil "k8s.io/test-infra/prow/flagutil"
-	pluginsflagutil "k8s.io/test-infra/prow/flagutil/plugins"
-	"k8s.io/test-infra/prow/github"
-	"k8s.io/test-infra/prow/interrupts"
-	"k8s.io/test-infra/prow/labels"
-	"k8s.io/test-infra/prow/logrusutil"
-	"k8s.io/test-infra/prow/pjutil"
-	"k8s.io/test-infra/prow/pluginhelp/externalplugins"
+	"sigs.k8s.io/prow/config/secret"
+	"sigs.k8s.io/prow/external-plugins/needs-rebase/plugin"
+	prowflagutil "sigs.k8s.io/prow/flagutil"
+	pluginsflagutil "sigs.k8s.io/prow/flagutil/plugins"
+	"sigs.k8s.io/prow/github"
+	"sigs.k8s.io/prow/interrupts"
+	"sigs.k8s.io/prow/labels"
+	"sigs.k8s.io/prow/logrusutil"
+	"sigs.k8s.io/prow/pjutil"
+	"sigs.k8s.io/prow/pluginhelp/externalplugins"
 )
 
 type options struct {

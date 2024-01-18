@@ -27,17 +27,17 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/pjutil/pprof"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/prow/config"
+	"sigs.k8s.io/prow/pjutil/pprof"
 
 	"k8s.io/test-infra/pkg/flagutil"
-	prowflagutil "k8s.io/test-infra/prow/flagutil"
-	configflagutil "k8s.io/test-infra/prow/flagutil/config"
-	"k8s.io/test-infra/prow/interrupts"
-	"k8s.io/test-infra/prow/logrusutil"
-	"k8s.io/test-infra/prow/metrics"
-	"k8s.io/test-infra/prow/tide"
+	prowflagutil "sigs.k8s.io/prow/flagutil"
+	configflagutil "sigs.k8s.io/prow/flagutil/config"
+	"sigs.k8s.io/prow/interrupts"
+	"sigs.k8s.io/prow/logrusutil"
+	"sigs.k8s.io/prow/metrics"
+	"sigs.k8s.io/prow/tide"
 )
 
 const (

@@ -21,8 +21,8 @@ import (
 	"sync"
 
 	"github.com/sirupsen/logrus"
-	"k8s.io/test-infra/prow/plugins"
-	"k8s.io/test-infra/prow/plugins/testfreeze/checker"
+	"sigs.k8s.io/prow/plugins"
+	"sigs.k8s.io/prow/plugins/testfreeze/checker"
 )
 
 type FakeVerifier struct {

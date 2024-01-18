@@ -17,9 +17,9 @@ limitations under the License.
 package main
 
 import (
-	"k8s.io/test-infra/prow/clonerefs"
-	"k8s.io/test-infra/prow/logrusutil"
-	"k8s.io/test-infra/prow/pod-utils/options"
+	"sigs.k8s.io/prow/clonerefs"
+	"sigs.k8s.io/prow/logrusutil"
+	"sigs.k8s.io/prow/pod-utils/options"
 
 	"github.com/sirupsen/logrus"
 )

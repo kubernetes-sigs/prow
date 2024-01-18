@@ -20,9 +20,9 @@ import (
 	"reflect"
 	"testing"
 
-	prowapi "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	"k8s.io/test-infra/prow/flagutil"
-	"k8s.io/test-infra/prow/gcsupload"
+	prowapi "sigs.k8s.io/prow/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/flagutil"
+	"sigs.k8s.io/prow/gcsupload"
 )
 
 func TestOptions_Validate(t *testing.T) {

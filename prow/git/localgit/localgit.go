@@ -25,7 +25,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	v2 "k8s.io/test-infra/prow/git/v2"
+	v2 "sigs.k8s.io/prow/git/v2"
 )
 
 type Clients func() (*LocalGit, v2.ClientFactory, error)

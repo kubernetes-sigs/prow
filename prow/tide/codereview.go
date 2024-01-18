@@ -23,10 +23,10 @@ import (
 
 	"github.com/andygrunwald/go-gerrit"
 	"github.com/sirupsen/logrus"
-	prowapi "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/git/types"
-	"k8s.io/test-infra/prow/tide/blockers"
+	prowapi "sigs.k8s.io/prow/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/config"
+	"sigs.k8s.io/prow/git/types"
+	"sigs.k8s.io/prow/tide/blockers"
 
 	githubql "github.com/shurcooL/githubv4"
 )

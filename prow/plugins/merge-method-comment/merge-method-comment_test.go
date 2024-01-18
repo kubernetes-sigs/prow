@@ -21,9 +21,9 @@ import (
 	"strings"
 	"testing"
 
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/git/types"
-	"k8s.io/test-infra/prow/github"
+	"sigs.k8s.io/prow/config"
+	"sigs.k8s.io/prow/git/types"
+	"sigs.k8s.io/prow/github"
 )
 
 const fakeBotName = "k8s-bot"

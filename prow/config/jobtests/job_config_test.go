@@ -25,10 +25,10 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 
-	cfg "k8s.io/test-infra/prow/config"
+	cfg "sigs.k8s.io/prow/config"
 )
 
-var configPath = flag.String("config", "../../../config/prow/config.yaml", "Path to prow config")
+var configPath = flag.String("config", "../../config/prow/config.yaml", "Path to prow config")
 var jobConfigPath = flag.String("job-config", "../../../config/jobs", "Path to prow job config")
 
 // Loaded at TestMain.

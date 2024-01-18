@@ -21,9 +21,9 @@ import (
 	"testing"
 
 	"github.com/GoogleCloudPlatform/testgrid/metadata"
-	prowapi "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	"k8s.io/test-infra/prow/pod-utils/clone"
-	"k8s.io/test-infra/prow/pod-utils/downwardapi"
+	prowapi "sigs.k8s.io/prow/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/pod-utils/clone"
+	"sigs.k8s.io/prow/pod-utils/downwardapi"
 )
 
 func TestSpecToStarted(t *testing.T) {

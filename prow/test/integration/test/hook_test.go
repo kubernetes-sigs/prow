@@ -26,8 +26,8 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/wait"
 
-	"k8s.io/test-infra/prow/github"
-	"k8s.io/test-infra/prow/phony"
+	"sigs.k8s.io/prow/github"
+	"sigs.k8s.io/prow/phony"
 )
 
 func TestHook(t *testing.T) {

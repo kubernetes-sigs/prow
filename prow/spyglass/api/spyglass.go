@@ -19,7 +19,7 @@ package api
 import (
 	"encoding/json"
 
-	"k8s.io/test-infra/prow/config"
+	"sigs.k8s.io/prow/config"
 )
 
 // Key types specify the way Spyglass will fetch artifact handles

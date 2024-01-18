@@ -29,8 +29,8 @@ import (
 
 	"cloud.google.com/go/storage"
 	"github.com/google/go-cmp/cmp"
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/io"
+	"sigs.k8s.io/prow/config"
+	"sigs.k8s.io/prow/io"
 )
 
 type fakeOpener struct{}

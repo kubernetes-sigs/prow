@@ -20,7 +20,7 @@ import (
 	"strings"
 	"testing"
 
-	"k8s.io/test-infra/prow/github"
+	"sigs.k8s.io/prow/github"
 )
 
 func TestFormatICResponse(t *testing.T) {

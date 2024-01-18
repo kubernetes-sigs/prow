@@ -30,7 +30,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	prowgithub "k8s.io/test-infra/prow/github"
+	prowgithub "sigs.k8s.io/prow/github"
 )
 
 // ProwJobType specifies how the job is triggered.
@@ -454,7 +454,7 @@ func (d *Duration) MarshalJSON() ([]byte, error) {
 // in Prow config
 type ProwJobDefault struct {
 	ResultStoreConfig *ResultStoreConfig `json:"resultstore_config,omitempty"`
-	TenantID string `json:"tenant_id,omitempty"`
+	TenantID          string             `json:"tenant_id,omitempty"`
 }
 
 // ResultStoreConfig specifies parameters for uploading results to
@@ -694,7 +694,7 @@ func (d *ProwJobDefault) ApplyDefault(def *ProwJobDefault) *ProwJobDefault {
 		return &merged
 	}
 	if merged.ResultStoreConfig == nil {
-		merged.ResultStoreConfig = def.ResultStoreConfig 
+		merged.ResultStoreConfig = def.ResultStoreConfig
 	}
 	if merged.TenantID == "" {
 		merged.TenantID = def.TenantID

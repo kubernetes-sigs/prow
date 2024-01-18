@@ -25,9 +25,9 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"k8s.io/test-infra/prow/config/org"
-	"k8s.io/test-infra/prow/flagutil"
-	"k8s.io/test-infra/prow/github"
+	"sigs.k8s.io/prow/config/org"
+	"sigs.k8s.io/prow/flagutil"
+	"sigs.k8s.io/prow/github"
 
 	"k8s.io/apimachinery/pkg/util/sets"
 )

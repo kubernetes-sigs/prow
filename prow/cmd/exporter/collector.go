@@ -29,8 +29,8 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/sets"
 
-	prowapi "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	"k8s.io/test-infra/prow/kube"
+	prowapi "sigs.k8s.io/prow/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/kube"
 )
 
 type lister interface {

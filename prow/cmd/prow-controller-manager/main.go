@@ -28,22 +28,22 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/test-infra/prow/pjutil"
-	"k8s.io/test-infra/prow/pjutil/pprof"
 	ctrlruntimelog "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/prow/pjutil"
+	"sigs.k8s.io/prow/pjutil/pprof"
 
 	"k8s.io/test-infra/pkg/flagutil"
-	prowflagutil "k8s.io/test-infra/prow/flagutil"
-	configflagutil "k8s.io/test-infra/prow/flagutil/config"
-	"k8s.io/test-infra/prow/interrupts"
-	"k8s.io/test-infra/prow/io"
-	"k8s.io/test-infra/prow/logrusutil"
-	"k8s.io/test-infra/prow/metrics"
-	"k8s.io/test-infra/prow/plank"
+	prowflagutil "sigs.k8s.io/prow/flagutil"
+	configflagutil "sigs.k8s.io/prow/flagutil/config"
+	"sigs.k8s.io/prow/interrupts"
+	"sigs.k8s.io/prow/io"
+	"sigs.k8s.io/prow/logrusutil"
+	"sigs.k8s.io/prow/metrics"
+	"sigs.k8s.io/prow/plank"
 
-	_ "k8s.io/test-infra/prow/version"
+	_ "sigs.k8s.io/prow/version"
 )
 
 var allControllers = sets.New[string](plank.ControllerName)
@@ -125,7 +125,7 @@ func main() {
 	}
 	cfg := configAgent.Config
 	o.kubernetes.SetDisabledClusters(sets.New[string](cfg().DisabledClusters...))
-	
+
 	var logOpts []zap.Opts
 	if cfg().LogLevel == "debug" {
 		logOpts = append(logOpts, func(o *zap.Options) {

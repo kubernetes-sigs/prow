@@ -24,7 +24,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes/scheme"
 
-	"k8s.io/test-infra/prow/apis/prowjobs"
+	"sigs.k8s.io/prow/apis/prowjobs"
 )
 
 func init() {

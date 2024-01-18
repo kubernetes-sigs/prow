@@ -27,7 +27,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"gopkg.in/fsnotify.v1"
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/test-infra/prow/interrupts"
+	"sigs.k8s.io/prow/interrupts"
 )
 
 // Delta represents the before and after states of a Config change detected by the Agent.

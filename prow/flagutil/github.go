@@ -30,9 +30,9 @@ import (
 	"github.com/sirupsen/logrus"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 
-	"k8s.io/test-infra/prow/config/secret"
-	gitv2 "k8s.io/test-infra/prow/git/v2"
-	"k8s.io/test-infra/prow/github"
+	"sigs.k8s.io/prow/config/secret"
+	gitv2 "sigs.k8s.io/prow/git/v2"
+	"sigs.k8s.io/prow/github"
 )
 
 // GitHubOptions holds options for interacting with GitHub.

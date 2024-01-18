@@ -20,7 +20,7 @@ import (
 	"testing"
 
 	cron "gopkg.in/robfig/cron.v2"
-	"k8s.io/test-infra/prow/config"
+	"sigs.k8s.io/prow/config"
 )
 
 func TestSync(t *testing.T) {

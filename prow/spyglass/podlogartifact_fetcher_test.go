@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"testing"
 
-	"k8s.io/test-infra/prow/kube"
+	"sigs.k8s.io/prow/kube"
 )
 
 // Tests getting handles to objects associated with the current Prow job

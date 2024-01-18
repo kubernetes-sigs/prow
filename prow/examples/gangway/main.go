@@ -23,8 +23,8 @@ import (
 	"time"
 
 	"google.golang.org/protobuf/encoding/prototext"
-	pb "k8s.io/test-infra/prow/gangway"
-	gangwayGoogleClient "k8s.io/test-infra/prow/gangway/client/google"
+	pb "sigs.k8s.io/prow/gangway"
+	gangwayGoogleClient "sigs.k8s.io/prow/gangway/client/google"
 )
 
 var (

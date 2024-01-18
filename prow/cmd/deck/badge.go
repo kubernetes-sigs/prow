@@ -24,7 +24,7 @@ import (
 	"sort"
 	"strings"
 
-	prowapi "k8s.io/test-infra/prow/apis/prowjobs/v1"
+	prowapi "sigs.k8s.io/prow/apis/prowjobs/v1"
 )
 
 var svg = `<svg xmlns="http://www.w3.org/2000/svg" width="{{.Width}}" height="20">

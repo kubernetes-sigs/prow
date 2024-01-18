@@ -25,7 +25,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/sets"
 
-	"k8s.io/test-infra/prow/github"
+	"sigs.k8s.io/prow/github"
 )
 
 // Pattern defines a single gitattributes pattern.

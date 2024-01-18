@@ -31,9 +31,9 @@ import (
 	"github.com/sirupsen/logrus"
 	wait "k8s.io/apimachinery/pkg/util/wait"
 
-	prowapi "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	"k8s.io/test-infra/prow/pjutil"
-	"k8s.io/test-infra/prow/pod-utils/downwardapi"
+	prowapi "sigs.k8s.io/prow/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/pjutil"
+	"sigs.k8s.io/prow/pod-utils/downwardapi"
 )
 
 const (

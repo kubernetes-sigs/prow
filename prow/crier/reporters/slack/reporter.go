@@ -26,9 +26,9 @@ import (
 	"github.com/sirupsen/logrus"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	prowapi "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	"k8s.io/test-infra/prow/config"
-	slackclient "k8s.io/test-infra/prow/slack"
+	prowapi "sigs.k8s.io/prow/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/config"
+	slackclient "sigs.k8s.io/prow/slack"
 )
 
 const (

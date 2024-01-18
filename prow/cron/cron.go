@@ -27,7 +27,7 @@ import (
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
 
-	"k8s.io/test-infra/prow/config"
+	"sigs.k8s.io/prow/config"
 )
 
 // jobStatus is a cache layer for tracking existing cron jobs

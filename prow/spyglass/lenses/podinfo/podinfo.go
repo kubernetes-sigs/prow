@@ -28,15 +28,15 @@ import (
 
 	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/test-infra/prow/config"
-	k8sreporter "k8s.io/test-infra/prow/crier/reporters/gcs/kubernetes"
-	"k8s.io/test-infra/prow/entrypoint"
+	"sigs.k8s.io/prow/config"
+	k8sreporter "sigs.k8s.io/prow/crier/reporters/gcs/kubernetes"
+	"sigs.k8s.io/prow/entrypoint"
 	"sigs.k8s.io/yaml"
 
-	prowapi "k8s.io/test-infra/prow/apis/prowjobs/v1"
+	prowapi "sigs.k8s.io/prow/apis/prowjobs/v1"
 
-	"k8s.io/test-infra/prow/spyglass/api"
-	"k8s.io/test-infra/prow/spyglass/lenses"
+	"sigs.k8s.io/prow/spyglass/api"
+	"sigs.k8s.io/prow/spyglass/lenses"
 )
 
 const (

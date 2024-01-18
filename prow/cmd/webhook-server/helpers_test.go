@@ -23,7 +23,7 @@ import (
 	"strconv"
 	"testing"
 
-	"k8s.io/test-infra/prow/flagutil"
+	"sigs.k8s.io/prow/flagutil"
 )
 
 func TestCreateSecret(t *testing.T) {

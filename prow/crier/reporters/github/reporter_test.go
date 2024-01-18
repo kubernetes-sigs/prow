@@ -29,10 +29,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	v1 "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/github/fakegithub"
-	"k8s.io/test-infra/prow/kube"
+	v1 "sigs.k8s.io/prow/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/config"
+	"sigs.k8s.io/prow/github/fakegithub"
+	"sigs.k8s.io/prow/kube"
 
 	fakectrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
@@ -117,7 +117,7 @@ func TestShouldReport(t *testing.T) {
 
 // TestPresumitReportingLocks verifies locking happens
 // for Presubmit reporting. Must be run with -race, relies
-// on k8s.io/test-infra/prow/github/fakegithub not being
+// on sigs.k8s.io/prow/github/fakegithub not being
 // threadsafe.
 func TestPresumitReportingLocks(t *testing.T) {
 	reporter := NewReporter(

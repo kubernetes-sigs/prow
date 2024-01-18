@@ -34,7 +34,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 
-	"k8s.io/test-infra/prow/version"
+	"sigs.k8s.io/prow/version"
 )
 
 const (

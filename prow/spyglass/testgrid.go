@@ -26,8 +26,8 @@ import (
 	tgconfpb "github.com/GoogleCloudPlatform/testgrid/pb/config"
 	"github.com/sirupsen/logrus"
 
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/io"
+	"sigs.k8s.io/prow/config"
+	"sigs.k8s.io/prow/io"
 )
 
 // TestGrid manages a TestGrid configuration, and handles lookups of TestGrid configuration.

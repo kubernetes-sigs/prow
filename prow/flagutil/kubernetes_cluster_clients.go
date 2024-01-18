@@ -43,9 +43,9 @@ import (
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
-	prow "k8s.io/test-infra/prow/client/clientset/versioned"
-	prowv1 "k8s.io/test-infra/prow/client/clientset/versioned/typed/prowjobs/v1"
-	"k8s.io/test-infra/prow/kube"
+	prow "sigs.k8s.io/prow/client/clientset/versioned"
+	prowv1 "sigs.k8s.io/prow/client/clientset/versioned/typed/prowjobs/v1"
+	"sigs.k8s.io/prow/kube"
 )
 
 func init() {

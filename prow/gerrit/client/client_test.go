@@ -29,8 +29,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/io"
+	"sigs.k8s.io/prow/config"
+	"sigs.k8s.io/prow/io"
 )
 
 type fgc struct {

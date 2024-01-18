@@ -20,8 +20,8 @@ import (
 	"reflect"
 	"testing"
 
-	branchprotection "k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/github"
+	branchprotection "sigs.k8s.io/prow/config"
+	"sigs.k8s.io/prow/github"
 )
 
 func TestMakeBool(t *testing.T) {

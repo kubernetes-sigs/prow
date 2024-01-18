@@ -29,7 +29,7 @@ import (
 
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 
-	prowv1 "k8s.io/test-infra/prow/apis/prowjobs/v1"
+	prowv1 "sigs.k8s.io/prow/apis/prowjobs/v1"
 )
 
 func updateReportState(ctx context.Context, pj *prowv1.ProwJob, log *logrus.Entry, reportedState prowv1.ProwJobState, pjclientset ctrlruntimeclient.Client, reporterName string) error {

@@ -29,14 +29,14 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	clienttesting "k8s.io/client-go/testing"
 
-	prowapi "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	"k8s.io/test-infra/prow/client/clientset/versioned/fake"
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/git/v2"
-	"k8s.io/test-infra/prow/github"
-	"k8s.io/test-infra/prow/github/fakegithub"
-	"k8s.io/test-infra/prow/plugins"
 	utilpointer "k8s.io/utils/pointer"
+	prowapi "sigs.k8s.io/prow/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/client/clientset/versioned/fake"
+	"sigs.k8s.io/prow/config"
+	"sigs.k8s.io/prow/git/v2"
+	"sigs.k8s.io/prow/github"
+	"sigs.k8s.io/prow/github/fakegithub"
+	"sigs.k8s.io/prow/plugins"
 )
 
 func TestHelpProvider(t *testing.T) {

@@ -31,14 +31,14 @@ import (
 	clienttesting "k8s.io/client-go/testing"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	prowapi "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	"k8s.io/test-infra/prow/client/clientset/versioned/fake"
-	"k8s.io/test-infra/prow/config"
-	reporter "k8s.io/test-infra/prow/crier/reporters/pubsub"
-	"k8s.io/test-infra/prow/flagutil"
-	"k8s.io/test-infra/prow/gangway"
-	"k8s.io/test-infra/prow/git/v2"
-	"k8s.io/test-infra/prow/kube"
+	prowapi "sigs.k8s.io/prow/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/client/clientset/versioned/fake"
+	"sigs.k8s.io/prow/config"
+	reporter "sigs.k8s.io/prow/crier/reporters/pubsub"
+	"sigs.k8s.io/prow/flagutil"
+	"sigs.k8s.io/prow/gangway"
+	"sigs.k8s.io/prow/git/v2"
+	"sigs.k8s.io/prow/kube"
 
 	v1 "k8s.io/api/core/v1"
 )

@@ -32,9 +32,9 @@ import (
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	fakectrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	prowapi "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/kube"
+	prowapi "sigs.k8s.io/prow/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/config"
+	"sigs.k8s.io/prow/kube"
 )
 
 func createTime(layout string, timeString string) metav1.Time {

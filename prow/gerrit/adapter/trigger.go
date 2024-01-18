@@ -24,9 +24,9 @@ import (
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/sets"
 
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/gerrit/client"
-	"k8s.io/test-infra/prow/pjutil"
+	"sigs.k8s.io/prow/config"
+	"sigs.k8s.io/prow/gerrit/client"
+	"sigs.k8s.io/prow/pjutil"
 )
 
 // presubmitContexts returns the set of failing and all job names contained in the reports.

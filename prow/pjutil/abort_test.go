@@ -28,7 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	fakectrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	prowv1 "k8s.io/test-infra/prow/apis/prowjobs/v1"
+	prowv1 "sigs.k8s.io/prow/apis/prowjobs/v1"
 )
 
 func TestTerminateOlderJobs(t *testing.T) {

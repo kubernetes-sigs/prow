@@ -22,7 +22,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"k8s.io/test-infra/prow/phony"
+	"sigs.k8s.io/prow/phony"
 )
 
 var (

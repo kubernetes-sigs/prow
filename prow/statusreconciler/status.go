@@ -24,9 +24,9 @@ import (
 	"github.com/sirupsen/logrus"
 	"sigs.k8s.io/yaml"
 
-	"k8s.io/test-infra/prow/config"
-	configflagutil "k8s.io/test-infra/prow/flagutil/config"
-	"k8s.io/test-infra/prow/io"
+	"sigs.k8s.io/prow/config"
+	configflagutil "sigs.k8s.io/prow/flagutil/config"
+	"sigs.k8s.io/prow/io"
 )
 
 type storedState struct {

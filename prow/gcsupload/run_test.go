@@ -26,9 +26,9 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"k8s.io/apimachinery/pkg/util/sets"
 
-	prowapi "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	"k8s.io/test-infra/prow/pod-utils/downwardapi"
-	"k8s.io/test-infra/prow/pod-utils/gcs"
+	prowapi "sigs.k8s.io/prow/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/pod-utils/downwardapi"
+	"sigs.k8s.io/prow/pod-utils/gcs"
 )
 
 func TestOptions_AssembleTargets(t *testing.T) {

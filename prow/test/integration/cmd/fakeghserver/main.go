@@ -27,12 +27,12 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/sirupsen/logrus"
-	prowgh "k8s.io/test-infra/prow/github"
+	prowgh "sigs.k8s.io/prow/github"
 
-	"k8s.io/test-infra/prow/github/fakegithub"
-	"k8s.io/test-infra/prow/interrupts"
-	"k8s.io/test-infra/prow/logrusutil"
-	"k8s.io/test-infra/prow/pjutil"
+	"sigs.k8s.io/prow/github/fakegithub"
+	"sigs.k8s.io/prow/interrupts"
+	"sigs.k8s.io/prow/logrusutil"
+	"sigs.k8s.io/prow/pjutil"
 )
 
 type options struct {

@@ -28,13 +28,13 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/lint"
 
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/genfiles"
-	"k8s.io/test-infra/prow/git/v2"
-	"k8s.io/test-infra/prow/github"
-	"k8s.io/test-infra/prow/pluginhelp"
-	"k8s.io/test-infra/prow/plugins"
-	"k8s.io/test-infra/prow/plugins/golint/suggestion"
+	"sigs.k8s.io/prow/config"
+	"sigs.k8s.io/prow/genfiles"
+	"sigs.k8s.io/prow/git/v2"
+	"sigs.k8s.io/prow/github"
+	"sigs.k8s.io/prow/pluginhelp"
+	"sigs.k8s.io/prow/plugins"
+	"sigs.k8s.io/prow/plugins/golint/suggestion"
 )
 
 const (

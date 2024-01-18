@@ -26,10 +26,10 @@ import (
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ktypes "k8s.io/apimachinery/pkg/types"
-	prowapi "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	prowv1 "k8s.io/test-infra/prow/client/clientset/versioned/typed/prowjobs/v1"
-	"k8s.io/test-infra/prow/githuboauth"
-	"k8s.io/test-infra/prow/plugins"
+	prowapi "sigs.k8s.io/prow/apis/prowjobs/v1"
+	prowv1 "sigs.k8s.io/prow/client/clientset/versioned/typed/prowjobs/v1"
+	"sigs.k8s.io/prow/githuboauth"
+	"sigs.k8s.io/prow/plugins"
 )
 
 func handleAbort(prowJobClient prowv1.ProwJobInterface, cfg authCfgGetter, goa *githuboauth.Agent, ghc githuboauth.AuthenticatedUserIdentifier, cli deckGitHubClient, pluginAgent *plugins.ConfigAgent, log *logrus.Entry) http.HandlerFunc {

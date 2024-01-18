@@ -24,9 +24,9 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"k8s.io/test-infra/prow/git/localgit"
-	"k8s.io/test-infra/prow/git/v2"
-	"k8s.io/test-infra/prow/kube"
+	"sigs.k8s.io/prow/git/localgit"
+	"sigs.k8s.io/prow/git/v2"
+	"sigs.k8s.io/prow/kube"
 )
 
 var defaultBranch = localgit.DefaultBranch("")

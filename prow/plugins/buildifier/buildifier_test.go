@@ -22,8 +22,8 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"k8s.io/test-infra/prow/git/localgit"
-	"k8s.io/test-infra/prow/github"
+	"sigs.k8s.io/prow/git/localgit"
+	"sigs.k8s.io/prow/github"
 )
 
 var initialFiles = map[string][]byte{

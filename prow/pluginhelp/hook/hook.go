@@ -34,11 +34,11 @@ import (
 	"k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
 
-	prowconfig "k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/github"
-	"k8s.io/test-infra/prow/pluginhelp"
-	"k8s.io/test-infra/prow/pluginhelp/externalplugins"
-	"k8s.io/test-infra/prow/plugins"
+	prowconfig "sigs.k8s.io/prow/config"
+	"sigs.k8s.io/prow/github"
+	"sigs.k8s.io/prow/pluginhelp"
+	"sigs.k8s.io/prow/pluginhelp/externalplugins"
+	"sigs.k8s.io/prow/plugins"
 )
 
 // TODO: unit test to ensure that external plugins with the same name have the same endpoint and events.

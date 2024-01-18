@@ -24,10 +24,10 @@ import (
 	"io"
 	"testing"
 
-	prowv1 "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	pkgio "k8s.io/test-infra/prow/io"
-	"k8s.io/test-infra/prow/spyglass/api"
-	"k8s.io/test-infra/prow/spyglass/lenses"
+	prowv1 "sigs.k8s.io/prow/apis/prowjobs/v1"
+	pkgio "sigs.k8s.io/prow/io"
+	"sigs.k8s.io/prow/spyglass/api"
+	"sigs.k8s.io/prow/spyglass/lenses"
 )
 
 type ByteReadCloser struct {

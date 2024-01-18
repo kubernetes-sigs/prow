@@ -30,8 +30,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/fake"
 
-	"k8s.io/test-infra/prow/git/localgit"
-	"k8s.io/test-infra/prow/plugins"
+	"sigs.k8s.io/prow/git/localgit"
+	"sigs.k8s.io/prow/plugins"
 )
 
 var (

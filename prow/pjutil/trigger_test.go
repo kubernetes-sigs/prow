@@ -24,8 +24,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
 	coretesting "k8s.io/client-go/testing"
-	prowapi "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	"k8s.io/test-infra/prow/client/clientset/versioned/fake"
+	prowapi "sigs.k8s.io/prow/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/client/clientset/versioned/fake"
 )
 
 func Test_resultForJob(t *testing.T) {

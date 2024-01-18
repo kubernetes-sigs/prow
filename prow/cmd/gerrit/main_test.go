@@ -24,8 +24,8 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/sets"
 
-	"k8s.io/test-infra/prow/flagutil"
-	configflagutil "k8s.io/test-infra/prow/flagutil/config"
+	"sigs.k8s.io/prow/flagutil"
+	configflagutil "sigs.k8s.io/prow/flagutil/config"
 )
 
 func TestFlags(t *testing.T) {

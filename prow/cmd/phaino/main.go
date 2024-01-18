@@ -31,9 +31,9 @@ import (
 	"github.com/sirupsen/logrus"
 	"sigs.k8s.io/yaml"
 
-	"k8s.io/test-infra/prow/interrupts"
+	"sigs.k8s.io/prow/interrupts"
 
-	prowapi "k8s.io/test-infra/prow/apis/prowjobs/v1"
+	prowapi "sigs.k8s.io/prow/apis/prowjobs/v1"
 )
 
 const (

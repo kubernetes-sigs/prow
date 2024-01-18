@@ -27,9 +27,9 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"k8s.io/apimachinery/pkg/util/sets"
 
-	prowv1 "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/io"
+	prowv1 "sigs.k8s.io/prow/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/config"
+	"sigs.k8s.io/prow/io"
 )
 
 func TestNewGCSJobSource(t *testing.T) {

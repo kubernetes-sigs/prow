@@ -29,16 +29,16 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/cluster"
 
 	pkgflagutil "k8s.io/test-infra/pkg/flagutil"
-	prowapi "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/cron"
-	prowflagutil "k8s.io/test-infra/prow/flagutil"
-	configflagutil "k8s.io/test-infra/prow/flagutil/config"
-	"k8s.io/test-infra/prow/interrupts"
-	"k8s.io/test-infra/prow/logrusutil"
-	"k8s.io/test-infra/prow/metrics"
-	"k8s.io/test-infra/prow/pjutil"
-	"k8s.io/test-infra/prow/pjutil/pprof"
+	prowapi "sigs.k8s.io/prow/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/config"
+	"sigs.k8s.io/prow/cron"
+	prowflagutil "sigs.k8s.io/prow/flagutil"
+	configflagutil "sigs.k8s.io/prow/flagutil/config"
+	"sigs.k8s.io/prow/interrupts"
+	"sigs.k8s.io/prow/logrusutil"
+	"sigs.k8s.io/prow/metrics"
+	"sigs.k8s.io/prow/pjutil"
+	"sigs.k8s.io/prow/pjutil/pprof"
 )
 
 const (

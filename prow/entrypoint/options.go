@@ -22,7 +22,7 @@ import (
 	"flag"
 	"time"
 
-	"k8s.io/test-infra/prow/pod-utils/wrapper"
+	"sigs.k8s.io/prow/pod-utils/wrapper"
 )
 
 const defaultCopyDst = "/tools/entrypoint"

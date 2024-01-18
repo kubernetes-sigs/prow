@@ -22,7 +22,7 @@ import (
 	"net/url"
 	"path"
 
-	gerritsource "k8s.io/test-infra/prow/gerrit/source"
+	gerritsource "sigs.k8s.io/prow/gerrit/source"
 )
 
 // RemoteResolverFactory knows how to construct remote resolvers for

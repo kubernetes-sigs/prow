@@ -33,15 +33,15 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"sigs.k8s.io/yaml"
 
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/github"
-	"k8s.io/test-infra/prow/github/fakegithub"
-	"k8s.io/test-infra/prow/labels"
-	"k8s.io/test-infra/prow/pkg/layeredsets"
-	"k8s.io/test-infra/prow/plugins"
-	"k8s.io/test-infra/prow/plugins/approve/approvers"
-	"k8s.io/test-infra/prow/plugins/ownersconfig"
-	"k8s.io/test-infra/prow/repoowners"
+	"sigs.k8s.io/prow/config"
+	"sigs.k8s.io/prow/github"
+	"sigs.k8s.io/prow/github/fakegithub"
+	"sigs.k8s.io/prow/labels"
+	"sigs.k8s.io/prow/pkg/layeredsets"
+	"sigs.k8s.io/prow/plugins"
+	"sigs.k8s.io/prow/plugins/approve/approvers"
+	"sigs.k8s.io/prow/plugins/ownersconfig"
+	"sigs.k8s.io/prow/repoowners"
 )
 
 const prNumber = 1

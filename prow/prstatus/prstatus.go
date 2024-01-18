@@ -30,8 +30,8 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/oauth2"
 
-	"k8s.io/test-infra/prow/github"
-	"k8s.io/test-infra/prow/githuboauth"
+	"sigs.k8s.io/prow/github"
+	"sigs.k8s.io/prow/githuboauth"
 )
 
 const (

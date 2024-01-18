@@ -24,9 +24,9 @@ package main
 import (
 	"github.com/sirupsen/logrus"
 
-	"k8s.io/test-infra/prow/initupload"
-	"k8s.io/test-infra/prow/logrusutil"
-	"k8s.io/test-infra/prow/pod-utils/options"
+	"sigs.k8s.io/prow/initupload"
+	"sigs.k8s.io/prow/logrusutil"
+	"sigs.k8s.io/prow/pod-utils/options"
 )
 
 func main() {

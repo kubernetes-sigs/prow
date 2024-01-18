@@ -27,9 +27,9 @@ import (
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/util/diff"
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/git/types"
-	"k8s.io/test-infra/prow/github"
+	"sigs.k8s.io/prow/config"
+	"sigs.k8s.io/prow/git/types"
+	"sigs.k8s.io/prow/github"
 )
 
 func TestSearch(t *testing.T) {

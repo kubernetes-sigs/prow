@@ -30,16 +30,16 @@ import (
 	"github.com/NYTimes/gziphandler"
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/test-infra/prow/pjutil/pprof"
+	"sigs.k8s.io/prow/pjutil/pprof"
 
 	"k8s.io/test-infra/pkg/flagutil"
-	"k8s.io/test-infra/prow/config/secret"
-	prowflagutil "k8s.io/test-infra/prow/flagutil"
-	configflagutil "k8s.io/test-infra/prow/flagutil/config"
-	"k8s.io/test-infra/prow/interrupts"
-	"k8s.io/test-infra/prow/jenkins"
-	"k8s.io/test-infra/prow/logrusutil"
-	m "k8s.io/test-infra/prow/metrics"
+	"sigs.k8s.io/prow/config/secret"
+	prowflagutil "sigs.k8s.io/prow/flagutil"
+	configflagutil "sigs.k8s.io/prow/flagutil/config"
+	"sigs.k8s.io/prow/interrupts"
+	"sigs.k8s.io/prow/jenkins"
+	"sigs.k8s.io/prow/logrusutil"
+	m "sigs.k8s.io/prow/metrics"
 )
 
 type options struct {

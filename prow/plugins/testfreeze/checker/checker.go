@@ -32,7 +32,7 @@ import (
 	gitmemory "github.com/go-git/go-git/v5/storage/memory"
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	v1 "k8s.io/test-infra/prow/apis/prowjobs/v1"
+	v1 "sigs.k8s.io/prow/apis/prowjobs/v1"
 )
 
 const (

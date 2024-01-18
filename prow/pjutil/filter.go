@@ -24,7 +24,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/test-infra/prow/config"
+	"sigs.k8s.io/prow/config"
 )
 
 var TestAllRe = regexp.MustCompile(`(?m)^/test all,?($|\s.*)`)

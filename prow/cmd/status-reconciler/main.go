@@ -24,15 +24,15 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/test-infra/prow/pjutil/pprof"
+	"sigs.k8s.io/prow/pjutil/pprof"
 
 	"k8s.io/test-infra/pkg/flagutil"
-	prowflagutil "k8s.io/test-infra/prow/flagutil"
-	configflagutil "k8s.io/test-infra/prow/flagutil/config"
-	pluginsflagutil "k8s.io/test-infra/prow/flagutil/plugins"
-	"k8s.io/test-infra/prow/interrupts"
-	"k8s.io/test-infra/prow/logrusutil"
-	"k8s.io/test-infra/prow/statusreconciler"
+	prowflagutil "sigs.k8s.io/prow/flagutil"
+	configflagutil "sigs.k8s.io/prow/flagutil/config"
+	pluginsflagutil "sigs.k8s.io/prow/flagutil/plugins"
+	"sigs.k8s.io/prow/interrupts"
+	"sigs.k8s.io/prow/logrusutil"
+	"sigs.k8s.io/prow/statusreconciler"
 )
 
 const (

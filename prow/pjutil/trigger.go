@@ -25,10 +25,10 @@ import (
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
-	pjapi "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	prowv1 "k8s.io/test-infra/prow/client/clientset/versioned/typed/prowjobs/v1"
-	prowconfig "k8s.io/test-infra/prow/config"
-	prowflagutil "k8s.io/test-infra/prow/flagutil"
+	pjapi "sigs.k8s.io/prow/apis/prowjobs/v1"
+	prowv1 "sigs.k8s.io/prow/client/clientset/versioned/typed/prowjobs/v1"
+	prowconfig "sigs.k8s.io/prow/config"
+	prowflagutil "sigs.k8s.io/prow/flagutil"
 )
 
 func resultForJob(pjclient prowv1.ProwJobInterface, selector string) (*pjapi.ProwJobStatus, bool, error) {

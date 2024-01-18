@@ -23,13 +23,13 @@ import (
 	"testing"
 
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/test-infra/prow/github"
+	"sigs.k8s.io/prow/github"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/sirupsen/logrus"
 
 	"k8s.io/apimachinery/pkg/util/diff"
-	"k8s.io/test-infra/prow/config"
+	"sigs.k8s.io/prow/config"
 )
 
 func TestTestAllFilter(t *testing.T) {

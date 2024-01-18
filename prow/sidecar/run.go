@@ -31,15 +31,15 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
-	"k8s.io/test-infra/prow/flagutil"
-	"k8s.io/test-infra/prow/logrusutil"
-	"k8s.io/test-infra/prow/pjutil/pprof"
+	"sigs.k8s.io/prow/flagutil"
+	"sigs.k8s.io/prow/logrusutil"
+	"sigs.k8s.io/prow/pjutil/pprof"
 
-	prowv1 "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	"k8s.io/test-infra/prow/entrypoint"
-	"k8s.io/test-infra/prow/pod-utils/downwardapi"
-	"k8s.io/test-infra/prow/pod-utils/gcs"
-	"k8s.io/test-infra/prow/pod-utils/wrapper"
+	prowv1 "sigs.k8s.io/prow/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/entrypoint"
+	"sigs.k8s.io/prow/pod-utils/downwardapi"
+	"sigs.k8s.io/prow/pod-utils/gcs"
+	"sigs.k8s.io/prow/pod-utils/wrapper"
 
 	testgridmetadata "github.com/GoogleCloudPlatform/testgrid/metadata"
 )

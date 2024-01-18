@@ -23,10 +23,10 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
-	"k8s.io/test-infra/prow/github"
-	"k8s.io/test-infra/prow/labels"
-	"k8s.io/test-infra/prow/plugins"
-	"k8s.io/test-infra/prow/plugins/cherrypickapproved/cherrypickapprovedfakes"
+	"sigs.k8s.io/prow/github"
+	"sigs.k8s.io/prow/labels"
+	"sigs.k8s.io/prow/plugins"
+	"sigs.k8s.io/prow/plugins/cherrypickapproved/cherrypickapprovedfakes"
 )
 
 const testOrgRepo = "kubernetes"

@@ -27,15 +27,15 @@ import (
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp" // support gcp users in .kube/config
 
-	"k8s.io/test-infra/prow/config"
-	prowflagutil "k8s.io/test-infra/prow/flagutil"
-	configflagutil "k8s.io/test-infra/prow/flagutil/config"
-	pluginsflagutil "k8s.io/test-infra/prow/flagutil/plugins"
-	"k8s.io/test-infra/prow/github"
-	_ "k8s.io/test-infra/prow/hook/plugin-imports"
-	"k8s.io/test-infra/prow/logrusutil"
-	"k8s.io/test-infra/prow/plugins"
-	"k8s.io/test-infra/prow/plugins/updateconfig"
+	"sigs.k8s.io/prow/config"
+	prowflagutil "sigs.k8s.io/prow/flagutil"
+	configflagutil "sigs.k8s.io/prow/flagutil/config"
+	pluginsflagutil "sigs.k8s.io/prow/flagutil/plugins"
+	"sigs.k8s.io/prow/github"
+	_ "sigs.k8s.io/prow/hook/plugin-imports"
+	"sigs.k8s.io/prow/logrusutil"
+	"sigs.k8s.io/prow/plugins"
+	"sigs.k8s.io/prow/plugins/updateconfig"
 )
 
 const bootstrapMode = true

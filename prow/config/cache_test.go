@@ -25,8 +25,8 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"golang.org/x/sync/errgroup"
 	v1 "k8s.io/api/core/v1"
-	prowapi "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	"k8s.io/test-infra/prow/git/v2"
+	prowapi "sigs.k8s.io/prow/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/git/v2"
 )
 
 type fakeConfigAgent struct {

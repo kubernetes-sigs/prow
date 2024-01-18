@@ -26,10 +26,10 @@ import (
 	"github.com/fsouza/fake-gcs-server/fakestorage"
 	"github.com/sirupsen/logrus"
 
-	configflagutil "k8s.io/test-infra/prow/flagutil/config"
-	"k8s.io/test-infra/prow/interrupts"
-	"k8s.io/test-infra/prow/logrusutil"
-	"k8s.io/test-infra/prow/pjutil"
+	configflagutil "sigs.k8s.io/prow/flagutil/config"
+	"sigs.k8s.io/prow/interrupts"
+	"sigs.k8s.io/prow/logrusutil"
+	"sigs.k8s.io/prow/pjutil"
 )
 
 type options struct {

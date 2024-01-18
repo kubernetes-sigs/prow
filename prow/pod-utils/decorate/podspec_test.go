@@ -33,15 +33,15 @@ import (
 	utilpointer "k8s.io/utils/pointer"
 	"sigs.k8s.io/yaml"
 
-	prowapi "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	"k8s.io/test-infra/prow/clonerefs"
-	"k8s.io/test-infra/prow/entrypoint"
-	"k8s.io/test-infra/prow/gcsupload"
-	"k8s.io/test-infra/prow/github"
-	"k8s.io/test-infra/prow/initupload"
-	"k8s.io/test-infra/prow/pod-utils/wrapper"
-	"k8s.io/test-infra/prow/sidecar"
-	"k8s.io/test-infra/prow/testutil"
+	prowapi "sigs.k8s.io/prow/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/clonerefs"
+	"sigs.k8s.io/prow/entrypoint"
+	"sigs.k8s.io/prow/gcsupload"
+	"sigs.k8s.io/prow/github"
+	"sigs.k8s.io/prow/initupload"
+	"sigs.k8s.io/prow/pod-utils/wrapper"
+	"sigs.k8s.io/prow/sidecar"
+	"sigs.k8s.io/prow/testutil"
 )
 
 func pStr(str string) *string {

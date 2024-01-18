@@ -22,9 +22,9 @@ import (
 	"path"
 
 	"github.com/sirupsen/logrus"
-	"k8s.io/test-infra/prow/entrypoint"
-	"k8s.io/test-infra/prow/logrusutil"
-	"k8s.io/test-infra/prow/pod-utils/options"
+	"sigs.k8s.io/prow/entrypoint"
+	"sigs.k8s.io/prow/logrusutil"
+	"sigs.k8s.io/prow/pod-utils/options"
 )
 
 // copy copies entrypoint binary from source to destination. This is because

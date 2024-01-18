@@ -26,8 +26,8 @@ import (
 
 	"google.golang.org/genproto/googleapis/devtools/resultstore/v2"
 	"google.golang.org/protobuf/types/known/wrapperspb"
-	pio "k8s.io/test-infra/prow/io"
-	"k8s.io/test-infra/prow/io/providers"
+	pio "sigs.k8s.io/prow/io"
+	"sigs.k8s.io/prow/io/providers"
 )
 
 // fileFinder is the subset of pio.Opener required.

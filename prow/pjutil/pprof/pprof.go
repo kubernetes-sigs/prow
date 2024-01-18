@@ -28,9 +28,9 @@ import (
 
 	"github.com/felixge/fgprof"
 	"github.com/sirupsen/logrus"
-	"k8s.io/test-infra/prow/flagutil"
+	"sigs.k8s.io/prow/flagutil"
 
-	"k8s.io/test-infra/prow/interrupts"
+	"sigs.k8s.io/prow/interrupts"
 )
 
 // Instrument implements the profiling options a user has asked for on the command line.
