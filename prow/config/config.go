@@ -438,7 +438,7 @@ func GetAndCheckRefs(
 // does a call to GitHub and who also need the result of that GitHub call just
 // keep a pointer to its result, but must nilcheck that pointer before accessing
 // it.
-func (c *Config) getProwYAMLWithDefaults(gc git.ClientFactory, identifier string, baseSHAGetter RefGetter, headSHAGetters ...RefGetter) (*ProwYAML, error) {
+func (c *Config) getProwYAMLWithDefaults(gc git.ClientFactory, identifier, baseBranch string, baseSHAGetter RefGetter, headSHAGetters ...RefGetter) (*ProwYAML, error) {
 	if identifier == "" {
 		return nil, errors.New("no identifier for repo given")
 	}
@@ -451,7 +451,7 @@ func (c *Config) getProwYAMLWithDefaults(gc git.ClientFactory, identifier string
 		return nil, err
 	}
 
-	prowYAML, err := c.ProwYAMLGetterWithDefaults(c, gc, identifier, baseSHA, headSHAs...)
+	prowYAML, err := c.ProwYAMLGetterWithDefaults(c, gc, identifier, baseBranch, baseSHA, headSHAs...)
 	if err != nil {
 		return nil, err
 	}
@@ -460,7 +460,7 @@ func (c *Config) getProwYAMLWithDefaults(gc git.ClientFactory, identifier string
 }
 
 // getProwYAML is like getProwYAMLWithDefaults, minus the defaulting logic.
-func (c *Config) getProwYAML(gc git.ClientFactory, identifier string, baseSHAGetter RefGetter, headSHAGetters ...RefGetter) (*ProwYAML, error) {
+func (c *Config) getProwYAML(gc git.ClientFactory, identifier, baseBranch string, baseSHAGetter RefGetter, headSHAGetters ...RefGetter) (*ProwYAML, error) {
 	if identifier == "" {
 		return nil, errors.New("no identifier for repo given")
 	}
@@ -473,7 +473,7 @@ func (c *Config) getProwYAML(gc git.ClientFactory, identifier string, baseSHAGet
 		return nil, err
 	}
 
-	prowYAML, err := c.ProwYAMLGetter(c, gc, identifier, baseSHA, headSHAs...)
+	prowYAML, err := c.ProwYAMLGetter(c, gc, identifier, baseBranch, baseSHA, headSHAs...)
 	if err != nil {
 		return nil, err
 	}
@@ -487,8 +487,8 @@ func (c *Config) getProwYAML(gc git.ClientFactory, identifier string, baseSHAGet
 // Consumers that pass in a RefGetter implementation that does a call to GitHub and who
 // also need the result of that GitHub call just keep a pointer to its result, but must
 // nilcheck that pointer before accessing it.
-func (c *Config) GetPresubmits(gc git.ClientFactory, identifier string, baseSHAGetter RefGetter, headSHAGetters ...RefGetter) ([]Presubmit, error) {
-	prowYAML, err := c.getProwYAMLWithDefaults(gc, identifier, baseSHAGetter, headSHAGetters...)
+func (c *Config) GetPresubmits(gc git.ClientFactory, identifier, baseBranch string, baseSHAGetter RefGetter, headSHAGetters ...RefGetter) ([]Presubmit, error) {
+	prowYAML, err := c.getProwYAMLWithDefaults(gc, identifier, baseBranch, baseSHAGetter, headSHAGetters...)
 	if err != nil {
 		return nil, err
 	}
@@ -517,8 +517,8 @@ func (c *Config) GetPresubmitsStatic(identifier string) []Presubmit {
 // Consumers that pass in a RefGetter implementation that does a call to GitHub and who
 // also need the result of that GitHub call just keep a pointer to its result, but must
 // nilcheck that pointer before accessing it.
-func (c *Config) GetPostsubmits(gc git.ClientFactory, identifier string, baseSHAGetter RefGetter, headSHAGetters ...RefGetter) ([]Postsubmit, error) {
-	prowYAML, err := c.getProwYAMLWithDefaults(gc, identifier, baseSHAGetter, headSHAGetters...)
+func (c *Config) GetPostsubmits(gc git.ClientFactory, identifier, baseBranch string, baseSHAGetter RefGetter, headSHAGetters ...RefGetter) ([]Postsubmit, error) {
+	prowYAML, err := c.getProwYAMLWithDefaults(gc, identifier, baseBranch, baseSHAGetter, headSHAGetters...)
 	if err != nil {
 		return nil, err
 	}
@@ -942,6 +942,23 @@ type Gerrit struct {
 	AllowedPresubmitTriggerReRawString string          `json:"allowed_presubmit_trigger_re,omitempty"`
 }
 
+func (g *Gerrit) DefaultAndValidate() error {
+	if g.TickInterval == nil {
+		g.TickInterval = &metav1.Duration{Duration: time.Minute}
+	}
+
+	if g.RateLimit == 0 {
+		g.RateLimit = 5
+	}
+
+	re, err := regexp.Compile(g.AllowedPresubmitTriggerReRawString)
+	if err != nil {
+		return fmt.Errorf("failed to compile regex for allowed presubmit triggers: %s", err.Error())
+	}
+	g.AllowedPresubmitTriggerRe = &CopyableRegexp{re}
+	return nil
+}
+
 func (g *Gerrit) IsAllowedPresubmitTrigger(message string) bool {
 	return g.AllowedPresubmitTriggerRe.MatchString(message)
 }
@@ -1151,6 +1168,10 @@ type Spyglass struct {
 	// PRHistLinkTemplate is the template for constructing href of `PR History` button,
 	// by default it's "/pr-history?org={{.Org}}&repo={{.Repo}}&pr={{.Number}}"
 	PRHistLinkTemplate string `json:"pr_history_link_template,omitempty"`
+	// BucketAliases permits a naive URL rewriting functionality.
+	// Keys represent aliases and their values are the authoritative
+	// bucket names they will be substituted with
+	BucketAliases map[string]string `json:"bucket_aliases,omitempty"`
 }
 
 type GCSBrowserPrefixes map[string]string
@@ -1277,7 +1298,9 @@ func (c *Config) ValidateStorageBucket(bucketName string) error {
 	if !c.Deck.shouldValidateStorageBuckets() {
 		return nil
 	}
-
+	if alias, exists := c.Deck.Spyglass.BucketAliases[bucketName]; exists {
+		bucketName = alias
+	}
 	if !c.Deck.AllKnownStorageBuckets.Has(bucketName) {
 		return NotAllowedBucketError(fmt.Errorf("bucket %q not in allowed list (%v)", bucketName, sets.List(c.Deck.AllKnownStorageBuckets)))
 	}
@@ -2246,12 +2269,13 @@ func (c Config) validateJobBase(v JobBase, jobType prowapi.ProwJobType) error {
 // validatePresubmits validates the presubmits for one repo.
 func (c Config) validatePresubmits(presubmits []Presubmit) error {
 	validPresubmits := map[string][]Presubmit{}
+	duplicatePresubmits := sets.New[string]()
 	var errs []error
 	for _, ps := range presubmits {
 		// Checking that no duplicate job in prow config exists on the same branch.
 		for _, existingJob := range validPresubmits[ps.Name] {
 			if existingJob.Brancher.Intersects(ps.Brancher) {
-				errs = append(errs, fmt.Errorf("duplicated presubmit job: %s", ps.Name))
+				duplicatePresubmits.Insert(ps.Name)
 			}
 		}
 		for _, otherPS := range presubmits {
@@ -2273,6 +2297,9 @@ func (c Config) validatePresubmits(presubmits []Presubmit) error {
 			errs = append(errs, fmt.Errorf("invalid presubmit job %s: %w", ps.Name, err))
 		}
 		validPresubmits[ps.Name] = append(validPresubmits[ps.Name], ps)
+	}
+	if duplicatePresubmits.Len() > 0 {
+		errs = append(errs, fmt.Errorf("duplicated presubmit jobs (consider both inrepo and central config): %v", sortStringSlice(duplicatePresubmits.UnsortedList())))
 	}
 
 	return utilerrors.NewAggregate(errs)
@@ -2304,13 +2331,14 @@ func ValidateRefs(repo string, jobBase JobBase) error {
 // validatePostsubmits validates the postsubmits for one repo.
 func (c Config) validatePostsubmits(postsubmits []Postsubmit) error {
 	validPostsubmits := map[string][]Postsubmit{}
+	duplicatePostsubmits := sets.New[string]()
 
 	var errs []error
 	for _, ps := range postsubmits {
 		// Checking that no duplicate job in prow config exists on the same repo / branch.
 		for _, existingJob := range validPostsubmits[ps.Name] {
 			if existingJob.Brancher.Intersects(ps.Brancher) {
-				errs = append(errs, fmt.Errorf("duplicated postsubmit job: %s", ps.Name))
+				duplicatePostsubmits.Insert(ps.Name)
 			}
 		}
 		for _, otherPS := range postsubmits {
@@ -2332,6 +2360,9 @@ func (c Config) validatePostsubmits(postsubmits []Postsubmit) error {
 			errs = append(errs, fmt.Errorf("invalid postsubmit job %s: %w", ps.Name, err))
 		}
 		validPostsubmits[ps.Name] = append(validPostsubmits[ps.Name], ps)
+	}
+	if duplicatePostsubmits.Len() > 0 {
+		errs = append(errs, fmt.Errorf("duplicated postsubmit jobs (consider both inrepo and central config): %v", sortStringSlice(duplicatePostsubmits.UnsortedList())))
 	}
 
 	return utilerrors.NewAggregate(errs)
@@ -2449,19 +2480,9 @@ func parseProwConfig(c *Config) error {
 		c.Plank.PodUnscheduledTimeout = &metav1.Duration{Duration: 5 * time.Minute}
 	}
 
-	if c.Gerrit.TickInterval == nil {
-		c.Gerrit.TickInterval = &metav1.Duration{Duration: time.Minute}
+	if err := c.Gerrit.DefaultAndValidate(); err != nil {
+		return fmt.Errorf("validating gerrit config: %w", err)
 	}
-
-	if c.Gerrit.RateLimit == 0 {
-		c.Gerrit.RateLimit = 5
-	}
-
-	re, err := regexp.Compile(c.Gerrit.AllowedPresubmitTriggerReRawString)
-	if err != nil {
-		return fmt.Errorf("failed to compile regex for allowed presubmit triggers: %s", err.Error())
-	}
-	c.Gerrit.AllowedPresubmitTriggerRe = &CopyableRegexp{re}
 
 	if c.Tide.Gerrit != nil {
 		if c.Tide.Gerrit.RateLimit == 0 {
@@ -2607,6 +2628,10 @@ func parseProwConfig(c *Config) error {
 	}
 	if !defaultByBucketExists {
 		c.Deck.Spyglass.GCSBrowserPrefixesByBucket["*"] = c.Deck.Spyglass.GCSBrowserPrefix
+	}
+
+	if c.Deck.Spyglass.BucketAliases == nil {
+		c.Deck.Spyglass.BucketAliases = make(map[string]string)
 	}
 
 	if c.PushGateway.Interval == nil {

@@ -24,13 +24,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"net/http"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 
 	"github.com/prometheus/client_golang/prometheus"
 	githubql "github.com/shurcooL/githubv4"
@@ -1552,7 +1553,7 @@ func (c *syncController) presubmitsByPull(sp *subpool) (map[int][]config.Presubm
 
 	for _, pr := range sp.prs {
 		log := c.logger.WithField("base-sha", sp.sha).WithFields(pr.logFields())
-		presubmitsForPull, err := c.provider.GetPresubmits(sp.org+"/"+sp.repo, refGetterFactory(sp.sha), refGetterFactory(pr.HeadRefOID))
+		presubmitsForPull, err := c.provider.GetPresubmits(sp.org+"/"+sp.repo, pr.BaseRefName, refGetterFactory(sp.sha), refGetterFactory(pr.HeadRefOID))
 		if err != nil {
 			log.WithError(err).Debug("Failed to get presubmits for PR, excluding from subpool")
 			continue
@@ -1581,6 +1582,7 @@ func (c *syncController) presubmitsByPull(sp *subpool) (map[int][]config.Presubm
 
 			presubmits[pr.Number] = append(presubmits[pr.Number], ps)
 		}
+		log.WithField("required-presubmit-count", len(presubmits[pr.Number])).Debug("Determined required presubmits for PR.")
 	}
 
 	sp.prs = filteredPRs
@@ -1605,7 +1607,7 @@ func (c *syncController) presubmitsForBatch(prs []CodeReviewCommon, org, repo, b
 		headRefGetters = append(headRefGetters, refGetterFactory(pr.HeadRefOID))
 	}
 
-	presubmits, err := c.provider.GetPresubmits(org+"/"+repo, refGetterFactory(baseSHA), headRefGetters...)
+	presubmits, err := c.provider.GetPresubmits(org+"/"+repo, baseBranch, refGetterFactory(baseSHA), headRefGetters...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get presubmits for batch: %w", err)
 	}
