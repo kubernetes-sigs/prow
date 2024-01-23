@@ -24,9 +24,9 @@ import (
 	"k8s.io/client-go/discovery"
 	fakediscovery "k8s.io/client-go/discovery/fake"
 	"k8s.io/client-go/testing"
-	clientset "k8s.io/test-infra/prow/client/clientset/versioned"
-	prowv1 "k8s.io/test-infra/prow/client/clientset/versioned/typed/prowjobs/v1"
-	fakeprowv1 "k8s.io/test-infra/prow/client/clientset/versioned/typed/prowjobs/v1/fake"
+	clientset "sigs.k8s.io/prow/client/clientset/versioned"
+	prowv1 "sigs.k8s.io/prow/client/clientset/versioned/typed/prowjobs/v1"
+	fakeprowv1 "sigs.k8s.io/prow/client/clientset/versioned/typed/prowjobs/v1/fake"
 )
 
 // NewSimpleClientset returns a clientset that will respond with the provided objects.

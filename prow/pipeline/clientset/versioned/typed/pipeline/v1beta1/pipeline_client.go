@@ -21,7 +21,7 @@ package v1beta1
 import (
 	v1beta1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
 	rest "k8s.io/client-go/rest"
-	"k8s.io/test-infra/prow/pipeline/clientset/versioned/scheme"
+	"sigs.k8s.io/prow/pipeline/clientset/versioned/scheme"
 )
 
 type TektonV1beta1Interface interface {
