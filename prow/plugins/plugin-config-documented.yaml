@@ -294,18 +294,6 @@ bugzilla:
 cat:
     # Path to file containing an api key for thecatapi.com
     key_path: ' '
-cherry_pick_approved:
-    - # Approvers is the list of GitHub logins allowed to approve a cherry-pick.
-      approvers:
-        - ""
-      # BranchRegexp is the regular expression for branch names such that
-      # the plugin treats only PRs against these branch names as cherrypick PRs.
-      # Compiles into BranchRe during config load.
-      branchregexp: ' '
-      # Org is the GitHub organization that this config applies to.
-      org: ' '
-      # Repo is the GitHub repository within Org that this config applies to.
-      repo: ' '
 cherry_pick_unapproved:
     # BranchRegexp is the regular expression for branch names such that
     # the plugin treats only PRs against these branch names as cherrypick PRs.
