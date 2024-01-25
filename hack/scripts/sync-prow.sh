@@ -2,6 +2,15 @@
 
 set -euo pipefail
 
+check_deps() {
+  if ! which git-filter-repo > /dev/null 2>&1; then
+    echo "please install the git-filter-repo tool per https://github.com/newren/git-filter-repo"
+    exit 1
+  fi
+}
+
+check_deps
+
 old_prow="$PWD/test-infra"
 new_prow="$PWD/prow"
 
