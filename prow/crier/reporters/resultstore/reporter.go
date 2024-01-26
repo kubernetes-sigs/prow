@@ -86,10 +86,6 @@ func projectID(pj *v1.ProwJob) string {
 	if d := pj.Spec.ProwJobDefault; d != nil && d.ResultStoreConfig != nil {
 		return d.ResultStoreConfig.ProjectID
 	}
-	// Fall back to ReporterConfig, if present, for Alpha testing.
-	if c := pj.Spec.ReporterConfig; c != nil && c.ResultStore != nil {
-		return c.ResultStore.ProjectID
-	}
 	return ""
 }
 
@@ -162,11 +158,17 @@ func defaultFiles(pj *v1.ProwJob) []resultstore.DefaultFile {
 	var fs []resultstore.DefaultFile
 
 	// There is a race with the GCS reporter writing prowjob.json and
-	// in practice, it is generally not written yet. In the unlikely
+	// finished.json, so provide these as defaults. In the unlikely
 	// case of error, skip it since the GCS reporter won't write it.
 	if bs, err := util.MarshalProwJob(pj); err == nil {
 		fs = append(fs, resultstore.DefaultFile{
 			Name: "prowjob.json",
+			Size: int64(len(bs)),
+		})
+	}
+	if bs, err := util.MarshalFinishedJSON(pj); err == nil {
+		fs = append(fs, resultstore.DefaultFile{
+			Name: "finished.json",
 			Size: int64(len(bs)),
 		})
 	}
