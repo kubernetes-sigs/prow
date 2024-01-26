@@ -19,17 +19,16 @@ if [[ ! -d "$old_prow" ]]; then
     git clone https://github.com/kubernetes/test-infra.git
 fi
 
-# Strip down the master branch of $old_prow to only have commits that touch the the /prow directory.
-pushd "$old_prow"
-git-filter-repo --path prow
-popd
-
 # Clone the new prow repo (this should be your fork).
 if [[ ! -d "$new_prow" ]]; then
     git clone https://github.com/kubernetes-sigs/prow.git
 fi
-cd "$new_prow"
 
+# Strip down the master branch of $old_prow to only have commits that touch the the /prow directory.
+cd "$old_prow"
+git-filter-repo --path prow
+
+cd "$new_prow"
 # Check out a new "sync" branch that we want to create a PR from.
 git branch sync origin/main
 git checkout sync
