@@ -25,7 +25,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"sigs.k8s.io/prow/experiment/clustersecretbackup/secretmanager"
+	"k8s.io/test-infra/experiment/clustersecretbackup/secretmanager"
 )
 
 type GCPClient struct {

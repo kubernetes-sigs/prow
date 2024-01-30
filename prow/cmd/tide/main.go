@@ -27,11 +27,11 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/prow/prow/config"
 	"sigs.k8s.io/prow/prow/pjutil/pprof"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
 
-	"sigs.k8s.io/prow/pkg/flagutil"
+	"k8s.io/test-infra/pkg/flagutil"
 	prowflagutil "sigs.k8s.io/prow/prow/flagutil"
 	configflagutil "sigs.k8s.io/prow/prow/flagutil/config"
 	"sigs.k8s.io/prow/prow/interrupts"

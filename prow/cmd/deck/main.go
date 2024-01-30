@@ -51,10 +51,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
-	pkgFlagutil "sigs.k8s.io/prow/pkg/flagutil"
-	"sigs.k8s.io/prow/prow/pjutil/pprof"
+	pkgFlagutil "k8s.io/test-infra/pkg/flagutil"
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/prow/prow/pjutil/pprof"
 	"sigs.k8s.io/yaml"
 
 	prowapi "sigs.k8s.io/prow/prow/apis/prowjobs/v1"

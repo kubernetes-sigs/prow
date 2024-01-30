@@ -28,7 +28,7 @@ import (
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/cluster"
 
-	pkgflagutil "sigs.k8s.io/prow/pkg/flagutil"
+	pkgflagutil "k8s.io/test-infra/pkg/flagutil"
 	prowapi "sigs.k8s.io/prow/prow/apis/prowjobs/v1"
 	"sigs.k8s.io/prow/prow/config"
 	"sigs.k8s.io/prow/prow/cron"

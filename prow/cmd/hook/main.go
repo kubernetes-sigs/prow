@@ -27,7 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"sigs.k8s.io/prow/prow/pjutil/pprof"
 
-	"sigs.k8s.io/prow/pkg/flagutil"
+	"k8s.io/test-infra/pkg/flagutil"
 	"sigs.k8s.io/prow/prow/bugzilla"
 	"sigs.k8s.io/prow/prow/config"
 	"sigs.k8s.io/prow/prow/config/secret"

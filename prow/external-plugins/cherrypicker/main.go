@@ -26,7 +26,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"sigs.k8s.io/prow/pkg/flagutil"
+	"k8s.io/test-infra/pkg/flagutil"
 	"sigs.k8s.io/prow/prow/config/secret"
 	prowflagutil "sigs.k8s.io/prow/prow/flagutil"
 	"sigs.k8s.io/prow/prow/interrupts"

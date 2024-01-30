@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"strings"
 
-	imagebumper "sigs.k8s.io/prow/experiment/image-bumper/bumper"
+	imagebumper "k8s.io/test-infra/experiment/image-bumper/bumper"
 )
 
 // Extract image tag from image name

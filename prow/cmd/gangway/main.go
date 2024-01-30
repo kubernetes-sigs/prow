@@ -34,7 +34,7 @@ import (
 	"google.golang.org/grpc/reflection"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 
-	"sigs.k8s.io/prow/pkg/flagutil"
+	"k8s.io/test-infra/pkg/flagutil"
 	"sigs.k8s.io/prow/prow/config"
 	prowflagutil "sigs.k8s.io/prow/prow/flagutil"
 	configflagutil "sigs.k8s.io/prow/prow/flagutil/config"

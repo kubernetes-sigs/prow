@@ -28,14 +28,14 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"sigs.k8s.io/prow/greenhouse/diskutil"
+	"k8s.io/test-infra/greenhouse/diskutil"
 	"sigs.k8s.io/prow/prow/config"
 	"sigs.k8s.io/prow/prow/metrics"
 	"sigs.k8s.io/prow/prow/moonraker"
 	"sigs.k8s.io/prow/prow/pjutil/pprof"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"sigs.k8s.io/prow/pkg/flagutil"
+	"k8s.io/test-infra/pkg/flagutil"
 	prowflagutil "sigs.k8s.io/prow/prow/flagutil"
 	configflagutil "sigs.k8s.io/prow/prow/flagutil/config"
 	"sigs.k8s.io/prow/prow/gerrit/adapter"

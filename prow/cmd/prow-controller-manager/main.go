@@ -28,13 +28,13 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
-	"sigs.k8s.io/prow/prow/pjutil"
-	"sigs.k8s.io/prow/prow/pjutil/pprof"
 	ctrlruntimelog "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/prow/prow/pjutil"
+	"sigs.k8s.io/prow/prow/pjutil/pprof"
 
-	"sigs.k8s.io/prow/pkg/flagutil"
+	"k8s.io/test-infra/pkg/flagutil"
 	prowflagutil "sigs.k8s.io/prow/prow/flagutil"
 	configflagutil "sigs.k8s.io/prow/prow/flagutil/config"
 	"sigs.k8s.io/prow/prow/interrupts"
@@ -125,7 +125,7 @@ func main() {
 	}
 	cfg := configAgent.Config
 	o.kubernetes.SetDisabledClusters(sets.New[string](cfg().DisabledClusters...))
-	
+
 	var logOpts []zap.Opts
 	if cfg().LogLevel == "debug" {
 		logOpts = append(logOpts, func(o *zap.Options) {

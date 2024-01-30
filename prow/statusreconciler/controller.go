@@ -29,7 +29,7 @@ import (
 	"sigs.k8s.io/prow/prow/pjutil"
 
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
-	"sigs.k8s.io/prow/maintenance/migratestatus/migrator"
+	"k8s.io/test-infra/maintenance/migratestatus/migrator"
 	"sigs.k8s.io/prow/prow/config"
 	configflagutil "sigs.k8s.io/prow/prow/flagutil/config"
 	"sigs.k8s.io/prow/prow/github"

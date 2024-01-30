@@ -21,7 +21,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"sigs.k8s.io/prow/pkg/flagutil"
+	"k8s.io/test-infra/pkg/flagutil"
 )
 
 func TestExperimentalKubernetesOptions_Validate(t *testing.T) {

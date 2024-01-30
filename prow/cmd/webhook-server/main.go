@@ -29,8 +29,9 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
-	"sigs.k8s.io/prow/experiment/clustersecretbackup/secretmanager"
-	"sigs.k8s.io/prow/pkg/flagutil"
+	"k8s.io/test-infra/experiment/clustersecretbackup/secretmanager"
+	"k8s.io/test-infra/pkg/flagutil"
+	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/prow/prow/config"
 	prowflagutil "sigs.k8s.io/prow/prow/flagutil"
 	configflagutil "sigs.k8s.io/prow/prow/flagutil/config"
@@ -38,7 +39,6 @@ import (
 	"sigs.k8s.io/prow/prow/logrusutil"
 	"sigs.k8s.io/prow/prow/pjutil"
 	"sigs.k8s.io/prow/prow/plank"
-	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (

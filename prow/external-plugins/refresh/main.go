@@ -31,7 +31,7 @@ import (
 	"sigs.k8s.io/prow/prow/logrusutil"
 	"sigs.k8s.io/prow/prow/pjutil"
 
-	"sigs.k8s.io/prow/pkg/flagutil"
+	"k8s.io/test-infra/pkg/flagutil"
 	"sigs.k8s.io/prow/prow/config/secret"
 	prowflagutil "sigs.k8s.io/prow/prow/flagutil"
 	configflagutil "sigs.k8s.io/prow/prow/flagutil/config"
