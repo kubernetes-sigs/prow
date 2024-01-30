@@ -20,7 +20,7 @@ import (
 	"encoding/json"
 	"flag"
 
-	"k8s.io/test-infra/prow/gcsupload"
+	"sigs.k8s.io/prow/prow/gcsupload"
 )
 
 const (

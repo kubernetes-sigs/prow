@@ -29,10 +29,10 @@ import (
 
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 
-	"k8s.io/test-infra/prow/config/org"
-	"k8s.io/test-infra/prow/flagutil"
-	"k8s.io/test-infra/prow/github"
-	"k8s.io/test-infra/prow/logrusutil"
+	"sigs.k8s.io/prow/prow/config/org"
+	"sigs.k8s.io/prow/prow/flagutil"
+	"sigs.k8s.io/prow/prow/github"
+	"sigs.k8s.io/prow/prow/logrusutil"
 )
 
 const (

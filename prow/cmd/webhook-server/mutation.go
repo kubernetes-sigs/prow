@@ -27,8 +27,8 @@ import (
 	"k8s.io/api/admission/v1beta1"
 	apiv1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/test-infra/prow/apis/prowjobs/v1"
-	"k8s.io/test-infra/prow/config"
+	"sigs.k8s.io/prow/prow/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/prow/config"
 )
 
 func (wa *webhookAgent) serveMutate(w http.ResponseWriter, r *http.Request) {

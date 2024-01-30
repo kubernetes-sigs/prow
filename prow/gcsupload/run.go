@@ -29,9 +29,9 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	prowapi "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	"k8s.io/test-infra/prow/pod-utils/downwardapi"
-	"k8s.io/test-infra/prow/pod-utils/gcs"
+	prowapi "sigs.k8s.io/prow/prow/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/prow/pod-utils/downwardapi"
+	"sigs.k8s.io/prow/prow/pod-utils/gcs"
 )
 
 // Run will upload files to GCS as prescribed by

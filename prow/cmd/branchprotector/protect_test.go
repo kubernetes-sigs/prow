@@ -28,10 +28,10 @@ import (
 	"k8s.io/apimachinery/pkg/util/diff"
 	"sigs.k8s.io/yaml"
 
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/flagutil"
-	configflagutil "k8s.io/test-infra/prow/flagutil/config"
-	"k8s.io/test-infra/prow/github"
+	"sigs.k8s.io/prow/prow/config"
+	"sigs.k8s.io/prow/prow/flagutil"
+	configflagutil "sigs.k8s.io/prow/prow/flagutil/config"
+	"sigs.k8s.io/prow/prow/github"
 )
 
 func TestOptions_Validate(t *testing.T) {

@@ -22,10 +22,10 @@ import (
 	"io"
 	"testing"
 
-	prowapi "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	"k8s.io/test-infra/prow/kube"
-	"k8s.io/test-infra/prow/spyglass/api"
-	"k8s.io/test-infra/prow/spyglass/lenses"
+	prowapi "sigs.k8s.io/prow/prow/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/prow/kube"
+	"sigs.k8s.io/prow/prow/spyglass/api"
+	"sigs.k8s.io/prow/prow/spyglass/lenses"
 )
 
 const customContainerName = "custom-container"

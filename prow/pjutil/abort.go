@@ -29,8 +29,8 @@ import (
 	ktypes "k8s.io/apimachinery/pkg/types"
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 
-	prowapi "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	reporter "k8s.io/test-infra/prow/crier/reporters/github"
+	prowapi "sigs.k8s.io/prow/prow/apis/prowjobs/v1"
+	reporter "sigs.k8s.io/prow/prow/crier/reporters/github"
 )
 
 // patchClient a minimalistic prow client required by the aborter

@@ -21,7 +21,7 @@ import (
 	"reflect"
 	"testing"
 
-	prowflagutil "k8s.io/test-infra/prow/flagutil"
+	prowflagutil "sigs.k8s.io/prow/prow/flagutil"
 )
 
 func TestOptions(t *testing.T) {

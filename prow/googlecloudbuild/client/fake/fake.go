@@ -24,7 +24,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"k8s.io/apimachinery/pkg/util/sets"
-	cloudbuild "k8s.io/test-infra/prow/googlecloudbuild/client"
+	cloudbuild "sigs.k8s.io/prow/prow/googlecloudbuild/client"
 )
 
 // ensure FakeClient implements cloudbuild.Operator

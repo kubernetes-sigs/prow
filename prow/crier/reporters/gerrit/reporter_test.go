@@ -36,9 +36,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/diff"
 	fakectrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	v1 "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	"k8s.io/test-infra/prow/crier/reporters/criercommonlib"
-	"k8s.io/test-infra/prow/kube"
+	v1 "sigs.k8s.io/prow/prow/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/prow/crier/reporters/criercommonlib"
+	"sigs.k8s.io/prow/prow/kube"
 )
 
 var timeNow = time.Date(1234, time.May, 15, 1, 2, 3, 4, time.UTC)

@@ -19,7 +19,7 @@ package githubeventserver
 import (
 	"github.com/prometheus/client_golang/prometheus"
 
-	"k8s.io/test-infra/prow/plugins"
+	"sigs.k8s.io/prow/prow/plugins"
 )
 
 var (

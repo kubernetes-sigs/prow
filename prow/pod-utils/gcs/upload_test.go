@@ -31,8 +31,8 @@ import (
 	"github.com/fsouza/fake-gcs-server/fakestorage"
 
 	"k8s.io/apimachinery/pkg/util/diff"
-	"k8s.io/test-infra/prow/io"
-	"k8s.io/test-infra/prow/io/providers"
+	"sigs.k8s.io/prow/prow/io"
+	"sigs.k8s.io/prow/prow/io/providers"
 )
 
 type (

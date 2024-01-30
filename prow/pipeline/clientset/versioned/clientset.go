@@ -24,7 +24,7 @@ import (
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"
-	tektonv1beta1 "k8s.io/test-infra/prow/pipeline/clientset/versioned/typed/pipeline/v1beta1"
+	tektonv1beta1 "sigs.k8s.io/prow/prow/pipeline/clientset/versioned/typed/pipeline/v1beta1"
 )
 
 type Interface interface {

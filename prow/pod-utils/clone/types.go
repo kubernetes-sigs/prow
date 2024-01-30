@@ -19,7 +19,7 @@ package clone
 import (
 	"time"
 
-	prowapi "k8s.io/test-infra/prow/apis/prowjobs/v1"
+	prowapi "sigs.k8s.io/prow/prow/apis/prowjobs/v1"
 )
 
 // Record is a trace of what the desired

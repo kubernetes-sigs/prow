@@ -23,9 +23,9 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 
-	"k8s.io/test-infra/prow/github"
-	"k8s.io/test-infra/prow/plugins/testfreeze/checker"
-	"k8s.io/test-infra/prow/plugins/testfreeze/testfreezefakes"
+	"sigs.k8s.io/prow/prow/github"
+	"sigs.k8s.io/prow/prow/plugins/testfreeze/checker"
+	"sigs.k8s.io/prow/prow/plugins/testfreeze/testfreezefakes"
 )
 
 var errTest = errors.New("")

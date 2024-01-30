@@ -41,8 +41,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/utils/diff"
 
-	"k8s.io/test-infra/prow/throttle"
-	"k8s.io/test-infra/prow/version"
+	"sigs.k8s.io/prow/prow/throttle"
+	"sigs.k8s.io/prow/prow/version"
 )
 
 type testTime struct {

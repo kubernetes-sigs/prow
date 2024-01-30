@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/testutil"
-	"k8s.io/test-infra/prow/simplifypath"
+	"sigs.k8s.io/prow/prow/simplifypath"
 	"k8s.io/utils/diff"
 )
 

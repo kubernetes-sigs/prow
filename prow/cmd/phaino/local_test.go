@@ -30,7 +30,7 @@ import (
 	"github.com/sirupsen/logrus"
 	coreapi "k8s.io/api/core/v1"
 
-	prowapi "k8s.io/test-infra/prow/apis/prowjobs/v1"
+	prowapi "sigs.k8s.io/prow/prow/apis/prowjobs/v1"
 )
 
 func TestPathAlias(t *testing.T) {
@@ -101,41 +101,41 @@ func TestReadRepo(t *testing.T) {
 	}{
 		{
 			name:     "find from local",
-			goal:     "k8s.io/test-infra2",
-			wd:       path.Join(dir, "find_from_local", "go/src/k8s.io/test-infra2"),
-			expected: path.Join(dir, "find_from_local", "go/src/k8s.io/test-infra2"),
+			goal:     "sigs.k8s.io/prow2",
+			wd:       path.Join(dir, "find_from_local", "go/src/sigs.k8s.io/prow2"),
+			expected: path.Join(dir, "find_from_local", "go/src/sigs.k8s.io/prow2"),
 		},
 		{
 			name:     "find from local fallback",
-			goal:     "k8s.io/test-infra2",
+			goal:     "sigs.k8s.io/prow2",
 			wd:       path.Join(dir, "find_from_local_fallback", "go/src/test-infra2"),
 			expected: path.Join(dir, "find_from_local_fallback", "go/src/test-infra2"),
 		},
 		{
 			name:   "find from explicit gopath",
-			goal:   "k8s.io/test-infra2",
+			goal:   "sigs.k8s.io/prow2",
 			gopath: path.Join(dir, "find_from_explicit_gopath"),
 			wd:     path.Join(dir, "find_from_explicit_gopath_random", "random"),
 			dirs: []string{
-				path.Join(dir, "find_from_explicit_gopath", "src", "k8s.io/test-infra2"),
+				path.Join(dir, "find_from_explicit_gopath", "src", "sigs.k8s.io/prow2"),
 				path.Join(dir, "find_from_explicit_gopath_random", "src", "test-infra2"),
 			},
-			expected: path.Join(dir, "find_from_explicit_gopath", "src", "k8s.io/test-infra2"),
+			expected: path.Join(dir, "find_from_explicit_gopath", "src", "sigs.k8s.io/prow2"),
 		},
 		{
 			name:   "prefer gopath",
-			goal:   "k8s.io/test-infra2",
+			goal:   "sigs.k8s.io/prow2",
 			gopath: path.Join(dir, "prefer_gopath"),
 			wd:     path.Join(dir, "prefer_gopath_random", "random"),
 			dirs: []string{
-				path.Join(dir, "prefer_gopath", "src", "k8s.io/test-infra2"),
+				path.Join(dir, "prefer_gopath", "src", "sigs.k8s.io/prow2"),
 				path.Join(dir, "prefer_gopath", "src", "test-infra2"),
 			},
-			expected: path.Join(dir, "prefer_gopath", "src", "k8s.io/test-infra2"),
+			expected: path.Join(dir, "prefer_gopath", "src", "sigs.k8s.io/prow2"),
 		},
 		{
 			name:   "not exist",
-			goal:   "k8s.io/test-infra2",
+			goal:   "sigs.k8s.io/prow2",
 			gopath: path.Join(dir, "not_exist", "random1"),
 			wd:     path.Join(dir, "not_exist", "random2"),
 			err:    true,
@@ -191,13 +191,13 @@ func TestFindRepoFromLocal(t *testing.T) {
 	}{
 		{
 			name:     "match full repo",
-			goal:     "k8s.io/test-infra",
-			wd:       "go/src/k8s.io/test-infra",
-			expected: "go/src/k8s.io/test-infra",
+			goal:     "sigs.k8s.io/prow",
+			wd:       "go/src/sigs.k8s.io/prow",
+			expected: "go/src/sigs.k8s.io/prow",
 		},
 		{
 			name: "repo not found",
-			goal: "k8s.io/test-infra",
+			goal: "sigs.k8s.io/prow",
 			wd:   "random",
 			dirs: []string{"k8s.io/repo-infra", "github.com/fejta/test-infra"},
 			err:  true,
@@ -205,8 +205,8 @@ func TestFindRepoFromLocal(t *testing.T) {
 		{
 			name:     "convert github to k8s vanity",
 			goal:     "github.com/kubernetes/test-infra",
-			wd:       "go/src/k8s.io/test-infra",
-			expected: "go/src/k8s.io/test-infra",
+			wd:       "go/src/sigs.k8s.io/prow",
+			expected: "go/src/sigs.k8s.io/prow",
 		},
 		{
 			name:     "match sibling base",
@@ -218,19 +218,19 @@ func TestFindRepoFromLocal(t *testing.T) {
 		{
 			name:     "match full sibling",
 			goal:     "k8s.io/repo-infra",
-			wd:       "go/src/k8s.io/test-infra",
+			wd:       "go/src/sigs.k8s.io/prow",
 			dirs:     []string{"go/src/k8s.io/repo-infra"},
 			expected: "go/src/k8s.io/repo-infra",
 		},
 		{
 			name:     "match just repo",
-			goal:     "k8s.io/test-infra",
+			goal:     "sigs.k8s.io/prow",
 			wd:       "src/test-infra",
 			expected: "src/test-infra",
 		},
 		{
 			name:     "match base of repo",
-			goal:     "k8s.io/test-infra",
+			goal:     "sigs.k8s.io/prow",
 			wd:       "src/test-infra/prow/cmd/mkpj",
 			expected: "src/test-infra",
 		},

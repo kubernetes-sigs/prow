@@ -24,8 +24,8 @@ import (
 	"os"
 
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/test-infra/prow/client/clientset/versioned"
-	"k8s.io/test-infra/prow/kube"
+	"sigs.k8s.io/prow/prow/client/clientset/versioned"
+	"sigs.k8s.io/prow/prow/kube"
 )
 
 // KubernetesClientOptions holds options for interacting with Kubernetes.

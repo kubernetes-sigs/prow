@@ -26,8 +26,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	v1 "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	"k8s.io/test-infra/prow/plugins/testfreeze/checker/checkerfakes"
+	v1 "sigs.k8s.io/prow/prow/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/prow/plugins/testfreeze/checker/checkerfakes"
 )
 
 func TestInTestFreeze(t *testing.T) {

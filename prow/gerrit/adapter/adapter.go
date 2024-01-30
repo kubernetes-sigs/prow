@@ -32,15 +32,15 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 
-	prowapi "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	prowv1 "k8s.io/test-infra/prow/client/clientset/versioned/typed/prowjobs/v1"
-	"k8s.io/test-infra/prow/config"
-	reporter "k8s.io/test-infra/prow/crier/reporters/gerrit"
-	"k8s.io/test-infra/prow/gerrit/client"
-	"k8s.io/test-infra/prow/gerrit/source"
-	"k8s.io/test-infra/prow/io"
-	"k8s.io/test-infra/prow/kube"
-	"k8s.io/test-infra/prow/pjutil"
+	prowapi "sigs.k8s.io/prow/prow/apis/prowjobs/v1"
+	prowv1 "sigs.k8s.io/prow/prow/client/clientset/versioned/typed/prowjobs/v1"
+	"sigs.k8s.io/prow/prow/config"
+	reporter "sigs.k8s.io/prow/prow/crier/reporters/gerrit"
+	"sigs.k8s.io/prow/prow/gerrit/client"
+	"sigs.k8s.io/prow/prow/gerrit/source"
+	"sigs.k8s.io/prow/prow/io"
+	"sigs.k8s.io/prow/prow/kube"
+	"sigs.k8s.io/prow/prow/pjutil"
 )
 
 const (

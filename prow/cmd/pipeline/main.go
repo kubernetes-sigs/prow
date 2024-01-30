@@ -28,19 +28,19 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	"k8s.io/test-infra/prow/pjutil/pprof"
+	"sigs.k8s.io/prow/prow/pjutil/pprof"
 
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp" // support gcp users in .kube/config
-	prowjobset "k8s.io/test-infra/prow/client/clientset/versioned"
-	prowjobinfo "k8s.io/test-infra/prow/client/informers/externalversions"
-	prowflagutil "k8s.io/test-infra/prow/flagutil"
-	configflagutil "k8s.io/test-infra/prow/flagutil/config"
-	"k8s.io/test-infra/prow/interrupts"
-	"k8s.io/test-infra/prow/kube"
-	"k8s.io/test-infra/prow/logrusutil"
-	pipelineset "k8s.io/test-infra/prow/pipeline/clientset/versioned"
-	pipelineinfo "k8s.io/test-infra/prow/pipeline/informers/externalversions"
-	pipelineinfov1beta1 "k8s.io/test-infra/prow/pipeline/informers/externalversions/pipeline/v1beta1"
+	prowjobset "sigs.k8s.io/prow/prow/client/clientset/versioned"
+	prowjobinfo "sigs.k8s.io/prow/prow/client/informers/externalversions"
+	prowflagutil "sigs.k8s.io/prow/prow/flagutil"
+	configflagutil "sigs.k8s.io/prow/prow/flagutil/config"
+	"sigs.k8s.io/prow/prow/interrupts"
+	"sigs.k8s.io/prow/prow/kube"
+	"sigs.k8s.io/prow/prow/logrusutil"
+	pipelineset "sigs.k8s.io/prow/prow/pipeline/clientset/versioned"
+	pipelineinfo "sigs.k8s.io/prow/prow/pipeline/informers/externalversions"
+	pipelineinfov1beta1 "sigs.k8s.io/prow/prow/pipeline/informers/externalversions/pipeline/v1beta1"
 )
 
 type options struct {

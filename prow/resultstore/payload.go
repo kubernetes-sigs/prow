@@ -28,9 +28,9 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	gerrit "k8s.io/test-infra/prow/gerrit/source"
-	"k8s.io/test-infra/prow/kube"
+	v1 "sigs.k8s.io/prow/prow/apis/prowjobs/v1"
+	gerrit "sigs.k8s.io/prow/prow/gerrit/source"
+	"sigs.k8s.io/prow/prow/kube"
 )
 
 type Payload struct {

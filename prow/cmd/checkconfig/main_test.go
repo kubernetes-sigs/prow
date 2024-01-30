@@ -37,15 +37,15 @@ import (
 	utilpointer "k8s.io/utils/pointer"
 	"sigs.k8s.io/yaml"
 
-	prowapi "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/flagutil"
-	configflagutil "k8s.io/test-infra/prow/flagutil/config"
-	pluginsflagutil "k8s.io/test-infra/prow/flagutil/plugins"
-	"k8s.io/test-infra/prow/github"
-	"k8s.io/test-infra/prow/io"
-	"k8s.io/test-infra/prow/plank"
-	"k8s.io/test-infra/prow/plugins"
+	prowapi "sigs.k8s.io/prow/prow/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/prow/config"
+	"sigs.k8s.io/prow/prow/flagutil"
+	configflagutil "sigs.k8s.io/prow/prow/flagutil/config"
+	pluginsflagutil "sigs.k8s.io/prow/prow/flagutil/plugins"
+	"sigs.k8s.io/prow/prow/github"
+	"sigs.k8s.io/prow/prow/io"
+	"sigs.k8s.io/prow/prow/plank"
+	"sigs.k8s.io/prow/prow/plugins"
 )
 
 func TestEnsureValidConfiguration(t *testing.T) {
