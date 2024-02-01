@@ -107,7 +107,7 @@ trap cleanup EXIT
 ensure-in-gopath() {
   FAKE_GOPATH=$(mktemp -d -t codegen.gopath.XXXX)
 
-  fake_repopath=$FAKE_GOPATH/src/sigs.k8s.io
+  fake_repopath=$FAKE_GOPATH/src/sigs.k8s.io/prow
   mkdir -p "$(dirname "$fake_repopath")"
   if [[ -n "$do_clean" ]]; then
     cp -LR "${REPO_ROOT}/" "$fake_repopath"
@@ -133,7 +133,7 @@ copyfiles() {
     return 0
   fi
   (
-    cd "$GOPATH/src/sigs.k8s.io/$path"
+    cd "$GOPATH/src/sigs.k8s.io/prow/$path"
     find "." -name "$name" -exec cp {} "$REPO_ROOT/$path/{}" \;
   )
 }
@@ -159,14 +159,14 @@ gen-deepcopy() {
   echo "Generating DeepCopy() methods..." >&2
   "$deepcopygen" \
     --go-header-file hack/boilerplate/boilerplate.generated.go.txt \
-    --input-dirs sigs.k8s.io/prow/apis/prowjobs/v1 \
+    --input-dirs sigs.k8s.io/prow/prow/apis/prowjobs/v1 \
     --output-file-base zz_generated.deepcopy \
-    --bounding-dirs sigs.k8s.io/prow/apis
+    --bounding-dirs sigs.k8s.io/prow/prow/apis
   copyfiles "prow/apis" "zz_generated.deepcopy.go"
 
   "$deepcopygen" \
     --go-header-file hack/boilerplate/boilerplate.generated.go.txt \
-    --input-dirs sigs.k8s.io/prow/config \
+    --input-dirs sigs.k8s.io/prow/prow/config \
     --output-file-base zz_generated.deepcopy
   copyfiles "prow/config" "zz_generated.deepcopy.go"
 
@@ -179,8 +179,8 @@ gen-client() {
     --go-header-file hack/boilerplate/boilerplate.generated.go.txt \
     --clientset-name versioned \
     --input-base "" \
-    --input sigs.k8s.io/prow/apis/prowjobs/v1 \
-    --output-package sigs.k8s.io/prow/client/clientset
+    --input sigs.k8s.io/prow/prow/apis/prowjobs/v1 \
+    --output-package sigs.k8s.io/prow/prow/client/clientset
   copyfiles "./prow/client/clientset" "*.go"
 
   clean prow/pipeline/clientset '*.go'
@@ -190,7 +190,7 @@ gen-client() {
     --clientset-name versioned \
     --input-base "" \
     --input github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1 \
-    --output-package sigs.k8s.io/prow/pipeline/clientset
+    --output-package sigs.k8s.io/prow/prow/pipeline/clientset
   copyfiles "./prow/pipeline/clientset" "*.go"
 }
 
@@ -199,8 +199,8 @@ gen-lister() {
   echo "Generating lister..." >&2
   "$listergen" \
     --go-header-file hack/boilerplate/boilerplate.generated.go.txt \
-    --input-dirs sigs.k8s.io/prow/apis/prowjobs/v1 \
-    --output-package sigs.k8s.io/prow/client/listers
+    --input-dirs sigs.k8s.io/prow/prow/apis/prowjobs/v1 \
+    --output-package sigs.k8s.io/prow/prow/client/listers
   copyfiles "./prow/client/listers" "*.go"
 
   clean prow/pipeline/listers '*.go'
@@ -208,7 +208,7 @@ gen-lister() {
   "$listergen" \
     --go-header-file hack/boilerplate/boilerplate.generated.go.txt \
     --input-dirs github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1 \
-    --output-package sigs.k8s.io/prow/pipeline/listers
+    --output-package sigs.k8s.io/prow/prow/pipeline/listers
   copyfiles "./prow/pipeline/listers" "*.go"
 }
 
@@ -217,10 +217,10 @@ gen-informer() {
   echo "Generating informer..." >&2
   "$informergen" \
     --go-header-file hack/boilerplate/boilerplate.generated.go.txt \
-    --input-dirs sigs.k8s.io/prow/apis/prowjobs/v1 \
-    --versioned-clientset-package sigs.k8s.io/prow/client/clientset/versioned \
-    --listers-package sigs.k8s.io/prow/client/listers \
-    --output-package sigs.k8s.io/prow/client/informers
+    --input-dirs sigs.k8s.io/prow/prow/apis/prowjobs/v1 \
+    --versioned-clientset-package sigs.k8s.io/prow/prow/client/clientset/versioned \
+    --listers-package sigs.k8s.io/prow/prow/client/listers \
+    --output-package sigs.k8s.io/prow/prow/client/informers
   copyfiles "./prow/client/informers" "*.go"
 
   clean prow/pipeline/informers '*.go'
@@ -228,9 +228,9 @@ gen-informer() {
   "$informergen" \
     --go-header-file hack/boilerplate/boilerplate.generated.go.txt \
     --input-dirs github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1 \
-    --versioned-clientset-package sigs.k8s.io/prow/pipeline/clientset/versioned \
-    --listers-package sigs.k8s.io/prow/pipeline/listers \
-    --output-package sigs.k8s.io/prow/pipeline/informers
+    --versioned-clientset-package sigs.k8s.io/prow/prow/pipeline/clientset/versioned \
+    --listers-package sigs.k8s.io/prow/prow/pipeline/listers \
+    --output-package sigs.k8s.io/prow/prow/pipeline/informers
   copyfiles "./prow/pipeline/informers" "*.go"
 }
 
