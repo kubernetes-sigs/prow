@@ -126,9 +126,13 @@ tide:
     - needs-rebase
 
   context_options:
-    # Use branch protection options to define required and optional contexts
+    # Use branch-protection options from this file to define required and optional contexts.
+    # this is convenient if you are using branchprotector to configure branch protection rules
+    # as tide will use the same rules as will be added by the branch protector
     from-branch-protection: true
-    # Treat unknown contexts as optional
+    # Specify how to handle contexts that are detected on a PR but not explicitly listed in required-contexts,
+    # optional-contexts, or required-if-present-contexts.  If true, they are treated as optional and do not
+    # block a merge.  If false or not present, they are treated as required and will block a merge.
     skip-unknown-contexts: true
     orgs:
       org:
@@ -145,6 +149,8 @@ tide:
                 - "required_test"
                 optional-contexts:
                 - "optional_test"
+                required-if-present-contexts:
+                - "conditional_test"
 ```
 
 **Explanation**: The component starts periodically querying all PRs in `github.com/kubeflow/community` and
