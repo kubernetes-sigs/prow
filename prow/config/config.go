@@ -162,6 +162,10 @@ type ProwConfig struct {
 	// Moonraker.
 	Moonraker Moonraker `json:"moonraker,omitempty"`
 
+	// Scheduler contains configuration for the additional scheduler.
+	// It has to be explicitly enabled.
+	Scheduler Scheduler `json:"scheduler,omitempty"`
+
 	// TODO: Move this out of the main config.
 	JenkinsOperators []JenkinsOperator `json:"jenkins_operators,omitempty"`
 
@@ -763,6 +767,9 @@ func matches(givenOrgRepo, givenCluster, orgRepo, cluster string) bool {
 	if givenOrgRepo == "" || givenOrgRepo == "*" || givenOrgRepo == orgRepo {
 		return true
 	}
+	// For Gerrit use, the repo from the adapter probably contains the
+	// extra "-review" hostname; trim that away.
+	orgRepo = gerritsource.EnsureCodeURL(orgRepo)
 	// Ensure a bare given repo name matches the http-prefixed repo
 	// that arises in pre/postsubmit jobs.
 	orgRepo = strings.TrimPrefix(orgRepo, "https://")

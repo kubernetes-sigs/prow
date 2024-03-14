@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Copyright 2021 The Kubernetes Authors.
+# Copyright 2022 The Kubernetes Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,7 +17,18 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd -P)"
-cd $REPO_ROOT
+CUR_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+cd "${CUR_DIR}"
 
-find . -name "*.sh" \! -perm /a+x -exec chmod +x {} +
+readonly KO_DATA_PATH="kodata"
+if [[ -d $KO_DATA_PATH ]]; then
+    rm -rf $KO_DATA_PATH
+fi
+
+if [[ "${1:-}" == "--cleanup" ]]; then
+    echo "Running in cleanup mode, no op"
+    exit 0
+fi
+
+mkdir -p "${KO_DATA_PATH}"
+cp "bake.sh" "${KO_DATA_PATH}/"

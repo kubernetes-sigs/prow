@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	stdio "io"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"os"
 	"path"
 	"reflect"
@@ -87,12 +88,13 @@ func newReaderFunc(opt readerFuncOptions) (ReaderFunc, *readerFuncMetadata) {
 func TestUploadNewReaderFunc(t *testing.T) {
 	var testCases = []struct {
 		name               string
+		compressFileTypes  []string
 		isErrExpected      bool
 		readerFuncOpts     readerFuncOptions
 		wantReaderFuncMeta readerFuncMetadata
 	}{
 		{
-			name:          "Succeed on firt retry",
+			name:          "Succeed on first retry",
 			isErrExpected: false,
 			readerFuncOpts: readerFuncOptions{
 				newFailsOnNthAttempt:   -1,
@@ -127,6 +129,18 @@ func TestUploadNewReaderFunc(t *testing.T) {
 				ReaderWasClosed:      true,
 			},
 		},
+		{
+			name:              "Compress files",
+			compressFileTypes: []string{"*"},
+			readerFuncOpts: readerFuncOptions{
+				newFailsOnNthAttempt:   -1,
+				closeFailsOnNthAttempt: -1,
+			},
+			wantReaderFuncMeta: readerFuncMetadata{
+				NewReaderAttemptsNum: 1,
+				ReaderWasClosed:      true,
+			},
+		},
 	}
 	tempDir := t.TempDir()
 	for _, testCase := range testCases {
@@ -139,7 +153,7 @@ func TestUploadNewReaderFunc(t *testing.T) {
 			readerFunc, readerFuncMeta := newReaderFunc(testCase.readerFuncOpts)
 			uploadTargets[path.Base(f.Name())] = DataUpload(readerFunc)
 			bucket := fmt.Sprintf("%s://%s", providers.File, path.Dir(f.Name()))
-			err = Upload(context.TODO(), bucket, "", "", uploadTargets)
+			err = Upload(context.TODO(), bucket, "", "", testCase.compressFileTypes, uploadTargets)
 			if testCase.isErrExpected && err == nil {
 				t.Errorf("error expected but got nil")
 			}
@@ -266,7 +280,7 @@ func TestUploadWithRetries(t *testing.T) {
 			}
 
 			ctx := context.Background()
-			err := Upload(ctx, "", "", "", uploadFuncs)
+			err := Upload(ctx, "", "", "", []string{}, uploadFuncs)
 
 			isErrExpected := false
 			for _, currentTestState := range currentTestStates {
@@ -289,6 +303,42 @@ func TestUploadWithRetries(t *testing.T) {
 	}
 }
 
+func TestShouldCompressFileType(t *testing.T) {
+	testCases := []struct {
+		name              string
+		dest              string
+		compressFileTypes sets.Set[string]
+		expected          bool
+	}{
+		{
+			name:              "compress all",
+			dest:              "some-file.txt",
+			compressFileTypes: sets.New[string]("*"),
+			expected:          true,
+		},
+		{
+			name:              "compress txt only",
+			dest:              "some-file.txt",
+			compressFileTypes: sets.New[string]("txt"),
+			expected:          true,
+		},
+		{
+			name:              "compress other file types",
+			dest:              "some-file.txt",
+			compressFileTypes: sets.New[string]("log", "json"),
+			expected:          false,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := shouldCompressFileType(tc.dest, tc.compressFileTypes)
+			if tc.expected != result {
+				t.Errorf("result (%v) did not match expected (%v)", result, tc.expected)
+			}
+		})
+	}
+}
+
 func Test_openerObjectWriter_Write(t *testing.T) {
 
 	fakeBucket := "test-bucket"
@@ -298,11 +348,12 @@ func Test_openerObjectWriter_Write(t *testing.T) {
 	fakeGCSClient := fakeGCSServer.Client()
 
 	tests := []struct {
-		name          string
-		ObjectDest    string
-		ObjectContent []byte
-		wantN         int
-		wantErr       bool
+		name             string
+		ObjectDest       string
+		ObjectContent    []byte
+		compressFileType bool
+		wantN            int
+		wantErr          bool
 	}{
 		{
 			name:          "write regular file",
@@ -318,14 +369,39 @@ func Test_openerObjectWriter_Write(t *testing.T) {
 			wantN:         0,
 			wantErr:       false,
 		},
+		{
+			name:             "compress file",
+			ObjectDest:       "build/log.text",
+			ObjectContent:    []byte("Oh wow\nlogs\nthis is\ncrazy\nLorem ipsum dolor sit amet, consectetur adipiscing elit. Integer leo risus, cursus eget libero in, auctor placerat lorem. Nulla elementum arcu sem, vel tempor risus cursus nec. Nulla aliquam quam in ex aliquet elementum. Praesent molestie vulputate magna, eu ultrices mi tincidunt eget. Pellentesque habitant morbi tristique senectus et netus et malesuada fames ac turpis egestas. Nunc blandit viverra magna eget volutpat. Suspendisse in metus et leo interdum gravida eget vel mi. Interdum et malesuada fames ac ante ipsum primis in faucibus. Nulla facilities. Maecenas sem urna, aliquam vel enim ullamcorper, sagittis lacinia elit. Donec malesuada tempor varius. Proin feugiat elit metus, eu vulputate magna mattis et. Pellentesque habitant morbi tristique senectus et netus et malesuada fames ac turpis egestas. Phasellus hendrerit turpis id convallis ornare.\n\nCras sed quam mattis, venenatis diam ac, posuere odio. Fusce eu pharetra ipsum. Maecenas dignissim nulla ut mauris bibendum consequat. Quisque euismod lacus nec dapibus tempus. Nunc eget felis sed arcu commodo scelerisque dapibus nec nullam.\n\n"),
+			compressFileType: true,
+			wantN:            1132,
+			wantErr:          false,
+		},
+		{
+			name:             "compress filetype, but file is too small to compress",
+			ObjectDest:       "build/log.text",
+			ObjectContent:    []byte("Oh wow\nlogs\nthis is\ncrazy"),
+			compressFileType: true,
+			wantN:            25,
+			wantErr:          false,
+		},
+		{
+			name:             "compress filetype, but file is hidden gzip",
+			ObjectDest:       "build/log.text",
+			ObjectContent:    []byte("\u001F\u008B\bOh wow\nlogs\nthis is\ncrazy\nLorem ipsum dolor sit amet, consectetur adipiscing elit. Integer leo risus, cursus eget libero in, auctor placerat lorem. Nulla elementum arcu sem, vel tempor risus cursus nec. Nulla aliquam quam in ex aliquet elementum. Praesent molestie vulputate magna, eu ultrices mi tincidunt eget. Pellentesque habitant morbi tristique senectus et netus et malesuada fames ac turpis egestas. Nunc blandit viverra magna eget volutpat. Suspendisse in metus et leo interdum gravida eget vel mi. Interdum et malesuada fames ac ante ipsum primis in faucibus. Nulla facilities. Maecenas sem urna, aliquam vel enim ullamcorper, sagittis lacinia elit. Donec malesuada tempor varius. Proin feugiat elit metus, eu vulputate magna mattis et. Pellentesque habitant morbi tristique senectus et netus et malesuada fames ac turpis egestas. Phasellus hendrerit turpis id convallis ornare.\n\nCras sed quam mattis, venenatis diam ac, posuere odio. Fusce eu pharetra ipsum. Maecenas dignissim nulla ut mauris bibendum consequat. Quisque euismod lacus nec dapibus tempus. Nunc eget felis sed arcu commodo scelerisque dapibus nec nullam.\n\n"),
+			compressFileType: true,
+			wantN:            1136,
+			wantErr:          false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			w := &openerObjectWriter{
-				Opener:  io.NewGCSOpener(fakeGCSClient),
-				Context: context.Background(),
-				Bucket:  fmt.Sprintf("gs://%s", fakeBucket),
-				Dest:    tt.ObjectDest,
+				Opener:           io.NewGCSOpener(fakeGCSClient),
+				Context:          context.Background(),
+				Bucket:           fmt.Sprintf("gs://%s", fakeBucket),
+				Dest:             tt.ObjectDest,
+				compressFileType: tt.compressFileType,
 			}
 			gotN, err := w.Write(tt.ObjectContent)
 			if (err != nil) != tt.wantErr {
@@ -346,12 +422,10 @@ func Test_openerObjectWriter_Write(t *testing.T) {
 			if err != nil {
 				t.Errorf("Got unexpected error reading object %s: %v", tt.ObjectDest, err)
 			}
-
 			gotObjectContent, err := stdio.ReadAll(reader)
 			if err != nil {
 				t.Errorf("Got unexpected error reading object %s: %v", tt.ObjectDest, err)
 			}
-
 			if !bytes.Equal(tt.ObjectContent, gotObjectContent) {
 				t.Errorf("Write() gotObjectContent = %v, want %v", gotObjectContent, tt.ObjectContent)
 			}

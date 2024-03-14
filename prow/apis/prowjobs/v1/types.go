@@ -53,7 +53,9 @@ type ProwJobState string
 
 // Various job states.
 const (
-	// TriggeredState means the job has been created but not yet scheduled.
+	// SchedulingState means the job has been created and it is waiting to be scheduled.
+	SchedulingState ProwJobState = "scheduling"
+	// TriggeredState means the job has been scheduled but it is not running yet.
 	TriggeredState ProwJobState = "triggered"
 	// PendingState means the job is currently running and we are waiting for it to finish.
 	PendingState ProwJobState = "pending"
@@ -350,7 +352,7 @@ func (rac *RerunAuthConfig) IsAllowAnyone() bool {
 }
 
 type ReporterConfig struct {
-	Slack       *SlackReporterConfig `json:"slack,omitempty"`
+	Slack *SlackReporterConfig `json:"slack,omitempty"`
 }
 
 type SlackReporterConfig struct {
@@ -441,7 +443,7 @@ func (d *Duration) MarshalJSON() ([]byte, error) {
 // in Prow config
 type ProwJobDefault struct {
 	ResultStoreConfig *ResultStoreConfig `json:"resultstore_config,omitempty"`
-	TenantID string `json:"tenant_id,omitempty"`
+	TenantID          string             `json:"tenant_id,omitempty"`
 }
 
 // ResultStoreConfig specifies parameters for uploading results to
@@ -684,7 +686,7 @@ func (d *ProwJobDefault) ApplyDefault(def *ProwJobDefault) *ProwJobDefault {
 		return &merged
 	}
 	if merged.ResultStoreConfig == nil {
-		merged.ResultStoreConfig = def.ResultStoreConfig 
+		merged.ResultStoreConfig = def.ResultStoreConfig
 	}
 	if merged.TenantID == "" {
 		merged.TenantID = def.TenantID
@@ -920,6 +922,12 @@ type GCSConfiguration struct {
 	// LocalOutputDir specifies a directory where files should be copied INSTEAD of uploading to blob storage.
 	// This option is useful for testing jobs that use the pod-utilities without actually uploading.
 	LocalOutputDir string `json:"local_output_dir,omitempty"`
+	// CompressFileTypes specify file types that should be gzipped prior to upload.
+	// Matching files will be compressed prior to upload, and the content-encoding on these files will be set to gzip.
+	// GCS will transcode these gzipped files transparently when viewing. See: https://cloud.google.com/storage/docs/transcoding
+	// Example: "txt", "json"
+	// Use "*" for all
+	CompressFileTypes []string `json:"compress_file_types,omitempty"`
 }
 
 // ApplyDefault applies the defaults for GCSConfiguration decorations. If a field has a zero value,
@@ -968,6 +976,9 @@ func (g *GCSConfiguration) ApplyDefault(def *GCSConfiguration) *GCSConfiguration
 
 	if merged.LocalOutputDir == "" {
 		merged.LocalOutputDir = def.LocalOutputDir
+	}
+	if merged.CompressFileTypes == nil {
+		merged.CompressFileTypes = def.CompressFileTypes
 	}
 	return &merged
 }
@@ -1037,7 +1048,7 @@ type ProwJobStatus struct {
 	PendingTime *metav1.Time `json:"pendingTime,omitempty"`
 	// CompletionTime is the timestamp for when the job goes to a final state
 	CompletionTime *metav1.Time `json:"completionTime,omitempty"`
-	// +kubebuilder:validation:Enum=triggered;pending;success;failure;aborted;error
+	// +kubebuilder:validation:Enum=scheduling;triggered;pending;success;failure;aborted;error
 	// +kubebuilder:validation:Required
 	State       ProwJobState `json:"state,omitempty"`
 	Description string       `json:"description,omitempty"`

@@ -1359,6 +1359,7 @@ func (c *syncController) trigger(sp subpool, presubmits []config.Presubmit, prs 
 	// If multiple required jobs have the same context, we assume the
 	// same shard will be run to provide those contexts
 	triggeredContexts := sets.New[string]()
+	enableScheduling := c.config().Scheduler.Enabled
 	for _, ps := range presubmits {
 		if triggeredContexts.Has(string(ps.Context)) {
 			continue
@@ -1374,7 +1375,7 @@ func (c *syncController) trigger(sp subpool, presubmits []config.Presubmit, prs 
 			spec = pjutil.BatchSpec(ps, refs)
 		}
 		labels, annotations := c.provider.labelsAndAnnotations(sp.org, ps.Labels, ps.Annotations, prs...)
-		pj := pjutil.NewProwJob(spec, labels, annotations)
+		pj := pjutil.NewProwJob(spec, labels, annotations, pjutil.RequireScheduling(enableScheduling))
 		pj.Namespace = c.config().ProwJobNamespace
 		log := c.logger.WithFields(pjutil.ProwJobFields(&pj))
 		start := time.Now()
@@ -1553,6 +1554,7 @@ func (c *syncController) presubmitsByPull(sp *subpool) (map[int][]config.Presubm
 
 	for _, pr := range sp.prs {
 		log := c.logger.WithField("base-sha", sp.sha).WithFields(pr.logFields())
+		requireManuallyTriggeredJobs := requireManuallyTriggeredJobs(c.config(), sp.org, sp.repo, pr.BaseRefName)
 		presubmitsForPull, err := c.provider.GetPresubmits(sp.org+"/"+sp.repo, pr.BaseRefName, refGetterFactory(sp.sha), refGetterFactory(pr.HeadRefOID))
 		if err != nil {
 			log.WithError(err).Debug("Failed to get presubmits for PR, excluding from subpool")
@@ -1571,7 +1573,8 @@ func (c *syncController) presubmitsByPull(sp *subpool) (map[int][]config.Presubm
 			// - Brancher
 			// - RunBeforeMerge
 			// - Files changed
-			shouldRun, err := ps.ShouldRun(sp.branch, c.changedFiles.prChanges(&pr), ps.RunBeforeMerge, false)
+			forceRun := (requireManuallyTriggeredJobs && ps.ContextRequired() && ps.NeedsExplicitTrigger()) || ps.RunBeforeMerge
+			shouldRun, err := ps.ShouldRun(sp.branch, c.changedFiles.prChanges(&pr), forceRun, false)
 			if err != nil {
 				return nil, err
 			}
@@ -1613,6 +1616,8 @@ func (c *syncController) presubmitsForBatch(prs []CodeReviewCommon, org, repo, b
 	}
 	log.Debugf("Found %d possible presubmits for batch", len(presubmits))
 
+	requireManuallyTriggeredJobs := requireManuallyTriggeredJobs(c.config(), org, repo, baseBranch)
+
 	var result []config.Presubmit
 	for _, ps := range presubmits {
 		// PR is required only by Gerrit, the required "label" will be extracted
@@ -1623,7 +1628,8 @@ func (c *syncController) presubmitsForBatch(prs []CodeReviewCommon, org, repo, b
 			continue
 		}
 
-		shouldRun, err := ps.ShouldRun(baseBranch, c.changedFiles.batchChanges(prs), ps.RunBeforeMerge, false)
+		forceRun := (requireManuallyTriggeredJobs && ps.ContextRequired() && ps.NeedsExplicitTrigger()) || ps.RunBeforeMerge
+		shouldRun, err := ps.ShouldRun(baseBranch, c.changedFiles.batchChanges(prs), forceRun, false)
 		if err != nil {
 			return nil, err
 		}
@@ -2231,4 +2237,16 @@ func getBetterSimpleState(a, b simpleState) simpleState {
 
 	// a must be pending and b can not be success, so b can't be better than a
 	return a
+}
+
+func requireManuallyTriggeredJobs(c *config.Config, org, repo, branch string) bool {
+	options := config.ParseTideContextPolicyOptions(org, repo, branch, c.Tide.ContextOptions)
+	if options.FromBranchProtection != nil && *options.FromBranchProtection {
+		if b, err := c.BranchProtection.GetOrg(org).GetRepo(repo).GetBranch(branch); err == nil {
+			if policy, err := c.GetPolicy(org, repo, branch, *b, []config.Presubmit{}, nil); err == nil && policy != nil {
+				return policy.RequireManuallyTriggeredJobs != nil && *policy.RequireManuallyTriggeredJobs
+			}
+		}
+	}
+	return false
 }
