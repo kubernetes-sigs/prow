@@ -30,9 +30,9 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/spyglass/api"
-	"k8s.io/test-infra/prow/spyglass/lenses"
+	"sigs.k8s.io/prow/prow/config"
+	"sigs.k8s.io/prow/prow/spyglass/api"
+	"sigs.k8s.io/prow/prow/spyglass/lenses"
 )
 
 const (

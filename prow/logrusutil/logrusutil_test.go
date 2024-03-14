@@ -22,7 +22,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/sirupsen/logrus"
-	"k8s.io/test-infra/prow/secretutil"
+	"sigs.k8s.io/prow/prow/secretutil"
 
 	"k8s.io/apimachinery/pkg/util/sets"
 )

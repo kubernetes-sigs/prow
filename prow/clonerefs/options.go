@@ -26,8 +26,8 @@ import (
 	"text/template"
 
 	"github.com/sirupsen/logrus"
-	prowapi "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	"k8s.io/test-infra/prow/pod-utils/clone"
+	prowapi "sigs.k8s.io/prow/prow/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/prow/pod-utils/clone"
 )
 
 // Options configures the clonerefs tool

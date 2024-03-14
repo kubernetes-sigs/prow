@@ -28,9 +28,9 @@ import (
 	apiv1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/test-infra/prow/apis/prowjobs/v1"
-	"k8s.io/test-infra/prow/kube"
-	"k8s.io/test-infra/prow/plank"
+	"sigs.k8s.io/prow/prow/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/prow/kube"
+	"sigs.k8s.io/prow/prow/plank"
 )
 
 var agentsNotSupportingCluster = sets.New[string]("jenkins")

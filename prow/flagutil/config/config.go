@@ -20,8 +20,8 @@ import (
 	"flag"
 	"fmt"
 
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/flagutil"
+	"sigs.k8s.io/prow/prow/config"
+	"sigs.k8s.io/prow/prow/flagutil"
 )
 
 const (

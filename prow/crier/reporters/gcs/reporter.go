@@ -29,13 +29,13 @@ import (
 	utilpointer "k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	prowv1 "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/crier/reporters/gcs/util"
-	"k8s.io/test-infra/prow/io"
-	"k8s.io/test-infra/prow/io/providers"
-	"k8s.io/test-infra/prow/pod-utils/clone"
-	"k8s.io/test-infra/prow/pod-utils/downwardapi"
+	prowv1 "sigs.k8s.io/prow/prow/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/prow/config"
+	"sigs.k8s.io/prow/prow/crier/reporters/gcs/util"
+	"sigs.k8s.io/prow/prow/io"
+	"sigs.k8s.io/prow/prow/io/providers"
+	"sigs.k8s.io/prow/prow/pod-utils/clone"
+	"sigs.k8s.io/prow/prow/pod-utils/downwardapi"
 )
 
 const reporterName = "gcsreporter"

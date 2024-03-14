@@ -20,7 +20,7 @@ import (
 	"reflect"
 	"testing"
 
-	"k8s.io/test-infra/prow/config"
+	"sigs.k8s.io/prow/prow/config"
 )
 
 func TestHumanReadableName(t *testing.T) {

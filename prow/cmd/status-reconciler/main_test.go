@@ -23,9 +23,9 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/test-infra/prow/flagutil"
-	configflagutil "k8s.io/test-infra/prow/flagutil/config"
-	pluginsflagutil "k8s.io/test-infra/prow/flagutil/plugins"
+	"sigs.k8s.io/prow/prow/flagutil"
+	configflagutil "sigs.k8s.io/prow/prow/flagutil/config"
+	pluginsflagutil "sigs.k8s.io/prow/prow/flagutil/plugins"
 )
 
 func newSetStringsFlagForTest(vals ...string) flagutil.Strings {

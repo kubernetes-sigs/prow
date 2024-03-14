@@ -35,9 +35,9 @@ import (
 	admregistration "k8s.io/api/admissionregistration/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/io"
-	"k8s.io/test-infra/prow/plank"
+	"sigs.k8s.io/prow/prow/config"
+	"sigs.k8s.io/prow/prow/io"
+	"sigs.k8s.io/prow/prow/plank"
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 

@@ -23,7 +23,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
-	"k8s.io/test-infra/prow/simplifypath"
+	"sigs.k8s.io/prow/prow/simplifypath"
 )
 
 func init() {

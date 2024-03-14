@@ -27,15 +27,15 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
-	"k8s.io/test-infra/prow/interrupts"
-	"k8s.io/test-infra/prow/logrusutil"
-	"k8s.io/test-infra/prow/pjutil"
+	"sigs.k8s.io/prow/prow/interrupts"
+	"sigs.k8s.io/prow/prow/logrusutil"
+	"sigs.k8s.io/prow/prow/pjutil"
 
-	"k8s.io/test-infra/pkg/flagutil"
-	"k8s.io/test-infra/prow/config/secret"
-	prowflagutil "k8s.io/test-infra/prow/flagutil"
-	configflagutil "k8s.io/test-infra/prow/flagutil/config"
-	"k8s.io/test-infra/prow/pluginhelp/externalplugins"
+	"sigs.k8s.io/prow/pkg/flagutil"
+	"sigs.k8s.io/prow/prow/config/secret"
+	prowflagutil "sigs.k8s.io/prow/prow/flagutil"
+	configflagutil "sigs.k8s.io/prow/prow/flagutil/config"
+	"sigs.k8s.io/prow/prow/pluginhelp/externalplugins"
 )
 
 type options struct {

@@ -22,8 +22,8 @@ import (
 	"flag"
 	"fmt"
 
-	"k8s.io/test-infra/prow/gcsupload"
-	"k8s.io/test-infra/prow/pod-utils/wrapper"
+	"sigs.k8s.io/prow/prow/gcsupload"
+	"sigs.k8s.io/prow/prow/pod-utils/wrapper"
 )
 
 // NewOptions returns an empty Options with no nil fields
@@ -76,7 +76,7 @@ type Options struct {
 	IgnoreInterrupts bool `json:"ignore_interrupts,omitempty"`
 
 	// WriteMemoryProfile makes the program write a memory profile periodically while
-	// it runs. Use the k8s.io/test-infra/hack/analyze-memory-profiles.py script to
+	// it runs. Use the sigs.k8s.io/prow/hack/analyze-memory-profiles.py script to
 	// load the data into time series and plot it for analysis.
 	WriteMemoryProfile bool `json:"write_memory_profile,omitempty"`
 

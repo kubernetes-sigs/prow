@@ -31,8 +31,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/test-infra/prow/git/types"
-	"k8s.io/test-infra/prow/git/v2"
+	"sigs.k8s.io/prow/prow/git/types"
+	"sigs.k8s.io/prow/prow/git/v2"
 )
 
 // TideQueries is a TideQuery slice.

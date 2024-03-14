@@ -24,11 +24,11 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/util/sets"
 
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/tide"
-	"k8s.io/test-infra/prow/tide/history"
+	"sigs.k8s.io/prow/prow/config"
+	"sigs.k8s.io/prow/prow/tide"
+	"sigs.k8s.io/prow/prow/tide/history"
 
-	prowapi "k8s.io/test-infra/prow/apis/prowjobs/v1"
+	prowapi "sigs.k8s.io/prow/prow/apis/prowjobs/v1"
 )
 
 func TestFilter(t *testing.T) {

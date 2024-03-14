@@ -22,7 +22,7 @@ import (
 	"time"
 
 	"k8s.io/apimachinery/pkg/util/wait"
-	pb "k8s.io/test-infra/prow/gangway"
+	pb "sigs.k8s.io/prow/prow/gangway"
 )
 
 // Common has helper client methods that are common to all Prow API (Gangway)

@@ -27,8 +27,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/spyglass/api"
+	"sigs.k8s.io/prow/prow/config"
+	"sigs.k8s.io/prow/prow/spyglass/api"
 )
 
 type FakeArtifact struct {

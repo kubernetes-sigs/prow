@@ -36,7 +36,7 @@ that you can define pods in yaml.  Please see kubernetes documentation
 for help here, for example the [Pod overview] and [PodSpec api
 reference].
 
-Periodic config looks like so (see [GoDocs](https://pkg.go.dev/k8s.io/test-infra/prow/config#Periodic) for complete config):
+Periodic config looks like so (see [GoDocs](https://pkg.go.dev/sigs.k8s.io/prow/prow/config#Periodic) for complete config):
 
 ```yaml
 periodics:
@@ -52,7 +52,7 @@ periodics:
   spec: {}              # Valid Kubernetes PodSpec.
 ```
 
-Postsubmit config looks like so (see [GoDocs](https://pkg.go.dev/k8s.io/test-infra/prow/config#Postsubmit) for complete config):
+Postsubmit config looks like so (see [GoDocs](https://pkg.go.dev/sigs.k8s.io/prow/prow/config#Postsubmit) for complete config):
 
 ```yaml
 postsubmits:
@@ -74,7 +74,7 @@ every branch on the given repo.
 Postsubmit jobs apply `run_if_changed` and `skip_if_only_changed` filters based on which
 files were modified by the commits included in the specific push event from github.
 
-Presubmit config looks like so (see [GoDocs](https://pkg.go.dev/k8s.io/test-infra/prow/config#Presubmit) for complete config):
+Presubmit config looks like so (see [GoDocs](https://pkg.go.dev/sigs.k8s.io/prow/prow/config#Presubmit) for complete config):
 
 ```yaml
 presubmits:

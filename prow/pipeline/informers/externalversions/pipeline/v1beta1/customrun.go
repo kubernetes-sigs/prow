@@ -27,9 +27,9 @@ import (
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
 	cache "k8s.io/client-go/tools/cache"
-	versioned "k8s.io/test-infra/prow/pipeline/clientset/versioned"
-	internalinterfaces "k8s.io/test-infra/prow/pipeline/informers/externalversions/internalinterfaces"
-	v1beta1 "k8s.io/test-infra/prow/pipeline/listers/pipeline/v1beta1"
+	versioned "sigs.k8s.io/prow/prow/pipeline/clientset/versioned"
+	internalinterfaces "sigs.k8s.io/prow/prow/pipeline/informers/externalversions/internalinterfaces"
+	v1beta1 "sigs.k8s.io/prow/prow/pipeline/listers/pipeline/v1beta1"
 )
 
 // CustomRunInformer provides access to a shared informer and lister for

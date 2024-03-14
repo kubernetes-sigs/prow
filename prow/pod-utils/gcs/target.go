@@ -24,9 +24,9 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	prowapi "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	gerritsource "k8s.io/test-infra/prow/gerrit/source"
-	"k8s.io/test-infra/prow/pod-utils/downwardapi"
+	prowapi "sigs.k8s.io/prow/prow/apis/prowjobs/v1"
+	gerritsource "sigs.k8s.io/prow/prow/gerrit/source"
+	"sigs.k8s.io/prow/prow/pod-utils/downwardapi"
 )
 
 const (

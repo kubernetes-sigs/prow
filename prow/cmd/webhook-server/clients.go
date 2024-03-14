@@ -25,7 +25,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"k8s.io/test-infra/prow/cmd/webhook-server/secretmanager"
+	"sigs.k8s.io/prow/prow/cmd/webhook-server/secretmanager"
 )
 
 type GCPClient struct {

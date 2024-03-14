@@ -15,7 +15,7 @@ It ignores jobs that have no GCS buckets.
 ## Install
 
 ```shell
-go get k8s.io/test-infra/prow/cmd/tot/fallbackcheck
+go get sigs.k8s.io/prow/prow/cmd/tot/fallbackcheck
 ```
 
 ## Run

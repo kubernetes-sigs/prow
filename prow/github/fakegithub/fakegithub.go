@@ -29,7 +29,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/sets"
 
-	"k8s.io/test-infra/prow/github"
+	"sigs.k8s.io/prow/prow/github"
 )
 
 const botName = "k8s-ci-robot"

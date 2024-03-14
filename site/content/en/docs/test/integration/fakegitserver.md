@@ -99,7 +99,7 @@ Usage of /tmp/go-build2317700172/b001/exe/fakegitserver:
         Port to listen on. (default 8888)
 
 $ go run fakegitserver.go -git-repos-parent-dir <PATH_TO_REPOS> -git-binary <PATH_TO_GIT>
-{"component":"unset","file":"/home/someuser/go/src/k8s.io/test-infra/prow/test/integration/fakegitserver/fakegitserver.go:111","func":"main.main","level":"info","msg":"Start server","severity":"info","time":"2022-05-22T20:31:38-07:00"}
+{"component":"unset","file":"/home/someuser/go/src/sigs.k8s.io/prow/prow/test/integration/fakegitserver/fakegitserver.go:111","func":"main.main","level":"info","msg":"Start server","severity":"info","time":"2022-05-22T20:31:38-07:00"}
 ```
 
 In this example, `http://localhost:8888` is the HTTP address of FGS:
@@ -126,7 +126,7 @@ run:
 # First CD to the root of the repo, because the .ko.yaml configuration (unfortunately)
 # depends on relative paths that can only work from the root of the repo.
 $ cd ${PATH_TO_REPO_ROOT}
-$ docker run -it --entrypoint=sh -p 8123:8888 $(ko build --local k8s.io/test-infra/prow/test/integration/fakegitserver)
+$ docker run -it --entrypoint=sh -p 8123:8888 $(ko build --local sigs.k8s.io/prow/prow/test/integration/fakegitserver)
 ```
 
 The `-p 8123:8888` allows you to talk to the containerized instance of
@@ -140,7 +140,7 @@ fakegitserver in [`.ko.yaml`](https://github.com/kubernetes/test-infra/tree/mast
 ```yaml
 baseImageOverrides:
   # ... other entries ...
-  k8s.io/test-infra/prow/test/integration/fakegitserver: gcr.io/my/base/image:tag
+  sigs.k8s.io/prow/prow/test/integration/fakegitserver: gcr.io/my/base/image:tag
 ```
 
 If you want `ko` to pick up a local Docker image on your machine, rename the
@@ -148,5 +148,5 @@ image to have a `ko.local` prefix. For example, like this:
 
 ```yaml
 baseImageOverrides:
-  k8s.io/test-infra/prow/test/integration/fakegitserver: ko.local/my/base/image:tag
+  sigs.k8s.io/prow/prow/test/integration/fakegitserver: ko.local/my/base/image:tag
 ```

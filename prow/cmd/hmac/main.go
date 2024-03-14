@@ -36,13 +36,13 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/yaml"
 
-	"k8s.io/test-infra/pkg/flagutil"
-	"k8s.io/test-infra/prow/config"
-	prowflagutil "k8s.io/test-infra/prow/flagutil"
-	configflagutil "k8s.io/test-infra/prow/flagutil/config"
-	"k8s.io/test-infra/prow/ghhook"
-	"k8s.io/test-infra/prow/github"
-	"k8s.io/test-infra/prow/logrusutil"
+	"sigs.k8s.io/prow/pkg/flagutil"
+	"sigs.k8s.io/prow/prow/config"
+	prowflagutil "sigs.k8s.io/prow/prow/flagutil"
+	configflagutil "sigs.k8s.io/prow/prow/flagutil/config"
+	"sigs.k8s.io/prow/prow/ghhook"
+	"sigs.k8s.io/prow/prow/github"
+	"sigs.k8s.io/prow/prow/logrusutil"
 )
 
 type options struct {

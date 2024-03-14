@@ -35,8 +35,8 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/test-infra/prow/cmd/generic-autobumper/bumper"
-	"k8s.io/test-infra/prow/cmd/generic-autobumper/imagebumper"
+	"sigs.k8s.io/prow/prow/cmd/generic-autobumper/bumper"
+	"sigs.k8s.io/prow/prow/cmd/generic-autobumper/imagebumper"
 
 	"sigs.k8s.io/yaml"
 )

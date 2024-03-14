@@ -19,7 +19,7 @@ package entrypoint
 import (
 	"testing"
 
-	"k8s.io/test-infra/prow/pod-utils/wrapper"
+	"sigs.k8s.io/prow/prow/pod-utils/wrapper"
 )
 
 func TestOptions_Validate(t *testing.T) {

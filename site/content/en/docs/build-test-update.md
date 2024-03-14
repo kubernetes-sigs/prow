@@ -167,7 +167,7 @@ go run ./config:mkpj --job=JOB_NAME
 
 For your own prow instance:
 ```shell
-go run k8s.io/test-infra/prow/cmd/mkpj --job=JOB_NAME --config-path=path/to/config.yaml
+go run sigs.k8s.io/prow/prow/cmd/mkpj --job=JOB_NAME --config-path=path/to/config.yaml
 ```
 
 Alternatively, if you have jobs defined in a separate `job-config`, you can
