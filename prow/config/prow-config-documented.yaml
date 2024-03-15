@@ -85,7 +85,7 @@ branch-protection:
                                         - ""
                                 # RequireOwners overrides whether CODEOWNERS must approve PRs if set
                                 require_code_owner_reviews: false
-                                # Approvals overrides the number of approvals required if set (set to 0 to disable)
+                                # Approvals overrides the number of approvals required if set
                                 required_approving_review_count: 0
                             # RequiredStatusChecks configures github contexts
                             required_status_checks:
@@ -139,7 +139,7 @@ branch-protection:
                                 - ""
                         # RequireOwners overrides whether CODEOWNERS must approve PRs if set
                         require_code_owner_reviews: false
-                        # Approvals overrides the number of approvals required if set (set to 0 to disable)
+                        # Approvals overrides the number of approvals required if set
                         required_approving_review_count: 0
                     # RequiredStatusChecks configures github contexts
                     required_status_checks:
@@ -181,7 +181,7 @@ branch-protection:
                         - ""
                 # RequireOwners overrides whether CODEOWNERS must approve PRs if set
                 require_code_owner_reviews: false
-                # Approvals overrides the number of approvals required if set (set to 0 to disable)
+                # Approvals overrides the number of approvals required if set
                 required_approving_review_count: 0
             # RequiredStatusChecks configures github contexts
             required_status_checks:
@@ -232,7 +232,7 @@ branch-protection:
                 - ""
         # RequireOwners overrides whether CODEOWNERS must approve PRs if set
         require_code_owner_reviews: false
-        # Approvals overrides the number of approvals required if set (set to 0 to disable)
+        # Approvals overrides the number of approvals required if set
         required_approving_review_count: 0
     # RequiredStatusChecks configures github contexts
     required_status_checks:
@@ -646,6 +646,13 @@ plank:
                 # * a S3 bucket: with s3:// prefix
                 # * a GCS bucket: without a prefix (deprecated, it's discouraged to use Bucket without prefix please add the gs:// prefix)
                 bucket: ' '
+                # CompressFileTypes specify file types that should be gzipped prior to upload.
+                # Matching files will be compressed prior to upload, and the content-encoding on these files will be set to gzip.
+                # GCS will transcode these gzipped files transparently when viewing. See: https://cloud.google.com/storage/docs/transcoding
+                # Example: "txt", "json"
+                # Use "*" for all
+                compress_file_types:
+                    - ""
                 # DefaultOrg is omitted from GCS paths when using the
                 # legacy or simple strategy
                 default_org: ' '
@@ -840,6 +847,13 @@ plank:
                 # * a S3 bucket: with s3:// prefix
                 # * a GCS bucket: without a prefix (deprecated, it's discouraged to use Bucket without prefix please add the gs:// prefix)
                 bucket: ' '
+                # CompressFileTypes specify file types that should be gzipped prior to upload.
+                # Matching files will be compressed prior to upload, and the content-encoding on these files will be set to gzip.
+                # GCS will transcode these gzipped files transparently when viewing. See: https://cloud.google.com/storage/docs/transcoding
+                # Example: "txt", "json"
+                # Use "*" for all
+                compress_file_types:
+                    - ""
                 # DefaultOrg is omitted from GCS paths when using the
                 # legacy or simple strategy
                 default_org: ' '
@@ -1058,6 +1072,17 @@ push_gateway:
     interval: 0s
     # ServeMetrics tells if or not the components serve metrics.
     serve_metrics: false
+# Scheduler contains configuration for the additional scheduler.
+# It has to be explicitly enabled.
+scheduler:
+    enabled: true
+    # Scheduling strategies
+    failover:
+        # ClusterMappings maps a cluster to another one. It is used when we
+        # want to schedule a ProJob to a cluster other than the one it was
+        # configured to in the first place.
+        mappings:
+            "": ""
 sinker:
     # ExcludeClusters are build clusters that don't want to be managed by sinker.
     exclude_clusters:

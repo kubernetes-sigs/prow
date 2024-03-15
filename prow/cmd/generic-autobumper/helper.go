@@ -20,8 +20,17 @@ import (
 	"fmt"
 	"strings"
 
-	imagebumper "k8s.io/test-infra/experiment/image-bumper/bumper"
+	"k8s.io/test-infra/prow/cmd/generic-autobumper/imagebumper"
 )
+
+// Extract image from image name
+func imageFromName(name string) string {
+	parts := strings.Split(name, ":")
+	if len(parts) < 2 {
+		return ""
+	}
+	return parts[0]
+}
 
 // Extract image tag from image name
 func tagFromName(name string) string {
