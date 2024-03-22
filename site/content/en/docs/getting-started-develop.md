@@ -20,7 +20,7 @@ There are a number of ways that you can write code for Prow or integrate existin
 #### Plugins
 
 [Prow plugins](/docs/components/plugins/) are sub-components of the [`hook`](/docs/components/core/hook/) binary that register event handlers for various types of GitHub events.
-Plugin event handlers are provided a [`PluginClient`](https://godoc.org/k8s.io/test-infra/prow/plugins#PluginClient) that provides access to a suite of clients and agents for configuration, ProwJobs, GitHub, git, OWNERS file, Slack, and more.
+Plugin event handlers are provided a [`PluginClient`](https://godoc.org/sigs.k8s.io/prow/prow/plugins#PluginClient) that provides access to a suite of clients and agents for configuration, ProwJobs, GitHub, git, OWNERS file, Slack, and more.
 
 ##### How to add new plugins
 
