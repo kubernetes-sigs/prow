@@ -26,13 +26,13 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"sigs.k8s.io/yaml"
 
-	"k8s.io/test-infra/prow/bugzilla"
-	prowconfig "k8s.io/test-infra/prow/config"
-	cherrypicker "k8s.io/test-infra/prow/external-plugins/cherrypicker/lib"
-	"k8s.io/test-infra/prow/github"
-	"k8s.io/test-infra/prow/github/fakegithub"
-	"k8s.io/test-infra/prow/pluginhelp"
-	"k8s.io/test-infra/prow/plugins"
+	"sigs.k8s.io/prow/prow/bugzilla"
+	prowconfig "sigs.k8s.io/prow/prow/config"
+	cherrypicker "sigs.k8s.io/prow/prow/external-plugins/cherrypicker/lib"
+	"sigs.k8s.io/prow/prow/github"
+	"sigs.k8s.io/prow/prow/github/fakegithub"
+	"sigs.k8s.io/prow/prow/pluginhelp"
+	"sigs.k8s.io/prow/prow/plugins"
 )
 
 var allowEvent = cmp.AllowUnexported(event{})

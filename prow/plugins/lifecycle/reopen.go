@@ -22,8 +22,8 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"k8s.io/test-infra/prow/github"
-	"k8s.io/test-infra/prow/plugins"
+	"sigs.k8s.io/prow/prow/github"
+	"sigs.k8s.io/prow/prow/plugins"
 )
 
 var reopenRe = regexp.MustCompile(`(?mi)^/reopen\s*$`)

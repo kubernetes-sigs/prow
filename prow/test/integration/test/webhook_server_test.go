@@ -26,7 +26,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/types"
-	v1 "k8s.io/test-infra/prow/apis/prowjobs/v1"
+	v1 "sigs.k8s.io/prow/prow/apis/prowjobs/v1"
 	"sigs.k8s.io/yaml"
 )
 

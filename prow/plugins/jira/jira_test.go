@@ -26,11 +26,11 @@ import (
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/sets"
 
-	"k8s.io/test-infra/prow/github"
-	"k8s.io/test-infra/prow/github/fakegithub"
-	jiraclient "k8s.io/test-infra/prow/jira"
-	"k8s.io/test-infra/prow/jira/fakejira"
-	"k8s.io/test-infra/prow/plugins"
+	"sigs.k8s.io/prow/prow/github"
+	"sigs.k8s.io/prow/prow/github/fakegithub"
+	jiraclient "sigs.k8s.io/prow/prow/jira"
+	"sigs.k8s.io/prow/prow/jira/fakejira"
+	"sigs.k8s.io/prow/prow/plugins"
 )
 
 func TestRegex(t *testing.T) {

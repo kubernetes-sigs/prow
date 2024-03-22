@@ -28,8 +28,8 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"k8s.io/test-infra/prow/github"
-	"k8s.io/test-infra/prow/github/fakegithub"
+	"sigs.k8s.io/prow/prow/github"
+	"sigs.k8s.io/prow/prow/github/fakegithub"
 )
 
 type fakeGaggle string

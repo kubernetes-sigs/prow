@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"strings"
 
-	"k8s.io/test-infra/prow/cmd/generic-autobumper/imagebumper"
+	"sigs.k8s.io/prow/prow/cmd/generic-autobumper/imagebumper"
 )
 
 // Extract image from image name

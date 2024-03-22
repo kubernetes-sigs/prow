@@ -25,12 +25,12 @@ import (
 	"github.com/sirupsen/logrus"
 	"sigs.k8s.io/yaml"
 
-	prowapi "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	"k8s.io/test-infra/prow/config"
-	prowflagutil "k8s.io/test-infra/prow/flagutil"
-	configflagutil "k8s.io/test-infra/prow/flagutil/config"
-	"k8s.io/test-infra/prow/github"
-	"k8s.io/test-infra/prow/pjutil"
+	prowapi "sigs.k8s.io/prow/prow/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/prow/config"
+	prowflagutil "sigs.k8s.io/prow/prow/flagutil"
+	configflagutil "sigs.k8s.io/prow/prow/flagutil/config"
+	"sigs.k8s.io/prow/prow/github"
+	"sigs.k8s.io/prow/prow/pjutil"
 )
 
 type options struct {

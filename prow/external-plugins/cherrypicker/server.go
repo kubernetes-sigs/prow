@@ -31,12 +31,12 @@ import (
 	"github.com/sirupsen/logrus"
 
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
-	"k8s.io/test-infra/prow/config"
-	cherrypicker "k8s.io/test-infra/prow/external-plugins/cherrypicker/lib"
-	"k8s.io/test-infra/prow/git/v2"
-	"k8s.io/test-infra/prow/github"
-	"k8s.io/test-infra/prow/pluginhelp"
-	"k8s.io/test-infra/prow/plugins"
+	"sigs.k8s.io/prow/prow/config"
+	cherrypicker "sigs.k8s.io/prow/prow/external-plugins/cherrypicker/lib"
+	"sigs.k8s.io/prow/prow/git/v2"
+	"sigs.k8s.io/prow/prow/github"
+	"sigs.k8s.io/prow/prow/pluginhelp"
+	"sigs.k8s.io/prow/prow/plugins"
 )
 
 const pluginName = "cherrypick"

@@ -29,7 +29,7 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 	"k8s.io/apimachinery/pkg/util/sets"
-	pio "k8s.io/test-infra/prow/io"
+	pio "sigs.k8s.io/prow/prow/io"
 )
 
 // fakeFileFinder is a testing fake for a subset of pio.Opener.

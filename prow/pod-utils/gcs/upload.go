@@ -36,8 +36,8 @@ import (
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	utilpointer "k8s.io/utils/pointer"
 
-	pkgio "k8s.io/test-infra/prow/io"
-	"k8s.io/test-infra/prow/io/providers"
+	pkgio "sigs.k8s.io/prow/prow/io"
+	"sigs.k8s.io/prow/prow/io/providers"
 )
 
 // UploadFunc knows how to upload into an object

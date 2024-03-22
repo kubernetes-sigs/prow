@@ -41,7 +41,7 @@ volumes that the Prow Job may require.
 * `--timeout=10m` controls how long to allow jobs to run before interrupting them
 * `--code-mount-path=/go` changes the path where code is mounted in the container
 * `--skip-volume-mounts=volume1,volume2` includes the unwanted volume mounts that are defined in the job spec
-* `--extra-volume-mounts=/go/src/k8s.io/test-infra=/Users/xyz/k8s-test-infra` includes the extra volume mounts needed for the container. Key is the mount path and value is the local path
+* `--extra-volume-mounts=/go/src/sigs.k8s.io/prow=/Users/xyz/k8s-test-infra` includes the extra volume mounts needed for the container. Key is the mount path and value is the local path
 * `--skip-envs=env1,env2` includes the unwanted env vars that are defined in the job spec
 * `--extra-envs=env1=val1,env2=val2` includes the extra env vars needed for the container
 * `--use-local-gcloud-credentials` controls whether to use the same gcloud credentials as local or not
@@ -56,7 +56,7 @@ it's desired to save the prompts, use the following tricks instead:
 
   ```
   --code-mount-path==/whatever/go/src # Controls where source code is mounted in container
-  --extra-volume-mounts=/whatever/go/src/k8s.io/test-infra=/Users/xyz/k8s-test-infra
+  --extra-volume-mounts=/whatever/go/src/sigs.k8s.io/prow=/Users/xyz/k8s-test-infra
   ```
 
 - If job requires mounting kubeconfig, assume the mount is named `kubeconfig`,use:

@@ -21,7 +21,7 @@ import (
 	"strconv"
 	"strings"
 
-	prowapi "k8s.io/test-infra/prow/apis/prowjobs/v1"
+	prowapi "sigs.k8s.io/prow/prow/apis/prowjobs/v1"
 )
 
 // ParseRefs parses a human-provided string into the repo

@@ -26,8 +26,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"sigs.k8s.io/yaml"
 
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/github"
+	"sigs.k8s.io/prow/prow/config"
+	"sigs.k8s.io/prow/prow/github"
 )
 
 var ignoreUnexported = cmpopts.IgnoreUnexported(config.Presubmit{}, config.RegexpChangeMatcher{}, config.Brancher{})

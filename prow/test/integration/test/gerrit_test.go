@@ -29,8 +29,8 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/gerrit/client"
+	"sigs.k8s.io/prow/prow/config"
+	"sigs.k8s.io/prow/prow/gerrit/client"
 )
 
 const (

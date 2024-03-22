@@ -21,8 +21,8 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/equality"
 
-	prowapi "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	"k8s.io/test-infra/prow/pod-utils/downwardapi"
+	prowapi "sigs.k8s.io/prow/prow/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/prow/pod-utils/downwardapi"
 )
 
 func TestPathForSpec(t *testing.T) {

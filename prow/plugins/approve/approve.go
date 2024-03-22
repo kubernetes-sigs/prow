@@ -27,13 +27,13 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/github"
-	"k8s.io/test-infra/prow/labels"
-	"k8s.io/test-infra/prow/pluginhelp"
-	"k8s.io/test-infra/prow/plugins"
-	"k8s.io/test-infra/prow/plugins/approve/approvers"
-	"k8s.io/test-infra/prow/repoowners"
+	"sigs.k8s.io/prow/prow/config"
+	"sigs.k8s.io/prow/prow/github"
+	"sigs.k8s.io/prow/prow/labels"
+	"sigs.k8s.io/prow/prow/pluginhelp"
+	"sigs.k8s.io/prow/prow/plugins"
+	"sigs.k8s.io/prow/prow/plugins/approve/approvers"
+	"sigs.k8s.io/prow/prow/repoowners"
 )
 
 const (
@@ -133,7 +133,7 @@ func helpProvider(config *plugins.Configuration, enabledRepos []config.OrgRepo) 
 		Description: `The approve plugin implements a pull request approval process that manages the '` + labels.Approved + `' label and an approval notification comment. Approval is achieved when the set of users that have approved the PR is capable of approving every file changed by the PR. A user is able to approve a file if their username or an alias they belong to is listed in the 'approvers' section of an OWNERS file in the directory of the file or higher in the directory tree.
 <br>
 <br>Per-repo configuration may be used to require that PRs link to an associated issue before approval is granted. It may also be used to specify that the PR authors implicitly approve their own PRs.
-<br>For more information see <a href="https://git.k8s.io/test-infra/prow/plugins/approve/approvers/README.md">here</a>.`,
+<br>For more information see <a href="https://git.sigs.k8s.io/prow/prow/plugins/approve/approvers/README.md">here</a>.`,
 		Config:  approveConfig,
 		Snippet: yamlSnippet,
 	}

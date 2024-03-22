@@ -205,9 +205,9 @@ The PR is now unblocked from merging. If [Tide](/docs/components/core/tide/) is 
 
 ## Configuration options
 
-See the [Approve](https://godoc.org/k8s.io/test-infra/prow/plugins#Approve) go struct for documentation of the options for this plugin.
+See the [Approve](https://godoc.org/sigs.k8s.io/prow/prow/plugins#Approve) go struct for documentation of the options for this plugin.
 
-See also the [Lgtm](https://godoc.org/k8s.io/test-infra/prow/plugins#Lgtm) go struct for documentation of the [LGTM](#lgtm-label) plugin's options.
+See also the [Lgtm](https://godoc.org/sigs.k8s.io/prow/prow/plugins#Lgtm) go struct for documentation of the [LGTM](#lgtm-label) plugin's options.
 
 ## Final Notes
 
@@ -228,12 +228,12 @@ If an approval is cancelled, the bot will delete the status added to the PR and 
 ### Code Implementation Links
 
 Blunderbuss: 
-[prow/plugins/blunderbuss/blunderbuss.go](https://git.k8s.io/test-infra/prow/plugins/blunderbuss/blunderbuss.go)
+[prow/plugins/blunderbuss/blunderbuss.go](https://git.sigs.k8s.io/prow/prow/plugins/blunderbuss/blunderbuss.go)
 
 LGTM:
-[prow/plugins/lgtm/lgtm.go](https://git.k8s.io/test-infra/prow/plugins/lgtm/lgtm.go)
+[prow/plugins/lgtm/lgtm.go](https://git.sigs.k8s.io/prow/prow/plugins/lgtm/lgtm.go)
 
 Approve:
-[prow/plugins/approve/approve.go](https://git.k8s.io/test-infra/prow/plugins/approve/approve.go)
+[prow/plugins/approve/approve.go](https://git.sigs.k8s.io/prow/prow/plugins/approve/approve.go)
 
-[prow/plugins/approve/approvers/owners.go](https://git.k8s.io/test-infra/prow/plugins/approve/approvers/owners.go)
+[prow/plugins/approve/approvers/owners.go](https://git.sigs.k8s.io/prow/prow/plugins/approve/approvers/owners.go)

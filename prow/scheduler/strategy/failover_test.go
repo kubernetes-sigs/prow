@@ -21,9 +21,9 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	prowv1 "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/scheduler/strategy"
+	prowv1 "sigs.k8s.io/prow/prow/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/prow/config"
+	"sigs.k8s.io/prow/prow/scheduler/strategy"
 )
 
 func TestFailover(t *testing.T) {

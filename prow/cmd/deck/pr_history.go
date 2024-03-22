@@ -30,12 +30,12 @@ import (
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/sets"
 
-	v1 "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/gcsupload"
-	"k8s.io/test-infra/prow/git/v2"
-	pkgio "k8s.io/test-infra/prow/io"
-	"k8s.io/test-infra/prow/pod-utils/downwardapi"
+	v1 "sigs.k8s.io/prow/prow/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/prow/config"
+	"sigs.k8s.io/prow/prow/gcsupload"
+	"sigs.k8s.io/prow/prow/git/v2"
+	pkgio "sigs.k8s.io/prow/prow/io"
+	"sigs.k8s.io/prow/prow/pod-utils/downwardapi"
 )
 
 var pullCommitRe = regexp.MustCompile(`^[-\.\w]+:\w{40},\d+:(\w{40})$`)

@@ -27,8 +27,8 @@ import (
 	"github.com/sirupsen/logrus"
 	ctrlruntimemetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
 
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/interrupts"
+	"sigs.k8s.io/prow/prow/config"
+	"sigs.k8s.io/prow/prow/interrupts"
 )
 
 type CreateServer func(http.Handler) interrupts.ListenAndServer

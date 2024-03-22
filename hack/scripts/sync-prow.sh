@@ -61,7 +61,7 @@ git fetch old_prow
 git merge old_prow/master --no-edit --allow-unrelated-histories --strategy-option theirs
 
 # Rename go module paths
-find . -type f -exec sed -i 's,k8s.io/test-infra,sigs.k8s.io/prow,g' {} \;
-git commit -a -m "Rename k8s.io/test-infra module to sigs.k8s.io/prow."
+find . -type f -exec sed -i 's,sigs.k8s.io/prow,sigs.k8s.io/prow,g' {} \;
+git commit -a -m "Rename sigs.k8s.io/prow module to sigs.k8s.io/prow."
 
 echo "Sync completed successfully! 'cd ${new_prow} && git push origin' when you're ready."

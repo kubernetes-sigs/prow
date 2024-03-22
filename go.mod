@@ -62,7 +62,7 @@ require (
 	k8s.io/api v0.25.9
 	k8s.io/apimachinery v0.26.5
 	k8s.io/client-go v0.25.9
-	k8s.io/test-infra v0.0.0-20240130214201-267f128331b5
+	sigs.k8s.io/prow v0.0.0-20240130214201-267f128331b5
 	k8s.io/utils v0.0.0-20230209194617-a36077c30491
 	knative.dev/pkg v0.0.0-20230221145627-8efb3485adcf
 	sigs.k8s.io/controller-runtime v0.12.3

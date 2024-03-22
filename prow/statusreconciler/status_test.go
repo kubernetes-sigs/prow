@@ -28,9 +28,9 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/yaml"
 
-	"k8s.io/test-infra/prow/config"
-	configflagutil "k8s.io/test-infra/prow/flagutil/config"
-	"k8s.io/test-infra/prow/io"
+	"sigs.k8s.io/prow/prow/config"
+	configflagutil "sigs.k8s.io/prow/prow/flagutil/config"
+	"sigs.k8s.io/prow/prow/io"
 )
 
 type testOpener struct{}

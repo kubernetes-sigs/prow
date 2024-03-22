@@ -26,19 +26,19 @@ import (
 
 	yaml3 "gopkg.in/yaml.v3"
 
-	simplealiases "k8s.io/test-infra/pkg/genyaml/testdata/alias_simple_types"
-	aliases "k8s.io/test-infra/pkg/genyaml/testdata/alias_types"
-	embedded "k8s.io/test-infra/pkg/genyaml/testdata/embedded_structs"
-	inlines "k8s.io/test-infra/pkg/genyaml/testdata/inline_structs"
-	interfaces "k8s.io/test-infra/pkg/genyaml/testdata/interface_types"
-	multiline "k8s.io/test-infra/pkg/genyaml/testdata/multiline_comments"
-	nested "k8s.io/test-infra/pkg/genyaml/testdata/nested_structs"
-	tags "k8s.io/test-infra/pkg/genyaml/testdata/no_tags"
-	omit "k8s.io/test-infra/pkg/genyaml/testdata/omit_if_empty"
-	pointers "k8s.io/test-infra/pkg/genyaml/testdata/pointer_types"
-	primitives "k8s.io/test-infra/pkg/genyaml/testdata/primitive_types"
-	private "k8s.io/test-infra/pkg/genyaml/testdata/private_members"
-	sequence "k8s.io/test-infra/pkg/genyaml/testdata/sequence_items"
+	simplealiases "sigs.k8s.io/prow/pkg/genyaml/testdata/alias_simple_types"
+	aliases "sigs.k8s.io/prow/pkg/genyaml/testdata/alias_types"
+	embedded "sigs.k8s.io/prow/pkg/genyaml/testdata/embedded_structs"
+	inlines "sigs.k8s.io/prow/pkg/genyaml/testdata/inline_structs"
+	interfaces "sigs.k8s.io/prow/pkg/genyaml/testdata/interface_types"
+	multiline "sigs.k8s.io/prow/pkg/genyaml/testdata/multiline_comments"
+	nested "sigs.k8s.io/prow/pkg/genyaml/testdata/nested_structs"
+	tags "sigs.k8s.io/prow/pkg/genyaml/testdata/no_tags"
+	omit "sigs.k8s.io/prow/pkg/genyaml/testdata/omit_if_empty"
+	pointers "sigs.k8s.io/prow/pkg/genyaml/testdata/pointer_types"
+	primitives "sigs.k8s.io/prow/pkg/genyaml/testdata/primitive_types"
+	private "sigs.k8s.io/prow/pkg/genyaml/testdata/private_members"
+	sequence "sigs.k8s.io/prow/pkg/genyaml/testdata/sequence_items"
 )
 
 const (

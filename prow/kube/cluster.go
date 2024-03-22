@@ -25,7 +25,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
-	prowjobclientset "k8s.io/test-infra/prow/client/clientset/versioned"
+	prowjobclientset "sigs.k8s.io/prow/prow/client/clientset/versioned"
 
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 )

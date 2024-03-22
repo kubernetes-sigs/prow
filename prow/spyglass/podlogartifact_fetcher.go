@@ -21,9 +21,9 @@ import (
 	"fmt"
 	"strings"
 
-	"k8s.io/test-infra/prow/kube"
-	"k8s.io/test-infra/prow/spyglass/api"
-	"k8s.io/test-infra/prow/spyglass/lenses/common"
+	"sigs.k8s.io/prow/prow/kube"
+	"sigs.k8s.io/prow/prow/spyglass/api"
+	"sigs.k8s.io/prow/prow/spyglass/lenses/common"
 )
 
 const singleLogName = "build-log.txt"
