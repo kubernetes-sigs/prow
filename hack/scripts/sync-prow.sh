@@ -22,35 +22,43 @@ gh_username="${1}"
 old_prow="$PWD/old_prow"
 new_prow="$PWD/prow"
 
+rm -rf $old_prow $new_prow
 # Clone the old prow repo.
 git clone https://github.com/kubernetes/test-infra.git $old_prow || true
 
 # Clone the new prow repo (this should be your fork).
 git clone "https://github.com/${gh_username}/prow.git" $new_prow || true
 
-# Strip down the master branch of $old_prow to only have commits that touch the prow related directories.
-cd "$old_prow"
-git-filter-repo \
+# These are the --path arguments that define the set of paths we want to migrate:
+path_args="
   --path prow \
   --path ghproxy \
   --path pkg/flagutil \
   --path pkg/genyaml \
   --path hack/prowimagebuilder \
   --path hack/ts-rollup
+"
+
+# Strip down the master branch of $old_prow to only have commits that touch the prow related directories.
+cd "$old_prow"
+git-filter-repo \
+  ${path_args}
 
 cd "$new_prow"
 # Check out a new "sync" branch that we want to create a PR from.
 git branch sync origin/main
 git checkout sync
 
+# Remove any existing history for the directories we care about to avoid duplicate commits.
+git-filter-repo \
+  --invert-paths \
+  --force \
+  ${path_args}
+
 # Import commits from old_prow/master into "sync" inside $new_prow.
 git remote add old_prow "$old_prow"
 git fetch old_prow
-# We expect this to fail with some merge conflicts due to documentation being moved to the site directory.
-git merge old_prow/master --no-edit --strategy-option theirs || true
-# Fix the merge conflicts, these should be exclusively files that are considered [renamed/deleted] (i.e. moved).
-git add -u
-git commit -m "Sync Prow source from kubernetes/test-infra."
+git merge old_prow/master --no-edit --allow-unrelated-histories --strategy-option theirs
 
 # Rename go module paths
 find . -type f -exec sed -i 's,k8s.io/test-infra,sigs.k8s.io/prow,g' {} \;
