@@ -27,7 +27,7 @@ source ./hack/build/setup-go.sh
 echo "Install misspell."
 cd "hack/tools"
 go build -o "${REPO_ROOT}/_bin/misspell" github.com/client9/misspell/cmd/misspell
-MISSPELL="${REPO_ROOT}/_bin/misspell/misspell"
+MISSPELL="${REPO_ROOT}/_bin/misspell"
 cd "${REPO_ROOT}"
 
 find -L . -type f -not \( \
