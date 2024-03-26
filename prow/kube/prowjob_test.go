@@ -19,7 +19,7 @@ package kube
 import (
 	"testing"
 
-	prowapi "k8s.io/test-infra/prow/apis/prowjobs/v1"
+	prowapi "sigs.k8s.io/prow/prow/apis/prowjobs/v1"
 )
 
 func TestRefs(t *testing.T) {

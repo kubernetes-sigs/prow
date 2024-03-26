@@ -20,7 +20,7 @@ import (
 	"flag"
 	"testing"
 
-	"k8s.io/test-infra/prow/flagutil"
+	"sigs.k8s.io/prow/prow/flagutil"
 )
 
 func TestOptions_Validate(t *testing.T) {

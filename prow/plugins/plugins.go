@@ -30,7 +30,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/sets"
 
-	"k8s.io/test-infra/pkg/genyaml"
+	"sigs.k8s.io/prow/pkg/genyaml"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
@@ -39,17 +39,17 @@ import (
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"sigs.k8s.io/yaml"
 
-	"k8s.io/test-infra/prow/bugzilla"
-	prowv1 "k8s.io/test-infra/prow/client/clientset/versioned/typed/prowjobs/v1"
-	"k8s.io/test-infra/prow/commentpruner"
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/git/v2"
-	"k8s.io/test-infra/prow/github"
-	"k8s.io/test-infra/prow/jira"
-	"k8s.io/test-infra/prow/pluginhelp"
-	"k8s.io/test-infra/prow/repoowners"
-	"k8s.io/test-infra/prow/slack"
-	"k8s.io/test-infra/prow/version"
+	"sigs.k8s.io/prow/prow/bugzilla"
+	prowv1 "sigs.k8s.io/prow/prow/client/clientset/versioned/typed/prowjobs/v1"
+	"sigs.k8s.io/prow/prow/commentpruner"
+	"sigs.k8s.io/prow/prow/config"
+	"sigs.k8s.io/prow/prow/git/v2"
+	"sigs.k8s.io/prow/prow/github"
+	"sigs.k8s.io/prow/prow/jira"
+	"sigs.k8s.io/prow/prow/pluginhelp"
+	"sigs.k8s.io/prow/prow/repoowners"
+	"sigs.k8s.io/prow/prow/slack"
+	"sigs.k8s.io/prow/prow/version"
 )
 
 var (

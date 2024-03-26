@@ -31,8 +31,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	prowv1 "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	"k8s.io/test-infra/prow/crier/reporters/criercommonlib"
+	prowv1 "sigs.k8s.io/prow/prow/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/prow/crier/reporters/criercommonlib"
 )
 
 type ReportClient interface {

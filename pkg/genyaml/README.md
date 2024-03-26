@@ -141,7 +141,7 @@ Next, in a separate `example.go` file, initialize a `Configuration` struct and m
 package example
 
 // Import genyaml
-import "k8s.io/test-infra/pkg/genyaml"
+import "sigs.k8s.io/prow/pkg/genyaml"
 
 //...
 

@@ -24,7 +24,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
-	"k8s.io/test-infra/prow/resultstore/writer"
+	"sigs.k8s.io/prow/prow/resultstore/writer"
 )
 
 type Uploader struct {

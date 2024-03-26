@@ -31,10 +31,10 @@ import (
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/sets"
 
-	prowv1 "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/io/providers"
-	"k8s.io/test-infra/prow/spyglass/api"
+	prowv1 "sigs.k8s.io/prow/prow/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/prow/config"
+	"sigs.k8s.io/prow/prow/io/providers"
+	"sigs.k8s.io/prow/prow/spyglass/api"
 )
 
 var lensTemplate = template.Must(template.New("sg").Parse(string(MustAsset("static/spyglass-lens.html"))))

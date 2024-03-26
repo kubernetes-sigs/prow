@@ -28,12 +28,12 @@ import (
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/labels"
 
-	prowapi "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/github"
-	"k8s.io/test-infra/prow/github/report"
-	"k8s.io/test-infra/prow/pjutil"
-	"k8s.io/test-infra/prow/pluginhelp"
+	prowapi "sigs.k8s.io/prow/prow/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/prow/config"
+	"sigs.k8s.io/prow/prow/github"
+	"sigs.k8s.io/prow/prow/github/report"
+	"sigs.k8s.io/prow/prow/pjutil"
+	"sigs.k8s.io/prow/prow/pluginhelp"
 )
 
 const pluginName = "refresh"

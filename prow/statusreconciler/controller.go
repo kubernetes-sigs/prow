@@ -24,17 +24,17 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/sets"
-	prowv1 "k8s.io/test-infra/prow/client/clientset/versioned/typed/prowjobs/v1"
-	"k8s.io/test-infra/prow/io"
-	"k8s.io/test-infra/prow/pjutil"
+	prowv1 "sigs.k8s.io/prow/prow/client/clientset/versioned/typed/prowjobs/v1"
+	"sigs.k8s.io/prow/prow/io"
+	"sigs.k8s.io/prow/prow/pjutil"
 
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
-	"k8s.io/test-infra/prow/config"
-	configflagutil "k8s.io/test-infra/prow/flagutil/config"
-	"k8s.io/test-infra/prow/github"
-	"k8s.io/test-infra/prow/plugins"
-	"k8s.io/test-infra/prow/plugins/trigger"
-	"k8s.io/test-infra/prow/statusreconciler/migrator"
+	"sigs.k8s.io/prow/prow/config"
+	configflagutil "sigs.k8s.io/prow/prow/flagutil/config"
+	"sigs.k8s.io/prow/prow/github"
+	"sigs.k8s.io/prow/prow/plugins"
+	"sigs.k8s.io/prow/prow/plugins/trigger"
+	"sigs.k8s.io/prow/prow/statusreconciler/migrator"
 )
 
 // NewController constructs a new controller to reconcile stauses on config change

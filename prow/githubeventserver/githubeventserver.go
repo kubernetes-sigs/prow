@@ -29,12 +29,12 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/github"
-	"k8s.io/test-infra/prow/pluginhelp"
-	pluginhelp_externalplugins "k8s.io/test-infra/prow/pluginhelp/externalplugins"
-	pluginhelp_hook "k8s.io/test-infra/prow/pluginhelp/hook"
-	"k8s.io/test-infra/prow/plugins"
+	"sigs.k8s.io/prow/prow/config"
+	"sigs.k8s.io/prow/prow/github"
+	"sigs.k8s.io/prow/prow/pluginhelp"
+	pluginhelp_externalplugins "sigs.k8s.io/prow/prow/pluginhelp/externalplugins"
+	pluginhelp_hook "sigs.k8s.io/prow/prow/pluginhelp/hook"
+	"sigs.k8s.io/prow/prow/plugins"
 )
 
 const (

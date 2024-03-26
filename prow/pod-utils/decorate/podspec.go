@@ -31,17 +31,17 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation"
 
-	prowapi "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	"k8s.io/test-infra/prow/clonerefs"
-	"k8s.io/test-infra/prow/entrypoint"
-	"k8s.io/test-infra/prow/gcsupload"
-	"k8s.io/test-infra/prow/github"
-	"k8s.io/test-infra/prow/initupload"
-	"k8s.io/test-infra/prow/kube"
-	"k8s.io/test-infra/prow/pod-utils/clone"
-	"k8s.io/test-infra/prow/pod-utils/downwardapi"
-	"k8s.io/test-infra/prow/pod-utils/wrapper"
-	"k8s.io/test-infra/prow/sidecar"
+	prowapi "sigs.k8s.io/prow/prow/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/prow/clonerefs"
+	"sigs.k8s.io/prow/prow/entrypoint"
+	"sigs.k8s.io/prow/prow/gcsupload"
+	"sigs.k8s.io/prow/prow/github"
+	"sigs.k8s.io/prow/prow/initupload"
+	"sigs.k8s.io/prow/prow/kube"
+	"sigs.k8s.io/prow/prow/pod-utils/clone"
+	"sigs.k8s.io/prow/prow/pod-utils/downwardapi"
+	"sigs.k8s.io/prow/prow/pod-utils/wrapper"
+	"sigs.k8s.io/prow/prow/sidecar"
 )
 
 const (

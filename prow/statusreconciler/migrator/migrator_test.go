@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"testing"
 
-	"k8s.io/test-infra/prow/github"
+	"sigs.k8s.io/prow/prow/github"
 )
 
 type modeTest struct {

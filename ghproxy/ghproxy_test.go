@@ -33,8 +33,8 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"k8s.io/test-infra/ghproxy/ghcache"
-	"k8s.io/test-infra/prow/github"
+	"sigs.k8s.io/prow/ghproxy/ghcache"
+	"sigs.k8s.io/prow/prow/github"
 )
 
 func TestDiskCachePruning(t *testing.T) {

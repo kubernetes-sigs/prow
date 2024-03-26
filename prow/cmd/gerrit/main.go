@@ -28,19 +28,19 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/diskutil"
-	"k8s.io/test-infra/prow/metrics"
-	"k8s.io/test-infra/prow/moonraker"
-	"k8s.io/test-infra/prow/pjutil/pprof"
+	"sigs.k8s.io/prow/prow/config"
+	"sigs.k8s.io/prow/prow/diskutil"
+	"sigs.k8s.io/prow/prow/metrics"
+	"sigs.k8s.io/prow/prow/moonraker"
+	"sigs.k8s.io/prow/prow/pjutil/pprof"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"k8s.io/test-infra/pkg/flagutil"
-	prowflagutil "k8s.io/test-infra/prow/flagutil"
-	configflagutil "k8s.io/test-infra/prow/flagutil/config"
-	"k8s.io/test-infra/prow/gerrit/adapter"
-	"k8s.io/test-infra/prow/interrupts"
-	"k8s.io/test-infra/prow/logrusutil"
+	"sigs.k8s.io/prow/pkg/flagutil"
+	prowflagutil "sigs.k8s.io/prow/prow/flagutil"
+	configflagutil "sigs.k8s.io/prow/prow/flagutil/config"
+	"sigs.k8s.io/prow/prow/gerrit/adapter"
+	"sigs.k8s.io/prow/prow/interrupts"
+	"sigs.k8s.io/prow/prow/logrusutil"
 )
 
 var (

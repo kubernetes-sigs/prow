@@ -22,7 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/tools/cache"
-	v1 "k8s.io/test-infra/prow/apis/prowjobs/v1"
+	v1 "sigs.k8s.io/prow/prow/apis/prowjobs/v1"
 )
 
 // ProwJobLister helps list ProwJobs.

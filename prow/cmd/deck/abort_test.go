@@ -28,11 +28,11 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/oauth2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	prowapi "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	"k8s.io/test-infra/prow/client/clientset/versioned/fake"
-	"k8s.io/test-infra/prow/github/fakegithub"
-	"k8s.io/test-infra/prow/githuboauth"
-	"k8s.io/test-infra/prow/plugins"
+	prowapi "sigs.k8s.io/prow/prow/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/prow/client/clientset/versioned/fake"
+	"sigs.k8s.io/prow/prow/github/fakegithub"
+	"sigs.k8s.io/prow/prow/githuboauth"
+	"sigs.k8s.io/prow/prow/plugins"
 )
 
 // TestAbort that an aborted job has an updated status and

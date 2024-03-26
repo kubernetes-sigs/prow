@@ -32,7 +32,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/sets"
 
-	"k8s.io/test-infra/prow/version"
+	"sigs.k8s.io/prow/prow/version"
 )
 
 // These are all the current valid states for Red Hat bugs in jira

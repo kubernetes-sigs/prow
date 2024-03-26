@@ -32,15 +32,15 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
-	"k8s.io/test-infra/prow/entrypoint"
-	"k8s.io/test-infra/prow/gcsupload"
-	"k8s.io/test-infra/prow/pod-utils/downwardapi"
-	"k8s.io/test-infra/prow/pod-utils/wrapper"
+	"sigs.k8s.io/prow/prow/entrypoint"
+	"sigs.k8s.io/prow/prow/gcsupload"
+	"sigs.k8s.io/prow/prow/pod-utils/downwardapi"
+	"sigs.k8s.io/prow/prow/pod-utils/wrapper"
 
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/apimachinery/pkg/util/sets"
-	prowapi "k8s.io/test-infra/prow/apis/prowjobs/v1"
+	prowapi "sigs.k8s.io/prow/prow/apis/prowjobs/v1"
 )
 
 var re = regexp.MustCompile(`(?m)(Failed to open) .*log\.txt: .*$`)

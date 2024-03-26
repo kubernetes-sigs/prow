@@ -29,17 +29,17 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/sets"
 
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/git/types"
-	"k8s.io/test-infra/prow/git/v2"
-	"k8s.io/test-infra/prow/github"
-	"k8s.io/test-infra/prow/labels"
-	"k8s.io/test-infra/prow/pluginhelp"
-	"k8s.io/test-infra/prow/plugins"
-	"k8s.io/test-infra/prow/plugins/golint"
-	"k8s.io/test-infra/prow/plugins/ownersconfig"
-	"k8s.io/test-infra/prow/plugins/trigger"
-	"k8s.io/test-infra/prow/repoowners"
+	"sigs.k8s.io/prow/prow/config"
+	"sigs.k8s.io/prow/prow/git/types"
+	"sigs.k8s.io/prow/prow/git/v2"
+	"sigs.k8s.io/prow/prow/github"
+	"sigs.k8s.io/prow/prow/labels"
+	"sigs.k8s.io/prow/prow/pluginhelp"
+	"sigs.k8s.io/prow/prow/plugins"
+	"sigs.k8s.io/prow/prow/plugins/golint"
+	"sigs.k8s.io/prow/prow/plugins/ownersconfig"
+	"sigs.k8s.io/prow/prow/plugins/trigger"
+	"sigs.k8s.io/prow/prow/repoowners"
 )
 
 const (

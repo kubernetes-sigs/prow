@@ -22,9 +22,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/flagutil"
-	"k8s.io/test-infra/prow/interrupts"
+	"sigs.k8s.io/prow/prow/config"
+	"sigs.k8s.io/prow/prow/flagutil"
+	"sigs.k8s.io/prow/prow/interrupts"
 )
 
 type fakeListenAndServer struct {

@@ -27,8 +27,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/apimachinery/pkg/util/sets"
 
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/gerrit/client"
+	"sigs.k8s.io/prow/prow/config"
+	"sigs.k8s.io/prow/prow/gerrit/client"
 )
 
 func TestPresubmitContexts(t *testing.T) {

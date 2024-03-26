@@ -27,11 +27,11 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"k8s.io/test-infra/prow/gcsupload"
-	"k8s.io/test-infra/prow/pod-utils/wrapper"
+	"sigs.k8s.io/prow/prow/gcsupload"
+	"sigs.k8s.io/prow/prow/pod-utils/wrapper"
 
-	"k8s.io/test-infra/prow/secretutil"
-	"k8s.io/test-infra/prow/testutil"
+	"sigs.k8s.io/prow/prow/secretutil"
+	"sigs.k8s.io/prow/prow/testutil"
 )
 
 func TestCensor(t *testing.T) {

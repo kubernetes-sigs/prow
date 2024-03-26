@@ -23,7 +23,7 @@ import (
 
 	pipelinev1beta1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
 	coreapi "k8s.io/api/core/v1"
-	prowapi "k8s.io/test-infra/prow/apis/prowjobs/v1"
+	prowapi "sigs.k8s.io/prow/prow/apis/prowjobs/v1"
 )
 
 func TestRunIfChangedPresubmits(t *testing.T) {

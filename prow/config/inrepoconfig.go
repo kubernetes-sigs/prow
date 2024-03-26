@@ -31,10 +31,10 @@ import (
 	"github.com/sirupsen/logrus"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
-	gerritsource "k8s.io/test-infra/prow/gerrit/source"
+	gerritsource "sigs.k8s.io/prow/prow/gerrit/source"
 
-	"k8s.io/test-infra/prow/git/types"
-	"k8s.io/test-infra/prow/git/v2"
+	"sigs.k8s.io/prow/prow/git/types"
+	"sigs.k8s.io/prow/prow/git/v2"
 	"sigs.k8s.io/yaml"
 )
 

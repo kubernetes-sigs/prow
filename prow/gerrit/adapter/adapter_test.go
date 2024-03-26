@@ -36,14 +36,14 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	prowapi "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	prowfake "k8s.io/test-infra/prow/client/clientset/versioned/fake"
-	"k8s.io/test-infra/prow/config"
-	reporter "k8s.io/test-infra/prow/crier/reporters/gerrit"
-	"k8s.io/test-infra/prow/gerrit/client"
-	"k8s.io/test-infra/prow/git/localgit"
-	"k8s.io/test-infra/prow/git/v2"
-	"k8s.io/test-infra/prow/kube"
+	prowapi "sigs.k8s.io/prow/prow/apis/prowjobs/v1"
+	prowfake "sigs.k8s.io/prow/prow/client/clientset/versioned/fake"
+	"sigs.k8s.io/prow/prow/config"
+	reporter "sigs.k8s.io/prow/prow/crier/reporters/gerrit"
+	"sigs.k8s.io/prow/prow/gerrit/client"
+	"sigs.k8s.io/prow/prow/git/localgit"
+	"sigs.k8s.io/prow/prow/git/v2"
+	"sigs.k8s.io/prow/prow/kube"
 )
 
 func makeStamp(t time.Time) gerrit.Timestamp {

@@ -22,12 +22,12 @@ import (
 	"context"
 
 	"github.com/sirupsen/logrus"
-	"k8s.io/test-infra/prow/pod-utils/downwardapi"
-	"k8s.io/test-infra/prow/pod-utils/options"
+	"sigs.k8s.io/prow/prow/pod-utils/downwardapi"
+	"sigs.k8s.io/prow/prow/pod-utils/options"
 
-	"k8s.io/test-infra/prow/gcsupload"
-	"k8s.io/test-infra/prow/logrusutil"
-	"k8s.io/test-infra/prow/pod-utils/gcs"
+	"sigs.k8s.io/prow/prow/gcsupload"
+	"sigs.k8s.io/prow/prow/logrusutil"
+	"sigs.k8s.io/prow/prow/pod-utils/gcs"
 )
 
 func main() {

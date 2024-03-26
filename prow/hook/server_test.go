@@ -29,8 +29,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 
-	"k8s.io/test-infra/prow/githubeventserver"
-	"k8s.io/test-infra/prow/plugins"
+	"sigs.k8s.io/prow/prow/githubeventserver"
+	"sigs.k8s.io/prow/prow/plugins"
 )
 
 func TestServeHTTPErrors(t *testing.T) {
