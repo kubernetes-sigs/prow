@@ -92,6 +92,10 @@ spec:
                 description: DecorationConfig holds configuration options for decorating
                   PodSpecs that users provide
                 properties:
+                  blobless_fetch:
+                    description: BloblessFetch tells Prow to avoid fetching objects
+                      when cloning using the --filter=blob:none flag.
+                    type: boolean
                   censor_secrets:
                     description: CensorSecrets enables censoring output logs and artifacts.
                     type: boolean
@@ -178,6 +182,16 @@ spec:
                           discouraged to use Bucket without prefix please add the
                           gs:// prefix)'
                         type: string
+                      compress_file_types:
+                        description: 'CompressFileTypes specify file types that should
+                          be gzipped prior to upload. Matching files will be compressed
+                          prior to upload, and the content-encoding on these files
+                          will be set to gzip. GCS will transcode these gzipped files
+                          transparently when viewing. See: https://cloud.google.com/storage/docs/transcoding
+                          Example: "txt", "json" Use "*" for all'
+                        items:
+                          type: string
+                        type: array
                       default_org:
                         description: DefaultOrg is omitted from GCS paths when using
                           the legacy or simple strategy
@@ -484,6 +498,11 @@ spec:
                       type: string
                     base_sha:
                       type: string
+                    blobless_fetch:
+                      description: BloblessFetch tells prow to avoid fetching objects
+                        when cloning using the --filter=blob:none flag. If unspecified,
+                        defaults to DecorationConfig.BloblessFetch.
+                      type: boolean
                     clone_depth:
                       description: CloneDepth is the depth of the clone that will
                         be used. A depth of zero will do a full clone.
@@ -29312,6 +29331,18 @@ spec:
                 description: ProwJobDefault holds configuration options provided as
                   defaults in the Prow config
                 properties:
+                  resultstore_config:
+                    description: ResultStoreConfig specifies parameters for uploading
+                      results to the ResultStore service.
+                    properties:
+                      project_id:
+                        description: ProjectID specifies the ResultStore InvocationAttributes.ProjectID,
+                          used for various quota and GUI access control purposes.
+                          In practice, it is generally the same as the Google Cloud
+                          Project ID or number of the job's GCS storage bucket. Required
+                          to upload results to ResultStore.
+                        type: string
+                    type: object
                   tenant_id:
                     type: string
                 type: object
@@ -29326,6 +29357,11 @@ spec:
                     type: string
                   base_sha:
                     type: string
+                  blobless_fetch:
+                    description: BloblessFetch tells prow to avoid fetching objects
+                      when cloning using the --filter=blob:none flag. If unspecified,
+                      defaults to DecorationConfig.BloblessFetch.
+                    type: boolean
                   clone_depth:
                     description: CloneDepth is the depth of the clone that will be
                       used. A depth of zero will do a full clone.
@@ -52727,6 +52763,7 @@ spec:
               state:
                 description: ProwJobState specifies whether the job is running
                 enum:
+                - scheduling
                 - triggered
                 - pending
                 - success

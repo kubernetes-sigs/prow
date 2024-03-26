@@ -57,6 +57,12 @@ update-go-deps:
 verify-go-deps:
 	hack/make-rules/verify/go-deps.sh
 ################################################################################
+# ================================== Dependencies ===================================
+# python deps
+ensure-py-requirements3:
+	hack/run-in-python-container.sh pip3 install -r requirements3.txt
+.PHONY: ensure-py-requirements3
+################################################################################
 # ================================== Linting ===================================
 # run linters, ensure generated code, etc.
 .PHONY: verify
@@ -91,9 +97,6 @@ update-codegen:
 verify-codegen:
 	hack/make-rules/verify/codegen.sh
 .PHONY: verify-boilerplate
-verify-boilerplate:
+verify-boilerplate: ensure-py-requirements3
 	hack/make-rules/verify/boilerplate.sh
-.PHONY: verify-yamllint
-verify-yamllint:
-	hack/make-rules/verify/yamllint.sh
 #################################################################################

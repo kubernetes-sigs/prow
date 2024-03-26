@@ -1,4 +1,17 @@
 #!/usr/bin/env bash
+# Copyright 2024 The Kubernetes Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 set -euo pipefail
 
@@ -63,5 +76,13 @@ git merge old_prow/master --no-edit --allow-unrelated-histories --strategy-optio
 # Rename go module paths
 find . -type f -path ./hack/scripts/sync-prow.sh -prune -o -exec sed -i 's,k8s.io/test-infra,sigs.k8s.io/prow,g' {} \;
 git commit -a -m "Rename k8s.io/test-infra module to sigs.k8s.io/prow."
+
+# Update go deps
+make update-go-deps
+git commit -a -m "Update Go dependencies after prow source sync."
+
+# Run codegen (CRD file is probably out of date).
+make update-codegen
+git commit -a -m "Update generated code after prow source sync."
 
 echo "Sync completed successfully! 'cd ${new_prow} && git push origin' when you're ready."

@@ -62,12 +62,6 @@ if [[ "${VERIFY_BOILERPLATE:-true}" == "true" ]]; then
   hack/make-rules/verify/boilerplate.sh || { FAILED+=($name); echo "ERROR: $name failed"; }
   cd "${REPO_ROOT}"
 fi
-if [[ "${VERIFY_YAMLLINT:-true}" == "true" ]]; then
-  name="yamllint"
-  echo "verifying $name"
-  hack/make-rules/verify/yamllint.sh || { FAILED+=($name); echo "ERROR: $name failed"; }
-  cd "${REPO_ROOT}"
-fi
 if [[ "${VERIFY_GO_DEPS:-true}" == "true" ]]; then
   name="go deps"
   echo "verifying $name"

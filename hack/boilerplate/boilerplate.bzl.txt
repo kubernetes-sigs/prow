@@ -1,4 +1,4 @@
-# Copyright 2024 The Kubernetes Authors.
+# Copyright YEAR The Kubernetes Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,19 +12,3 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Serve the site locally.
-serve:
-	hugo server
-
-# Build the site. Among other things, this populates the public/ folder.
-build:
-	hugo
-
-# Used by Netlify to build the site.
-netlify-build: build
-
-netlify-deploy-preview:
-	hugo --enableGitInfo --buildFuture -b $(DEPLOY_PRIME_URL)
-
-check-broken-links:
-	find ./public -name "*.html" -print0 | sort -z | xargs -0 ./check-broken-links.sh

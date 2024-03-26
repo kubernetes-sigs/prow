@@ -25,4 +25,4 @@ set -o pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd -P)"
 cd "${REPO_ROOT}"
 
-make -C hack verify-boilerplate
+./hack/run-in-python-container.sh ./hack/boilerplate/verify_boilerplate.py

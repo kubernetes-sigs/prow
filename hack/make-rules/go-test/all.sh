@@ -1,4 +1,5 @@
-# Copyright 2024 The Kubernetes Authors.
+#!/usr/bin/env bash
+# Copyright 2021 The Kubernetes Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,19 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Serve the site locally.
-serve:
-	hugo server
+set -o nounset
+set -o errexit
+set -o pipefail
 
-# Build the site. Among other things, this populates the public/ folder.
-build:
-	hugo
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+cd "${SCRIPT_DIR}"
 
-# Used by Netlify to build the site.
-netlify-build: build
-
-netlify-deploy-preview:
-	hugo --enableGitInfo --buildFuture -b $(DEPLOY_PRIME_URL)
-
-check-broken-links:
-	find ./public -name "*.html" -print0 | sort -z | xargs -0 ./check-broken-links.sh
+./unit.sh
