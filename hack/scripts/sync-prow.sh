@@ -77,8 +77,12 @@ git merge old_prow/master --no-edit --allow-unrelated-histories --strategy-optio
 find . -type f -path ./hack/scripts/sync-prow.sh -prune -o -exec sed -i 's,k8s.io/test-infra,sigs.k8s.io/prow,g' {} \;
 git commit -a -m "Rename k8s.io/test-infra module to sigs.k8s.io/prow."
 
+# Update go deps
+make update-go-deps
+git commit -a -m "Update Go dependencies after prow source sync."
+
 # Run codegen (CRD file is probably out of date).
 make update-codegen
-git commit -a -m "Run 'make update-codegen' after prow source sync."
+git commit -a -m "Update generated code after prow source sync."
 
 echo "Sync completed successfully! 'cd ${new_prow} && git push origin' when you're ready."
