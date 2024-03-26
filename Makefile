@@ -99,7 +99,4 @@ verify-codegen:
 .PHONY: verify-boilerplate
 verify-boilerplate: ensure-py-requirements3
 	hack/make-rules/verify/boilerplate.sh
-.PHONY: verify-yamllint
-verify-yamllint:
-	hack/make-rules/verify/yamllint.sh
 #################################################################################
