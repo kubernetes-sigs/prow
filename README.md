@@ -1,6 +1,6 @@
 # Prow
 
-Statically generated docs for Prow (the tool that currently resides in kubernetes/test-infra). For historical reasons Prow lives in kubernetes/test-infra along with other things, but this repo is all about Prow.
+The source code and statically generated docs for Prow live here. Historically Prow was developed in [kubernetes/test-infra](https://github.com/kubernetes/test-infra) along with other things, but the source code was moved here on April 9, 2024.
 
 ## Community, discussion, contribution, and support
 
