@@ -25,7 +25,7 @@ import (
 
 	"k8s.io/client-go/tools/cache"
 
-	prowapi "k8s.io/test-infra/prow/apis/prowjobs/v1"
+	prowapi "sigs.k8s.io/prow/prow/apis/prowjobs/v1"
 )
 
 func update(histogramVec *prometheus.HistogramVec, oldJob *prowapi.ProwJob, newJob *prowapi.ProwJob) {

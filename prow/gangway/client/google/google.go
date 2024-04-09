@@ -29,8 +29,8 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 
-	pb "k8s.io/test-infra/prow/gangway"
-	gangwayClient "k8s.io/test-infra/prow/gangway/client"
+	pb "sigs.k8s.io/prow/prow/gangway"
+	gangwayClient "sigs.k8s.io/prow/prow/gangway/client"
 )
 
 // This is the client library for Go clients that need to access to the Prow

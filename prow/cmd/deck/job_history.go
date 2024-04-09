@@ -33,11 +33,11 @@ import (
 	"github.com/GoogleCloudPlatform/testgrid/metadata"
 	"github.com/sirupsen/logrus"
 
-	prowv1 "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	"k8s.io/test-infra/prow/config"
-	pkgio "k8s.io/test-infra/prow/io"
-	"k8s.io/test-infra/prow/io/providers"
-	"k8s.io/test-infra/prow/pod-utils/gcs"
+	prowv1 "sigs.k8s.io/prow/prow/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/prow/config"
+	pkgio "sigs.k8s.io/prow/prow/io"
+	"sigs.k8s.io/prow/prow/io/providers"
+	"sigs.k8s.io/prow/prow/pod-utils/gcs"
 )
 
 const (

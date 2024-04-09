@@ -22,8 +22,8 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	v1 "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	"k8s.io/test-infra/prow/config"
+	v1 "sigs.k8s.io/prow/prow/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/prow/config"
 )
 
 func TestShouldReport(t *testing.T) {

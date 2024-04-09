@@ -24,10 +24,10 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/io/providers"
-	"k8s.io/test-infra/prow/spyglass/api"
-	"k8s.io/test-infra/prow/spyglass/lenses/common"
+	"sigs.k8s.io/prow/prow/config"
+	"sigs.k8s.io/prow/prow/io/providers"
+	"sigs.k8s.io/prow/prow/spyglass/api"
+	"sigs.k8s.io/prow/prow/spyglass/lenses/common"
 )
 
 // ListArtifacts gets the names of all artifacts available from the given source

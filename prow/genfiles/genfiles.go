@@ -50,7 +50,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"k8s.io/test-infra/prow/github"
+	"sigs.k8s.io/prow/prow/github"
 )
 
 const genConfigFile = ".generated_files"

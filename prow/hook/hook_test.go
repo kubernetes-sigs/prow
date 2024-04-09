@@ -22,15 +22,15 @@ import (
 	"testing"
 	"time"
 
-	"k8s.io/test-infra/prow/bugzilla"
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/github"
-	"k8s.io/test-infra/prow/githubeventserver"
-	"k8s.io/test-infra/prow/jira/fakejira"
-	"k8s.io/test-infra/prow/phony"
-	"k8s.io/test-infra/prow/plugins"
-	"k8s.io/test-infra/prow/plugins/ownersconfig"
-	"k8s.io/test-infra/prow/repoowners"
+	"sigs.k8s.io/prow/prow/bugzilla"
+	"sigs.k8s.io/prow/prow/config"
+	"sigs.k8s.io/prow/prow/github"
+	"sigs.k8s.io/prow/prow/githubeventserver"
+	"sigs.k8s.io/prow/prow/jira/fakejira"
+	"sigs.k8s.io/prow/prow/phony"
+	"sigs.k8s.io/prow/prow/plugins"
+	"sigs.k8s.io/prow/prow/plugins/ownersconfig"
+	"sigs.k8s.io/prow/prow/repoowners"
 )
 
 var ice = github.IssueCommentEvent{

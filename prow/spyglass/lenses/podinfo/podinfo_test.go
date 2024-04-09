@@ -23,9 +23,9 @@ import (
 	"testing"
 
 	"github.com/sirupsen/logrus/hooks/test"
-	"k8s.io/test-infra/prow/config"
-	"k8s.io/test-infra/prow/spyglass/api"
-	"k8s.io/test-infra/prow/spyglass/lenses/fake"
+	"sigs.k8s.io/prow/prow/config"
+	"sigs.k8s.io/prow/prow/spyglass/api"
+	"sigs.k8s.io/prow/prow/spyglass/lenses/fake"
 )
 
 func TestBody(t *testing.T) {

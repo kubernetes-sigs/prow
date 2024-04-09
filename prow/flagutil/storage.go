@@ -21,7 +21,7 @@ import (
 	"flag"
 	"fmt"
 
-	"k8s.io/test-infra/prow/io"
+	"sigs.k8s.io/prow/prow/io"
 )
 
 type StorageClientOptions struct {

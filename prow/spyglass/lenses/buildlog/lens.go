@@ -33,10 +33,10 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	prowconfig "k8s.io/test-infra/prow/config"
-	pkgio "k8s.io/test-infra/prow/io"
-	"k8s.io/test-infra/prow/spyglass/api"
-	"k8s.io/test-infra/prow/spyglass/lenses"
+	prowconfig "sigs.k8s.io/prow/prow/config"
+	pkgio "sigs.k8s.io/prow/prow/io"
+	"sigs.k8s.io/prow/prow/spyglass/api"
+	"sigs.k8s.io/prow/prow/spyglass/lenses"
 )
 
 const (

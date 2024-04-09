@@ -19,17 +19,17 @@ package rewardowners
 import (
 	"testing"
 
-	"k8s.io/test-infra/prow/github/fakegithub"
+	"sigs.k8s.io/prow/prow/github/fakegithub"
 
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/test-infra/prow/pkg/layeredsets"
+	"sigs.k8s.io/prow/prow/pkg/layeredsets"
 
-	"k8s.io/test-infra/prow/plugins/ownersconfig"
-	"k8s.io/test-infra/prow/repoowners"
+	"sigs.k8s.io/prow/prow/plugins/ownersconfig"
+	"sigs.k8s.io/prow/prow/repoowners"
 
 	"github.com/sirupsen/logrus"
-	"k8s.io/test-infra/prow/git/localgit"
-	"k8s.io/test-infra/prow/github"
+	"sigs.k8s.io/prow/prow/git/localgit"
+	"sigs.k8s.io/prow/prow/github"
 )
 
 type fakeOwnersClient struct{}

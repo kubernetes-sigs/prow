@@ -25,8 +25,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 
-	"k8s.io/test-infra/prow/cache"
-	"k8s.io/test-infra/prow/git/v2"
+	"sigs.k8s.io/prow/prow/cache"
+	"sigs.k8s.io/prow/prow/git/v2"
 )
 
 // Overview

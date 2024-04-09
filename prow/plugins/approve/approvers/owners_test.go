@@ -26,8 +26,8 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/sets"
 
-	"k8s.io/test-infra/prow/pkg/layeredsets"
-	"k8s.io/test-infra/prow/plugins/ownersconfig"
+	"sigs.k8s.io/prow/prow/pkg/layeredsets"
+	"sigs.k8s.io/prow/prow/plugins/ownersconfig"
 )
 
 const (

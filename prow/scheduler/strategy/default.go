@@ -19,8 +19,8 @@ package strategy
 import (
 	"context"
 
-	prowv1 "k8s.io/test-infra/prow/apis/prowjobs/v1"
-	"k8s.io/test-infra/prow/config"
+	prowv1 "sigs.k8s.io/prow/prow/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/prow/config"
 )
 
 // Result is an answer that came out of a scheduling strategy
