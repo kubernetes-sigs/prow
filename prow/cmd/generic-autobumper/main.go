@@ -482,19 +482,19 @@ func parseUpstreamImageVersion(upstreamAddress, prefix string) (string, error) {
 func getVersionsAndCheckConsistency(prefixes []prefix, images map[string]string) (map[string][]string, error) {
 	// Key is tag, value is full image.
 	versions := map[string][]string{}
-	consistencyChecker := map[string]string{}
 	for _, prefix := range prefixes {
 		exceptions := sets.NewString(prefix.ConsistentImageExceptions...)
+		var consistencyVersion, consistencySourceImage string
 		for k, v := range images {
 			if strings.HasPrefix(k, prefix.Prefix) {
 				image := imageFromName(k)
-				found, ok := consistencyChecker[prefix.Prefix]
 				if prefix.ConsistentImages && !exceptions.Has(image) {
-					if ok && (found != v) {
-						return nil, fmt.Errorf("%s:%s not bumped consistently for prefix %s(%s), expected version: %s", k, v, prefix.Prefix, prefix.Name, found)
+					if consistencySourceImage != "" && (consistencyVersion != v) {
+						return nil, fmt.Errorf("%s -> %s not bumped consistently for prefix %s (%s), expected version %s based on bump of %s", k, v, prefix.Prefix, prefix.Name, consistencyVersion, consistencySourceImage)
 					}
-					if !ok {
-						consistencyChecker[prefix.Prefix] = v
+					if consistencySourceImage == "" {
+						consistencyVersion = v
+						consistencySourceImage = k
 					}
 				}
 
