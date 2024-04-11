@@ -1455,6 +1455,9 @@ tide:
                 from-branch-protection: false
                 optional-contexts:
                     - ""
+                # Overwrite `pending` contexts with `success` when a PR is merged in a batch.
+                # This prevents PRs from being blocked by branch-protection rules if batches contexts are successful but PR context is still pending.
+                overwrite-pending-contexts: false
                 repos:
                     "":
                         branches:
@@ -1463,6 +1466,9 @@ tide:
                                 from-branch-protection: false
                                 optional-contexts:
                                     - ""
+                                # Overwrite `pending` contexts with `success` when a PR is merged in a batch.
+                                # This prevents PRs from being blocked by branch-protection rules if batches contexts are successful but PR context is still pending.
+                                overwrite-pending-contexts: false
                                 required-contexts:
                                     - ""
                                 required-if-present-contexts:
@@ -1473,6 +1479,9 @@ tide:
                         from-branch-protection: false
                         optional-contexts:
                             - ""
+                        # Overwrite `pending` contexts with `success` when a PR is merged in a batch.
+                        # This prevents PRs from being blocked by branch-protection rules if batches contexts are successful but PR context is still pending.
+                        overwrite-pending-contexts: false
                         required-contexts:
                             - ""
                         required-if-present-contexts:
@@ -1485,6 +1494,9 @@ tide:
                     - ""
                 # whether to consider unknown contexts optional (skip) or required.
                 skip-unknown-contexts: false
+        # Overwrite `pending` contexts with `success` when a PR is merged in a batch.
+        # This prevents PRs from being blocked by branch-protection rules if batches contexts are successful but PR context is still pending.
+        overwrite-pending-contexts: false
         required-contexts:
             - ""
         required-if-present-contexts:
