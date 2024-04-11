@@ -31,9 +31,9 @@ import (
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"sigs.k8s.io/prow/pkg/client/clientset/versioned/fake"
 	"k8s.io/utils/clock"
 	clocktesting "k8s.io/utils/clock/testing"
+	"sigs.k8s.io/prow/pkg/client/clientset/versioned/fake"
 
 	prowapi "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 	"sigs.k8s.io/prow/pkg/config"

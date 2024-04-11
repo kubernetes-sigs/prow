@@ -31,8 +31,8 @@ import (
 	prowjobv1 "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 	"sigs.k8s.io/prow/pkg/kube"
 	"sigs.k8s.io/prow/pkg/pubsub/subscriber"
-	"sigs.k8s.io/prow/pkg/test/integration/internal/fakegitserver"
-	"sigs.k8s.io/prow/pkg/test/integration/internal/fakepubsub"
+	"sigs.k8s.io/prow/test/integration/internal/fakegitserver"
+	"sigs.k8s.io/prow/test/integration/internal/fakepubsub"
 )
 
 func createGerritRepo(id, job string) string {

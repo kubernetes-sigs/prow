@@ -25,8 +25,8 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/testutil"
-	"sigs.k8s.io/prow/pkg/simplifypath"
 	"k8s.io/utils/diff"
+	"sigs.k8s.io/prow/pkg/simplifypath"
 )
 
 func TestPowersOfTwoBetween(t *testing.T) {

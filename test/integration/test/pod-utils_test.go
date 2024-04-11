@@ -24,7 +24,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	prowjobv1 "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
-	"sigs.k8s.io/prow/pkg/test/integration/internal/fakegitserver"
+	"sigs.k8s.io/prow/test/integration/internal/fakegitserver"
 
 	coreapi "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"

@@ -38,6 +38,7 @@ import (
 
 	tgconf "github.com/GoogleCloudPlatform/testgrid/pb/config"
 
+	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	prowapi "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 	"sigs.k8s.io/prow/pkg/config"
 	"sigs.k8s.io/prow/pkg/deck/jobs"
@@ -46,7 +47,6 @@ import (
 	"sigs.k8s.io/prow/pkg/spyglass/api"
 	"sigs.k8s.io/prow/pkg/spyglass/lenses"
 	"sigs.k8s.io/prow/pkg/spyglass/lenses/common"
-	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var (

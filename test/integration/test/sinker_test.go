@@ -25,8 +25,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
-	prowjobv1 "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
+	prowjobv1 "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 )
 
 func TestDeletePod(t *testing.T) {

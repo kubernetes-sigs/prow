@@ -350,7 +350,7 @@ func TestUpdateAllTags(t *testing.T) {
 			content:        `{"images": ["gcr.io/k8s-prow/pkg-thing:v20190404-12345678", "gcr.io/k8s-testimages/some-image:v20190404-12345678"]}`,
 			expectedResult: `{"images": ["gcr.io/k8s-prow/pkg-thing:v20190404-12345678", "gcr.io/k8s-testimages/some-image:v20190405-123456789"]}`,
 			newTags: map[string]string{
-				"gcr.io/k8s-prow/pkg-thing:v20190404-12345678":       "v20190405-123456789",
+				"gcr.io/k8s-prow/pkg-thing:v20190404-12345678":        "v20190405-123456789",
 				"gcr.io/k8s-testimages/some-image:v20190404-12345678": "v20190405-123456789",
 			},
 			imageFilter: regexp.MustCompile("gcr.io/k8s-testimages"),

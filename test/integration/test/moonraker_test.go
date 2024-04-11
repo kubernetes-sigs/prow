@@ -34,7 +34,7 @@ import (
 	"sigs.k8s.io/prow/pkg/config"
 	"sigs.k8s.io/prow/pkg/git/v2"
 	"sigs.k8s.io/prow/pkg/moonraker"
-	"sigs.k8s.io/prow/pkg/test/integration/internal/fakegitserver"
+	"sigs.k8s.io/prow/test/integration/internal/fakegitserver"
 )
 
 type fakeConfigAgent struct {

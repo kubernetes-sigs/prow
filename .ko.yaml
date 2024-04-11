@@ -41,10 +41,10 @@ baseImageOverrides:
   sigs.k8s.io/prow/ghproxy: gcr.io/k8s-prow/alpine:v20240129-a0a4e743bf
 
   # prow integration test
-  sigs.k8s.io/prow/pkg/test/integration/cmd/fakeghserver: gcr.io/k8s-prow/alpine:v20240129-a0a4e743bf
-  sigs.k8s.io/prow/pkg/test/integration/cmd/fakegitserver: gcr.io/k8s-prow/git:v20240129-a0a4e743bf
-  sigs.k8s.io/prow/pkg/test/integration/cmd/fakepubsub: google/cloud-sdk:389.0.0
-  sigs.k8s.io/prow/pkg/test/integration/cmd/fakegcsserver: gcr.io/k8s-prow/alpine:v20240129-a0a4e743bf
+  sigs.k8s.io/prow/test/integration/cmd/fakeghserver: gcr.io/k8s-prow/alpine:v20240129-a0a4e743bf
+  sigs.k8s.io/prow/test/integration/cmd/fakegitserver: gcr.io/k8s-prow/git:v20240129-a0a4e743bf
+  sigs.k8s.io/prow/test/integration/cmd/fakepubsub: google/cloud-sdk:389.0.0
+  sigs.k8s.io/prow/test/integration/cmd/fakegcsserver: gcr.io/k8s-prow/alpine:v20240129-a0a4e743bf
 
 # https://pkg.go.dev/cmd/link
 # -s: omit symbol/debug info

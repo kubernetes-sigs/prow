@@ -154,26 +154,26 @@ clean() {
 }
 
 gen-deepcopy() {
-  clean prow/apis 'zz_generated.deepcopy.go'
-  clean prow/config 'zz_generated.deepcopy.non_k8s.go'
+  clean pkg/apis 'zz_generated.deepcopy.go'
+  clean pkg/config 'zz_generated.deepcopy.non_k8s.go'
   echo "Generating DeepCopy() methods..." >&2
   "$deepcopygen" \
     --go-header-file hack/boilerplate/boilerplate.generated.go.txt \
     --input-dirs sigs.k8s.io/prow/pkg/apis/prowjobs/v1 \
     --output-file-base zz_generated.deepcopy \
     --bounding-dirs sigs.k8s.io/prow/pkg/apis
-  copyfiles "prow/apis" "zz_generated.deepcopy.go"
+  copyfiles "pkg/apis" "zz_generated.deepcopy.go"
 
   "$deepcopygen" \
     --go-header-file hack/boilerplate/boilerplate.generated.go.txt \
     --input-dirs sigs.k8s.io/prow/pkg/config \
     --output-file-base zz_generated.deepcopy
-  copyfiles "prow/config" "zz_generated.deepcopy.go"
+  copyfiles "pkg/config" "zz_generated.deepcopy.go"
 
 }
 
 gen-client() {
-  clean prow/client/clientset '*.go'
+  clean pkg/client/clientset '*.go'
   echo "Generating client..." >&2
   "$clientgen" \
     --go-header-file hack/boilerplate/boilerplate.generated.go.txt \
@@ -181,9 +181,9 @@ gen-client() {
     --input-base "" \
     --input sigs.k8s.io/prow/pkg/apis/prowjobs/v1 \
     --output-package sigs.k8s.io/prow/pkg/client/clientset
-  copyfiles "./prow/client/clientset" "*.go"
+  copyfiles "./pkg/client/clientset" "*.go"
 
-  clean prow/pipeline/clientset '*.go'
+  clean pkg/pipeline/clientset '*.go'
   echo "Generating client for pipeline..." >&2
   "$clientgen" \
     --go-header-file hack/boilerplate/boilerplate.generated.go.txt \
@@ -191,29 +191,29 @@ gen-client() {
     --input-base "" \
     --input github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1 \
     --output-package sigs.k8s.io/prow/pkg/pipeline/clientset
-  copyfiles "./prow/pipeline/clientset" "*.go"
+  copyfiles "./pkg/pipeline/clientset" "*.go"
 }
 
 gen-lister() {
-  clean prow/client/listers '*.go'
+  clean pkg/client/listers '*.go'
   echo "Generating lister..." >&2
   "$listergen" \
     --go-header-file hack/boilerplate/boilerplate.generated.go.txt \
     --input-dirs sigs.k8s.io/prow/pkg/apis/prowjobs/v1 \
     --output-package sigs.k8s.io/prow/pkg/client/listers
-  copyfiles "./prow/client/listers" "*.go"
+  copyfiles "./pkg/client/listers" "*.go"
 
-  clean prow/pipeline/listers '*.go'
+  clean pkg/pipeline/listers '*.go'
   echo "Generating lister for pipeline..." >&2
   "$listergen" \
     --go-header-file hack/boilerplate/boilerplate.generated.go.txt \
     --input-dirs github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1 \
     --output-package sigs.k8s.io/prow/pkg/pipeline/listers
-  copyfiles "./prow/pipeline/listers" "*.go"
+  copyfiles "./pkg/pipeline/listers" "*.go"
 }
 
 gen-informer() {
-  clean prow/client/informers '*.go'
+  clean pkg/client/informers '*.go'
   echo "Generating informer..." >&2
   "$informergen" \
     --go-header-file hack/boilerplate/boilerplate.generated.go.txt \
@@ -221,9 +221,9 @@ gen-informer() {
     --versioned-clientset-package sigs.k8s.io/prow/pkg/client/clientset/versioned \
     --listers-package sigs.k8s.io/prow/pkg/client/listers \
     --output-package sigs.k8s.io/prow/pkg/client/informers
-  copyfiles "./prow/client/informers" "*.go"
+  copyfiles "./pkg/client/informers" "*.go"
 
-  clean prow/pipeline/informers '*.go'
+  clean pkg/pipeline/informers '*.go'
   echo "Generating informer for pipeline..." >&2
   "$informergen" \
     --go-header-file hack/boilerplate/boilerplate.generated.go.txt \
@@ -231,11 +231,11 @@ gen-informer() {
     --versioned-clientset-package sigs.k8s.io/prow/pkg/pipeline/clientset/versioned \
     --listers-package sigs.k8s.io/prow/pkg/pipeline/listers \
     --output-package sigs.k8s.io/prow/pkg/pipeline/informers
-  copyfiles "./prow/pipeline/informers" "*.go"
+  copyfiles "./pkg/pipeline/informers" "*.go"
 }
 
 gen-spyglass-bindata(){
-  cd prow/spyglass/lenses/common/
+  cd pkg/spyglass/lenses/common/
   echo "Generating spyglass bindata..." >&2
   $go_bindata -pkg=common static/
   gofmt -s -w ./
@@ -246,7 +246,7 @@ gen-prowjob-crd(){
   clean "./config/prow/cluster" "prowjob_customresourcedefinition.yaml"
   echo "Generating prowjob crd..." >&2
   if [[ -z ${HOME:-} ]]; then export HOME=$PWD; fi
-  $controller_gen crd:preserveUnknownFields=false,crdVersions=v1 paths=./prow/apis/prowjobs/v1 output:stdout \
+  $controller_gen crd:preserveUnknownFields=false,crdVersions=v1 paths=./pkg/apis/prowjobs/v1 output:stdout \
     | $SED '/^$/d' \
     | $SED '/^spec:.*/a  \  preserveUnknownFields: false' \
     | $SED '/^  annotations.*/a  \    api-approved.kubernetes.io: https://github.com/kubernetes/test-infra/pull/8669' \
@@ -309,10 +309,10 @@ gen-gangway-apidescriptorpb-for-cloud-endpoints(){
   "${REPO_ROOT}/_bin/protoc/bin/protoc" \
     "--proto_path=${REPO_ROOT}/_bin/protoc/include/google/protobuf" \
     "--proto_path=${REPO_ROOT}/_bin/protoc/include/googleapis" \
-    "--proto_path=${REPO_ROOT}/prow/gangway" \
+    "--proto_path=${REPO_ROOT}/pkg/gangway" \
     --include_imports \
     --include_source_info \
-    --descriptor_set_out "${REPO_ROOT}/prow/gangway/gangway_api_descriptor.pb" \
+    --descriptor_set_out "${REPO_ROOT}/pkg/gangway/gangway_api_descriptor.pb" \
     gangway.proto
 }
 

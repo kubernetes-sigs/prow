@@ -28,7 +28,7 @@ import (
 	"sigs.k8s.io/prow/pkg/gangway"
 	gangwayGoogleClient "sigs.k8s.io/prow/pkg/gangway/client/google"
 	"sigs.k8s.io/prow/pkg/kube"
-	"sigs.k8s.io/prow/pkg/test/integration/internal/fakegitserver"
+	"sigs.k8s.io/prow/test/integration/internal/fakegitserver"
 )
 
 // TestGangway makes gRPC calls to gangway.

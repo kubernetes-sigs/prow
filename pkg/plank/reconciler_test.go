@@ -402,7 +402,7 @@ func TestMaxConcurrencyConsidersCacheStaleness(t *testing.T) {
 			}
 
 			r := newReconciler(context.Background(), pjClient, nil, cfg, nil, "")
-			r.buildClients = map[string]buildClient{pja.Spec.Cluster: buildClient{Client: fakectrlruntimeclient.NewFakeClient()}}
+			r.buildClients = map[string]buildClient{pja.Spec.Cluster: {Client: fakectrlruntimeclient.NewFakeClient()}}
 
 			wg := &sync.WaitGroup{}
 			wg.Add(2)
@@ -512,7 +512,7 @@ func TestStartPodBlocksUntilItHasThePodInCache(t *testing.T) {
 	t.Parallel()
 	r := &reconciler{
 		log: logrus.NewEntry(logrus.New()),
-		buildClients: map[string]buildClient{"default": buildClient{
+		buildClients: map[string]buildClient{"default": {
 			Client: &eventuallyConsistentClient{t: t, Client: fakectrlruntimeclient.NewFakeClient()}}},
 		config: func() *config.Config { return &config.Config{} },
 	}
@@ -565,20 +565,20 @@ func TestSyncClusterStatus(t *testing.T) {
 		{
 			name:            "No location set, don't upload.",
 			statuses:        map[string]ClusterStatus{"default": ClusterStatusReachable},
-			knownClusters:   map[string]rest.Config{"default": rest.Config{}},
+			knownClusters:   map[string]rest.Config{"default": {}},
 			noWriteExpected: true,
 		},
 		{
 			name:          "Single cluster reachable",
 			location:      "gs://my-bucket/build-cluster-statuses.json",
 			statuses:      map[string]ClusterStatus{"default": ClusterStatusReachable},
-			knownClusters: map[string]rest.Config{"default": rest.Config{}},
+			knownClusters: map[string]rest.Config{"default": {}},
 		},
 		{
 			name:             "Single cluster build manager creation failed",
 			location:         "gs://my-bucket/build-cluster-statuses.json",
 			expectedStatuses: map[string]ClusterStatus{"default": ClusterStatusNoManager},
-			knownClusters:    map[string]rest.Config{"default": rest.Config{}},
+			knownClusters:    map[string]rest.Config{"default": {}},
 		},
 		{
 			name:     "Multiple clusters mixed reachability",
@@ -597,11 +597,11 @@ func TestSyncClusterStatus(t *testing.T) {
 				"cluster-missing-permissions": ClusterStatusMissingPermissions,
 			},
 			knownClusters: map[string]rest.Config{
-				"default":                     rest.Config{},
-				"test-infra-trusted":          rest.Config{},
-				"always-sad-build-cluster":    rest.Config{},
-				"cluster-error":               rest.Config{},
-				"cluster-missing-permissions": rest.Config{},
+				"default":                     {},
+				"test-infra-trusted":          {},
+				"always-sad-build-cluster":    {},
+				"cluster-error":               {},
+				"cluster-missing-permissions": {},
 			},
 		},
 	}

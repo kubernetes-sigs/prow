@@ -22,13 +22,13 @@ import (
 
 	"github.com/GoogleCloudPlatform/testgrid/metadata"
 	"github.com/sirupsen/logrus"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	v1 "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 	"sigs.k8s.io/prow/pkg/config"
 	"sigs.k8s.io/prow/pkg/crier/reporters/gcs/util"
 	"sigs.k8s.io/prow/pkg/io"
 	"sigs.k8s.io/prow/pkg/io/providers"
 	"sigs.k8s.io/prow/pkg/resultstore"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 // Reporter reports Prow results to ResultStore and satisfies the

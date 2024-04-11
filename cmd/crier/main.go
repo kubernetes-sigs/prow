@@ -24,10 +24,10 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/prow/pkg/io"
 	"sigs.k8s.io/prow/pkg/pjutil/pprof"
 	"sigs.k8s.io/prow/pkg/resultstore"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	prowapi "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 	"sigs.k8s.io/prow/pkg/config"

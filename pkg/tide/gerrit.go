@@ -27,6 +27,7 @@ import (
 
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
+	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	prowapi "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 	"sigs.k8s.io/prow/pkg/config"
 	gerritadaptor "sigs.k8s.io/prow/pkg/gerrit/adapter"
@@ -38,7 +39,6 @@ import (
 	"sigs.k8s.io/prow/pkg/moonraker"
 	"sigs.k8s.io/prow/pkg/tide/blockers"
 	"sigs.k8s.io/prow/pkg/tide/history"
-	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/andygrunwald/go-gerrit"
 	githubql "github.com/shurcooL/githubv4"

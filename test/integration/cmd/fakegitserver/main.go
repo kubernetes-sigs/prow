@@ -31,7 +31,7 @@ import (
 	"sigs.k8s.io/prow/pkg/interrupts"
 	"sigs.k8s.io/prow/pkg/logrusutil"
 	"sigs.k8s.io/prow/pkg/pjutil"
-	"sigs.k8s.io/prow/pkg/test/integration/internal/fakegitserver"
+	"sigs.k8s.io/prow/test/integration/internal/fakegitserver"
 )
 
 type options struct {

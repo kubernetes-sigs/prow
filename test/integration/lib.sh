@@ -16,7 +16,7 @@
 # shellcheck disable=SC2034
 
 SCRIPT_ROOT="$(cd "$(dirname "$0")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_ROOT}/../../.." && pwd -P)"
+REPO_ROOT="$(cd "${SCRIPT_ROOT}/../.." && pwd -P)"
 
 # Default variables. Note that these variables are not environment variables and
 # are local to this script and other scripts that source this script (that is,
@@ -58,30 +58,30 @@ declare -ra PROW_COMPONENTS=(
 # is located.
 declare -rA PROW_IMAGES=(
   # Actual Prow components.
-  [crier]=prow/cmd/crier
-  [deck]=prow/cmd/deck
-  [gangway]=prow/cmd/gangway
-  [gerrit]=prow/cmd/gerrit
-  [hook]=prow/cmd/hook
-  [horologium]=prow/cmd/horologium
-  [moonraker]=prow/cmd/moonraker
-  [prow-controller-manager]=prow/cmd/prow-controller-manager
-  [sinker]=prow/cmd/sinker
-  [sub]=prow/cmd/sub
-  [tide]=prow/cmd/tide
+  [crier]=cmd/crier
+  [deck]=cmd/deck
+  [gangway]=cmd/gangway
+  [gerrit]=cmd/gerrit
+  [hook]=cmd/hook
+  [horologium]=cmd/horologium
+  [moonraker]=cmd/moonraker
+  [prow-controller-manager]=cmd/prow-controller-manager
+  [sinker]=cmd/sinker
+  [sub]=cmd/sub
+  [tide]=cmd/tide
   # Fakes.
-  [fakegcsserver]=prow/test/integration/cmd/fakegcsserver
-  [fakegerritserver]=prow/test/integration/cmd/fakegerritserver
-  [fakegitserver]=prow/test/integration/cmd/fakegitserver
-  [fakeghserver]=prow/test/integration/cmd/fakeghserver
-  [fakepubsub]=prow/test/integration/cmd/fakepubsub
+  [fakegcsserver]=test/integration/cmd/fakegcsserver
+  [fakegerritserver]=test/integration/cmd/fakegerritserver
+  [fakegitserver]=test/integration/cmd/fakegitserver
+  [fakeghserver]=test/integration/cmd/fakeghserver
+  [fakepubsub]=test/integration/cmd/fakepubsub
   # Utility images. These images are not Prow components per se, and so do not
   # have corresponding Kubernetes configurations.
-  [clonerefs]=prow/cmd/clonerefs
-  [initupload]=prow/cmd/initupload
-  [entrypoint]=prow/cmd/entrypoint
-  [sidecar]=prow/cmd/sidecar
-  [webhook-server]=prow/cmd/webhook-server
+  [clonerefs]=cmd/clonerefs
+  [initupload]=cmd/initupload
+  [entrypoint]=cmd/entrypoint
+  [sidecar]=cmd/sidecar
+  [webhook-server]=cmd/webhook-server
 )
 
 # Defines the one-to-many relationship between Prow images and components. This

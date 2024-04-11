@@ -39,16 +39,16 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
-	prowapi "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
-	"sigs.k8s.io/prow/pkg/config"
-	"sigs.k8s.io/prow/pkg/kube"
-	"sigs.k8s.io/prow/pkg/pjutil"
 	"k8s.io/utils/clock"
 	clocktesting "k8s.io/utils/clock/testing"
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	fakectrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	prowapi "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/pkg/config"
+	"sigs.k8s.io/prow/pkg/kube"
+	"sigs.k8s.io/prow/pkg/pjutil"
 )
 
 type fca struct {
@@ -1650,7 +1650,7 @@ func TestSyncPendingJob(t *testing.T) {
 				errOnDeleteWithFinalizer: true,
 			}
 			buildClients := map[string]buildClient{
-				prowapi.DefaultClusterAlias: buildClient{
+				prowapi.DefaultClusterAlias: {
 					Client: fakeClient,
 				},
 			}
@@ -1740,10 +1740,10 @@ func TestPeriodic(t *testing.T) {
 	pj.Namespace = "prowjobs"
 	fakeProwJobClient := fakectrlruntimeclient.NewFakeClient(&pj)
 	buildClients := map[string]buildClient{
-		prowapi.DefaultClusterAlias: buildClient{
+		prowapi.DefaultClusterAlias: {
 			Client: fakectrlruntimeclient.NewFakeClient(),
 		},
-		"trusted": buildClient{
+		"trusted": {
 			Client: fakectrlruntimeclient.NewFakeClient(),
 		},
 	}
@@ -1964,7 +1964,7 @@ func TestMaxConcurrencyWithNewlyTriggeredJobs(t *testing.T) {
 			}
 			fakeProwJobClient := fakectrlruntimeclient.NewFakeClient(prowJobs...)
 			buildClients := map[string]buildClient{
-				prowapi.DefaultClusterAlias: buildClient{
+				prowapi.DefaultClusterAlias: {
 					Client: fakectrlruntimeclient.NewFakeClient(),
 				},
 			}
@@ -2342,7 +2342,7 @@ func TestSyncAbortedJob(t *testing.T) {
 				log:          logrus.NewEntry(logrus.New()),
 				config:       func() *config.Config { return &config.Config{} },
 				pjClient:     pjClient,
-				buildClients: map[string]buildClient{cluster: buildClient{Client: podClient}},
+				buildClients: map[string]buildClient{cluster: {Client: podClient}},
 			}
 
 			res, err := r.reconcile(context.Background(), pj)
