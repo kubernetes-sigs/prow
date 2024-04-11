@@ -27,7 +27,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"sigs.k8s.io/prow/prow/github"
+	"sigs.k8s.io/prow/pkg/github"
 )
 
 func TestRoundTrip(t *testing.T) {

@@ -22,7 +22,7 @@ The following configuration fields are available:
 * `merge_method`: A key/value pair of an `org/repo` as the key and merge method to override
    the default method of merge as value. Valid options are `squash`, `rebase`, and `merge`.
    Defaults to `merge`.
-* `merge_commit_template`: A mapping from `org/repo` or `org` to a set of Go templates to use when creating the title and body of merge commits. Go templates are evaluated with a `PullRequest`  (see [`PullRequest`](https://godoc.org/sigs.k8s.io/prow/prow/tide#PullRequest) type). This field and map keys are optional.
+* `merge_commit_template`: A mapping from `org/repo` or `org` to a set of Go templates to use when creating the title and body of merge commits. Go templates are evaluated with a `PullRequest`  (see [`PullRequest`](https://godoc.org/sigs.k8s.io/prow/pkg/tide#PullRequest) type). This field and map keys are optional.
 * `target_urls`: A mapping from "*", <org>, or <org/repo> to the URL for the tide status contexts. The most specific key that matches will be used.
 * `pr_status_base_urls`: A mapping from "*", <org>, or <org/repo> to the base URL for the PR status page. If specified, this URL is used to construct
    a link that will be used for the tide status context. It is mutually exclusive with the `target_urls` field.

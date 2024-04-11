@@ -29,17 +29,17 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/prow/prow/pjutil/pprof"
+	"sigs.k8s.io/prow/pkg/pjutil/pprof"
 
 	"sigs.k8s.io/prow/ghproxy/apptokenequalizer"
 	"sigs.k8s.io/prow/ghproxy/ghcache"
-	"sigs.k8s.io/prow/prow/config"
-	"sigs.k8s.io/prow/prow/diskutil"
-	"sigs.k8s.io/prow/prow/flagutil"
-	"sigs.k8s.io/prow/prow/interrupts"
-	"sigs.k8s.io/prow/prow/logrusutil"
-	"sigs.k8s.io/prow/prow/metrics"
-	"sigs.k8s.io/prow/prow/pjutil"
+	"sigs.k8s.io/prow/pkg/config"
+	"sigs.k8s.io/prow/pkg/diskutil"
+	"sigs.k8s.io/prow/pkg/flagutil"
+	"sigs.k8s.io/prow/pkg/interrupts"
+	"sigs.k8s.io/prow/pkg/logrusutil"
+	"sigs.k8s.io/prow/pkg/metrics"
+	"sigs.k8s.io/prow/pkg/pjutil"
 )
 
 var (

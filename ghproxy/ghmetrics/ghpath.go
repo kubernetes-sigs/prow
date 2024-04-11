@@ -17,7 +17,7 @@ limitations under the License.
 package ghmetrics
 
 import (
-	"sigs.k8s.io/prow/prow/simplifypath"
+	"sigs.k8s.io/prow/pkg/simplifypath"
 )
 
 func repositoryTree() []simplifypath.Node {

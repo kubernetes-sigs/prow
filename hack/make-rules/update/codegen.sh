@@ -159,14 +159,14 @@ gen-deepcopy() {
   echo "Generating DeepCopy() methods..." >&2
   "$deepcopygen" \
     --go-header-file hack/boilerplate/boilerplate.generated.go.txt \
-    --input-dirs sigs.k8s.io/prow/prow/apis/prowjobs/v1 \
+    --input-dirs sigs.k8s.io/prow/pkg/apis/prowjobs/v1 \
     --output-file-base zz_generated.deepcopy \
-    --bounding-dirs sigs.k8s.io/prow/prow/apis
+    --bounding-dirs sigs.k8s.io/prow/pkg/apis
   copyfiles "prow/apis" "zz_generated.deepcopy.go"
 
   "$deepcopygen" \
     --go-header-file hack/boilerplate/boilerplate.generated.go.txt \
-    --input-dirs sigs.k8s.io/prow/prow/config \
+    --input-dirs sigs.k8s.io/prow/pkg/config \
     --output-file-base zz_generated.deepcopy
   copyfiles "prow/config" "zz_generated.deepcopy.go"
 
@@ -179,8 +179,8 @@ gen-client() {
     --go-header-file hack/boilerplate/boilerplate.generated.go.txt \
     --clientset-name versioned \
     --input-base "" \
-    --input sigs.k8s.io/prow/prow/apis/prowjobs/v1 \
-    --output-package sigs.k8s.io/prow/prow/client/clientset
+    --input sigs.k8s.io/prow/pkg/apis/prowjobs/v1 \
+    --output-package sigs.k8s.io/prow/pkg/client/clientset
   copyfiles "./prow/client/clientset" "*.go"
 
   clean prow/pipeline/clientset '*.go'
@@ -190,7 +190,7 @@ gen-client() {
     --clientset-name versioned \
     --input-base "" \
     --input github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1 \
-    --output-package sigs.k8s.io/prow/prow/pipeline/clientset
+    --output-package sigs.k8s.io/prow/pkg/pipeline/clientset
   copyfiles "./prow/pipeline/clientset" "*.go"
 }
 
@@ -199,8 +199,8 @@ gen-lister() {
   echo "Generating lister..." >&2
   "$listergen" \
     --go-header-file hack/boilerplate/boilerplate.generated.go.txt \
-    --input-dirs sigs.k8s.io/prow/prow/apis/prowjobs/v1 \
-    --output-package sigs.k8s.io/prow/prow/client/listers
+    --input-dirs sigs.k8s.io/prow/pkg/apis/prowjobs/v1 \
+    --output-package sigs.k8s.io/prow/pkg/client/listers
   copyfiles "./prow/client/listers" "*.go"
 
   clean prow/pipeline/listers '*.go'
@@ -208,7 +208,7 @@ gen-lister() {
   "$listergen" \
     --go-header-file hack/boilerplate/boilerplate.generated.go.txt \
     --input-dirs github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1 \
-    --output-package sigs.k8s.io/prow/prow/pipeline/listers
+    --output-package sigs.k8s.io/prow/pkg/pipeline/listers
   copyfiles "./prow/pipeline/listers" "*.go"
 }
 
@@ -217,10 +217,10 @@ gen-informer() {
   echo "Generating informer..." >&2
   "$informergen" \
     --go-header-file hack/boilerplate/boilerplate.generated.go.txt \
-    --input-dirs sigs.k8s.io/prow/prow/apis/prowjobs/v1 \
-    --versioned-clientset-package sigs.k8s.io/prow/prow/client/clientset/versioned \
-    --listers-package sigs.k8s.io/prow/prow/client/listers \
-    --output-package sigs.k8s.io/prow/prow/client/informers
+    --input-dirs sigs.k8s.io/prow/pkg/apis/prowjobs/v1 \
+    --versioned-clientset-package sigs.k8s.io/prow/pkg/client/clientset/versioned \
+    --listers-package sigs.k8s.io/prow/pkg/client/listers \
+    --output-package sigs.k8s.io/prow/pkg/client/informers
   copyfiles "./prow/client/informers" "*.go"
 
   clean prow/pipeline/informers '*.go'
@@ -228,9 +228,9 @@ gen-informer() {
   "$informergen" \
     --go-header-file hack/boilerplate/boilerplate.generated.go.txt \
     --input-dirs github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1 \
-    --versioned-clientset-package sigs.k8s.io/prow/prow/pipeline/clientset/versioned \
-    --listers-package sigs.k8s.io/prow/prow/pipeline/listers \
-    --output-package sigs.k8s.io/prow/prow/pipeline/informers
+    --versioned-clientset-package sigs.k8s.io/prow/pkg/pipeline/clientset/versioned \
+    --listers-package sigs.k8s.io/prow/pkg/pipeline/listers \
+    --output-package sigs.k8s.io/prow/pkg/pipeline/informers
   copyfiles "./prow/pipeline/informers" "*.go"
 }
 

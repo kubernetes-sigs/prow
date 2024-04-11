@@ -28,7 +28,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"sigs.k8s.io/prow/prow/github"
+	"sigs.k8s.io/prow/pkg/github"
 )
 
 func New(delegate http.RoundTripper) http.RoundTripper {
