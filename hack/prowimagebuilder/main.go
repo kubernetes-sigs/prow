@@ -42,7 +42,7 @@ const (
 	gatherStaicScriptName = "gather-static.sh"
 
 	// Relative to root of the repo
-	defaultProwImageListFile = "prow/.prow-images.yaml"
+	defaultProwImageListFile = ".prow-images.yaml"
 
 	defaultWorkersCount = 10
 	defaultRetry        = 3

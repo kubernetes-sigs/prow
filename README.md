@@ -1,4 +1,5 @@
 # Prow
+![Prow Logo](./site/static/images/logo-horizontal.svg)
 
 The source code and statically generated docs for Prow live here. Historically Prow was developed in [kubernetes/test-infra](https://github.com/kubernetes/test-infra) along with other things, but the source code was moved here on April 9, 2024.
 

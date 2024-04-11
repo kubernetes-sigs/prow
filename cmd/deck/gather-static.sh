@@ -17,7 +17,7 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd -P)"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 cd "${REPO_ROOT}"
 
 # Build ts-rollup so that it can run in docker
@@ -28,10 +28,10 @@ else
   go build -o _bin/ts-rollup sigs.k8s.io/prow/hack/ts-rollup
 fi
 
-readonly STATIC_MAP_FILE="prow/cmd/deck/static-map"
+readonly STATIC_MAP_FILE="cmd/deck/static-map"
 readonly JS_OUTPUT_DIR="_output/js"
 mkdir -p "${JS_OUTPUT_DIR}"
-readonly KO_DATA_PATH="prow/cmd/deck/kodata"
+readonly KO_DATA_PATH="cmd/deck/kodata"
 if [[ -d $KO_DATA_PATH ]]; then
     rm -rf $KO_DATA_PATH
 fi
@@ -39,7 +39,7 @@ fi
 # Clean if meant to be
 if [[ "${1:-}" == "--cleanup" ]]; then
     echo "Running in cleanup mode"
-    ./hack/run-in-node-container.sh _bin/ts-rollup --packages="${REPO_ROOT}/prow/cmd/deck/.ts-packages" --root-dir=. --cleanup-only
+    ./hack/run-in-node-container.sh _bin/ts-rollup --packages="${REPO_ROOT}/cmd/deck/.ts-packages" --root-dir=. --cleanup-only
     rm -rf ${KO_DATA_PATH}
     exit 0
 fi
@@ -48,7 +48,7 @@ fi
 ./hack/build/ensure-node_modules.sh
 
 # Roll up typescripts
-./hack/run-in-node-container.sh _bin/ts-rollup --packages="${REPO_ROOT}/prow/cmd/deck/.ts-packages" --root-dir=.
+./hack/run-in-node-container.sh _bin/ts-rollup --packages="${REPO_ROOT}/cmd/deck/.ts-packages" --root-dir=.
 
 STATIC_MAP=()
 while IFS= read -r map; do

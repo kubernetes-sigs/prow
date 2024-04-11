@@ -1,50 +1,50 @@
 # Distroless images:
 # defaultBaseImage: gcr.io/distroless/static:nonroot
 baseImageOverrides:
-  sigs.k8s.io/prow/prow/cmd/branchprotector: gcr.io/k8s-prow/alpine:v20240129-a0a4e743bf
-  sigs.k8s.io/prow/prow/cmd/checkconfig: gcr.io/k8s-prow/git:v20240129-a0a4e743bf
-  sigs.k8s.io/prow/prow/cmd/clonerefs: gcr.io/k8s-prow/git:v20240129-a0a4e743bf
-  sigs.k8s.io/prow/prow/cmd/config-bootstrapper: gcr.io/k8s-prow/git-custom-k8s-auth:v20240129-a0a4e743bf
-  sigs.k8s.io/prow/prow/cmd/deck: gcr.io/k8s-prow/git-custom-k8s-auth:v20240129-a0a4e743bf
-  sigs.k8s.io/prow/prow/cmd/exporter: gcr.io/k8s-prow/alpine:v20240129-a0a4e743bf
-  sigs.k8s.io/prow/prow/cmd/crier: gcr.io/k8s-prow/git-custom-k8s-auth:v20240129-a0a4e743bf
-  sigs.k8s.io/prow/prow/cmd/entrypoint: gcr.io/k8s-prow/git:v20240129-a0a4e743bf
-  sigs.k8s.io/prow/prow/cmd/gangway: gcr.io/k8s-prow/git:v20240129-a0a4e743bf
-  sigs.k8s.io/prow/prow/cmd/generic-autobumper: gcr.io/k8s-prow/git:v20240129-a0a4e743bf
-  sigs.k8s.io/prow/prow/cmd/gerrit: gcr.io/k8s-prow/git:v20240129-a0a4e743bf
-  sigs.k8s.io/prow/prow/cmd/grandmatriarch: gcr.io/cloud-builders/gcloud@sha256:66d12ecfe21e565af386706bd51d7777e13b471b433cdac7147fb3f3f57e0fc4
-  sigs.k8s.io/prow/prow/cmd/gcsupload: gcr.io/k8s-prow/alpine:v20240129-a0a4e743bf
-  sigs.k8s.io/prow/prow/cmd/hook: gcr.io/k8s-prow/git-custom-k8s-auth:v20240129-a0a4e743bf
-  sigs.k8s.io/prow/prow/cmd/hmac: gcr.io/k8s-prow/alpine:v20240129-a0a4e743bf
-  sigs.k8s.io/prow/prow/cmd/horologium: gcr.io/k8s-prow/alpine:v20240129-a0a4e743bf
-  sigs.k8s.io/prow/prow/cmd/initupload: gcr.io/k8s-prow/git:v20240129-a0a4e743bf
-  sigs.k8s.io/prow/prow/cmd/invitations-accepter: gcr.io/k8s-prow/alpine:v20240129-a0a4e743bf
-  sigs.k8s.io/prow/prow/cmd/jenkins-operator: gcr.io/k8s-prow/git:v20240129-a0a4e743bf
-  sigs.k8s.io/prow/prow/cmd/moonraker: gcr.io/k8s-prow/git:v20240129-a0a4e743bf
-  sigs.k8s.io/prow/prow/cmd/peribolos: gcr.io/k8s-prow/alpine:v20240129-a0a4e743bf
-  sigs.k8s.io/prow/prow/cmd/sidecar: gcr.io/k8s-prow/git:v20240129-a0a4e743bf
-  sigs.k8s.io/prow/prow/cmd/sinker: gcr.io/k8s-prow/git-custom-k8s-auth:v20240129-a0a4e743bf
-  sigs.k8s.io/prow/prow/cmd/status-reconciler: gcr.io/k8s-prow/alpine:v20240129-a0a4e743bf
-  sigs.k8s.io/prow/prow/cmd/sub: gcr.io/k8s-prow/git:v20240129-a0a4e743bf
-  sigs.k8s.io/prow/prow/cmd/tide: gcr.io/k8s-prow/git:v20240129-a0a4e743bf
-  sigs.k8s.io/prow/prow/cmd/tot: gcr.io/k8s-prow/alpine:v20240129-a0a4e743bf
-  sigs.k8s.io/prow/prow/cmd/prow-controller-manager: gcr.io/k8s-prow/git-custom-k8s-auth:v20240129-a0a4e743bf
-  sigs.k8s.io/prow/prow/cmd/admission: gcr.io/k8s-prow/alpine:v20240129-a0a4e743bf
-  sigs.k8s.io/prow/prow/cmd/webhook-server: gcr.io/distroless/static:nonroot@sha256:9ecc53c269509f63c69a266168e4a687c7eb8c0cfd753bd8bfcaa4f58a90876f
-  sigs.k8s.io/prow/prow/cmd/mkpj: gcr.io/k8s-prow/alpine:v20240129-a0a4e743bf
-  sigs.k8s.io/prow/prow/cmd/mkpod: gcr.io/k8s-prow/alpine:v20240129-a0a4e743bf
-  sigs.k8s.io/prow/prow/cmd/pipeline: gcr.io/k8s-prow/alpine:v20240129-a0a4e743bf
-  sigs.k8s.io/prow/prow/external-plugins/needs-rebase: gcr.io/k8s-prow/alpine:v20240129-a0a4e743bf
+  sigs.k8s.io/prow/cmd/branchprotector: gcr.io/k8s-prow/alpine:v20240129-a0a4e743bf
+  sigs.k8s.io/prow/cmd/checkconfig: gcr.io/k8s-prow/git:v20240129-a0a4e743bf
+  sigs.k8s.io/prow/cmd/clonerefs: gcr.io/k8s-prow/git:v20240129-a0a4e743bf
+  sigs.k8s.io/prow/cmd/config-bootstrapper: gcr.io/k8s-prow/git-custom-k8s-auth:v20240129-a0a4e743bf
+  sigs.k8s.io/prow/cmd/deck: gcr.io/k8s-prow/git-custom-k8s-auth:v20240129-a0a4e743bf
+  sigs.k8s.io/prow/cmd/exporter: gcr.io/k8s-prow/alpine:v20240129-a0a4e743bf
+  sigs.k8s.io/prow/cmd/crier: gcr.io/k8s-prow/git-custom-k8s-auth:v20240129-a0a4e743bf
+  sigs.k8s.io/prow/cmd/entrypoint: gcr.io/k8s-prow/git:v20240129-a0a4e743bf
+  sigs.k8s.io/prow/cmd/gangway: gcr.io/k8s-prow/git:v20240129-a0a4e743bf
+  sigs.k8s.io/prow/cmd/generic-autobumper: gcr.io/k8s-prow/git:v20240129-a0a4e743bf
+  sigs.k8s.io/prow/cmd/gerrit: gcr.io/k8s-prow/git:v20240129-a0a4e743bf
+  sigs.k8s.io/prow/cmd/grandmatriarch: gcr.io/cloud-builders/gcloud@sha256:66d12ecfe21e565af386706bd51d7777e13b471b433cdac7147fb3f3f57e0fc4
+  sigs.k8s.io/prow/cmd/gcsupload: gcr.io/k8s-prow/alpine:v20240129-a0a4e743bf
+  sigs.k8s.io/prow/cmd/hook: gcr.io/k8s-prow/git-custom-k8s-auth:v20240129-a0a4e743bf
+  sigs.k8s.io/prow/cmd/hmac: gcr.io/k8s-prow/alpine:v20240129-a0a4e743bf
+  sigs.k8s.io/prow/cmd/horologium: gcr.io/k8s-prow/alpine:v20240129-a0a4e743bf
+  sigs.k8s.io/prow/cmd/initupload: gcr.io/k8s-prow/git:v20240129-a0a4e743bf
+  sigs.k8s.io/prow/cmd/invitations-accepter: gcr.io/k8s-prow/alpine:v20240129-a0a4e743bf
+  sigs.k8s.io/prow/cmd/jenkins-operator: gcr.io/k8s-prow/git:v20240129-a0a4e743bf
+  sigs.k8s.io/prow/cmd/moonraker: gcr.io/k8s-prow/git:v20240129-a0a4e743bf
+  sigs.k8s.io/prow/cmd/peribolos: gcr.io/k8s-prow/alpine:v20240129-a0a4e743bf
+  sigs.k8s.io/prow/cmd/sidecar: gcr.io/k8s-prow/git:v20240129-a0a4e743bf
+  sigs.k8s.io/prow/cmd/sinker: gcr.io/k8s-prow/git-custom-k8s-auth:v20240129-a0a4e743bf
+  sigs.k8s.io/prow/cmd/status-reconciler: gcr.io/k8s-prow/alpine:v20240129-a0a4e743bf
+  sigs.k8s.io/prow/cmd/sub: gcr.io/k8s-prow/git:v20240129-a0a4e743bf
+  sigs.k8s.io/prow/cmd/tide: gcr.io/k8s-prow/git:v20240129-a0a4e743bf
+  sigs.k8s.io/prow/cmd/tot: gcr.io/k8s-prow/alpine:v20240129-a0a4e743bf
+  sigs.k8s.io/prow/cmd/prow-controller-manager: gcr.io/k8s-prow/git-custom-k8s-auth:v20240129-a0a4e743bf
+  sigs.k8s.io/prow/cmd/admission: gcr.io/k8s-prow/alpine:v20240129-a0a4e743bf
+  sigs.k8s.io/prow/cmd/webhook-server: gcr.io/distroless/static:nonroot@sha256:9ecc53c269509f63c69a266168e4a687c7eb8c0cfd753bd8bfcaa4f58a90876f
+  sigs.k8s.io/prow/cmd/mkpj: gcr.io/k8s-prow/alpine:v20240129-a0a4e743bf
+  sigs.k8s.io/prow/cmd/mkpod: gcr.io/k8s-prow/alpine:v20240129-a0a4e743bf
+  sigs.k8s.io/prow/cmd/pipeline: gcr.io/k8s-prow/alpine:v20240129-a0a4e743bf
   # external
-  sigs.k8s.io/prow/prow/external-plugins/cherrypicker: gcr.io/k8s-prow/git:v20240129-a0a4e743bf
-  sigs.k8s.io/prow/prow/external-plugins/refresh: gcr.io/k8s-prow/alpine:v20240129-a0a4e743bf
+  sigs.k8s.io/prow/cmd/external-plugins/needs-rebase: gcr.io/k8s-prow/alpine:v20240129-a0a4e743bf
+  sigs.k8s.io/prow/cmd/external-plugins/cherrypicker: gcr.io/k8s-prow/git:v20240129-a0a4e743bf
+  sigs.k8s.io/prow/cmd/external-plugins/refresh: gcr.io/k8s-prow/alpine:v20240129-a0a4e743bf
   sigs.k8s.io/prow/ghproxy: gcr.io/k8s-prow/alpine:v20240129-a0a4e743bf
 
   # prow integration test
-  sigs.k8s.io/prow/prow/test/integration/cmd/fakeghserver: gcr.io/k8s-prow/alpine:v20240129-a0a4e743bf
-  sigs.k8s.io/prow/prow/test/integration/cmd/fakegitserver: gcr.io/k8s-prow/git:v20240129-a0a4e743bf
-  sigs.k8s.io/prow/prow/test/integration/cmd/fakepubsub: google/cloud-sdk:389.0.0
-  sigs.k8s.io/prow/prow/test/integration/cmd/fakegcsserver: gcr.io/k8s-prow/alpine:v20240129-a0a4e743bf
+  sigs.k8s.io/prow/pkg/test/integration/cmd/fakeghserver: gcr.io/k8s-prow/alpine:v20240129-a0a4e743bf
+  sigs.k8s.io/prow/pkg/test/integration/cmd/fakegitserver: gcr.io/k8s-prow/git:v20240129-a0a4e743bf
+  sigs.k8s.io/prow/pkg/test/integration/cmd/fakepubsub: google/cloud-sdk:389.0.0
+  sigs.k8s.io/prow/pkg/test/integration/cmd/fakegcsserver: gcr.io/k8s-prow/alpine:v20240129-a0a4e743bf
 
 # https://pkg.go.dev/cmd/link
 # -s: omit symbol/debug info
@@ -53,261 +53,254 @@ baseImageOverrides:
 builds:
   - id: admission
     dir: .
-    main: prow/cmd/admission
+    main: cmd/admission
     ldflags:
       - -s -w
-      - -X sigs.k8s.io/prow/prow/version.Version={{.Env.VERSION}}
-      - -X sigs.k8s.io/prow/prow/version.Name=admission
+      - -X sigs.k8s.io/prow/pkg/version.Version={{.Env.VERSION}}
+      - -X sigs.k8s.io/prow/pkg/version.Name=admission
   - id: mkpj
     dir: .
-    main: prow/cmd/mkpj
+    main: cmd/mkpj
     ldflags:
       - -s -w
-      - -X sigs.k8s.io/prow/prow/version.Version={{.Env.VERSION}}
-      - -X sigs.k8s.io/prow/prow/version.Name=mkpj
+      - -X sigs.k8s.io/prow/pkg/version.Version={{.Env.VERSION}}
+      - -X sigs.k8s.io/prow/pkg/version.Name=mkpj
   - id: mkpod
     dir: .
-    main: prow/cmd/mkpod
+    main: cmd/mkpod
     ldflags:
       - -s -w
-      - -X sigs.k8s.io/prow/prow/version.Version={{.Env.VERSION}}
-      - -X sigs.k8s.io/prow/prow/version.Name=mkpod
+      - -X sigs.k8s.io/prow/pkg/version.Version={{.Env.VERSION}}
+      - -X sigs.k8s.io/prow/pkg/version.Name=mkpod
   - id: pipeline
     dir: .
-    main: prow/cmd/pipeline
+    main: cmd/pipeline
     ldflags:
       - -s -w
-      - -X sigs.k8s.io/prow/prow/version.Version={{.Env.VERSION}}
-      - -X sigs.k8s.io/prow/prow/version.Name=pipeline
+      - -X sigs.k8s.io/prow/pkg/version.Version={{.Env.VERSION}}
+      - -X sigs.k8s.io/prow/pkg/version.Name=pipeline
   - id: needs-rebase
     dir: .
-    main: prow/external-plugins/needs-rebase
+    main: cmd/external-plugins/needs-rebase
     ldflags:
       - -s -w
-      - -X sigs.k8s.io/prow/prow/version.Version={{.Env.VERSION}}
-      - -X sigs.k8s.io/prow/prow/version.Name=needs-rebase
+      - -X sigs.k8s.io/prow/pkg/version.Version={{.Env.VERSION}}
+      - -X sigs.k8s.io/prow/pkg/version.Name=needs-rebase
   - id: branchprotector
     dir: .
-    main: prow/cmd/branchprotector
+    main: cmd/branchprotector
     ldflags:
       - -s -w
-      - -X sigs.k8s.io/prow/prow/version.Version={{.Env.VERSION}}
-      - -X sigs.k8s.io/prow/prow/version.Name=branchprotector
+      - -X sigs.k8s.io/prow/pkg/version.Version={{.Env.VERSION}}
+      - -X sigs.k8s.io/prow/pkg/version.Name=branchprotector
   - id: checkconfig
     dir: .
-    main: prow/cmd/checkconfig
+    main: cmd/checkconfig
     ldflags:
       - -s -w
-      - -X sigs.k8s.io/prow/prow/version.Version={{.Env.VERSION}}
-      - -X sigs.k8s.io/prow/prow/version.Name=checkconfig
+      - -X sigs.k8s.io/prow/pkg/version.Version={{.Env.VERSION}}
+      - -X sigs.k8s.io/prow/pkg/version.Name=checkconfig
   - id: clonerefs
     dir: .
-    main: prow/cmd/clonerefs
+    main: cmd/clonerefs
     ldflags:
       - -s -w
-      - -X sigs.k8s.io/prow/prow/version.Version={{.Env.VERSION}}
-      - -X sigs.k8s.io/prow/prow/version.Name=clonerefs
+      - -X sigs.k8s.io/prow/pkg/version.Version={{.Env.VERSION}}
+      - -X sigs.k8s.io/prow/pkg/version.Name=clonerefs
   - id: config-bootstrapper
     dir: .
-    main: prow/cmd/config-bootstrapper
+    main: cmd/config-bootstrapper
     ldflags:
       - -s -w
-      - -X sigs.k8s.io/prow/prow/version.Version={{.Env.VERSION}}
-      - -X sigs.k8s.io/prow/prow/version.Name=config-bootstrapper
+      - -X sigs.k8s.io/prow/pkg/version.Version={{.Env.VERSION}}
+      - -X sigs.k8s.io/prow/pkg/version.Name=config-bootstrapper
   - id: deck
     dir: .
-    main: prow/cmd/deck
+    main: cmd/deck
     ldflags:
       - -s -w
-      - -X sigs.k8s.io/prow/prow/version.Version={{.Env.VERSION}}
-      - -X sigs.k8s.io/prow/prow/version.Name=deck
+      - -X sigs.k8s.io/prow/pkg/version.Version={{.Env.VERSION}}
+      - -X sigs.k8s.io/prow/pkg/version.Name=deck
   - id: exporter
     dir: .
-    main: prow/cmd/exporter
+    main: cmd/exporter
     ldflags:
       - -s -w
-      - -X sigs.k8s.io/prow/prow/version.Version={{.Env.VERSION}}
-      - -X sigs.k8s.io/prow/prow/version.Name=exporter
+      - -X sigs.k8s.io/prow/pkg/version.Version={{.Env.VERSION}}
+      - -X sigs.k8s.io/prow/pkg/version.Name=exporter
   - id: crier
     dir: .
-    main: prow/cmd/crier
+    main: cmd/crier
     ldflags:
       - -s -w
-      - -X sigs.k8s.io/prow/prow/version.Version={{.Env.VERSION}}
-      - -X sigs.k8s.io/prow/prow/version.Name=crier
+      - -X sigs.k8s.io/prow/pkg/version.Version={{.Env.VERSION}}
+      - -X sigs.k8s.io/prow/pkg/version.Name=crier
   - id: entrypoint
     dir: .
-    main: prow/cmd/entrypoint
+    main: cmd/entrypoint
     ldflags:
       - -s -w
-      - -X sigs.k8s.io/prow/prow/version.Version={{.Env.VERSION}}
-      - -X sigs.k8s.io/prow/prow/version.Name=entrypoint
+      - -X sigs.k8s.io/prow/pkg/version.Version={{.Env.VERSION}}
+      - -X sigs.k8s.io/prow/pkg/version.Name=entrypoint
   - id: gangway
     dir: .
-    main: prow/cmd/gangway
+    main: cmd/gangway
     ldflags:
       - -s -w
-      - -X sigs.k8s.io/prow/prow/version.Version={{.Env.VERSION}}
-      - -X sigs.k8s.io/prow/prow/version.Name=gangway
+      - -X sigs.k8s.io/prow/pkg/version.Version={{.Env.VERSION}}
+      - -X sigs.k8s.io/prow/pkg/version.Name=gangway
   - id: generic-autobumper
     dir: .
-    main: prow/cmd/generic-autobumper
+    main: cmd/generic-autobumper
     ldflags:
       - -s -w
-      - -X sigs.k8s.io/prow/prow/version.Version={{.Env.VERSION}}
-      - -X sigs.k8s.io/prow/prow/version.Name=generic-autobumper
+      - -X sigs.k8s.io/prow/pkg/version.Version={{.Env.VERSION}}
+      - -X sigs.k8s.io/prow/pkg/version.Name=generic-autobumper
   - id: gerrit
     dir: .
-    main: prow/cmd/gerrit
+    main: cmd/gerrit
     ldflags:
       - -s -w
-      - -X sigs.k8s.io/prow/prow/version.Version={{.Env.VERSION}}
-      - -X sigs.k8s.io/prow/prow/version.Name=gerrit
+      - -X sigs.k8s.io/prow/pkg/version.Version={{.Env.VERSION}}
+      - -X sigs.k8s.io/prow/pkg/version.Name=gerrit
   - id: grandmatriarch
     dir: .
-    main: prow/cmd/grandmatriarch
+    main: cmd/grandmatriarch
     ldflags:
       - -s -w
-      - -X sigs.k8s.io/prow/prow/version.Version={{.Env.VERSION}}
-      - -X sigs.k8s.io/prow/prow/version.Name=grandmatriarch
+      - -X sigs.k8s.io/prow/pkg/version.Version={{.Env.VERSION}}
+      - -X sigs.k8s.io/prow/pkg/version.Name=grandmatriarch
   - id: gcsupload
     dir: .
-    main: prow/cmd/gcsupload
+    main: cmd/gcsupload
     ldflags:
       - -s -w
-      - -X sigs.k8s.io/prow/prow/version.Version={{.Env.VERSION}}
-      - -X sigs.k8s.io/prow/prow/version.Name=gcsupload
+      - -X sigs.k8s.io/prow/pkg/version.Version={{.Env.VERSION}}
+      - -X sigs.k8s.io/prow/pkg/version.Name=gcsupload
   - id: hook
     dir: .
-    main: prow/cmd/hook
+    main: cmd/hook
     ldflags:
       - -s -w
-      - -X sigs.k8s.io/prow/prow/version.Version={{.Env.VERSION}}
-      - -X sigs.k8s.io/prow/prow/version.Name=hook
+      - -X sigs.k8s.io/prow/pkg/version.Version={{.Env.VERSION}}
+      - -X sigs.k8s.io/prow/pkg/version.Name=hook
   - id: hmac
     dir: .
-    main: prow/cmd/hmac
+    main: cmd/hmac
     ldflags:
       - -s -w
-      - -X sigs.k8s.io/prow/prow/version.Version={{.Env.VERSION}}
-      - -X sigs.k8s.io/prow/prow/version.Name=hmac
+      - -X sigs.k8s.io/prow/pkg/version.Version={{.Env.VERSION}}
+      - -X sigs.k8s.io/prow/pkg/version.Name=hmac
   - id: horologium
     dir: .
-    main: prow/cmd/horologium
+    main: cmd/horologium
     ldflags:
       - -s -w
-      - -X sigs.k8s.io/prow/prow/version.Version={{.Env.VERSION}}
-      - -X sigs.k8s.io/prow/prow/version.Name=horologium
+      - -X sigs.k8s.io/prow/pkg/version.Version={{.Env.VERSION}}
+      - -X sigs.k8s.io/prow/pkg/version.Name=horologium
   - id: initupload
     dir: .
-    main: prow/cmd/initupload
+    main: cmd/initupload
     ldflags:
       - -s -w
-      - -X sigs.k8s.io/prow/prow/version.Version={{.Env.VERSION}}
-      - -X sigs.k8s.io/prow/prow/version.Name=initupload
+      - -X sigs.k8s.io/prow/pkg/version.Version={{.Env.VERSION}}
+      - -X sigs.k8s.io/prow/pkg/version.Name=initupload
   - id: invitations-accepter
     dir: .
-    main: prow/cmd/invitations-accepter
+    main: cmd/invitations-accepter
     ldflags:
       - -s -w
-      - -X sigs.k8s.io/prow/prow/version.Version={{.Env.VERSION}}
-      - -X sigs.k8s.io/prow/prow/version.Name=invitations-accepter
+      - -X sigs.k8s.io/prow/pkg/version.Version={{.Env.VERSION}}
+      - -X sigs.k8s.io/prow/pkg/version.Name=invitations-accepter
   - id: jenkins-operator
     dir: .
-    main: prow/cmd/jenkins-operator
+    main: cmd/jenkins-operator
     ldflags:
       - -s -w
-      - -X sigs.k8s.io/prow/prow/version.Version={{.Env.VERSION}}
-      - -X sigs.k8s.io/prow/prow/version.Name=jenkins-operator
+      - -X sigs.k8s.io/prow/pkg/version.Version={{.Env.VERSION}}
+      - -X sigs.k8s.io/prow/pkg/version.Name=jenkins-operator
   - id: moonraker
     dir: .
-    main: prow/cmd/moonraker
+    main: cmd/moonraker
     ldflags:
       - -s -w
-      - -X sigs.k8s.io/prow/prow/version.Version={{.Env.VERSION}}
-      - -X sigs.k8s.io/prow/prow/version.Name=moonraker
+      - -X sigs.k8s.io/prow/pkg/version.Version={{.Env.VERSION}}
+      - -X sigs.k8s.io/prow/pkg/version.Name=moonraker
   - id: peribolos
     dir: .
-    main: prow/cmd/peribolos
+    main: cmd/peribolos
     ldflags:
       - -s -w
-      - -X sigs.k8s.io/prow/prow/version.Version={{.Env.VERSION}}
-      - -X sigs.k8s.io/prow/prow/version.Name=peribolos
+      - -X sigs.k8s.io/prow/pkg/version.Version={{.Env.VERSION}}
+      - -X sigs.k8s.io/prow/pkg/version.Name=peribolos
   - id: sidecar
     dir: .
-    main: prow/cmd/sidecar
+    main: cmd/sidecar
     ldflags:
       - -s -w
-      - -X sigs.k8s.io/prow/prow/version.Version={{.Env.VERSION}}
-      - -X sigs.k8s.io/prow/prow/version.Name=sidecar
+      - -X sigs.k8s.io/prow/pkg/version.Version={{.Env.VERSION}}
+      - -X sigs.k8s.io/prow/pkg/version.Name=sidecar
   - id: sinker
     dir: .
-    main: prow/cmd/sinker
+    main: cmd/sinker
     ldflags:
       - -s -w
-      - -X sigs.k8s.io/prow/prow/version.Version={{.Env.VERSION}}
-      - -X sigs.k8s.io/prow/prow/version.Name=sinker
+      - -X sigs.k8s.io/prow/pkg/version.Version={{.Env.VERSION}}
+      - -X sigs.k8s.io/prow/pkg/version.Name=sinker
   - id: status-reconciler
     dir: .
-    main: prow/cmd/status-reconciler
+    main: cmd/status-reconciler
     ldflags:
       - -s -w
-      - -X sigs.k8s.io/prow/prow/version.Version={{.Env.VERSION}}
-      - -X sigs.k8s.io/prow/prow/version.Name=status-reconciler
+      - -X sigs.k8s.io/prow/pkg/version.Version={{.Env.VERSION}}
+      - -X sigs.k8s.io/prow/pkg/version.Name=status-reconciler
   - id: sub
     dir: .
-    main: prow/cmd/sub
+    main: cmd/sub
     ldflags:
       - -s -w
-      - -X sigs.k8s.io/prow/prow/version.Version={{.Env.VERSION}}
-      - -X sigs.k8s.io/prow/prow/version.Name=sub
+      - -X sigs.k8s.io/prow/pkg/version.Version={{.Env.VERSION}}
+      - -X sigs.k8s.io/prow/pkg/version.Name=sub
   - id: tide
     dir: .
-    main: prow/cmd/tide
+    main: cmd/tide
     ldflags:
       - -s -w
-      - -X sigs.k8s.io/prow/prow/version.Version={{.Env.VERSION}}
-      - -X sigs.k8s.io/prow/prow/version.Name=tide
+      - -X sigs.k8s.io/prow/pkg/version.Version={{.Env.VERSION}}
+      - -X sigs.k8s.io/prow/pkg/version.Name=tide
   - id: tot
     dir: .
-    main: prow/cmd/tot
+    main: cmd/tot
     ldflags:
       - -s -w
-      - -X sigs.k8s.io/prow/prow/version.Version={{.Env.VERSION}}
-      - -X sigs.k8s.io/prow/prow/version.Name=tot
+      - -X sigs.k8s.io/prow/pkg/version.Version={{.Env.VERSION}}
+      - -X sigs.k8s.io/prow/pkg/version.Name=tot
   - id: prow-controller-manager
     dir: .
-    main: prow/cmd/prow-controller-manager
+    main: cmd/prow-controller-manager
     ldflags:
       - -s -w
-      - -X sigs.k8s.io/prow/prow/version.Version={{.Env.VERSION}}
-      - -X sigs.k8s.io/prow/prow/version.Name=prow-controller-manager
-  - id: ghproxy
-    dir: .
-    main: ghproxy
-    ldflags:
-      - -s -w
-      - -X sigs.k8s.io/prow/prow/version.Version={{.Env.VERSION}}
-      - -X sigs.k8s.io/prow/prow/version.Name=ghproxy
+      - -X sigs.k8s.io/prow/pkg/version.Version={{.Env.VERSION}}
+      - -X sigs.k8s.io/prow/pkg/version.Name=prow-controller-manager
   # External
   - id: cherrypicker
     dir: .
-    main: prow/external-plugins/cherrypicker
+    main: cmd/external-plugins/cherrypicker
     ldflags:
       - -s -w
-      - -X sigs.k8s.io/prow/prow/version.Version={{.Env.VERSION}}
-      - -X sigs.k8s.io/prow/prow/version.Name=cherrypicker
+      - -X sigs.k8s.io/prow/pkg/version.Version={{.Env.VERSION}}
+      - -X sigs.k8s.io/prow/pkg/version.Name=cherrypicker
   - id: refresh
     dir: .
-    main: prow/external-plugins/refresh
+    main: cmd/external-plugins/refresh
     ldflags:
       - -s -w
-      - -X sigs.k8s.io/prow/prow/version.Version={{.Env.VERSION}}
-      - -X sigs.k8s.io/prow/prow/version.Name=refresh
+      - -X sigs.k8s.io/prow/pkg/version.Version={{.Env.VERSION}}
+      - -X sigs.k8s.io/prow/pkg/version.Name=refresh
   - id: ghproxy
     dir: .
     main: ghproxy
     ldflags:
       - -s -w
-      - -X sigs.k8s.io/prow/prow/version.Version={{.Env.VERSION}}
-      - -X sigs.k8s.io/prow/prow/version.Name=ghproxy
+      - -X sigs.k8s.io/prow/pkg/version.Version={{.Env.VERSION}}
+      - -X sigs.k8s.io/prow/pkg/version.Name=ghproxy

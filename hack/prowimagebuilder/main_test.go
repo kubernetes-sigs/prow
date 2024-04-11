@@ -44,14 +44,14 @@ func TestImageAllowed(t *testing.T) {
 		},
 		{
 			name:   "included",
-			images: flagutil.NewStringsBeenSet("prow/cmd/awesome"),
-			image:  "prow/cmd/awesome",
+			images: flagutil.NewStringsBeenSet("cmd/awesome"),
+			image:  "cmd/awesome",
 			want:   true,
 		},
 		{
 			name:   "not-included",
-			images: flagutil.NewStringsBeenSet("prow/cmd/awesome"),
-			image:  "prow/cmd/otherawesome",
+			images: flagutil.NewStringsBeenSet("cmd/awesome"),
+			image:  "cmd/otherawesome",
 			want:   false,
 		},
 	}
@@ -140,13 +140,13 @@ func TestLoadImageDefs(t *testing.T) {
 	dir := t.TempDir()
 	file := path.Join(dir, "temp.yaml")
 	body := `images:
-- dir: prow/cmd/admission
-- dir: prow/cmd/clonerefs
+- dir: cmd/admission
+- dir: cmd/clonerefs
   arch: all`
 
 	wantDefs := []imageDef{
-		{Dir: "prow/cmd/admission"},
-		{Dir: "prow/cmd/clonerefs", Arch: "all"},
+		{Dir: "cmd/admission"},
+		{Dir: "cmd/clonerefs", Arch: "all"},
 	}
 
 	if err := os.WriteFile(file, []byte(body), 0644); err != nil {
@@ -322,7 +322,7 @@ func TestBuildAndPush(t *testing.T) {
 		{
 			name: "base",
 			id: imageDef{
-				Dir:  "prow/cmd/awesome",
+				Dir:  "cmd/awesome",
 				Arch: "linux/amd64",
 			},
 			koDockerRepo: "local.test",
@@ -336,13 +336,13 @@ func TestBuildAndPush(t *testing.T) {
 				"--tags=ko-20220222-a1b2c3d4",
 				"--base-import-paths",
 				"--platform=linux/amd64",
-				"./prow/cmd/awesome",
+				"./cmd/awesome",
 			},
 		},
 		{
 			name: "push",
 			id: imageDef{
-				Dir:  "prow/cmd/awesome",
+				Dir:  "cmd/awesome",
 				Arch: "linux/amd64",
 			},
 			koDockerRepo: "local.test",
@@ -356,13 +356,13 @@ func TestBuildAndPush(t *testing.T) {
 				"--tags=ko-20220222-a1b2c3d4",
 				"--base-import-paths",
 				"--platform=linux/amd64",
-				"./prow/cmd/awesome",
+				"./cmd/awesome",
 			},
 		},
 		{
 			name: "all",
 			id: imageDef{
-				Dir:  "prow/cmd/awesome",
+				Dir:  "cmd/awesome",
 				Arch: "all",
 			},
 			koDockerRepo: "local.test",
@@ -388,13 +388,13 @@ func TestBuildAndPush(t *testing.T) {
 				"--tags=ko-20220222-a1b2c3d4-ppc64le",
 				"--base-import-paths",
 				"--platform=all",
-				"./prow/cmd/awesome",
+				"./cmd/awesome",
 			},
 		},
 		{
 			name: "unsupported-arch",
 			id: imageDef{
-				Dir:  "prow/cmd/awesome",
+				Dir:  "cmd/awesome",
 				Arch: "not/supported",
 			},
 			koDockerRepo: "local.test",
