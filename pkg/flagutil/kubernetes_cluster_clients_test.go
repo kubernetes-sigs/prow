@@ -20,8 +20,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-
-	"sigs.k8s.io/prow/pkg/flagutil"
 )
 
 func TestExperimentalKubernetesOptions_Validate(t *testing.T) {
@@ -43,7 +41,7 @@ func TestExperimentalKubernetesOptions_Validate(t *testing.T) {
 	var testCases = []struct {
 		name        string
 		dryRun      bool
-		kubernetes  flagutil.OptionGroup
+		kubernetes  OptionGroup
 		expectedErr bool
 	}{
 		{
