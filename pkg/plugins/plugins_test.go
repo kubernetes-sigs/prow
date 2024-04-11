@@ -231,9 +231,11 @@ func TestLoad(t *testing.T) {
 	t.Parallel()
 
 	defaultedConfig := func(m ...func(*Configuration)) *Configuration {
+		reviewerCount := 2
 		cfg := &Configuration{
-			Owners:      Owners{LabelsDenyList: []string{"approved", "lgtm"}},
-			Blunderbuss: Blunderbuss{ReviewerCount: func() *int { i := 2; return &i }()},
+			Owners: Owners{LabelsDenyList: []string{"approved", "lgtm"}},
+			Blunderbuss: Blunderbuss{
+				BlunderbussConfig: &BlunderbussConfig{ReviewerCount: &reviewerCount}},
 			CherryPickUnapproved: CherryPickUnapproved{
 				BranchRegexp: "^release-.*$",
 				BranchRe:     regexp.MustCompile("^release-.*$"),
