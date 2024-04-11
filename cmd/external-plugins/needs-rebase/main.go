@@ -26,9 +26,9 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
-	"sigs.k8s.io/prow/pkg/flagutil"
+	"sigs.k8s.io/prow/cmd/external-plugins/needs-rebase/plugin"
 	"sigs.k8s.io/prow/pkg/config/secret"
-	"sigs.k8s.io/prow/pkg/external-plugins/needs-rebase/plugin"
+	"sigs.k8s.io/prow/pkg/flagutil"
 	prowflagutil "sigs.k8s.io/prow/pkg/flagutil"
 	pluginsflagutil "sigs.k8s.io/prow/pkg/flagutil/plugins"
 	"sigs.k8s.io/prow/pkg/github"

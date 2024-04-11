@@ -39,9 +39,9 @@ import (
 
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 
+	needsrebase "sigs.k8s.io/prow/cmd/external-plugins/needs-rebase/plugin"
 	v1 "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 	"sigs.k8s.io/prow/pkg/config"
-	needsrebase "sigs.k8s.io/prow/pkg/external-plugins/needs-rebase/plugin"
 	"sigs.k8s.io/prow/pkg/flagutil"
 	configflagutil "sigs.k8s.io/prow/pkg/flagutil/config"
 	pluginsflagutil "sigs.k8s.io/prow/pkg/flagutil/plugins"
