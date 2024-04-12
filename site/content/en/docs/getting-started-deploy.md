@@ -67,7 +67,7 @@ $ gcloud container --project "${PROJECT}" clusters create prow \
 
 ### Create cluster role bindings
 
-As of 1.8 Kubernetes uses [Role-Based Access Control (“RBAC”)](https://kubernetes.io/docs/admin/authorization/rbac/) to drive authorization decisions, allowing `cluster-admin` to dynamically configure policies.
+As of 1.8 Kubernetes uses [Role-Based Access Control (“RBAC”)](https://kubernetes.io/docs/reference/access-authn-authz/rbac/) to drive authorization decisions, allowing `cluster-admin` to dynamically configure policies.
 To create cluster resources you need to grant a user `cluster-admin` role in all namespaces for the cluster.
 
 For Prow on GCP, you can use the following command.
@@ -129,9 +129,9 @@ kubectl create secret -n prow generic github-token --from-file=cert=/path/to/git
 ### Update the sample manifest
 
 There are three sample manifests to get you started:
-* [`starter-s3.yaml`](https://github.com/kubernetes/test-infra/tree/master/config/prow/cluster/starter/starter-s3.yaml) sets up a minio as blob storage for logs and is particularly well suited to quickly get something working. NOTE: this method requires 2 PVs of 100Gi each.
-* [`starter-gcs.yaml`](https://github.com/kubernetes/test-infra/tree/master/config/prow/cluster/starter/starter-gcs.yaml) uses GCS as blob storage and requires additional configuration to set up the bucket and ServiceAccounts. See [this](#configure-a-gcs-bucket) for details.
-* [`starter-azure.yaml`](https://github.com/kubernetes/test-infra/tree/master/config/prow/cluster/starter/starter-azure.yaml) uses Azure as blob storage and requires MinIO deployment. See [this](#configure-an-azure-blob-storage) for details.
+* [`starter-s3.yaml`](https://github.com/kubernetes/test-infra/blob/master/config/prow/cluster/starter/starter-s3.yaml) sets up a minio as blob storage for logs and is particularly well suited to quickly get something working. NOTE: this method requires 2 PVs of 100Gi each.
+* [`starter-gcs.yaml`](https://github.com/kubernetes/test-infra/blob/master/config/prow/cluster/starter/starter-gcs.yaml) uses GCS as blob storage and requires additional configuration to set up the bucket and ServiceAccounts. See [this](#configure-a-gcs-bucket) for details.
+* [`starter-azure.yaml`](https://github.com/kubernetes/test-infra/blob/master/config/prow/cluster/starter/starter-azure.yaml) uses Azure as blob storage and requires MinIO deployment. See [this](#configure-an-azure-blob-storage) for details.
 
 **Note**: It will deploy prow in the `prow` namespace of the cluster.
 
@@ -287,7 +287,7 @@ In order to configure the Azure storage, follow the following steps:
     - `prow-logs`
     - `status-reconciler`
     - `tide`
-1. apply [starter-azure.yaml](https://github.com/kubernetes/test-infra/tree/master/config/prow/cluster/starter/starter-azure.yaml).
+1. apply [starter-azure.yaml](https://github.com/kubernetes/test-infra/blob/master/config/prow/cluster/starter/starter-azure.yaml).
 
 ### Configure a GCS bucket
 
@@ -319,7 +319,7 @@ In order to configure the bucket, follow the following steps:
 After [downloading](https://cloud.google.com/sdk/gcloud/) the `gcloud` tool and authenticating,
 the following collection of commands will execute the above steps for you:
 
-> You will need to change the bucket name from `gs://your-bucket-name/` to a globally unique one and use that instead in [`starter-gcs.yaml`](https://github.com/kubernetes/test-infra/tree/master/config/prow/cluster/starter/starter-gcs.yaml) too.
+> You will need to change the bucket name from `gs://your-bucket-name/` to a globally unique one and use that instead in [`starter-gcs.yaml`](https://github.com/kubernetes/test-infra/blob/master/config/prow/cluster/starter/starter-gcs.yaml) too.
 
 ```sh
 $ gcloud iam service-accounts create prow-gcs-publisher
@@ -342,7 +342,7 @@ v20191108-08fbf64ac
 ```
 Then, we can use that tag to retrieve the corresponding utility images in `default_decoration_config_entries[]` in `config.yaml`:
 
-For more information on how the pod utility images for prow are versioned see [generic-autobumper](/docs/components/cli-tools/generic-autobumper/) and the [autobump config used for prow.k8s.io](https://github.com/kubernetes/test-infra/tree/master/config/prow/autobump-config/prow-component-autobump-config.yaml)
+For more information on how the pod utility images for prow are versioned see [generic-autobumper](/docs/components/cli-tools/generic-autobumper/) and the [autobump config used for prow.k8s.io](https://github.com/kubernetes/test-infra/blob/master/config/prow/autobump-config/prow-component-autobump-config.yaml)
 
 ```yaml
 plank:
@@ -436,7 +436,7 @@ You may choose to run test pods in a separate cluster entirely. This is a good p
 One can use a Kubernetes [`kubeconfig`](https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/) file (i.e. `Config` object) to instruct Prow components to use the *build* cluster(s).
 All contexts in `kubeconfig` are used as *build* clusters and the [`InClusterConfig`](https://kubernetes.io/docs/tasks/access-application-cluster/access-cluster/#accessing-the-api-from-a-pod) (or `current-context`) is the *default*.
 
-NOTE: See the [`create-build-cluster.sh` script](https://github.com/kubernetes/test-infra/tree/master/prow/create-build-cluster.sh) to help you quickly create and register a GKE cluster as a build cluster for a Prow instance. Continue reading for information about registering a build cluster by hand.
+NOTE: See the [`create-build-cluster.sh` script](https://github.com/kubernetes-sigs/prow/blob/main/prow/create-build-cluster.sh) to help you quickly create and register a GKE cluster as a build cluster for a Prow instance. Continue reading for information about registering a build cluster by hand.
 
 Create a secret containing a `kubeconfig` like this:
 
@@ -577,7 +577,7 @@ See [how to configure tide][7] for more details.
 GitHub Oauth is required for [PR Status](https://prow.k8s.io/pr)
 and for the rerun button on [Prow Status](https://prow.k8s.io).
 To enable these features, follow the
-instructions in [`github_oauth_setup.md`](https://github.com/kubernetes/test-infra/blob/master/prow/cmd/deck/github_oauth_setup.md).
+instructions in [How to setup GitHub Oauth](/docs/components/core/deck/github-oauth-setup/).
 
 ### Configure SSL
 

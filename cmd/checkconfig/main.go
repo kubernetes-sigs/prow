@@ -517,7 +517,7 @@ func strictBranchesConfig(c config.ProwConfig) (*orgRepoConfig, error) {
 }
 
 func validateStrictBranches(c config.ProwConfig) error {
-	const explanation = "See #5: https://github.com/kubernetes/test-infra/blob/master/prow/cmd/tide/maintainers.md#best-practices Also note that this validation is imperfect, see the check-config code for details"
+	const explanation = "See #5: https://docs.prow.k8s.io/docs/components/core/tide/maintainers/#best-practices Also note that this validation is imperfect, see the check-config code for details"
 	if len(c.Tide.Queries) == 0 {
 		// Short circuit here so that we can allow global level branchprotector
 		// 'strict: true' if Tide is not enabled.
@@ -977,7 +977,7 @@ func validateNeedsOkToTestLabel(cfg *config.Config) error {
 							"the tide query at position %d"+
 								"forbids the %q label and requires the %q label, "+
 								"which is not recommended; "+
-								"see https://github.com/kubernetes/test-infra/blob/master/prow/cmd/tide/maintainers.md#best-practices "+
+								"see https://docs.prow.k8s.io/docs/components/core/tide/maintainers/#best-practices "+
 								"for more information",
 							i, labels.NeedsOkToTest, lgtm.LGTMLabel),
 						)

@@ -9,7 +9,7 @@ This tool automates the version upgrading of images such as the [prow.k8s.io](ht
 Its workflow is:
 
 * Given a local git repo containing the manifests of Prow component deployment,
-    e.g., [/config/prow/cluster](https://github.com/kubernetes/test-infra/tree/master/config/prow/cluster) folder in this repo.
+    e.g., [/config/prow/cluster](https://github.com/kubernetes-sigs/prow/tree/main/config/prow/cluster) folder in this repo.
 * Find out the most recent tags of given prefixes in `gcr.io` registry
     and modify the yaml files with them.
 * `git-commit` the change, push it to the remote repo, and create/update a PR,
@@ -20,9 +20,9 @@ The cluster admins can upgrade the version of images by approving the PR.
 Define Prow jobs to utilize this tool:
 
 * Periodic job for the above workflow: Periodically generate PRs for bumping the version,
-    e.g., [ci-test-infra-autobump-prow](https://github.com/kubernetes/test-infra/blob/master/config/jobs/kubernetes/test-infra/test-infra-trusted.yaml#L869).
+    e.g., [ci-test-infra-autobump-prow](https://github.com/kubernetes/test-infra/blob/master/config/jobs/kubernetes/test-infra/test-infra-trusted.yaml#L527).
 * Postsubmit job for auto-deployment: In order to make the changes effective in Prow-cluster,
-a postsubmit job, e.g., [`post-test-infra-deploy-prow`](https://github.com/kubernetes/test-infra/blob/master/config/jobs/kubernetes/test-infra/test-infra-trusted.yaml#L89)
+a postsubmit job, e.g., [`post-test-infra-deploy-prow`](https://github.com/kubernetes/test-infra/blob/master/config/jobs/kubernetes/test-infra/test-infra-trusted.yaml#L84)
     for [prow.k8s.io](https://prow.k8s.io/) is defined for deploying the yaml files.
 
 ### Requirement

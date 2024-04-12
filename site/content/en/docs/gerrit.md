@@ -9,14 +9,14 @@ description: >
 
 ## Related Deployments
 
-- Prow-gerrit adapter ([doc](/docs/components/optional/gerrit/), [code](https://github.com/kubernetes/test-infra/tree/master/prow/cmd/gerrit))
-- Crier (the reporter) ([doc](/docs/components/core/crier/), [code](https://github.com/kubernetes/test-infra/tree/master/prow/cmd/crier))
+- Prow-gerrit adapter ([doc](/docs/components/optional/gerrit/), [code](https://github.com/kubernetes-sigs/prow/tree/main/prow/cmd/gerrit))
+- Crier (the reporter) ([doc](/docs/components/core/crier/), [code](https://github.com/kubernetes-sigs/prow/tree/main/prow/cmd/crier))
 
 ## Related packages
 
 #### Client
 
-We have a [gerrit-client package](https://github.com/kubernetes/test-infra/tree/master/prow/gerrit/client) that provides a thin wrapper around  
+We have a [gerrit-client package](https://github.com/kubernetes-sigs/prow/tree/main/prow/gerrit/client) that provides a thin wrapper around  
 [andygrunwald/go-gerrit](https://github.com/andygrunwald/go-gerrit), which is a go client library
 for accessing the [Gerrit Code Review REST API](https://gerrit-review.googlesource.com/Documentation/rest-api.html)
 
@@ -52,7 +52,7 @@ presubmit and postsubmit jobs based on your prow config.
 
 #### Gerrit Labels
 
-Prow adds the following [Labels](https://github.com/kubernetes/test-infra/tree/master/prow/gerrit/client/client.go) to Gerrit Presubmits that can be accessed in the container by leveraging the [Downward API](https://kubernetes.io/docs/tasks/inject-data-application/environment-variable-expose-pod-information/).
+Prow adds the following [Labels](https://github.com/kubernetes-sigs/prow/blob/main/prow/gerrit/client/client.go) to Gerrit Presubmits that can be accessed in the container by leveraging the [Downward API](https://kubernetes.io/docs/tasks/inject-data-application/environment-variable-expose-pod-information/).
 
 - "prow.k8s.io/gerrit-revision": SHA of current patchset from a gerrit change
 - "prow.k8s.io/gerrit-patchset": Numeric ID of the current patchset

@@ -12,7 +12,7 @@ with artifacts.
 
 ## Spyglass Core
 
-The Spyglass Core is split across [`prow/spyglass`](https://github.com/kubernetes/test-infra/tree/master/prow/spyglass) and [`prow/cmd/deck`](https://github.com/kubernetes/test-infra/tree/master/prow/cmd/deck). It has
+The Spyglass Core is split across [`prow/spyglass`](https://github.com/kubernetes-sigs/prow/tree/main/prow/spyglass) and [`prow/cmd/deck`](https://github.com/kubernetes-sigs/prow/tree/main/prow/cmd/deck). It has
 the following responsibilities:
 
 - Looking up artifacts for a given job and mapping those to lenses
@@ -22,7 +22,7 @@ the following responsibilities:
 
 ## Spyglass Lenses
 
-Spyglass Lenses currently all live in [`prow/spyglass/lenses`](https://github.com/kubernetes/test-infra/tree/master/prow/spyglass/lenses), though hopefully in the
+Spyglass Lenses currently all live in [`prow/spyglass/lenses`](https://github.com/kubernetes-sigs/prow/tree/main/prow/spyglass/lenses), though hopefully in the
 future they can live elsewhere. Spyglass lenses have the following responsibilities:
 
 - Fetching artifacts
@@ -34,17 +34,17 @@ intended API. In particular, this prevents lenses from interacting with other De
 the core spyglass page.
 
 In order to provide this API to lenses, a library
-([`prow/cmd/deck/static/spyglass/lens.ts`](https://github.com/kubernetes/test-infra/tree/master/prow/cmd/deck/static/spyglass/lens.ts)) is injected into
+([`prow/cmd/deck/static/spyglass/lens.ts`](https://github.com/kubernetes-sigs/prow/blob/main/prow/cmd/deck/static/spyglass/lens.ts)) is injected into
 the lenses under the `spyglass` namespace. This library communicates with the spyglass core via
 [`window.postMessage`](https://developer.mozilla.org/en-US/docs/Web/API/Window/postMessage). The
 spyglass core then takes the requested action on the lens's behalf, which includes facilitating
 communication between the lens frontend and backend. The messages exchanged between the core and the
-lens are described in [`prow/cmd/deck/static/spyglass/common.ts`](https://github.com/kubernetes/test-infra/tree/master/prow/cmd/deck/static/spyglass/common.ts).
+lens are described in [`prow/cmd/deck/static/spyglass/common.ts`](https://github.com/kubernetes-sigs/prow/blob/main/prow/cmd/deck/static/spyglass/common.ts).
 The messages are exchanged over a simple JSON-encoded protocol where each message sent from the lens
 has an ID number attached, and a response with the same ID number is expected to be received.
 
 For the purposes of static typing, the lens library is ambiently declared in
-[`spyglass/lenses/lens.d.ts`](https://github.com/kubernetes/test-infra/tree/master/prow/spyglass/lenses/lens.d.ts), which just re-exports the definition of
+[`spyglass/lenses/lens.d.ts`](https://github.com/kubernetes-sigs/prow/blob/main/prow/spyglass/lenses/lens.d.ts), which just re-exports the definition of
 `spyglass` from `lens.ts`.
 
 This design is discussed in its [implementation PR](https://github.com/kubernetes/test-infra/pull/10208).

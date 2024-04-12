@@ -33,7 +33,7 @@ go build ./cmd/hook
 go test ./pkg/plugins/lgtm
 ```
 (Note: `deck` depends on non-go static files, these were tested by integration
-tests, and for e2e test use [`runlocal`](https://github.com/kubernetes/test-infra/tree/master/prow/cmd/deck/runlocal) if desired.)
+tests, and for e2e test use [`runlocal`](https://github.com/kubernetes-sigs/prow/tree/main/prow/cmd/deck/runlocal) if desired.)
 
 ### How to test a plugin
 
@@ -115,7 +115,7 @@ The ProwJob must use `agent: kubernetes` (the default, runs ProwJobs as Pods).
 Each Prow instance can supply a preconfigured variant of pj-on-kind.sh that properly
 defaults the config file locations. [Example](https://github.com/istio/test-infra/blob/01167b0dc9cb19bee40aa8dff958f526cfeeb570/prow/pj-on-kind.sh)
 for [prow.istio.io](https://prow.istio.io).
-To test ProwJobs for the [prow.k8s.io] instance use [`config/pj-on-kind.sh`](https://github.com/kubernetes/test-infra/tree/master/config/pj-on-kind.sh).
+To test ProwJobs for the [prow.k8s.io] instance use [`config/pj-on-kind.sh`](https://github.com/kubernetes/test-infra/blob/master/config/pj-on-kind.sh).
 
 ##### Example
 This command runs the ProwJob [`pull-test-infra-yamllint`](https://github.com/kubernetes/test-infra/blob/170921984a34ca40f2763f9e71d6ce6e033dec03/config/jobs/kubernetes/test-infra/test-infra-presubmits.yaml#L94-L107) locally on Kind.
@@ -187,4 +187,4 @@ to generate ProwJob YAML.
 [Kind]: https://sigs.k8s.io/kind
 [mkpj]: /docs/components/cli-tools/mkpj/
 [mkpod]: /docs/components/cli-tools/mkpod/
-[pj-on-kind.sh]: https://github.com/kubernetes/test-infra/tree/master/prow/pj-on-kind.sh
+[pj-on-kind.sh]: https://github.com/kubernetes-sigs/prow/blob/main/prow/pj-on-kind.sh

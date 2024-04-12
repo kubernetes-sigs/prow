@@ -113,7 +113,7 @@ Pass the file path to `deck` as a flag:
 
 `--github-token-path=/etc/github/oauth`
 
-You can optionally use [ghproxy](https://github.com/kubernetes/test-infra/blob/master/ghproxy/README.md) to reduce token usage. 
+You can optionally use [ghproxy](https://github.com/kubernetes-sigs/prow/blob/main/ghproxy/README.md) to reduce token usage. 
 
 ## Run PR Status endpoint locally
 

@@ -8,7 +8,7 @@ description: >
 For a brief overview of how Prow runs jobs take a look at ["Life of a Prow Job"](/docs/life-of-a-prow-job/).
 
 For a brief cookbook for jobs intended for [prow.k8s.io](https://prow.k8s.io/), please refer to
-[`config/jobs/README.md`](https://github.com/kubernetes/test-infra/tree/master/config/jobs/README.md)
+[`config/jobs/README.md`](https://github.com/kubernetes/test-infra/blob/master/config/jobs/README.md)
 
 Make sure Prow has been [deployed] correctly:
 
@@ -21,7 +21,7 @@ Make sure Prow has been [deployed] correctly:
 
 ## How to configure new jobs
 
-To configure a new job you'll need to add an entry into [config.yaml](https://github.com/kubernetes/test-infra/tree/master/config/prow/config.yaml).
+To configure a new job you'll need to add an entry into [config.yaml](https://github.com/kubernetes/test-infra/blob/master/config/prow/config.yaml).
 If you have [update-config](/docs/components/plugins/updateconfig/) plugin deployed then the
 config will be automatically updated once the PR is merged, else you will need
 to run `make update-config`. This does not require redeploying any binaries,
@@ -385,6 +385,6 @@ The format to send your `deck` URL is `/badge.svg?jobs=single-job-name` or `/bad
 [Pod overview]: https://kubernetes.io/docs/concepts/workloads/pods/pod-overview/#pod-templates
 [PodSpec api reference]: https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#podspec-v1-core
 [`Presets`]: https://github.com/kubernetes/test-infra/blob/3afb608d28630b99e49e09dd101a96c201268739/prow/config/jobs.go#L33-L40
-[`plugins.yaml`]: https://github.com/kubernetes/test-infra/tree/master/config/prow/plugins.yaml
+[`plugins.yaml`]: https://github.com/kubernetes/test-infra/blob/master/config/prow/plugins.yaml
 [deployed]: /docs/getting-started-deploy/
 [regular expression]: https://golang.org/pkg/regexp/syntax/

@@ -166,7 +166,7 @@ This flag is designed to protect against typos in the configuration which might 
 
 See `go run ./cmd/peribolos --help` for the full and current list of settings that can be configured with flags.
 
-[`config.yaml`]: https://github.com/kubernetes/test-infra/tree/master/config/prow/config.yaml
+[`config.yaml`]: https://github.com/kubernetes/test-infra/blob/master/config/prow/config.yaml
 [edit team]: https://developer.github.com/v3/teams/#edit-team
 [edit org]: https://developer.github.com/v3/orgs/#edit-an-organization
 [peribolos]: https://en.wikipedia.org/wiki/Peribolos

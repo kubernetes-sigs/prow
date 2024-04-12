@@ -50,4 +50,4 @@ If you are testing `hook` and successfully sent the webhook from `phony`, you sh
 {"author":"","component":"hook","event-GUID":"GUID","event-type":"pull_request","level":"info","msg":"Pull request .","org":"","pr":0,"repo":"","time":"2018-05-29T11:38:57-07:00","url":""}
 ```
 
-A list of supported events can be found in the [GitHub API Docs](https://developer.github.com/v3/activity/events/types/). Some example event payloads can be found in the [`examples`](https://github.com/kubernetes/test-infra/tree/master/prow/cmd/phony/examples) directory.
+A list of supported events can be found in the [GitHub API Docs](https://developer.github.com/v3/activity/events/types/). Some example event payloads can be found in the [`examples`](https://github.com/kubernetes-sigs/prow/tree/main/prow/cmd/phony/examples) directory.

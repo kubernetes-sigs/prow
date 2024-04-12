@@ -70,7 +70,7 @@ keys (different files once mounted to a container).
 
 ### GitHub API Cache
 
-[`ghproxy`](https://github.com/kubernetes/test-infra/tree/master/ghproxy/) is a reverse proxy HTTP cache optimized for the GitHub API.
+[`ghproxy`](https://github.com/kubernetes-sigs/prow/tree/main/ghproxy/) is a reverse proxy HTTP cache optimized for the GitHub API.
 It takes advantage of how GitHub responds to E-tags in order to fulfill repeated
 requests without spending additional API tokens. Check out this tool if you find
 that your GitHub bot is consuming or approaching its token limit. Similarly,

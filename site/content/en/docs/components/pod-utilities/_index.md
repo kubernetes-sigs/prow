@@ -29,7 +29,7 @@ Writing a ProwJob that uses the Pod Utilities is much easier than writing one
 that doesn't because the Pod Utilities will transparently handle many of the
 tasks the job would otherwise need to do in order to prepare its environment
 and output more than pass/fail. Historically, this was achieved by wrapping
-every job with a [bootstrap.py](https://github.com/kubernetes/test-infra/tree/master/jenkins/bootstrap.py) script that handled cloning
+every job with a [bootstrap.py](https://github.com/kubernetes/test-infra/blob/master/jenkins/bootstrap.py) script that handled cloning
 source code, preparing the test environment, and uploading job metadata, logs,
 and artifacts. This was cumbersome to configure and required every job to be
 wrapped with the script in the job image. The pod utilities achieve the same goals
@@ -132,7 +132,7 @@ the `exta_refs` field. If the cloned path of this repo must be used as a default
 
 ### Migrating from bootstrap.py to Pod Utilities
 
-Jobs using the deprecated [bootstrap.py](https://github.com/kubernetes/test-infra/tree/master/jenkins/bootstrap.py) should switch to the Pod Utilities at
+Jobs using the deprecated [bootstrap.py](https://github.com/kubernetes/test-infra/blob/master/jenkins/bootstrap.py) should switch to the Pod Utilities at
 their earliest convenience. @dims has created a handy [migration guide](https://gist.github.com/dims/c1296f8ed42238baea0a5fcae45f4cf4).
 
 ## Automatic Censoring of Secret Data
