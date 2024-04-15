@@ -18,7 +18,7 @@ require (
 	github.com/dgrijalva/jwt-go/v4 v4.0.0-preview1
 	github.com/evanphx/json-patch v5.6.0+incompatible
 	github.com/felixge/fgprof v0.9.1
-	github.com/fsnotify/fsnotify v1.5.1
+	github.com/fsnotify/fsnotify v1.6.0
 	github.com/fsouza/fake-gcs-server v1.19.4
 	github.com/go-git/go-git/v5 v5.6.1
 	github.com/go-test/deep v1.0.7
