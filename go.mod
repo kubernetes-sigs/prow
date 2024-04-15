@@ -68,10 +68,7 @@ require (
 	sigs.k8s.io/yaml v1.3.0
 )
 
-require (
-	github.com/google/gnostic-models v0.6.8 // indirect
-	github.com/smartystreets/goconvey v1.8.1 // indirect
-)
+require github.com/smartystreets/goconvey v1.8.1 // indirect
 
 require (
 	bitbucket.org/creachadair/stringset v0.0.9 // indirect
