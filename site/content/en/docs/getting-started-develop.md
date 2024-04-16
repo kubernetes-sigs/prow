@@ -10,7 +10,7 @@ description: >
 Please consider upstreaming any changes or additions you make! Contributions in any form (issues, pull requests, even constructive comments in discussions) are more than welcome!
 You can develop in-tree for more help and review, or out-of-tree if you need to for whatever reason. If you upstream a new feature or a change that impacts the default behavior of Prow, consider adding an [announcement](/docs/announcements/) about it and dropping an email at the [sig-testing](https://groups.google.com/forum/#!forum/kubernetes-sig-testing) mailing list.
 
-**New Contributors** should search for issues in kubernetes/test-infra with the `help-wanted` and/or `good first issue` labels. [(Query link)](https://github.com/kubernetes/test-infra/issues?utf8=%E2%9C%93&q=is%3Aopen+is%3Aissue+label%3A%22help+wanted%22). Before starting work please ensure that the issue is still active and then provide a short design overview of your planned solution.
+**New Contributors** should search for issues in kubernetes-sigs/prow with the `help-wanted` and/or `good first issue` labels. [(Query link)](https://github.com/kubernetes-sigs/prow/issues?utf8=%E2%9C%93&q=is%3Aopen+is%3Aissue+label%3A%22help+wanted%22). Before starting work please ensure that the issue is still active and then provide a short design overview of your planned solution.
 Also reach out on the Kubernetes slack in the `sig-testing` channel.
 
 ## Prow Integration Points

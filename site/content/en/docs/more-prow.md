@@ -41,7 +41,7 @@ Combining a postsubmit deploy job with a periodic job that runs the Prow Autobum
 
 ### Deploy config changes automatically
 
-Prow can also automatically upload changes to files that correspond to Kubernetes ConfigMaps. This includes its own `config`, `plugins` and `job-config` config maps. Take a look at the [`updateconfig` plugin](/docs/components/plugins/updateconfig/) and [`config-bootstrapper`](/docs/components/cli-tools/config-bootstrapper/) for more details. Both of these tools share the [`updateconfig` plugin's plugin configuration](https://github.com/kubernetes/test-infra/blob/531f2a5e6b6fb60e3262340a86992029aa59808f/prow/plugins/config.go#L69). The plugin provides slightly better GitHub integration and is simpler to enable, but the config-bootstrapper is more flexible. It can be run in a postsubmit job to provide config upload on non-GitHub Prow instances or run after custom config generation is executed.
+Prow can also automatically upload changes to files that correspond to Kubernetes ConfigMaps. This includes its own `config`, `plugins` and `job-config` config maps. Take a look at the [`updateconfig` plugin](/docs/components/plugins/updateconfig/) and [`config-bootstrapper`](/docs/components/cli-tools/config-bootstrapper/) for more details. Both of these tools share the [`updateconfig` plugin's plugin configuration](https://github.com/kubernetes-sigs/prow/blob/7013691e3f35afd02f300c04ccd06ebed66a785f/prow/plugins/config.go#L77). The plugin provides slightly better GitHub integration and is simpler to enable, but the config-bootstrapper is more flexible. It can be run in a postsubmit job to provide config upload on non-GitHub Prow instances or run after custom config generation is executed.
 
 ## Use other tools with Prow
 

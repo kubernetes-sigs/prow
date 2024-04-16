@@ -384,7 +384,7 @@ The format to send your `deck` URL is `/badge.svg?jobs=single-job-name` or `/bad
 
 [Pod overview]: https://kubernetes.io/docs/concepts/workloads/pods/pod-overview/#pod-templates
 [PodSpec api reference]: https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#podspec-v1-core
-[`Presets`]: https://github.com/kubernetes/test-infra/blob/3afb608d28630b99e49e09dd101a96c201268739/prow/config/jobs.go#L33-L40
+[`Presets`]: https://github.com/kubernetes-sigs/prow/blob/7013691e3f35afd02f300c04ccd06ebed66a785f/prow/config/jobs.go#L42-L48
 [`plugins.yaml`]: https://github.com/kubernetes/test-infra/blob/master/config/prow/plugins.yaml
 [deployed]: /docs/getting-started-deploy/
 [regular expression]: https://golang.org/pkg/regexp/syntax/

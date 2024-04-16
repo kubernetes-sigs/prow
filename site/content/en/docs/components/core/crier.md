@@ -238,7 +238,7 @@ so as a user you only want to make one of them to report :-)
 
 To disable GitHub reporting in Plank, add the `--skip-report=true` flag to the Plank [deployment](https://github.com/kubernetes/test-infra/blob/de3775a7480fe0a724baacf24a87cbf058cd9fd5/prow/cluster/plank_deployment.yaml#L45).
 
-Before migrating, be sure plank is setting the [PrevReportStates field](https://github.com/kubernetes/test-infra/blob/de3775a7480fe0a724baacf24a87cbf058cd9fd5/prow/apis/prowjobs/v1/types.go#L566)
+Before migrating, be sure plank is setting the [PrevReportStates field](https://github.com/kubernetes-sigs/prow/blob/7013691e3f35afd02f300c04ccd06ebed66a785f/prow/apis/prowjobs/v1/types.go#L1078)
 by describing a finished presubmit prowjob. Plank started to set this field after commit [2118178](https://github.com/kubernetes/test-infra/pull/10975/commits/211817826fc3c4f3315a02e46f3d6aa35573d22f), if not, you want to upgrade your plank to a version includes this commit before moving forward.
 
 you can check this entry by:
