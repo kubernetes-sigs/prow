@@ -38,7 +38,7 @@ baseImageOverrides:
   sigs.k8s.io/prow/cmd/external-plugins/needs-rebase: gcr.io/k8s-prow/alpine:v20240129-a0a4e743bf
   sigs.k8s.io/prow/cmd/external-plugins/cherrypicker: gcr.io/k8s-prow/git:v20240129-a0a4e743bf
   sigs.k8s.io/prow/cmd/external-plugins/refresh: gcr.io/k8s-prow/alpine:v20240129-a0a4e743bf
-  sigs.k8s.io/prow/ghproxy: gcr.io/k8s-prow/alpine:v20240129-a0a4e743bf
+  sigs.k8s.io/prow/cmd/ghproxy: gcr.io/k8s-prow/alpine:v20240129-a0a4e743bf
 
   # prow integration test
   sigs.k8s.io/prow/test/integration/cmd/fakeghserver: gcr.io/k8s-prow/alpine:v20240129-a0a4e743bf
@@ -299,7 +299,7 @@ builds:
       - -X sigs.k8s.io/prow/pkg/version.Name=refresh
   - id: ghproxy
     dir: .
-    main: ghproxy
+    main: cmd/ghproxy
     ldflags:
       - -s -w
       - -X sigs.k8s.io/prow/pkg/version.Version={{.Env.VERSION}}

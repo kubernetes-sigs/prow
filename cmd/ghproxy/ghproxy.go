@@ -31,11 +31,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/prow/pkg/pjutil/pprof"
 
-	"sigs.k8s.io/prow/ghproxy/apptokenequalizer"
-	"sigs.k8s.io/prow/ghproxy/ghcache"
+	"sigs.k8s.io/prow/pkg/apptokenequalizer"
 	"sigs.k8s.io/prow/pkg/config"
 	"sigs.k8s.io/prow/pkg/diskutil"
 	"sigs.k8s.io/prow/pkg/flagutil"
+	"sigs.k8s.io/prow/pkg/ghcache"
 	"sigs.k8s.io/prow/pkg/interrupts"
 	"sigs.k8s.io/prow/pkg/logrusutil"
 	"sigs.k8s.io/prow/pkg/metrics"

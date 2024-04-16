@@ -1,4 +1,5 @@
 _bin/
+_output/
 .python_virtual_env
 cmd/branchprotector/branchprotector
 cmd/build/build
@@ -27,9 +28,10 @@ cmd/tackle/tackle
 cmd/tide/tide
 cmd/tot/fallbackcheck/fallbackcheck
 cmd/tot/tot
-external-plugins/cherrypicker/cherrypicker
-external-plugins/needs-rebase/needs-rebase
-external-plugins/refresh/refresh
+cmd/external-plugins/cherrypicker/cherrypicker
+cmd/external-plugins/needs-rebase/needs-rebase
+cmd/external-plugins/refresh/refresh
+cmd/ghproxy/ghproxy
 pj.yaml
 pod.yaml
 *.min.js

@@ -27,7 +27,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"sigs.k8s.io/prow/ghproxy/ghmetrics"
+	"sigs.k8s.io/prow/pkg/github/ghmetrics"
 )
 
 // requestCoalescer allows concurrent requests for the same URI to share a

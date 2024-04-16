@@ -41,7 +41,7 @@ import (
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
 
-	"sigs.k8s.io/prow/ghproxy/ghcache"
+	"sigs.k8s.io/prow/pkg/ghcache"
 	"sigs.k8s.io/prow/pkg/throttle"
 	"sigs.k8s.io/prow/pkg/version"
 )

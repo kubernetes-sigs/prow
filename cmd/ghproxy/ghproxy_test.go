@@ -33,7 +33,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"sigs.k8s.io/prow/ghproxy/ghcache"
+	"sigs.k8s.io/prow/pkg/ghcache"
 	"sigs.k8s.io/prow/pkg/github"
 )
 

@@ -49,7 +49,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/semaphore"
-	"sigs.k8s.io/prow/ghproxy/ghmetrics"
+	"sigs.k8s.io/prow/pkg/github/ghmetrics"
 )
 
 type CacheResponseMode string

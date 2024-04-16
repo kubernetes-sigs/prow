@@ -28,7 +28,7 @@ import (
 	"testing"
 	"time"
 
-	"sigs.k8s.io/prow/ghproxy/ghmetrics"
+	"sigs.k8s.io/prow/pkg/github/ghmetrics"
 
 	"k8s.io/apimachinery/pkg/util/diff"
 )
