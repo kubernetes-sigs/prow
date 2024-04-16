@@ -45,7 +45,6 @@ Prow has a microservice architecture implemented as a collection of container im
 * `mkpj` ([doc](/docs/components/cli-tools/mkpj/), [code](https://github.com/kubernetes-sigs/prow/tree/main/prow/cmd/mkpj)) creates `ProwJobs` using Prow configuration.
 * `mkpod` ([doc](/docs/components/cli-tools/mkpod/), [code](https://github.com/kubernetes-sigs/prow/tree/main/prow/cmd/mkpod)) creates `Pods` from `ProwJobs`.
 * `peribolos` ([doc](/docs/components/cli-tools/peribolos/), [code](https://github.com/kubernetes-sigs/prow/tree/main/prow/cmd/peribolos)) manages GitHub org, team and membership settings according to a config file. Used by [kubernetes/org](https://github.com/kubernetes/org)
-* `phaino` ([doc](/docs/components/cli-tools/phaino/), [code](https://github.com/kubernetes-sigs/prow/tree/main/prow/cmd/phaino)) runs an approximation of a ProwJob on your local workstation
 * `phony` ([doc](/docs/components/cli-tools/phony/), [code](https://github.com/kubernetes-sigs/prow/tree/main/prow/cmd/phony)) sends fake webhooks for testing hook and plugins.
 
 ## Pod Utilities
@@ -71,3 +70,4 @@ The container images in [`images`](https://github.com/kubernetes/test-infra/tree
 ## Deprecated
 
 * `cm2kc` ([doc](/docs/components/deprecated/cm2kc/), [code](https://github.com/kubernetes-sigs/prow/tree/main/prow/cmd/cm2kc)) is a CLI tool used to convert a [clustermap file](/docs/getting-started-deploy/#run-test-pods-in-different-clusters) to a [kubeconfig file](https://kubernetes.io/docs/tasks/access-application-cluster/configure-access-multiple-clusters/). Deprecated because we have moved away from clustermaps; you should use [`gencred`](https://github.com/kubernetes/test-infra/tree/master/gencred) to generate a [kubeconfig file](https://kubernetes.io/docs/tasks/access-application-cluster/configure-access-multiple-clusters/) directly.
+* `phaino` ([doc](/docs/components/deprecated/phaino/)) runs an approximation of a ProwJob on your local workstation

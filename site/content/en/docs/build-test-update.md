@@ -142,11 +142,6 @@ export KUBECONFIG='/<path to user dir>/.kube/kind-config-mkpod'
 ```
 After pointing to the correct master you will be able to drop into the container using `kubectl exec -it <pod name> <bash/sh/etc>`. **This pod will only last the lifecycle of the job, if you need more time to debug you might add a `sleep` within the job execution.
 
-#### Using Phaino
-[Phaino](/docs/components/cli-tools/phaino/) lets you interactively mock and run the job locally on
-your workstation in a docker container. Detailed instructions can be found in
-Phaino's [Readme](/docs/components/cli-tools/phaino/).
-
 Note: Test containers designed for decorated jobs (configured with `decorate: true`)
 may behave incorrectly or fail entirely without the environment the pod utilities
 provide. Similarly jobs that mount volumes or use `extra_refs` likely won't work
