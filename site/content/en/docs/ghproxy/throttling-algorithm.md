@@ -28,7 +28,8 @@ max waiting time in a queue is introduced. It is 30 seconds.
 
 ## Flags
 
-Flags `--throttling-time-ms` and `--get-throttling-time-ms` have to be set to a non-zero value, otherwise, additional throttling mechanism will be disabled.
+Flags `--throttling-time-ms` and `--get-throttling-time-ms` have to be set to a non-zero value, 
+otherwise, additional throttling mechanism will be disabled.
 
 **All available flags:**
 - `throttling-time-ms` enables a throttling mechanism which imposes time spacing between

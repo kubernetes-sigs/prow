@@ -6,7 +6,8 @@ description: >
 ---
 
 ghProxy is a reverse proxy HTTP cache optimized for use with the GitHub API (https://api.github.com).
-It is essentially just a reverse proxy wrapper around [ghCache](/docs/ghproxy/ghcache/) with Prometheus instrumentation to monitor disk usage.
+It is essentially just a reverse proxy wrapper around [ghCache](/docs/ghproxy/ghcache/) 
+with Prometheus instrumentation to monitor disk usage.
 
 ghProxy is designed to reduce API token usage by allowing many components to
 share a single ghCache.
