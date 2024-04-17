@@ -31,7 +31,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
-	"sigs.k8s.io/prow/prow/flagutil"
+	"sigs.k8s.io/prow/pkg/flagutil"
 	"sigs.k8s.io/yaml"
 )
 
@@ -42,7 +42,7 @@ const (
 	gatherStaicScriptName = "gather-static.sh"
 
 	// Relative to root of the repo
-	defaultProwImageListFile = "prow/.prow-images.yaml"
+	defaultProwImageListFile = ".prow-images.yaml"
 
 	defaultWorkersCount = 10
 	defaultRetry        = 3

@@ -43,7 +43,7 @@ We need to fulfil those requirements to use this tool:
     to be used by this tool to push changes and create PRs against the remote repo.
 
 * a yaml config file that specifies the follwing information passed in with the flag -config=FILEPATH:
-* For info about what should go in the config look at [the documentation for the Options here](https://pkg.go.dev/sigs.k8s.io/prow/prow/cmd/generic-autobumper/bumper#Options) and look at the example below.
+* For info about what should go in the config look at [the documentation for the Options here](https://pkg.go.dev/sigs.k8s.io/prow/pkg/cmd/generic-autobumper/bumper#Options) and look at the example below.
   
 e.g.,
 

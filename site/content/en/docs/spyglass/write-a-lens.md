@@ -14,10 +14,10 @@ Today, a lens backend must be linked in to the `deck` binary. As such, lenses mu
 name of the lens. The content of this folder will be served by `deck`, enabling you to reference
 static content such as images, stylesheets, or scripts.
 
-Inside your template you must implement the [`lenses.Lens` interface](https://godoc.org/sigs.k8s.io/prow/prow/spyglass/lenses#Lens).
+Inside your template you must implement the [`lenses.Lens` interface](https://godoc.org/sigs.k8s.io/prow/pkg/spyglass/lenses#Lens).
 
 An instance of the struct implementing the `lenses.Lens` interface must then be registered with
-spyglass, by calling [`lenses.RegisterLens`](https://godoc.org/sigs.k8s.io/prow/prow/spyglass/lenses#RegisterLens).
+spyglass, by calling [`lenses.RegisterLens`](https://godoc.org/sigs.k8s.io/prow/pkg/spyglass/lenses#RegisterLens).
 
 A minimal example of a lens  called `samplelens`, located at `lenses/samplelens`, might look like this:
 
@@ -26,8 +26,8 @@ package samplelens
 import (
 	"encoding/json"
 
-	"sigs.k8s.io/prow/prow/config"
-	"sigs.k8s.io/prow/prow/spyglass/lenses"
+	"sigs.k8s.io/prow/pkg/config"
+	"sigs.k8s.io/prow/pkg/spyglass/lenses"
 )
 
 type Lens struct{}
@@ -69,7 +69,7 @@ this by `import`ing it from [`prow/cmd/deck/main.go`](https://github.com/kuberne
 ```go
 import (
 	// ...
-	_ "sigs.k8s.io/prow/prow/spyglass/lenses/samplelens"
+	_ "sigs.k8s.io/prow/pkg/spyglass/lenses/samplelens"
 )
 ```
 

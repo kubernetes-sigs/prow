@@ -9,7 +9,7 @@ description: >
 
 Prow is a Kubernetes based CI/CD system. Jobs can be triggered by various types of events and report their status to many different services. In addition to job execution, Prow provides GitHub automation in the form of policy enforcement, chat-ops via `/foo` style commands, and automatic PR merging.
 
-See the [GoDoc](https://pkg.go.dev/sigs.k8s.io/prow/prow) for library docs.
+See the [GoDoc](https://pkg.go.dev/sigs.k8s.io/prow/pkg) for library docs.
 Please note that these libraries are intended for use by prow only, and we do
 not make any attempt to preserve backwards compatibility.
 

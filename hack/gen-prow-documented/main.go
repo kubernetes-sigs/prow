@@ -24,9 +24,9 @@ import (
 	"path/filepath"
 
 	"github.com/sirupsen/logrus"
+	"sigs.k8s.io/prow/pkg/config"
 	"sigs.k8s.io/prow/pkg/genyaml"
-	"sigs.k8s.io/prow/prow/config"
-	"sigs.k8s.io/prow/prow/plugins"
+	"sigs.k8s.io/prow/pkg/plugins"
 )
 
 const (
@@ -37,18 +37,18 @@ const (
 var genConfigs = []genConfig{
 	{
 		in: []string{
-			"prow/config/*.go",
-			"prow/apis/prowjobs/v1/*.go",
+			"pkg/config/*.go",
+			"pkg/apis/prowjobs/v1/*.go",
 		},
 		format: &config.ProwConfig{},
-		out:    "prow/config/prow-config-documented.yaml",
+		out:    "pkg/config/prow-config-documented.yaml",
 	},
 	{
 		in: []string{
-			"prow/plugins/*.go",
+			"pkg/plugins/*.go",
 		},
 		format: &plugins.Configuration{},
-		out:    "prow/plugins/plugin-config-documented.yaml",
+		out:    "pkg/plugins/plugin-config-documented.yaml",
 	},
 }
 
@@ -93,4 +93,3 @@ func main() {
 		}
 	}
 }
-
