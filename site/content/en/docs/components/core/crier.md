@@ -51,7 +51,7 @@ You can enable github reporter in crier by specifying `--github-workers=N` flag 
 
 You also need to mount a github oauth token by specifying `--github-token-path` flag, which defaults to `/etc/github/oauth`.
 
-If you have a [ghproxy](https://github.com/kubernetes-sigs/prow/tree/main/ghproxy) deployed, also remember to point `--github-endpoint` to your ghproxy to avoid token throttle.
+If you have a [ghproxy](/docs/ghproxy/) deployed, also remember to point `--github-endpoint` to your ghproxy to avoid token throttle.
 
 The actual report logic is in the [github report library](https://github.com/kubernetes-sigs/prow/tree/main/pkg/github/report) for your reference.
 
