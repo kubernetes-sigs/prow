@@ -396,13 +396,13 @@ func (o *KubernetesOptions) BuildClusterManagers(dryRun bool, requiredTestPodVer
 			authzClient, err := authorizationv1.NewForConfig(&config)
 			if err != nil {
 				lock.Lock()
-				errs = append(errs, fmt.Errorf("failed to construct authz client: %s", err))
+				errs = append(errs, fmt.Errorf("failed to construct authz client for cluster %s: %s", name, err))
 				lock.Unlock()
 				return
 			}
 			if err := CheckAuthorizations(authzClient.SelfSubjectAccessReviews(), options.Namespace, requiredTestPodVerbs); err != nil {
 				lock.Lock()
-				errs = append(errs, fmt.Errorf("failed pod resource authorization check: %w", err))
+				errs = append(errs, fmt.Errorf("failed pod resource authorization check for cluster %s: %w", name, err))
 				lock.Unlock()
 				return
 			}
