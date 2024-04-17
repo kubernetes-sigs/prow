@@ -1,0 +1,43 @@
+images:
+  - dir: cmd/admission
+  - dir: cmd/branchprotector
+  - dir: cmd/checkconfig
+  - dir: cmd/config-bootstrapper
+  - dir: cmd/deck
+  - dir: cmd/exporter
+  - dir: cmd/gerrit
+  - dir: cmd/crier
+  - dir: cmd/gangway
+  - dir: cmd/generic-autobumper
+  - dir: cmd/grandmatriarch
+  - dir: cmd/gcsupload
+  - dir: cmd/hook
+  - dir: cmd/hmac
+  - dir: cmd/horologium
+  - dir: cmd/invitations-accepter
+  - dir: cmd/jenkins-operator
+  - dir: cmd/mkpj
+  - dir: cmd/mkpod
+  - dir: cmd/moonraker
+  - dir: cmd/peribolos
+  - dir: cmd/sinker
+  - dir: cmd/status-reconciler
+  - dir: cmd/sub
+  - dir: cmd/tide
+  - dir: cmd/tot
+  - dir: cmd/pipeline
+  - dir: cmd/prow-controller-manager
+  - dir: cmd/webhook-server
+  # pod utils
+  - dir: cmd/clonerefs
+    arch: all
+  - dir: cmd/entrypoint
+    arch: all
+  - dir: cmd/initupload
+    arch: all
+  - dir: cmd/sidecar
+    arch: all
+  - dir: cmd/external-plugins/needs-rebase
+  - dir: cmd/external-plugins/cherrypicker
+  - dir: cmd/external-plugins/refresh
+  - dir: cmd/ghproxy

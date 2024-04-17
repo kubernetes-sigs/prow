@@ -8,7 +8,7 @@ description: >
 Plugins are sub-components of [`hook`](/docs/components/core/hook/) that consume [GitHub webhooks](https://developer.github.com/webhooks/) related to their function and can be individually enabled per repo or org.
 
 All plugin specific configuration is stored in [`plugins.yaml`](https://github.com/kubernetes/test-infra/tree/master/config/prow/plugins.yaml).
-The `Configuration` golang struct holds all the config fields organized into substructures by plugin. See its [GoDoc](https://godoc.org/sigs.k8s.io/prow/prow/plugins#Configuration) for up-to-date descriptions of every config option.
+The `Configuration` golang struct holds all the config fields organized into substructures by plugin. See its [GoDoc](https://godoc.org/sigs.k8s.io/prow/pkg/plugins#Configuration) for up-to-date descriptions of every config option.
 
 ## Help Information
 

@@ -47,7 +47,7 @@ if find -L . -type f -not \( \
     -o -path '*/node_modules/*' \
     -o -path '*/localdata/*' \
     -o -path '*/gubernator/*' \
-    -o -path '*/prow/bugzilla/client_test.go' \
+    -o -path '*/pkg/bugzilla/client_test.go' \
     -o -path './.git/*' \
     -o -path './_bin/*' \
     -o -path './_output/*' \
