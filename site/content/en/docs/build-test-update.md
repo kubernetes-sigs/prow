@@ -33,7 +33,7 @@ go build ./cmd/hook
 go test ./pkg/plugins/lgtm
 ```
 (Note: `deck` depends on non-go static files, these were tested by integration
-tests, and for e2e test use [`runlocal`](https://github.com/kubernetes-sigs/prow/tree/main/prow/cmd/deck/runlocal) if desired.)
+tests, and for e2e test use [`runlocal`](https://github.com/kubernetes-sigs/prow/blob/main/cmd/deck/runlocal) if desired.)
 
 ### How to test a plugin
 

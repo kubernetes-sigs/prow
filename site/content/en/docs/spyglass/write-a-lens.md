@@ -10,7 +10,7 @@ Spyglass lenses consist of two components: a frontend (which may be trivial) and
 ## Lens backend
 
 Today, a lens backend must be linked in to the `deck` binary. As such, lenses must live under
-[`prow/spyglass/lenses`](https://github.com/kubernetes-sigs/prow/tree/main/prow/spyglass/lenses). Additionally lenses **must** be in a folder that matches the
+[`prow/spyglass/lenses`](https://github.com/kubernetes-sigs/prow/tree/main/pkg/spyglass/lenses). Additionally lenses **must** be in a folder that matches the
 name of the lens. The content of this folder will be served by `deck`, enabling you to reference
 static content such as images, stylesheets, or scripts.
 

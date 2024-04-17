@@ -60,7 +60,7 @@ Assume we want to add `most-awesome-component` (source code in `cmd/most-awesome
 
 ## New tests
 
-Tests are written under the [`test`](https://github.com/kubernetes-sigs/prow/tree/main/prow/test/integration/test) directory. They are named with the
+Tests are written under the [`test`](https://github.com/kubernetes-sigs/prow/tree/main/test/integration/test) directory. They are named with the
 pattern `<COMPONENT>_test.go*`. Continuing the example above, you would add new
 tests in `most-awesome-component_test.go`
 

@@ -54,7 +54,7 @@ type Configuration struct {
 	// If it is defined on both organization and repository levels, the list of enabled
 	// plugin names for the repository is the merging list of the two levels.
 	// You can find a comprehensive list of the default available plugins here
-	// https://github.com/kubernetes-sigs/prow/tree/main/prow/plugins
+	// https://github.com/kubernetes-sigs/prow/tree/main/pkg/plugins
 	// note that you're also able to add external plugins.
 	Plugins Plugins `json:"plugins,omitempty"`
 

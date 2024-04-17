@@ -9,14 +9,14 @@ description: >
 
 ## Related Deployments
 
-- Prow-gerrit adapter ([doc](/docs/components/optional/gerrit/), [code](https://github.com/kubernetes-sigs/prow/tree/main/prow/cmd/gerrit))
-- Crier (the reporter) ([doc](/docs/components/core/crier/), [code](https://github.com/kubernetes-sigs/prow/tree/main/prow/cmd/crier))
+- Prow-gerrit adapter ([doc](/docs/components/optional/gerrit/), [code](https://github.com/kubernetes-sigs/prow/tree/main/cmd/gerrit))
+- Crier (the reporter) ([doc](/docs/components/core/crier/), [code](https://github.com/kubernetes-sigs/prow/tree/main/cmd/crier))
 
 ## Related packages
 
 #### Client
 
-We have a [gerrit-client package](https://github.com/kubernetes-sigs/prow/tree/main/prow/gerrit/client) that provides a thin wrapper around  
+We have a [gerrit-client package](https://github.com/kubernetes-sigs/prow/tree/main/pkg/gerrit/client) that provides a thin wrapper around 
 [andygrunwald/go-gerrit](https://github.com/andygrunwald/go-gerrit), which is a go client library
 for accessing the [Gerrit Code Review REST API](https://gerrit-review.googlesource.com/Documentation/rest-api.html)
 

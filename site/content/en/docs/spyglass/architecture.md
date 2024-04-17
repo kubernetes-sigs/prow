@@ -12,7 +12,7 @@ with artifacts.
 
 ## Spyglass Core
 
-The Spyglass Core is split across [`prow/spyglass`](https://github.com/kubernetes-sigs/prow/tree/main/prow/spyglass) and [`prow/cmd/deck`](https://github.com/kubernetes-sigs/prow/tree/main/prow/cmd/deck). It has
+The Spyglass Core is split across [`prow/spyglass`](https://github.com/kubernetes-sigs/prow/tree/main/pkg/spyglass) and [`prow/cmd/deck`](https://github.com/kubernetes-sigs/prow/tree/main/cmd/deck). It has
 the following responsibilities:
 
 - Looking up artifacts for a given job and mapping those to lenses
@@ -22,7 +22,7 @@ the following responsibilities:
 
 ## Spyglass Lenses
 
-Spyglass Lenses currently all live in [`prow/spyglass/lenses`](https://github.com/kubernetes-sigs/prow/tree/main/prow/spyglass/lenses), though hopefully in the
+Spyglass Lenses currently all live in [`prow/spyglass/lenses`](https://github.com/kubernetes-sigs/prow/tree/main/pkg/spyglass/lenses), though hopefully in the
 future they can live elsewhere. Spyglass lenses have the following responsibilities:
 
 - Fetching artifacts
