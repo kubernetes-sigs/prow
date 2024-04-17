@@ -1,2 +1,3 @@
 _bin/
 .python_virtual_env
+/vendor/
