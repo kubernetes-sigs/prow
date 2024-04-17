@@ -50,7 +50,7 @@ See example below:
 Rerunning can also be done on Spyglass:
 ![Example](./spyglass_rerun.png)
 
-This is also available for non github prow if the frontend is secured and [`allow_anyone`](https://github.com/kubernetes-sigs/prow/blob/7013691e3f35afd02f300c04ccd06ebed66a785f/prow/apis/prowjobs/v1/types.go#L264-L265) is set to true for the job.
+This is also available for non github prow if the frontend is secured and [`allow_anyone`](https://github.com/kubernetes-sigs/prow/blob/db89760fea406dd2813e331c3d52b53b5bcbd140/pkg/apis/prowjobs/v1/types.go#L264-L265) is set to true for the job.
 
 ## Abort Prow Job via Prow UI
 
@@ -62,4 +62,4 @@ See example below:
 Aborting can also be done on Spyglass:
 ![Example](./spyglass_abort.png)
 
-This is also available for non github prow if the frontend is secured and [`allow_anyone`](https://github.com/kubernetes-sigs/prow/blob/7013691e3f35afd02f300c04ccd06ebed66a785f/prow/apis/prowjobs/v1/types.go#L264-L265) is set to true for the job.
+This is also available for non github prow if the frontend is secured and [`allow_anyone`](https://github.com/kubernetes-sigs/prow/blob/db89760fea406dd2813e331c3d52b53b5bcbd140/pkg/apis/prowjobs/v1/types.go#L264-L265) is set to true for the job.

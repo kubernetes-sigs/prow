@@ -88,7 +88,7 @@ Decorated PR (finished): "revision":"5dd9241d43f256984358354d1fec468f274f9ac4"
 }
 ```
 
-[`Started.json` PodUtil](https://github.com/kubernetes-sigs/prow/blob/7013691e3f35afd02f300c04ccd06ebed66a785f/prow/pod-utils/downwardapi/jobspec.go#L213)
+[`Started.json` PodUtil](https://github.com/kubernetes-sigs/prow/blob/db89760fea406dd2813e331c3d52b53b5bcbd140/pkg/pod-utils/downwardapi/jobspec.go#L213)
 |Fields|Content|
 |---|---|
 |timestamp|epoch|
@@ -96,7 +96,7 @@ Decorated PR (finished): "revision":"5dd9241d43f256984358354d1fec468f274f9ac4"
 |job-version (dep)|Never set|
 |pull|Pr number primary is testing, first pull in Spec Pull list|
 |repo-commit|*unset* (but shouldn't be)|
-|repos|For Ref, ExtraRef add Org/Repo: [Ref](https://github.com/kubernetes-sigs/prow/blob/7013691e3f35afd02f300c04ccd06ebed66a785f/prow/apis/prowjobs/v1/types.go#L1174) |
+|repos|For Ref, ExtraRef add Org/Repo: [Ref](https://github.com/kubernetes-sigs/prow/blob/db89760fea406dd2813e331c3d52b53b5bcbd140/pkg/apis/prowjobs/v1/types.go#L1174) |
 |node| *unset*|
 |metadata| *misc*|
 *Ex*
@@ -120,7 +120,7 @@ Decorated PR (finished): "revision":"5dd9241d43f256984358354d1fec468f274f9ac4"
 }
 ```
 
-[`Finished.json` *PodUtils*](https://github.com/kubernetes-sigs/prow/blob/7013691e3f35afd02f300c04ccd06ebed66a785f/prow/sidecar/run.go#L297)
+[`Finished.json` *PodUtils*](https://github.com/kubernetes-sigs/prow/blob/db89760fea406dd2813e331c3d52b53b5bcbd140/pkg/sidecar/run.go#L297)
 |Fields|Content|
 |---|---|
 |timestamp|epoch|
@@ -128,7 +128,7 @@ Decorated PR (finished): "revision":"5dd9241d43f256984358354d1fec468f274f9ac4"
 |result|SUCCESS, ABORTED, FAILURE|
 |repo-version (dep)|*unset*|
 |job-version (dep)|*unset*|
-|revision (dep)|[SHA from Refs](https://github.com/kubernetes-sigs/prow/blob/7013691e3f35afd02f300c04ccd06ebed66a785f/prow/pod-utils/downwardapi/jobspec.go#L175)|
+|revision (dep)|[SHA from Refs](https://github.com/kubernetes-sigs/prow/blob/db89760fea406dd2813e331c3d52b53b5bcbd140/pkg/pod-utils/downwardapi/jobspec.go#L175)|
 |metadata| *unset*|
 *Ex*
 ```

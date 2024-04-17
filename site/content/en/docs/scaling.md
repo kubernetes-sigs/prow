@@ -126,7 +126,7 @@ if users have the appropriate permissions before taking action on their behalf.
 The following is an overview of some of the automation Prow implements to work
 around GitHub's limited permission system:
   - Permission to trigger presubmit tests is determined based on org membership
-  as configured in the [`triggers`](https://github.com/kubernetes-sigs/prow/blob/7013691e3f35afd02f300c04ccd06ebed66a785f/prow/plugins/config.go#L94) plugin config section.
+  as configured in the [`triggers`](https://github.com/kubernetes-sigs/prow/blob/db89760fea406dd2813e331c3d52b53b5bcbd140/pkg/plugins/config.go#L94) plugin config section.
   - File ownership is described with OWNERS files and change approval is
   enforced with the [`approve` plugin](/docs/components/plugins/approve/). See the [docs](/docs/components/plugins/approve/approvers/) for details.
   - Org member review of the most recent version of the PR is enforced with the

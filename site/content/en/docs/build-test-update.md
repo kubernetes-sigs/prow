@@ -176,4 +176,4 @@ to generate ProwJob YAML.
 [Kind]: https://sigs.k8s.io/kind
 [mkpj]: /docs/components/cli-tools/mkpj/
 [mkpod]: /docs/components/cli-tools/mkpod/
-[pj-on-kind.sh]: https://github.com/kubernetes-sigs/prow/blob/main/prow/pj-on-kind.sh
+[pj-on-kind.sh]: https://github.com/kubernetes-sigs/prow/blob/main/pkg/pj-on-kind.sh

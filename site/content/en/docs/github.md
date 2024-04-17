@@ -10,19 +10,19 @@ It uses both [v3](https://developer.github.com/v3/) and [v4](https://developer.g
 of GitHub's API. It is subject to change as needed without notice, but you can reuse and extend it
 within this repository.
 
-Its primary component is [client.go](https://github.com/kubernetes-sigs/prow/blob/main/prow/github/client.go), a GitHub client that sends and receives API calls.
+Its primary component is [client.go](https://github.com/kubernetes-sigs/prow/blob/main/pkg/github/client.go), a GitHub client that sends and receives API calls.
 
 ## Recommended Usage
 
 ### Instantiation
 An application that takes flags may want to set GitHub flags, such as a proxy endpoint. To do that,
-[GitHubOptions](https://github.com/kubernetes-sigs/prow/blob/main/prow/flagutil/github.go) has a method that returns a GitHub client.
+[GitHubOptions](https://github.com/kubernetes-sigs/prow/blob/main/pkg/flagutil/github.go) has a method that returns a GitHub client.
 
 If you're not using flags, you can instantiate a client with the `NewClient` and
 `NewClientWithFields` methods
 
 ### Interfacing a Subset of Client
-This client has a lot of functions listed in the interfaces of [client.go](https://github.com/kubernetes-sigs/prow/blob/main/prow/github/client.go). Further,
+This client has a lot of functions listed in the interfaces of [client.go](https://github.com/kubernetes-sigs/prow/blob/main/pkg/github/client.go). Further,
 these interfaces may change at any time. To avoid having to extend the entire interface, we
 recommend writing a local interface that uses the functionality you need.
 
@@ -36,5 +36,5 @@ type githubClient interface {
 }
 ```
 
-The provided fake works like this; [FakeClient](https://github.com/kubernetes-sigs/prow/blob/main/prow/github/fakegithub/fakegithub.go) doesn't completely
+The provided fake works like this; [FakeClient](https://github.com/kubernetes-sigs/prow/blob/main/pkg/github/fakegithub/fakegithub.go) doesn't completely
 implement Client, but gives many common functions used in testing.

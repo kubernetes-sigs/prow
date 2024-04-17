@@ -30,7 +30,7 @@ description: >
 Assume we want to add `most-awesome-component` (source code in `cmd/most-awesome-component`).
 
 1. Add `most-awesome-component` to the `PROW_COMPONENTS`, `PROW_IMAGES`, and
-   `PROW_IMAGES_TO_COMPONENTS` variables in [lib.sh](https://github.com/kubernetes-sigs/prow/blob/main/prow/test/integration/lib.sh).
+   `PROW_IMAGES_TO_COMPONENTS` variables in [lib.sh](https://github.com/kubernetes-sigs/prow/blob/main/test/integration/lib.sh).
 
    - Add the line `most-awesome-component` to `PROW_COMPONENTS`.
    - Add the line `[most-awesome-component]=cmd/most-awesome-component` to `PROW_IMAGES`.
@@ -48,7 +48,7 @@ Assume we want to add `most-awesome-component` (source code in `cmd/most-awesome
 2. Set up Kubernetes Deployment and Service configurations inside the
    [configuration folder][config/prow/cluster] for your new component. This
    way the test cluster will pick it up when it [deploys Prow
-   components](https://github.com/kubernetes-sigs/prow/blob/main/prow/test/integration/setup-prow-components.sh).
+   components](https://github.com/kubernetes-sigs/prow/blob/main/test/integration/setup-prow-components.sh).
 
    - If you want to deploy an existing Prow component used in production (i.e.,
      <https://prow.k8s.io>), you can reuse (symlink) the configurations used in
@@ -82,7 +82,7 @@ your tests still need some tweaking), repeat steps 1 and 3 as needed.
 
 # How it works
 
-In short, the [integration-test.sh](https://github.com/kubernetes-sigs/prow/blob/main/prow/test/integration/integration-test.sh) script creates a
+In short, the [integration-test.sh](https://github.com/kubernetes-sigs/prow/blob/main/test/integration/integration-test.sh) script creates a
 [KIND](https://kind.sigs.k8s.io/) Kubernetes cluster, runs all available
 integration tests, and finally deletes the cluster.
 
@@ -92,9 +92,9 @@ deploy certain Prow components, and then from the integration tests we can
 create a Kubernetes Client to talk to this deployment of Prow.
 
 Note that the integration tests do not test all components (we need to fix
-this). [The PROW_COMPONENTS variable](https://github.com/kubernetes-sigs/prow/blob/main/prow/test/integration/lib.sh) is a list of components currently
+this). [The PROW_COMPONENTS variable](https://github.com/kubernetes-sigs/prow/blob/main/test/integration/lib.sh) is a list of components currently
 tested. These components are compiled and deployed into the test cluster on
-every invocation of [integration-test.sh](https://github.com/kubernetes-sigs/prow/blob/main/prow/test/integration/integration-test.sh).
+every invocation of [integration-test.sh](https://github.com/kubernetes-sigs/prow/blob/main/test/integration/integration-test.sh).
 
 Each tested component needs a Kubernetes configuration so that KIND understands
 how to deploy it into the cluster, but that's about it (more on this below). The

@@ -71,7 +71,7 @@ The following lenses are available:
 - `buildlog`: displays the build log (or any other log file), highlighting interesting parts and
   hiding the rest behind expandable folders. You can configure what it considers "interesting" by
   providing `highlight_regexes`, a list of regexes to highlight. If not specified, it uses [defaults
-  optimised for highlighting Kubernetes test results](https://github.com/kubernetes-sigs/prow/blob/7013691e3f35afd02f300c04ccd06ebed66a785f/prow/spyglass/lenses/buildlog/lens.go#L98). The optional `hide_raw_log` boolean field can be used to omit the link to the raw `build-log.txt` source.
+  optimised for highlighting Kubernetes test results](https://github.com/kubernetes-sigs/prow/blob/db89760fea406dd2813e331c3d52b53b5bcbd140/pkg/spyglass/lenses/buildlog/lens.go#L98). The optional `hide_raw_log` boolean field can be used to omit the link to the raw `build-log.txt` source.
 - `podinfo`: displays info about ProwJob pods including the events and details about containers and volumes. The [`gcsk8sreporter` Crier reporter](https://github.com/kubernetes/test-infra/tree/b6180c95b3383919711cfc97436a2d082281d284/prow/crier/reporters/gcs/kubernetes) must be enabled to upload the required `podinfo.json` file.
 - `coverage`: displays go coverage content
 - `restcoverage`: displays REST API statistics

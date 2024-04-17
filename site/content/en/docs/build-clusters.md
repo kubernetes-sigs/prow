@@ -34,7 +34,7 @@ Service Account** and **GSA** means **GCP (IAM) Service Account**.
 ## Running the build cluster setup script
 
 The Prow source repo comes with a default
-[create-build-cluster.sh](https://github.com/kubernetes-sigs/prow/blob/main/prow/create-build-cluster.sh)
+[create-build-cluster.sh](https://github.com/kubernetes-sigs/prow/blob/main/pkg/create-build-cluster.sh)
 script which allows you to create a new GKE cluster with the intent of giving
 the [Kubernetes Prow instance](https://prow.k8s.io) access to it. Because there
 are different Prow instances and each instance has its own default settings

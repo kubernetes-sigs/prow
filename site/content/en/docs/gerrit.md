@@ -52,7 +52,7 @@ presubmit and postsubmit jobs based on your prow config.
 
 #### Gerrit Labels
 
-Prow adds the following [Labels](https://github.com/kubernetes-sigs/prow/blob/main/prow/gerrit/client/client.go) to Gerrit Presubmits that can be accessed in the container by leveraging the [Downward API](https://kubernetes.io/docs/tasks/inject-data-application/environment-variable-expose-pod-information/).
+Prow adds the following [Labels](https://github.com/kubernetes-sigs/prow/blob/main/pkg/gerrit/client/client.go) to Gerrit Presubmits that can be accessed in the container by leveraging the [Downward API](https://kubernetes.io/docs/tasks/inject-data-application/environment-variable-expose-pod-information/).
 
 - "prow.k8s.io/gerrit-revision": SHA of current patchset from a gerrit change
 - "prow.k8s.io/gerrit-patchset": Numeric ID of the current patchset

@@ -52,11 +52,11 @@ client][gangway-client-google].
 
 See the [example][example].
 
-[example]: https://github.com/kubernetes-sigs/prow/blob/main/prow/examples/gangway/main.go
-[gangway.proto]: https://github.com/kubernetes-sigs/prow/blob/main/prow/gangway/gangway.proto
-[gangway.pb.go]: https://github.com/kubernetes-sigs/prow/blob/main/prow/gangway/gangway.pb.go
-[gangway_grpc.pb.go]: https://github.com/kubernetes-sigs/prow/blob/main/prow/gangway/gangway_grpc.pb.go
-[gangway.go]: https://github.com/kubernetes-sigs/prow/blob/main/prow/gangway/gangway.go
+[example]: https://github.com/kubernetes-sigs/prow/blob/main/pkg/examples/gangway/main.go
+[gangway.proto]: https://github.com/kubernetes-sigs/prow/blob/main/pkg/gangway/gangway.proto
+[gangway.pb.go]: https://github.com/kubernetes-sigs/prow/blob/main/pkg/gangway/gangway.pb.go
+[gangway_grpc.pb.go]: https://github.com/kubernetes-sigs/prow/blob/main/pkg/gangway/gangway_grpc.pb.go
+[gangway.go]: https://github.com/kubernetes-sigs/prow/blob/main/pkg/gangway/gangway.go
 [design-doc]: https://docs.google.com/document/d/1v77jp1Nb5C2C2-PdV02SGViO9CyZ9SvNxCPOHyIUQeo/edit?usp=sharing
-[integration-test-config]: https://github.com/kubernetes-sigs/prow/blob/7013691e3f35afd02f300c04ccd06ebed66a785f/prow/test/integration/config/prow/config.yaml#L75
-[gangway-client-google]: https://github.com/kubernetes-sigs/prow/blob/main/prow/gangway/client/google/google.go
+[integration-test-config]: https://github.com/kubernetes-sigs/prow/blob/db89760fea406dd2813e331c3d52b53b5bcbd140/test/integration/config/prow/config.yaml#L75
+[gangway-client-google]: https://github.com/kubernetes-sigs/prow/blob/main/pkg/gangway/client/google/google.go

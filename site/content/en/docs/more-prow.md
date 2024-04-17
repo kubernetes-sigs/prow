@@ -23,7 +23,7 @@ postsubmit job that `kubectl apply`s the resource files whenever they are
 changed (based on a `run_if_changed` or `skip_if_only_changed` regexp). In
 order to `kubectl apply` to the cluster, the job will need to supply credentials
 (e.g. a kubeconfig file or
-[GCP service account key-file](https://github.com/kubernetes-sigs/prow/blob/main/prow/gcloud-deployer-service-account.sh)). Since
+[GCP service account key-file](https://github.com/kubernetes-sigs/prow/blob/main/pkg/gcloud-deployer-service-account.sh)). Since
 this job requires priviledged credentials to deploy to the cluster, it is
 important that it is run in a separate build cluster that is isolated from all
 presubmit jobs. See the
@@ -41,7 +41,7 @@ Combining a postsubmit deploy job with a periodic job that runs the Prow Autobum
 
 ### Deploy config changes automatically
 
-Prow can also automatically upload changes to files that correspond to Kubernetes ConfigMaps. This includes its own `config`, `plugins` and `job-config` config maps. Take a look at the [`updateconfig` plugin](/docs/components/plugins/updateconfig/) and [`config-bootstrapper`](/docs/components/cli-tools/config-bootstrapper/) for more details. Both of these tools share the [`updateconfig` plugin's plugin configuration](https://github.com/kubernetes-sigs/prow/blob/7013691e3f35afd02f300c04ccd06ebed66a785f/prow/plugins/config.go#L77). The plugin provides slightly better GitHub integration and is simpler to enable, but the config-bootstrapper is more flexible. It can be run in a postsubmit job to provide config upload on non-GitHub Prow instances or run after custom config generation is executed.
+Prow can also automatically upload changes to files that correspond to Kubernetes ConfigMaps. This includes its own `config`, `plugins` and `job-config` config maps. Take a look at the [`updateconfig` plugin](/docs/components/plugins/updateconfig/) and [`config-bootstrapper`](/docs/components/cli-tools/config-bootstrapper/) for more details. Both of these tools share the [`updateconfig` plugin's plugin configuration](https://github.com/kubernetes-sigs/prow/blob/db89760fea406dd2813e331c3d52b53b5bcbd140/pkg/plugins/config.go#L77). The plugin provides slightly better GitHub integration and is simpler to enable, but the config-bootstrapper is more flexible. It can be run in a postsubmit job to provide config upload on non-GitHub Prow instances or run after custom config generation is executed.
 
 ## Use other tools with Prow
 
