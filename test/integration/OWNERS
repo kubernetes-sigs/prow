@@ -1,8 +1,5 @@
 # See the OWNERS docs at https://go.k8s.io/owners
 
-reviewers:
-- listx
-approvers:
-- listx
 emeritus_approvers:
 - chaodaiG
+- listx

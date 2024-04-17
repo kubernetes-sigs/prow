@@ -2,12 +2,11 @@
 
 approvers:
 - cjwagner
-- listx
 reviewers:
 - cjwagner
-- listx
 emeritus_approvers:
 - chaodaiG
+- listx
 - sebastienvas
 labels:
 - area/prow/pubsub
