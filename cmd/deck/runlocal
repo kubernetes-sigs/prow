@@ -77,6 +77,6 @@ fi
     --static-files-location="$DIR/kodata/static" \
     --template-files-location="$DIR/kodata/template" \
     --spyglass-files-location="$DIR/kodata/lenses" \
-    --config-path "${DIR}/../../../config/prow/config.yaml" \
+    --config-path "${DIR}/../../test/integration/config/prow/deck.yaml" \
     --spyglass
 )

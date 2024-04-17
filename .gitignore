@@ -1,6 +1,8 @@
 _bin/
 _output/
 .python_virtual_env
+/yarn.lock
+/node_modules
 cmd/branchprotector/branchprotector
 cmd/build/build
 cmd/checkconfig/checkconfig
