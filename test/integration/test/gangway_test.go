@@ -18,10 +18,14 @@ package integration
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
 
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	prowjobv1 "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
@@ -33,7 +37,6 @@ import (
 
 // TestGangway makes gRPC calls to gangway.
 func TestGangway(t *testing.T) {
-	t.Parallel()
 
 	const (
 		UidLabel         = "integration-test/uid"
@@ -152,7 +155,6 @@ this-is-from-repoTestGangway1
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
 
 			// Set up a connection to gangway.
 			c, err := gangwayGoogleClient.NewInsecure(":32000", tt.projectNumber)
@@ -164,21 +166,6 @@ this-is-from-repoTestGangway1
 
 			ctx := context.Background()
 			ctx = c.EmbedProjectNumber(ctx)
-
-			var prowjob prowjobv1.ProwJob
-
-			clusterContext := getClusterContext()
-			t.Logf("Creating client for cluster: %s", clusterContext)
-
-			restConfig, err := NewRestConfig("", clusterContext)
-			if err != nil {
-				t.Fatalf("could not create restConfig: %v", err)
-			}
-
-			kubeClient, err := ctrlruntimeclient.New(restConfig, ctrlruntimeclient.Options{})
-			if err != nil {
-				t.Fatalf("Failed creating clients for cluster %q: %v", clusterContext, err)
-			}
 
 			// Set up repos on FGS for just this test case.
 			fgsClient := fakegitserver.NewClient("http://localhost/fakegitserver", 5*time.Second)
@@ -213,12 +200,339 @@ this-is-from-repoTestGangway1
 				t.Fatal(err)
 			} else {
 				// Only clean up the ProwJob if it succeeded (save the ProwJob for debugging if it failed).
-				t.Cleanup(func() {
-					if err := kubeClient.Delete(ctx, &prowjob); err != nil {
-						t.Logf("Failed cleanup resource %q: %v", prowjob.Name, err)
-					}
-				})
+				cleanup(t, ctx)
 			}
 		})
+	}
+}
+
+func TestGangwayBulkJobStatusChange(t *testing.T) {
+	tests := []struct {
+		name          string
+		count         int
+		expectedCount int
+		expectedErr   error
+		bulkMsg       *gangway.BulkJobStatusChangeRequest
+		creationMsg   *gangway.CreateJobExecutionRequest
+	}{
+		{
+			name:          "regular",
+			count:         3,
+			expectedCount: 3,
+			expectedErr:   nil,
+			bulkMsg: &gangway.BulkJobStatusChangeRequest{
+				JobStatusChange: &gangway.JobStatusChange{
+					Current: gangway.JobExecutionStatus_PENDING,
+					Desired: gangway.JobExecutionStatus_ABORTED,
+				},
+			},
+			creationMsg: &gangway.CreateJobExecutionRequest{
+				JobName:          "sleep-periodic",
+				JobExecutionType: gangway.JobExecutionType_PERIODIC,
+			},
+		},
+		{
+			name:          "large",
+			count:         12,
+			expectedCount: 12,
+			expectedErr:   nil,
+			bulkMsg: &gangway.BulkJobStatusChangeRequest{
+				JobStatusChange: &gangway.JobStatusChange{
+					Current: gangway.JobExecutionStatus_PENDING,
+					Desired: gangway.JobExecutionStatus_ABORTED,
+				},
+			},
+			creationMsg: &gangway.CreateJobExecutionRequest{
+				JobName:          "sleep-periodic",
+				JobExecutionType: gangway.JobExecutionType_PERIODIC,
+			},
+		},
+		{
+			name:          "cluster-fail",
+			count:         3,
+			expectedCount: 0,
+			expectedErr:   nil,
+			bulkMsg: &gangway.BulkJobStatusChangeRequest{
+				JobStatusChange: &gangway.JobStatusChange{
+					Current: gangway.JobExecutionStatus_PENDING,
+					Desired: gangway.JobExecutionStatus_ABORTED,
+				},
+				Cluster: "not-a-real-cluster",
+			},
+			creationMsg: &gangway.CreateJobExecutionRequest{
+				JobName:          "sleep-periodic",
+				JobExecutionType: gangway.JobExecutionType_PERIODIC,
+			},
+		},
+		{
+			name:          "cluster-success",
+			count:         3,
+			expectedCount: 3,
+			expectedErr:   nil,
+			bulkMsg: &gangway.BulkJobStatusChangeRequest{
+				JobStatusChange: &gangway.JobStatusChange{
+					Current: gangway.JobExecutionStatus_PENDING,
+					Desired: gangway.JobExecutionStatus_ABORTED,
+				},
+				Cluster: "default",
+			},
+			creationMsg: &gangway.CreateJobExecutionRequest{
+				JobName:          "sleep-periodic",
+				JobExecutionType: gangway.JobExecutionType_PERIODIC,
+			},
+		},
+		{
+			name:          "refs-fail",
+			count:         3,
+			expectedCount: 0,
+			expectedErr:   nil,
+			bulkMsg: &gangway.BulkJobStatusChangeRequest{
+				JobStatusChange: &gangway.JobStatusChange{
+					Current: gangway.JobExecutionStatus_PENDING,
+					Desired: gangway.JobExecutionStatus_ABORTED,
+				},
+				Refs: &gangway.Refs{
+					Org:     "kubernetes",
+					Repo:    "test-infra",
+					BaseRef: "master",
+					BaseSha: "thi5-1s-n0t-a-r34l-sh4",
+				},
+			},
+			creationMsg: &gangway.CreateJobExecutionRequest{
+				JobName:          "sleep-postsubmit",
+				JobExecutionType: gangway.JobExecutionType_POSTSUBMIT,
+				Refs: &gangway.Refs{
+					Org:     "org1",
+					Repo:    "repo1",
+					BaseRef: "master",
+					BaseSha: "thi5-1s-n0t-a-r34l-sh4",
+				},
+			},
+		},
+		{
+			name:          "refs-success",
+			count:         3,
+			expectedCount: 3,
+			expectedErr:   nil,
+			bulkMsg: &gangway.BulkJobStatusChangeRequest{
+				JobStatusChange: &gangway.JobStatusChange{
+					Current: gangway.JobExecutionStatus_PENDING,
+					Desired: gangway.JobExecutionStatus_ABORTED,
+				},
+				Refs: &gangway.Refs{
+					Org:     "org1",
+					Repo:    "repo1",
+					BaseRef: "master",
+					BaseSha: "thi5-1s-n0t-a-r34l-sh4",
+				},
+			},
+			creationMsg: &gangway.CreateJobExecutionRequest{
+				JobName:          "sleep-postsubmit",
+				JobExecutionType: gangway.JobExecutionType_POSTSUBMIT,
+				Refs: &gangway.Refs{
+					Org:     "org1",
+					Repo:    "repo1",
+					BaseRef: "master",
+					BaseSha: "thi5-1s-n0t-a-r34l-sh4",
+				},
+			},
+		},
+		{
+			name:          "startedBefore-fail",
+			count:         3,
+			expectedCount: 0,
+			expectedErr:   nil,
+			bulkMsg: &gangway.BulkJobStatusChangeRequest{
+				JobStatusChange: &gangway.JobStatusChange{
+					Current: gangway.JobExecutionStatus_PENDING,
+					Desired: gangway.JobExecutionStatus_ABORTED,
+				},
+				StartedBefore: timestamppb.New(time.Now().Add(-time.Hour)),
+			},
+			creationMsg: &gangway.CreateJobExecutionRequest{
+				JobName:          "sleep-periodic",
+				JobExecutionType: gangway.JobExecutionType_PERIODIC,
+			},
+		},
+		{
+			name:          "startedBefore-success",
+			count:         3,
+			expectedCount: 3,
+			expectedErr:   nil,
+			bulkMsg: &gangway.BulkJobStatusChangeRequest{
+				JobStatusChange: &gangway.JobStatusChange{
+					Current: gangway.JobExecutionStatus_PENDING,
+					Desired: gangway.JobExecutionStatus_ABORTED,
+				},
+				StartedBefore: timestamppb.New(time.Now().Add(time.Hour)),
+			},
+			creationMsg: &gangway.CreateJobExecutionRequest{
+				JobName:          "sleep-periodic",
+				JobExecutionType: gangway.JobExecutionType_PERIODIC,
+			},
+		},
+		{
+			name:          "startedAfter-fail",
+			count:         3,
+			expectedCount: 0,
+			expectedErr:   nil,
+			bulkMsg: &gangway.BulkJobStatusChangeRequest{
+				JobStatusChange: &gangway.JobStatusChange{
+					Current: gangway.JobExecutionStatus_PENDING,
+					Desired: gangway.JobExecutionStatus_ABORTED,
+				},
+				StartedAfter: timestamppb.New(time.Now().Add(time.Hour)),
+			},
+			creationMsg: &gangway.CreateJobExecutionRequest{
+				JobName:          "sleep-periodic",
+				JobExecutionType: gangway.JobExecutionType_PERIODIC,
+			},
+		},
+		{
+			name:          "startedAfter-success",
+			count:         3,
+			expectedCount: 3,
+			expectedErr:   nil,
+			bulkMsg: &gangway.BulkJobStatusChangeRequest{
+				JobStatusChange: &gangway.JobStatusChange{
+					Current: gangway.JobExecutionStatus_PENDING,
+					Desired: gangway.JobExecutionStatus_ABORTED,
+				},
+				StartedAfter: timestamppb.New(time.Now().Add(-time.Hour)),
+			},
+			creationMsg: &gangway.CreateJobExecutionRequest{
+				JobName:          "sleep-periodic",
+				JobExecutionType: gangway.JobExecutionType_PERIODIC,
+			},
+		},
+		{
+			name:          "startedCombined-fail",
+			count:         3,
+			expectedCount: 0,
+			expectedErr:   nil,
+			bulkMsg: &gangway.BulkJobStatusChangeRequest{
+				JobStatusChange: &gangway.JobStatusChange{
+					Current: gangway.JobExecutionStatus_PENDING,
+					Desired: gangway.JobExecutionStatus_ABORTED,
+				},
+				StartedBefore: timestamppb.New(time.Now().Add(-time.Hour)),
+				StartedAfter:  timestamppb.New(time.Now().Add(time.Hour)),
+			},
+			creationMsg: &gangway.CreateJobExecutionRequest{
+				JobName:          "sleep-periodic",
+				JobExecutionType: gangway.JobExecutionType_PERIODIC,
+			},
+		},
+		{
+			name:          "startedCombined-success",
+			count:         3,
+			expectedCount: 3,
+			expectedErr:   nil,
+			bulkMsg: &gangway.BulkJobStatusChangeRequest{
+				JobStatusChange: &gangway.JobStatusChange{
+					Current: gangway.JobExecutionStatus_PENDING,
+					Desired: gangway.JobExecutionStatus_ABORTED,
+				},
+				StartedBefore: timestamppb.New(time.Now().Add(time.Hour)),
+				StartedAfter:  timestamppb.New(time.Now().Add(-time.Hour)),
+			},
+			creationMsg: &gangway.CreateJobExecutionRequest{
+				JobName:          "sleep-periodic",
+				JobExecutionType: gangway.JobExecutionType_PERIODIC,
+			},
+		},
+		{
+			name:          "expected error, no desired status",
+			count:         3,
+			expectedCount: 0,
+			expectedErr:   status.Error(codes.InvalidArgument, "desired status is unspecified"),
+			bulkMsg: &gangway.BulkJobStatusChangeRequest{
+				JobStatusChange: &gangway.JobStatusChange{
+					Current: gangway.JobExecutionStatus_PENDING,
+				},
+			},
+			creationMsg: &gangway.CreateJobExecutionRequest{
+				JobName:          "sleep-periodic",
+				JobExecutionType: gangway.JobExecutionType_PERIODIC,
+			},
+		},
+	}
+	// One client for all tests.
+	c, err := gangwayGoogleClient.NewInsecure(":32000", "123")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+
+			ctx := context.Background()
+			ctx = c.EmbedProjectNumber(ctx)
+
+			for i := 0; i < tt.count; i++ {
+				jobExecution, err := c.GRPC.CreateJobExecution(ctx, tt.creationMsg)
+				if err != nil {
+					t.Fatalf("Failed to create job execution: %v", err)
+				}
+				fmt.Println(jobExecution)
+
+				// We expect the job to be pending.
+				timeout := 120 * time.Second
+				pollInterval := 500 * time.Millisecond
+				expectedStatus := gangway.JobExecutionStatus_PENDING
+
+				if err := c.WaitForJobExecutionStatus(ctx, jobExecution.Id, pollInterval, timeout, expectedStatus); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			jobsAffected, err := c.GRPC.BulkJobStatusChange(ctx, tt.bulkMsg)
+			if tt.expectedErr != nil {
+				if !errors.Is(err, tt.expectedErr) {
+					t.Fatalf("Expected error %v, got %v", tt.expectedErr, err)
+				}
+			} else {
+				if jobsAffected.Count != int32(tt.expectedCount) {
+					t.Fatalf("Expected %d jobs to be affected, got %d", tt.expectedCount, jobsAffected.Count)
+				}
+				for _, job := range jobsAffected.JobExecutions {
+					if job.JobStatus != gangway.JobExecutionStatus_ABORTED {
+						t.Fatalf("Expected job status to be %q, got %q", gangway.JobExecutionStatus_ABORTED, job.JobStatus)
+					}
+					if job.JobType != tt.creationMsg.JobExecutionType {
+						t.Fatalf("Expected job type to be %q, got %q", tt.creationMsg.JobExecutionType, job.JobType)
+					}
+					if job.JobName != tt.creationMsg.JobName {
+						t.Fatalf("Expected job name to be %q, got %q", tt.creationMsg.JobName, job.JobName)
+					}
+				}
+			}
+
+			// Clean up all the ProwJobs created in this test.
+			cleanup(t, ctx)
+		})
+	}
+
+}
+
+func cleanup(t *testing.T, ctx context.Context) {
+	clusterContext := getClusterContext()
+	t.Logf("Creating client for cluster: %s", clusterContext)
+	restConfig, err := NewRestConfig("", clusterContext)
+	if err != nil {
+		t.Fatalf("could not create restConfig: %v", err)
+	}
+	kubeClient, err := ctrlruntimeclient.New(restConfig, ctrlruntimeclient.Options{})
+	if err != nil {
+		t.Fatalf("Failed creating clients for cluster %q: %v", clusterContext, err)
+	}
+	pjList := &prowjobv1.ProwJobList{}
+	kubeClient.List(ctx, pjList, ctrlruntimeclient.MatchingLabels{})
+	for _, pj := range pjList.Items {
+		if err := kubeClient.Delete(ctx, &pj); err != nil {
+			t.Logf("Failed cleanup resource %q: %v", pj.Name, err)
+		}
 	}
 }
