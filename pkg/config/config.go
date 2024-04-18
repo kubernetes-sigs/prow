@@ -2894,6 +2894,8 @@ func validateAgent(v JobBase, podNamespace string) error {
 		return fmt.Errorf("decoration requires agent: %s (found %q)", k, agent)
 	case v.ErrorOnEviction && agent != k:
 		return fmt.Errorf("error_on_eviction only applies to agent: %s (found %q)", k, agent)
+	case v.ErrorOnTermination && agent != k:
+		return fmt.Errorf("error_on_termination only applies to agent: %s (found %q)", k, agent)
 	case v.Namespace == nil || *v.Namespace == "":
 		return fmt.Errorf("failed to default namespace")
 	case *v.Namespace != podNamespace && agent != p:

@@ -62,7 +62,8 @@ const ControllerName = "plank"
 
 // PodStatus constants
 const (
-	Evicted = "Evicted"
+	Evicted    = "Evicted"
+	Terminated = "Terminated"
 )
 
 // NodeStatus constants
@@ -477,6 +478,34 @@ func (r *reconciler) syncPendingJob(ctx context.Context, pj *prowv1.ProwJob) (*r
 			client, ok := r.buildClients[pj.ClusterAlias()]
 			if !ok {
 				return nil, TerminalError(fmt.Errorf("evicted pod %s: unknown cluster alias %q", pod.Name, pj.ClusterAlias()))
+			}
+			if finalizers := sets.New[string](pod.Finalizers...); finalizers.Has(kubernetesreporterapi.FinalizerName) {
+				// We want the end user to not see this, so we have to remove the finalizer, otherwise the pod hangs
+				oldPod := pod.DeepCopy()
+				pod.Finalizers = finalizers.Delete(kubernetesreporterapi.FinalizerName).UnsortedList()
+				if err := client.Patch(ctx, pod, ctrlruntimeclient.MergeFrom(oldPod)); err != nil {
+					return nil, fmt.Errorf("failed to patch pod trying to remove %s finalizer: %w", kubernetesreporterapi.FinalizerName, err)
+				}
+			}
+			r.log.WithField("name", pj.ObjectMeta.Name).Debug("Delete Pod.")
+			return nil, ctrlruntimeclient.IgnoreNotFound(client.Delete(ctx, pod))
+		}
+	} else if pod.Status.Reason == Terminated {
+		// Pod was terminated.
+		if pj.Spec.ErrorOnTermination {
+			// ErrorOnTermination is enabled, complete the PJ and mark it as
+			// errored.
+			r.log.WithField("error-on-termination", true).WithFields(pjutil.ProwJobFields(pj)).Info("Pods Node got terminated, fail job.")
+			pj.SetComplete()
+			pj.Status.State = prowv1.ErrorState
+			pj.Status.Description = "Job pod's node was terminated."
+		} else {
+			// ErrorOnTermination is disabled. Delete the pod now and recreate it in
+			// the next resync.
+			r.log.WithFields(pjutil.ProwJobFields(pj)).Info("Pods Node got terminated, deleting & next sync loop will restart pod")
+			client, ok := r.buildClients[pj.ClusterAlias()]
+			if !ok {
+				return nil, TerminalError(fmt.Errorf("terminated pod %s: unknown cluster alias %q", pod.Name, pj.ClusterAlias()))
 			}
 			if finalizers := sets.New[string](pod.Finalizers...); finalizers.Has(kubernetesreporterapi.FinalizerName) {
 				// We want the end user to not see this, so we have to remove the finalizer, otherwise the pod hangs
