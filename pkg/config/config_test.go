@@ -1428,6 +1428,13 @@ func TestValidateAgent(t *testing.T) {
 			},
 			pass: true,
 		},
+		{
+			name: "error_on_termination allowed for kubernetes agent",
+			base: func(j *JobBase) {
+				j.ErrorOnTermination = true
+			},
+			pass: true,
+		},
 	}
 
 	for _, tc := range cases {
