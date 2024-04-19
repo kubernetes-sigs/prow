@@ -37,3 +37,4 @@ cmd/ghproxy/ghproxy
 pj.yaml
 pod.yaml
 *.min.js
+vendor/
