@@ -73,7 +73,7 @@ import (
 )
 ```
 
-Finally, you can then test it by running `./prow/cmd/deck/runlocal` and loading a spyglass page.
+Finally, you can then test it by running `./cmd/deck/runlocal` and loading a spyglass page.
 
 ## Lens frontend
 

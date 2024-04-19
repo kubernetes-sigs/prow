@@ -13,11 +13,11 @@ You can build, test, and deploy Prow’s binaries, container images, and cluster
 
 Build locally with:
 ```shell
-make -C prow build-images
+make build-images
 ```
 Push to remote with
 ```shell
-make -C prow push-images REGISTRY=<YOUR_REGISTRY>
+make push-images REGISTRY=<YOUR_REGISTRY>
 ```
 Unit test with:
 ```shell
@@ -25,12 +25,12 @@ make test
 ```
 Integration test with([more details](/docs/test/integration/)):
 ```shell
-./prow/test/integration/integration-test.sh
+./test/integration/integration-test.sh
 ```
 Individual packages and components can be built and tested like:
 ```shell
-go build ./prow/cmd/hook
-go test ./prow/plugins/lgtm
+go build ./cmd/hook
+go test ./pkg/plugins/lgtm
 ```
 (Note: `deck` depends on non-go static files, these were tested by integration
 tests, and for e2e test use [`runlocal`](https://github.com/kubernetes/test-infra/tree/master/prow/cmd/deck/runlocal) if desired.)
@@ -167,7 +167,7 @@ go run ./config:mkpj --job=JOB_NAME
 
 For your own prow instance:
 ```shell
-go run sigs.k8s.io/prow/pkg/cmd/mkpj --job=JOB_NAME --config-path=path/to/config.yaml
+go run sigs.k8s.io/prow/cmd/mkpj --job=JOB_NAME --config-path=path/to/config.yaml
 ```
 
 Alternatively, if you have jobs defined in a separate `job-config`, you can

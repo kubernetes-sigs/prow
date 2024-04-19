@@ -12,7 +12,7 @@ description: >
 ## Usage
 
 ```shell
-go run ./prow/cmd/cm2kc <options>
+go run ./cmd/cm2kc <options>
 ```
 
 The following is a list of supported options for `cm2kc`:
@@ -36,7 +36,7 @@ The following command will:
 ```shell
 kubectl --context=my-context get secrets build-cluster -o jsonpath='{.data.cluster}' |
   base64 -d |
-  go run ./prow/cmd/cm2kc |
+  go run ./cmd/cm2kc |
   kubectl --context=my-context create secret generic kubeconfig --from-file=config=/dev/stdin
 ```
 
@@ -64,7 +64,7 @@ build:
 Execute `cm2kc` specifying an `--input` path to the *clustermap* file and an `--output` path to the desired location of the generated *kubeconfig* file:
 
 ```shell
-go run ./prow/cmd/cm2kc --input=/path/to/clustermap.yaml --output=/path/to/kubeconfig.yaml
+go run ./cmd/cm2kc --input=/path/to/clustermap.yaml --output=/path/to/kubeconfig.yaml
 ```
 
 The following *kubeconfig* file will be created at the specified `--output` path:  

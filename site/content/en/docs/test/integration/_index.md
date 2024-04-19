@@ -8,32 +8,32 @@ description: >
 ## Run all integration tests
 
 ```bash
-./prow/test/integration/integration-test.sh
+./test/integration/integration-test.sh
 ```
 
 ## Run a specific integration test
 
 ```bash
-./prow/test/integration/integration-test.sh -run=TestIWantToRun
+./test/integration/integration-test.sh -run=TestIWantToRun
 ```
 
 ## Cleanup
 
 ```bash
-./prow/test/integration/teardown.sh -all
+./test/integration/teardown.sh -all
 ```
 
 # Adding new integration tests
 
 ## New component
 
-Assume we want to add `most-awesome-component` (source code in `prow/cmd/most-awesome-component`).
+Assume we want to add `most-awesome-component` (source code in `cmd/most-awesome-component`).
 
 1. Add `most-awesome-component` to the `PROW_COMPONENTS`, `PROW_IMAGES`, and
    `PROW_IMAGES_TO_COMPONENTS` variables in [lib.sh](https://github.com/kubernetes/test-infra/tree/master/prow/test/integration/lib.sh).
 
    - Add the line `most-awesome-component` to `PROW_COMPONENTS`.
-   - Add the line `[most-awesome-component]=prow/cmd/most-awesome-component` to `PROW_IMAGES`.
+   - Add the line `[most-awesome-component]=cmd/most-awesome-component` to `PROW_IMAGES`.
    - Add the line `[most-awesome-component]=most-awesome-component` to `PROW_IMAGES_TO_COMPONENTS`.
    - Explanation: `PROW_COMPONENTS` lists which components are deployed into the
      cluster, `PROW_IMAGES` describes where the source code is located for each
@@ -42,7 +42,7 @@ Assume we want to add `most-awesome-component` (source code in `prow/cmd/most-aw
      framework knows what to redeploy depending on what image has changed). As an
      example, the `deck` and `deck-tenanted` components (in `PROW_COMPONENTS`)
      both use the `deck` image (defined in `PROW_IMAGES_TO_COMPONENTS`), so they
-     are both redeployed every time you change something in `prow/cmd/deck`
+     are both redeployed every time you change something in `cmd/deck`
      (defined in `PROW_IMAGES`).
 
 2. Set up Kubernetes Deployment and Service configurations inside the
@@ -67,13 +67,13 @@ tests in `most-awesome-component_test.go`
 ## Check that your new test is working
 
 1. Add or edit new tests (e.g., `func TestMostAwesomeComponent(t *testing.T) {...}`) in `most-awesome-component_test.go`.
-2. Run `./prow/test/integration/integration-test.sh -run=TestMostAwesomeComponent` to bring up the test cluster and to only test
+2. Run `./test/integration/integration-test.sh -run=TestMostAwesomeComponent` to bring up the test cluster and to only test
    your new test named `TestMostAwesomeComponent`.
 3. If you need to make changes to `most-awesome-component_test.go` (and not the
-   component itself), run `./prow/test/integration/integration-test.sh -run=TestMostAwesomeComponent -no-setup`. The `-no-setup` will ensure that
+   component itself), run `./test/integration/integration-test.sh -run=TestMostAwesomeComponent -no-setup`. The `-no-setup` will ensure that
    the test framework avoid redeploying the test cluster.
    - If you **do** need to make changes to the Prow component, run
-     `./prow/test/integration/integration-test.sh -run=TestMostAwesomeComponent -build=most-awesome-component` so that `prow/cmd/most-awesome-component` is
+     `./test/integration/integration-test.sh -run=TestMostAwesomeComponent -build=most-awesome-component` so that `cmd/most-awesome-component` is
      recompiled and redeployed into the cluster before running
      `TestMostAwesomeComponent`.
 
