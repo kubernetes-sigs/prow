@@ -10,7 +10,7 @@ Plank is the controller that manages the job execution and lifecycle for jobs ru
 ### Usage
 
 ```bash
-go run ./prow/cmd/prow-controller-manager --help
+go run ./cmd/prow-controller-manager --help
 ```
 
 ### Configuration

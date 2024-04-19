@@ -164,18 +164,18 @@ So in the example above:
 
 ### Run unit tests
 
-`go test ./prow/cmd/branchprotector`
+`go test ./cmd/branchprotector`
 
 ### Run locally
 
-`go run ./prow/cmd/branchprotector --help`, which will tell you about the
+`go run ./cmd/branchprotector --help`, which will tell you about the
 current flags.
 
 Do a dry run (which will not make any changes to github) with
 something like the following command:
 
 ```sh
-go run ./prow/cmd/branchprotector \
+go run ./cmd/branchprotector \
   --config-path=/path/to/config.yaml \
   --github-token-path=/path/to/my-github-token
 ```
@@ -188,11 +188,21 @@ This will say how the binary will actually change github if you add a
 Run things like the following:
 
 ```sh
-# Build image locally
-make -C prow push-single-image PROW_IMAGE=prow/cmd/branchprotector REGISTRY=<YOUR_REGISTRY>
+# Build image locally and push it to <YOUR_REGISTRY>
+make push-single-image PROW_IMAGE=cmd/branchprotector REGISTRY=<YOUR_REGISTRY>
 ```
 
-This will build an image with your local changes, push it to `<YOUR_REGISTRY>`
+This will build an image with your local changes, and push it to `<YOUR_REGISTRY>`.
+
+Or, if you just want to build an image but not to push, run the following:
+
+
+```sh
+# Build image locally
+make build-single-image PROW_IMAGE=cmd/branchprotector
+```
+
+This will build an image with your local changes, without pushing it to anywhere.
 
 ### Deploy cronjob to production
 

@@ -399,7 +399,7 @@ presubmits:
 Again, run the following to test the files, replacing the paths as necessary:
 
 ```sh
-$ go run ./prow/cmd/checkconfig --plugin-config=path/to/plugins.yaml --config-path=path/to/config.yaml
+$ go run ./cmd/checkconfig --plugin-config=path/to/plugins.yaml --config-path=path/to/config.yaml
 ```
 
 Now run the following to update the configmap.

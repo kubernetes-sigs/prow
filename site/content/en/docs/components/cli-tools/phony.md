@@ -15,7 +15,7 @@ To get an idea of `phony`'s behavior, start a local instance of `hook` with
 this:
 
 ```
-go run prow/cmd/hook/main.go \
+go run cmd/hook/main.go \
  --config-path=config/prow/config.yaml \
  --plugin-config=config/prow/plugins.yaml \
  --hmac-secret-file=path/to/hmac \

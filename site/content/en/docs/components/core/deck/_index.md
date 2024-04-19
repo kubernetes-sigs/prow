@@ -7,7 +7,7 @@ description: >
 
 ## Running Deck locally
 
-Deck can be run locally by executing `./prow/cmd/deck/runlocal`. The scripts starts Deck via
+Deck can be run locally by executing `./cmd/deck/runlocal`. The scripts starts Deck via
 Bazel using:
 
 * pre-generated data (extracted from a running Prow instance)
@@ -23,7 +23,7 @@ VSCode or Intellij.
 
 ```bash
 # Prepare assets
-make -C prow build-tarball PROW_IMAGE=prow/cmd/deck
+make build-tarball PROW_IMAGE=cmd/deck
 mkdir -p /tmp/deck
 tar -xvf ./_bin/deck.tar -C /tmp/deck 
 cd /tmp/deck

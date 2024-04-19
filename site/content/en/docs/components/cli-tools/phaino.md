@@ -24,10 +24,10 @@ Usage:
 
 ```console
 # Use a job from deck
-go run ./prow/cmd/phaino $URL # or /path/to/prowjob.yaml
+go run ./cmd/phaino $URL # or /path/to/prowjob.yaml
 # Use mkpj to create the job
-go run ./prow/cmd/mkpj --config-path=/path/to/prow/config.yaml --job-config-path=/path/to/prow/job/configs --job=foo > /tmp/foo
-go run ./prow/cmd/phaino /tmp/foo
+go run ./cmd/mkpj --config-path=/path/to/prow/config.yaml --job-config-path=/path/to/prow/job/configs --job=foo > /tmp/foo
+go run ./cmd/phaino /tmp/foo
 ```
 
 Phaino is an interactive utility; it will prompt you for a local copy of any secrets or
@@ -86,7 +86,7 @@ it's desired to save the prompts, use the following tricks instead:
   --extra-envs=env1=val1,env2=val2
   ```
 
-See `go run ./prow/cmd/phaino --help` for full option list.
+See `go run ./cmd/phaino --help` for full option list.
 
 ### Usage examples
 
@@ -96,8 +96,8 @@ See `go run ./prow/cmd/phaino --help` for full option list.
 * Pick a job and click the rerun icon on the left
 * Copy the URL (something like `https://prow.k8s.io/rerun?prowjob=d08f1ca5-5d63-11e9-ab62-0a580a6c1281`)
 * Paste it as a phaino arg
-  * `go run ./prow/cmd/phaino https://prow.k8s.io/rerun?prowjob=d08f1ca5-5d63-11e9-ab62-0a580a6c1281`
-  * Alternatively `go run ./prow/cmd/phaino <(curl $URL)`
+  * `go run ./cmd/phaino https://prow.k8s.io/rerun?prowjob=d08f1ca5-5d63-11e9-ab62-0a580a6c1281`
+  * Alternatively `go run ./cmd/phaino <(curl $URL)`
 
 #### Configuration example
 
@@ -106,14 +106,14 @@ See `go run ./prow/cmd/phaino --help` for full option list.
 
       ```
       go run ./config:mkpj --job=pull-test-infra-bazel > /tmp/foo
-      go run ./prow/cmd/phaino /tmp/foo
+      go run ./cmd/phaino /tmp/foo
       ```
 
   * Other deployments will need to clone that rule and/or pass in extra flags:
 
       ```
-      go run ./prow/cmd/mkpj --config-path=/my/config.yaml --job=my-job
-      go run ./prow/cmd/phaino /tmp/foo
+      go run ./cmd/mkpj --config-path=/my/config.yaml --job=my-job
+      go run ./cmd/phaino /tmp/foo
       ```
 
 [ideas and forms]: https://en.wikipedia.org/wiki/Theory_of_forms#Forms
