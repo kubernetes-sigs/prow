@@ -490,7 +490,7 @@ func (r *reconciler) syncPendingJob(ctx context.Context, pj *prowv1.ProwJob) (*r
 			r.log.WithField("name", pj.ObjectMeta.Name).Debug("Delete Pod.")
 			return nil, ctrlruntimeclient.IgnoreNotFound(client.Delete(ctx, pod))
 		}
-	} else if pod.Status.Reason == Terminated {
+	} else if isPodTerminated(pod) {
 		// Pod was terminated.
 		if pj.Spec.ErrorOnTermination {
 			// ErrorOnTermination is enabled, complete the PJ and mark it as
@@ -699,6 +699,33 @@ func (r *reconciler) syncPendingJob(ctx context.Context, pj *prowv1.ProwJob) (*r
 	}
 
 	return nil, nil
+}
+
+func isPodTerminated(pod *corev1.Pod) bool {
+	// If there was a Graceful node shutdown, the Pod's status will have a
+	// reason set to "Terminated":
+	// https://kubernetes.io/docs/concepts/architecture/nodes/#graceful-node-shutdown
+	if pod.Status.Reason == Terminated {
+		return true
+	}
+
+	for _, condition := range pod.Status.Conditions {
+		// If the node does no longer exist and the pod gets garbage collected,
+		// this condition will be set:
+		// https://kubernetes.io/docs/concepts/workloads/pods/disruptions/#pod-disruption-conditions
+		if condition.Reason == "DeletionByPodGC" {
+			return true
+		}
+
+		// On GCP, before a new spot instance is started, the old pods are garbage
+		// collected (if they have not been already by the Kubernetes PodGC):
+		// https://github.com/kubernetes/cloud-provider-gcp/blob/25e5dcc715781316bc5e39f8b17c0d5b313453f7/cmd/gcp-controller-manager/node_csr_approver.go#L1035-L1058
+		if condition.Reason == "DeletionByGCPControllerManager" {
+			return true
+		}
+	}
+
+	return false
 }
 
 // syncTriggeredJob syncs jobs that do not yet have an associated test workload running
