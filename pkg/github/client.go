@@ -197,7 +197,6 @@ type TeamClient interface {
 	DeleteTeamBySlug(org, teamSlug string) error
 	ListTeams(org string) ([]Team, error)
 	UpdateTeamMembershipBySlug(org, teamSlug, user string, maintainer bool) (*TeamMembership, error)
-	RemoveTeamMembership(org string, id int, user string) error
 	RemoveTeamMembershipBySlug(org, teamSlug, user string) error
 	ListTeamMembers(org string, id int, role string) ([]TeamMember, error)
 	ListTeamMembersBySlug(org, teamSlug, role string) ([]TeamMember, error)
@@ -3669,34 +3668,6 @@ func (c *client) UpdateTeamMembershipBySlug(org, teamSlug, user string, maintain
 		exitCodes:   []int{200},
 	}, &tm)
 	return &tm, err
-}
-
-// RemoveTeamMembership removes the user from the team (but not the org).
-//
-// https://developer.github.com/v3/teams/members/#remove-team-member
-// Deprecated: please use RemoveTeamMembershipBySlug
-func (c *client) RemoveTeamMembership(org string, id int, user string) error {
-	c.logger.WithField("methodName", "RemoveTeamMembership").
-		Warn("method is deprecated, and will result in multiple api calls to achieve result")
-	durationLogger := c.log("RemoveTeamMembership", org, id, user)
-	defer durationLogger()
-
-	if c.fake {
-		return nil
-	}
-
-	organization, err := c.GetOrg(org)
-	if err != nil {
-		return err
-	}
-
-	_, err = c.request(&request{
-		method:    http.MethodDelete,
-		path:      fmt.Sprintf("/organizations/%d/team/%d/memberships/%s", organization.Id, id, user),
-		org:       org,
-		exitCodes: []int{204},
-	}, nil)
-	return err
 }
 
 // RemoveTeamMembershipBySlug removes the user from the team (but not the org).
