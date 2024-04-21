@@ -196,7 +196,6 @@ type TeamClient interface {
 	EditTeam(org string, t Team) (*Team, error)
 	DeleteTeamBySlug(org, teamSlug string) error
 	ListTeams(org string) ([]Team, error)
-	UpdateTeamMembership(org string, id int, user string, maintainer bool) (*TeamMembership, error)
 	UpdateTeamMembershipBySlug(org, teamSlug, user string, maintainer bool) (*TeamMembership, error)
 	RemoveTeamMembership(org string, id int, user string) error
 	RemoveTeamMembershipBySlug(org, teamSlug, user string) error
@@ -3637,47 +3636,6 @@ func (c *client) ListTeams(org string) ([]Team, error) {
 		return nil, err
 	}
 	return teams, nil
-}
-
-// UpdateTeamMembership adds the user to the team and/or updates their role in that team.
-//
-// If the user is not a member of the org, GitHub will invite them to become an outside collaborator, setting their status to pending.
-//
-// https://developer.github.com/v3/teams/members/#add-or-update-team-membership
-// Deprecated: please use UpdateTeamMembershipBySlug
-func (c *client) UpdateTeamMembership(org string, id int, user string, maintainer bool) (*TeamMembership, error) {
-	c.logger.WithField("methodName", "UpdateTeamMembership").
-		Warn("method is deprecated, and will result in multiple api calls to achieve result")
-	durationLogger := c.log("UpdateTeamMembership", org, id, user, maintainer)
-	defer durationLogger()
-
-	if c.fake {
-		return nil, nil
-	}
-	tm := TeamMembership{}
-	if maintainer {
-		tm.Role = RoleMaintainer
-	} else {
-		tm.Role = RoleMember
-	}
-
-	if c.dry {
-		return &tm, nil
-	}
-
-	organization, err := c.GetOrg(org)
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = c.request(&request{
-		method:      http.MethodPut,
-		path:        fmt.Sprintf("/organizations/%d/team/%d/memberships/%s", organization.Id, id, user),
-		org:         org,
-		requestBody: &tm,
-		exitCodes:   []int{200},
-	}, &tm)
-	return &tm, err
 }
 
 // UpdateTeamMembershipBySlug adds the user to the team and/or updates their role in that team.
