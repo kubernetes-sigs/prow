@@ -1583,7 +1583,7 @@ func TestValidateInRepoConfig(t *testing.T) {
 			name:         "unknown field prowYAML fails strict validation",
 			strict:       true,
 			prowYAMLData: []byte(`presubmits: [{"name": "hans", "never_run": "true", "spec": {"containers": [{}]}}]`),
-			expectedErr:  "error unmarshalling JSON: while decoding JSON: json: unknown field \"never_run\"",
+			expectedErr:  "error unmarshaling JSON: while decoding JSON: json: unknown field \"never_run\"",
 		},
 	}
 
@@ -2032,7 +2032,7 @@ plugins:
 				root + "/my-org/cfg.yaml":     invalidConfig,
 				root + "/my-org/plugins.yaml": invalidConfig,
 			}),
-			expectedErrorMessage: `[failed to unmarshal root/my-org/cfg.yaml into *config.Config: error unmarshalling JSON: while decoding JSON: json: cannot unmarshal array into Go value of type config.Config, failed to unmarshal root/my-org/plugins.yaml into *plugins.Configuration: error unmarshalling JSON: while decoding JSON: json: cannot unmarshal array into Go value of type plugins.Configuration]`,
+			expectedErrorMessage: `[failed to unmarshal root/my-org/cfg.yaml into *config.Config: error unmarshaling JSON: while decoding JSON: json: cannot unmarshal array into Go value of type config.Config, failed to unmarshal root/my-org/plugins.yaml into *plugins.Configuration: error unmarshaling JSON: while decoding JSON: json: cannot unmarshal array into Go value of type plugins.Configuration]`,
 		},
 		{
 			name: "Repo config at org level",
@@ -2063,7 +2063,7 @@ plugins:
 				root + "/my-org/my-repo/cfg.yaml":     invalidConfig,
 				root + "/my-org/my-repo/plugins.yaml": invalidConfig,
 			}),
-			expectedErrorMessage: `[failed to unmarshal root/my-org/my-repo/cfg.yaml into *config.Config: error unmarshalling JSON: while decoding JSON: json: cannot unmarshal array into Go value of type config.Config, failed to unmarshal root/my-org/my-repo/plugins.yaml into *plugins.Configuration: error unmarshalling JSON: while decoding JSON: json: cannot unmarshal array into Go value of type plugins.Configuration]`,
+			expectedErrorMessage: `[failed to unmarshal root/my-org/my-repo/cfg.yaml into *config.Config: error unmarshaling JSON: while decoding JSON: json: cannot unmarshal array into Go value of type config.Config, failed to unmarshal root/my-org/my-repo/plugins.yaml into *plugins.Configuration: error unmarshaling JSON: while decoding JSON: json: cannot unmarshal array into Go value of type plugins.Configuration]`,
 		},
 		{
 			name: "Org config at repo level",
