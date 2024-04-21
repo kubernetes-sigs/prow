@@ -9,6 +9,10 @@ description: >
 
 New features added to each component:
 
+- *April 20, 2024* The `ghcache_cache_parititions` Prometheus metric has been deprecated in favor
+    of `ghcache_cache_partitions`. Besides spelling both metrics are identical.
+- *April 20, 2024* The `validate-supplemental-prow-config-hirarchy` check in `checkconfig` has been
+    renamed to `validate-supplemental-prow-config-hierarchy`; the old name is now deprecated.
 - *October 20, 2023* The [update to Inrepoconfig
     handling](https://github.com/kubernetes/test-infra/pull/30400) will break
     users if they have symlinks inside `.prow/` that point to targets elsewhere
