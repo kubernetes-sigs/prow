@@ -200,7 +200,6 @@ type TeamClient interface {
 	RemoveTeamMembershipBySlug(org, teamSlug, user string) error
 	ListTeamMembers(org string, id int, role string) ([]TeamMember, error)
 	ListTeamMembersBySlug(org, teamSlug, role string) ([]TeamMember, error)
-	ListTeamRepos(org string, id int) ([]Repo, error)
 	ListTeamReposBySlug(org, teamSlug string) ([]Repo, error)
 	UpdateTeamRepo(id int, org, repo string, permission TeamPermission) error
 	UpdateTeamRepoBySlug(org, teamSlug, repo string, permission TeamPermission) error
@@ -3760,55 +3759,6 @@ func (c *client) ListTeamMembersBySlug(org, teamSlug, role string) ([]TeamMember
 		return nil, err
 	}
 	return teamMembers, nil
-}
-
-// ListTeamRepos gets a list of team repos for the given team id
-//
-// https://developer.github.com/v3/teams/#list-team-repos
-// Deprecated: please use ListTeamReposBySlug
-func (c *client) ListTeamRepos(org string, id int) ([]Repo, error) {
-	c.logger.WithField("methodName", "ListTeamRepos").
-		Warn("method is deprecated, and will result in multiple api calls to achieve result")
-	durationLogger := c.log("ListTeamRepos", org, id)
-	defer durationLogger()
-
-	if c.fake {
-		return nil, nil
-	}
-
-	organization, err := c.GetOrg(org)
-	if err != nil {
-		return nil, err
-	}
-
-	path := fmt.Sprintf("/organizations/%d/team/%d/repos", organization.Id, id)
-	var repos []Repo
-	err = c.readPaginatedResultsWithValues(
-		path,
-		url.Values{
-			"per_page": []string{"100"},
-		},
-		"application/vnd.github+json",
-		org,
-		func() interface{} {
-			return &[]Repo{}
-		},
-		func(obj interface{}) {
-			for _, repo := range *obj.(*[]Repo) {
-				// Currently, GitHub API returns false for all permission levels
-				// for a repo on which the team has 'Maintain' or 'Triage' role.
-				// This check is to avoid listing a repo under the team but
-				// showing the permission level as none.
-				if LevelFromPermissions(repo.Permissions) != None {
-					repos = append(repos, repo)
-				}
-			}
-		},
-	)
-	if err != nil {
-		return nil, err
-	}
-	return repos, nil
 }
 
 // ListTeamReposBySlug gets a list of team repos for the given team slug
