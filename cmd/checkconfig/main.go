@@ -413,7 +413,8 @@ func validate(o options) error {
 		}
 	}
 
-	if o.warningEnabled(validateSupplementalProwConfigOrgRepoHierarchy) {
+	// include the deprecated spelling to keep backwards-compatibility
+	if o.warningEnabled(validateSupplementalProwConfigOrgRepoHierarchy) || o.warningEnabled("validate-supplemental-prow-config-hirarchy") {
 		if err := validateAdditionalProwConfigIsInOrgRepoDirectoryStructure(os.DirFS("./"), o.config.SupplementalProwConfigDirs.Strings(), o.pluginsConfig.SupplementalPluginsConfigDirs.Strings(), o.config.SupplementalProwConfigsFileNameSuffix, o.pluginsConfig.SupplementalPluginsConfigsFileNameSuffix); err != nil {
 			errs = append(errs, err)
 		}
