@@ -201,7 +201,6 @@ type TeamClient interface {
 	ListTeamMembers(org string, id int, role string) ([]TeamMember, error)
 	ListTeamMembersBySlug(org, teamSlug, role string) ([]TeamMember, error)
 	ListTeamReposBySlug(org, teamSlug string) ([]Repo, error)
-	UpdateTeamRepo(id int, org, repo string, permission TeamPermission) error
 	UpdateTeamRepoBySlug(org, teamSlug, repo string, permission TeamPermission) error
 	RemoveTeamRepo(id int, org, repo string) error
 	RemoveTeamRepoBySlug(org, teamSlug, repo string) error
@@ -3799,41 +3798,6 @@ func (c *client) ListTeamReposBySlug(org, teamSlug string) ([]Repo, error) {
 		return nil, err
 	}
 	return repos, nil
-}
-
-// UpdateTeamRepo adds the repo to the team with the provided role.
-//
-// https://developer.github.com/v3/teams/#add-or-update-team-repository
-// Deprecated: please use UpdateTeamRepoBySlug
-func (c *client) UpdateTeamRepo(id int, org, repo string, permission TeamPermission) error {
-	c.logger.WithField("methodName", "UpdateTeamRepo").
-		Warn("method is deprecated, and will result in multiple api calls to achieve result")
-	durationLogger := c.log("UpdateTeamRepo", id, org, repo, permission)
-	defer durationLogger()
-
-	if c.fake || c.dry {
-		return nil
-	}
-
-	organization, err := c.GetOrg(org)
-	if err != nil {
-		return err
-	}
-
-	data := struct {
-		Permission string `json:"permission"`
-	}{
-		Permission: string(permission),
-	}
-
-	_, err = c.request(&request{
-		method:      http.MethodPut,
-		path:        fmt.Sprintf("/organizations/%d/team/%d/repos/%s/%s", organization.Id, id, org, repo),
-		org:         org,
-		requestBody: &data,
-		exitCodes:   []int{204},
-	}, nil)
-	return err
 }
 
 // UpdateTeamRepoBySlug adds the repo to the team with the provided role.
