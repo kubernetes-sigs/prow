@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"strings"
 	"sync"
 	"testing"
@@ -47,6 +48,7 @@ import (
 	ctrlruntimelog "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	prowv1 "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
@@ -244,19 +246,23 @@ func TestAdd(t *testing.T) {
 
 func mgrFromFakeInformer(gvk schema.GroupVersionKind, fi *controllertest.FakeInformer, ready chan struct{}) (manager.Manager, error) {
 	opts := manager.Options{
-		NewClient: func(cache cache.Cache, config *rest.Config, options ctrlruntimeclient.Options, uncachedObjects ...ctrlruntimeclient.Object) (ctrlruntimeclient.Client, error) {
+		NewClient: func(_ *rest.Config, _ ctrlruntimeclient.Options) (ctrlruntimeclient.Client, error) {
 			return nil, nil
 		},
 		NewCache: func(_ *rest.Config, opts cache.Options) (cache.Cache, error) {
 			return &informertest.FakeInformers{
-				InformersByGVK: map[schema.GroupVersionKind]toolscache.SharedIndexInformer{gvk: &eventHandlerSignalingInformer{SharedIndexInformer: fi, signal: ready}},
-				Synced:         &[]bool{true}[0],
+				InformersByGVK: map[schema.GroupVersionKind]toolscache.SharedIndexInformer{
+					gvk: &eventHandlerSignalingInformer{SharedIndexInformer: fi, signal: ready},
+				},
+				Synced: &[]bool{true}[0],
 			}, nil
 		},
-		MapperProvider: func(_ *rest.Config) (meta.RESTMapper, error) {
+		MapperProvider: func(_ *rest.Config, _ *http.Client) (meta.RESTMapper, error) {
 			return &meta.DefaultRESTMapper{}, nil
 		},
-		MetricsBindAddress: "0",
+		Metrics: server.Options{
+			BindAddress: "0",
+		},
 	}
 	return manager.New(&rest.Config{}, opts)
 }
@@ -266,9 +272,11 @@ type eventHandlerSignalingInformer struct {
 	signal chan struct{}
 }
 
-func (ehsi *eventHandlerSignalingInformer) AddEventHandler(handler toolscache.ResourceEventHandler) {
-	ehsi.SharedIndexInformer.AddEventHandler(handler)
+func (ehsi *eventHandlerSignalingInformer) AddEventHandler(handler toolscache.ResourceEventHandler) (toolscache.ResourceEventHandlerRegistration, error) {
+	reg, err := ehsi.SharedIndexInformer.AddEventHandler(handler)
 	close(ehsi.signal)
+
+	return reg, err
 }
 
 func singnalOrTimout(signal <-chan struct{}) error {

@@ -28,9 +28,11 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	ctrlruntimelog "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/prow/pkg/pjutil"
 	"sigs.k8s.io/prow/pkg/pjutil/pprof"
 	"sigs.k8s.io/prow/pkg/scheduler"
@@ -141,8 +143,14 @@ func main() {
 		logrus.WithError(err).Fatal("Error getting infrastructure cluster config.")
 	}
 	opts := manager.Options{
-		MetricsBindAddress:      "0",
-		Namespace:               cfg().ProwJobNamespace,
+		Cache: cache.Options{
+			DefaultNamespaces: map[string]cache.Config{
+				cfg().ProwJobNamespace: {},
+			},
+		},
+		Metrics: server.Options{
+			BindAddress: "0",
+		},
 		LeaderElection:          true,
 		LeaderElectionNamespace: cfg().ProwJobNamespace,
 		LeaderElectionID:        "prow-controller-manager-leader-lock",
@@ -162,9 +170,7 @@ func main() {
 	buildClusterManagers, err := o.kubernetes.BuildClusterManagers(o.dryRun,
 		plank.RequiredTestPodVerbs(),
 		callBack,
-		func(o *manager.Options) {
-			o.Namespace = cfg().PodNamespace
-		},
+		cfg().PodNamespace,
 	)
 	if err != nil {
 		logrus.WithError(err).Error("Failed to construct build cluster managers. Please check that the kubeconfig secrets are correct, and that RBAC roles on the build cluster allow Prow's service account to list pods on it.")
