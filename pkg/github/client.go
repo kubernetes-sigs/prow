@@ -203,7 +203,6 @@ type TeamClient interface {
 	ListTeamReposBySlug(org, teamSlug string) ([]Repo, error)
 	UpdateTeamRepoBySlug(org, teamSlug, repo string, permission TeamPermission) error
 	RemoveTeamRepoBySlug(org, teamSlug, repo string) error
-	ListTeamInvitations(org string, id int) ([]OrgInvitation, error)
 	ListTeamInvitationsBySlug(org, teamSlug string) ([]OrgInvitation, error)
 	TeamHasMember(org string, teamID int, memberLogin string) (bool, error)
 	TeamBySlugHasMember(org string, teamSlug string, memberLogin string) (bool, error)
@@ -3844,44 +3843,6 @@ func (c *client) RemoveTeamRepoBySlug(org, teamSlug, repo string) error {
 		exitCodes: []int{204},
 	}, nil)
 	return err
-}
-
-// ListTeamInvitations gets a list of team members with pending invitations for the
-// given team id
-//
-// https://developer.github.com/v3/teams/members/#list-pending-team-invitations
-// Deprecated: please use ListTeamInvitationsBySlug
-func (c *client) ListTeamInvitations(org string, id int) ([]OrgInvitation, error) {
-	c.logger.WithField("methodName", "ListTeamInvitations").
-		Warn("method is deprecated, and will result in multiple api calls to achieve result")
-	durationLogger := c.log("ListTeamInvitations", org, id)
-	defer durationLogger()
-
-	if c.fake {
-		return nil, nil
-	}
-
-	organization, err := c.GetOrg(org)
-	if err != nil {
-		return nil, err
-	}
-	path := fmt.Sprintf("/organizations/%d/team/%d/invitations", organization.Id, id)
-	var ret []OrgInvitation
-	err = c.readPaginatedResults(
-		path,
-		acceptNone,
-		org,
-		func() interface{} {
-			return &[]OrgInvitation{}
-		},
-		func(obj interface{}) {
-			ret = append(ret, *(obj.(*[]OrgInvitation))...)
-		},
-	)
-	if err != nil {
-		return nil, err
-	}
-	return ret, nil
 }
 
 // ListTeamInvitationsBySlug gets a list of team members with pending invitations for the given team slug
