@@ -202,7 +202,6 @@ type TeamClient interface {
 	ListTeamMembersBySlug(org, teamSlug, role string) ([]TeamMember, error)
 	ListTeamReposBySlug(org, teamSlug string) ([]Repo, error)
 	UpdateTeamRepoBySlug(org, teamSlug, repo string, permission TeamPermission) error
-	RemoveTeamRepo(id int, org, repo string) error
 	RemoveTeamRepoBySlug(org, teamSlug, repo string) error
 	ListTeamInvitations(org string, id int) ([]OrgInvitation, error)
 	ListTeamInvitationsBySlug(org, teamSlug string) ([]OrgInvitation, error)
@@ -3823,34 +3822,6 @@ func (c *client) UpdateTeamRepoBySlug(org, teamSlug, repo string, permission Tea
 		org:         org,
 		requestBody: &data,
 		exitCodes:   []int{204},
-	}, nil)
-	return err
-}
-
-// RemoveTeamRepo removes the team from the repo.
-//
-// https://docs.github.com/en/rest/reference/teams#remove-a-repository-from-a-team-legacy
-// Deprecated: please use RemoveTeamRepoBySlug
-func (c *client) RemoveTeamRepo(id int, org, repo string) error {
-	c.logger.WithField("methodName", "RemoveTeamRepo").
-		Warn("method is deprecated, and will result in multiple api calls to achieve result")
-	durationLogger := c.log("RemoveTeamRepo", id, org, repo)
-	defer durationLogger()
-
-	if c.fake || c.dry {
-		return nil
-	}
-
-	organization, err := c.GetOrg(org)
-	if err != nil {
-		return err
-	}
-
-	_, err = c.request(&request{
-		method:    http.MethodDelete,
-		path:      fmt.Sprintf("/organizations/%d/team/%d/repos/%s/%s", organization.Id, id, org, repo),
-		org:       org,
-		exitCodes: []int{204},
 	}, nil)
 	return err
 }
