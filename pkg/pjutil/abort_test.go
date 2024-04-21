@@ -24,7 +24,6 @@ import (
 
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
 	fakectrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 
@@ -433,13 +432,13 @@ func TestTerminateOlderJobs(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			var clientPJs []runtime.Object
+			builder := fakectrlruntimeclient.NewClientBuilder()
 			var origPJs []prowv1.ProwJob
 			for i := range tc.pjs {
-				clientPJs = append(clientPJs, &tc.pjs[i])
+				builder.WithRuntimeObjects(&tc.pjs[i])
 				origPJs = append(origPJs, tc.pjs[i])
 			}
-			fakeProwJobClient := fakectrlruntimeclient.NewFakeClient(clientPJs...)
+			fakeProwJobClient := builder.Build()
 			log := logrus.NewEntry(logrus.StandardLogger())
 			if err := TerminateOlderJobs(fakeProwJobClient, log, tc.pjs); err != nil {
 				t.Fatalf("%s: error terminating the older presubmit jobs: %v", tc.name, err)

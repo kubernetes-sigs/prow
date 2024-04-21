@@ -35,7 +35,6 @@ import (
 	"sigs.k8s.io/prow/pkg/tide/blockers"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	fakectrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
@@ -568,17 +567,18 @@ func TestGerritHeadContexts(t *testing.T) {
 	for _, tc := range tests {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			var jobs []runtime.Object
-			for _, job := range tc.jobs {
-				job := job
+			builder := fakectrlruntimeclient.NewClientBuilder()
+			for i := range tc.jobs {
+				job := tc.jobs[i]
 				complete := metav1.NewTime(time.Now().Add(-time.Millisecond))
 				if job.Status.State != prowapi.PendingState && job.Status.State != prowapi.TriggeredState {
 					job.Status.CompletionTime = &complete
 				}
-				jobs = append(jobs, &job)
+
+				builder.WithRuntimeObjects(&job)
 			}
 
-			fpjc := fakectrlruntimeclient.NewFakeClient(jobs...)
+			fpjc := builder.Build()
 			fc := &GerritProvider{pjclientset: fpjc}
 
 			got, gotErr := fc.headContexts(&CodeReviewCommon{

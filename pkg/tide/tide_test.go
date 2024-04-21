@@ -2246,7 +2246,7 @@ func TestSync(t *testing.T) {
 			}
 			mergeChecker := newMergeChecker(ca.Config, fgc)
 			sc := &statusController{
-				pjClient: fakectrlruntimeclient.NewFakeClient(),
+				pjClient: fakectrlruntimeclient.NewClientBuilder().Build(),
 				logger:   logrus.WithField("controller", "status-update"),
 				ghc:      fgc,
 				gc:       nil,
@@ -2264,7 +2264,7 @@ func TestSync(t *testing.T) {
 			c := &syncController{
 				config:        ca.Config,
 				provider:      ghProvider,
-				prowJobClient: fakectrlruntimeclient.NewFakeClient(),
+				prowJobClient: fakectrlruntimeclient.NewClientBuilder().Build(),
 				logger:        log,
 				changedFiles: &changedFilesAgent{
 					provider:        ghProvider,
@@ -2894,7 +2894,7 @@ func TestIsPassing(t *testing.T) {
 			if tc.passing {
 				c := &syncController{
 					provider:      &GitHubProvider{ghc: ghc, logger: log},
-					prowJobClient: fakectrlruntimeclient.NewFakeClient(),
+					prowJobClient: fakectrlruntimeclient.NewClientBuilder().Build(),
 					config:        func() *config.Config { return &config.Config{} },
 				}
 				// isRetestEligible is more lenient than isPassingTests, which means we expect it to allow
@@ -4062,7 +4062,7 @@ func getProwJob(pjtype prowapi.ProwJobType, org, repo, branch, sha string, state
 
 func newFakeManager(objs ...runtime.Object) *fakeManager {
 	client := &indexingClient{
-		Client:     fakectrlruntimeclient.NewFakeClient(objs...),
+		Client:     fakectrlruntimeclient.NewClientBuilder().WithRuntimeObjects(objs...).Build(),
 		indexFuncs: map[string]ctrlruntimeclient.IndexerFunc{},
 	}
 	return &fakeManager{
@@ -5251,9 +5251,9 @@ func TestIsBatchCandidateEligible(t *testing.T) {
 				tc.pjManipulator(&pj)
 			}
 
-			var initObjects []runtime.Object
+			builder := fakectrlruntimeclient.NewClientBuilder()
 			if pj != nil {
-				initObjects = append(initObjects, pj)
+				builder.WithRuntimeObjects(pj)
 			}
 
 			cfg := func() *config.Config { return &config.Config{} }
@@ -5261,7 +5261,7 @@ func TestIsBatchCandidateEligible(t *testing.T) {
 				config:        cfg,
 				provider:      &GitHubProvider{cfg: cfg},
 				ctx:           context.Background(),
-				prowJobClient: fakectrlruntimeclient.NewFakeClient(initObjects...),
+				prowJobClient: builder.Build(),
 			}
 
 			cc := &config.TideContextPolicy{

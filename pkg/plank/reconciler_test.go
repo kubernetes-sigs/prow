@@ -390,7 +390,10 @@ func TestMaxConcurrencyConsidersCacheStaleness(t *testing.T) {
 	testConcurrency := func(pja, pjb *prowv1.ProwJob) func(*testing.T) {
 		return func(t *testing.T) {
 			t.Parallel()
-			pjClient := &eventuallyConsistentClient{t: t, Client: fakectrlruntimeclient.NewFakeClient(pja, pjb)}
+			pjClient := &eventuallyConsistentClient{
+				t:      t,
+				Client: fakectrlruntimeclient.NewClientBuilder().WithRuntimeObjects(pja, pjb).Build(),
+			}
 
 			cfg := func() *config.Config {
 				return &config.Config{ProwConfig: config.ProwConfig{Plank: config.Plank{
@@ -402,7 +405,7 @@ func TestMaxConcurrencyConsidersCacheStaleness(t *testing.T) {
 			}
 
 			r := newReconciler(context.Background(), pjClient, nil, cfg, nil, "")
-			r.buildClients = map[string]buildClient{pja.Spec.Cluster: {Client: fakectrlruntimeclient.NewFakeClient()}}
+			r.buildClients = map[string]buildClient{pja.Spec.Cluster: {Client: fakectrlruntimeclient.NewClientBuilder().Build()}}
 
 			wg := &sync.WaitGroup{}
 			wg.Add(2)
@@ -513,7 +516,7 @@ func TestStartPodBlocksUntilItHasThePodInCache(t *testing.T) {
 	r := &reconciler{
 		log: logrus.NewEntry(logrus.New()),
 		buildClients: map[string]buildClient{"default": {
-			Client: &eventuallyConsistentClient{t: t, Client: fakectrlruntimeclient.NewFakeClient()}}},
+			Client: &eventuallyConsistentClient{t: t, Client: fakectrlruntimeclient.NewClientBuilder().Build()}}},
 		config: func() *config.Config { return &config.Config{} },
 	}
 	pj := &prowv1.ProwJob{
@@ -649,17 +652,17 @@ func TestSyncClusterStatus(t *testing.T) {
 				switch status {
 				case ClusterStatusReachable:
 					clients[alias] = buildClient{
-						Client: fakectrlruntimeclient.NewFakeClient(),
+						Client: fakectrlruntimeclient.NewClientBuilder().Build(),
 						ssar:   successfulFakeClient.AuthorizationV1().SelfSubjectAccessReviews(),
 					}
 				case ClusterStatusError:
 					clients[alias] = buildClient{
-						Client: fakectrlruntimeclient.NewFakeClient(),
+						Client: fakectrlruntimeclient.NewClientBuilder().Build(),
 						ssar:   erroringFakeClient.AuthorizationV1().SelfSubjectAccessReviews(),
 					}
 				case ClusterStatusMissingPermissions:
 					clients[alias] = buildClient{
-						Client: fakectrlruntimeclient.NewFakeClient(),
+						Client: fakectrlruntimeclient.NewClientBuilder().Build(),
 						ssar:   missingPermissionsFakeClient.AuthorizationV1().SelfSubjectAccessReviews(),
 					}
 				}
