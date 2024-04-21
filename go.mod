@@ -54,6 +54,7 @@ require (
 	gomodules.xyz/jsonpatch/v2 v2.4.0
 	google.golang.org/api v0.121.0
 	google.golang.org/genproto v0.0.0-20230526161137-0005af68ea54
+	google.golang.org/genproto/googleapis/api v0.0.0-20230525234035-dd9d682886f9
 	google.golang.org/grpc v1.55.0
 	google.golang.org/protobuf v1.30.0
 	gopkg.in/fsnotify.v1 v1.4.7
@@ -68,7 +69,10 @@ require (
 	sigs.k8s.io/yaml v1.3.0
 )
 
-require github.com/smartystreets/goconvey v1.8.1 // indirect
+require (
+	github.com/smartystreets/goconvey v1.8.1 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20230525234030-28d5490b6b19 // indirect
+)
 
 require (
 	bitbucket.org/creachadair/stringset v0.0.9 // indirect
