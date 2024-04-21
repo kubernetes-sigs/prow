@@ -51,15 +51,15 @@ func NewHealthOnPort(port int) *Health {
 	}
 }
 
-type ReadynessCheck func() bool
+type ReadinessCheck func() bool
 
 // ServeReady starts serving the readiness endpoint
-func (h *Health) ServeReady(readynessChecks ...ReadynessCheck) {
+func (h *Health) ServeReady(readinessChecks ...ReadinessCheck) {
 	h.healthMux.HandleFunc("/healthz/ready", func(w http.ResponseWriter, r *http.Request) {
-		for _, readynessCheck := range readynessChecks {
-			if !readynessCheck() {
+		for _, readinessCheck := range readinessChecks {
+			if !readinessCheck() {
 				w.WriteHeader(http.StatusServiceUnavailable)
-				fmt.Fprint(w, "ReadynessCheck failed")
+				fmt.Fprint(w, "ReadinessCheck failed")
 				return
 			}
 		}

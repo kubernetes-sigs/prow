@@ -174,7 +174,7 @@ func prowYAMLGetter(
 		return nil, err
 	}
 
-	// TODO(mpherman): This is to hopefully mittigate issue with gerrit merges. Need to come up with a solution that checks
+	// TODO(mpherman): This is to hopefully mitigate issue with gerrit merges. Need to come up with a solution that checks
 	// each CLs merge strategy as they can differ. ifNecessary is just the gerrit default
 	var mergeMethod types.PullRequestMergeType
 	if gerritsource.IsGerritOrg(identifier) {

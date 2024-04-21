@@ -105,7 +105,7 @@ func (f *httpResolverFactory) CentralRemote(org, repo string) RemoteResolver {
 // for the repository that can be published to.
 func (f *httpResolverFactory) PublishRemote(_, centralRepo string) ForkRemoteResolver {
 	return func(forkName string) (string, error) {
-		// For the publsh remote we use:
+		// For the publish remote we use:
 		// - the user login rather than the central org
 		// - the forkName rather than the central repo name, if specified.
 		repo := centralRepo

@@ -74,8 +74,9 @@ func (prt *partitioningRoundTripper) RoundTrip(r *http.Request) (*http.Response,
 	prt.lock.Lock()
 	roundTripper, found := prt.roundTrippers[cachePartition]
 	if !found {
-		logrus.WithField("cache-parition-key", cachePartition).Info("Creating a new cache for partition")
+		logrus.WithField("cache-partition-key", cachePartition).Info("Creating a new cache for partition")
 		cachePartitionsCounter.WithLabelValues(cachePartition).Add(1)
+		deprecatedCachePartitionsCounter.WithLabelValues(cachePartition).Add(1)
 		prt.roundTrippers[cachePartition] = prt.roundTripperCreator(cachePartition, expiresAt)
 		roundTripper = prt.roundTrippers[cachePartition]
 	}

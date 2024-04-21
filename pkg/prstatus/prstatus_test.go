@@ -134,7 +134,7 @@ func TestHandlePrStatusWithoutLogin(t *testing.T) {
 	}
 	var dataReturned UserData
 	if err := yaml.Unmarshal(body, &dataReturned); err != nil {
-		t.Errorf("Error with unmarshaling response: %v", err)
+		t.Errorf("Error with unmarshalling response: %v", err)
 	}
 	if !reflect.DeepEqual(dataReturned, mockData) {
 		t.Errorf("Invalid user data. Got %v, expected %v", dataReturned, mockData)
@@ -170,7 +170,7 @@ func TestHandlePrStatusWithInvalidToken(t *testing.T) {
 
 	var dataReturned UserData
 	if err := yaml.Unmarshal(body, &dataReturned); err != nil {
-		t.Errorf("Error with unmarshaling response: %v", err)
+		t.Errorf("Error with unmarshalling response: %v", err)
 	}
 
 	expectedData := UserData{Login: false}
@@ -324,7 +324,7 @@ func TestHandlePrStatusWithLogin(t *testing.T) {
 			}
 			var dataReturned UserData
 			if err := yaml.Unmarshal(body, &dataReturned); err != nil {
-				t.Errorf("Error with unmarshaling response: %v", err)
+				t.Errorf("Error with unmarshalling response: %v", err)
 			}
 			if !reflect.DeepEqual(dataReturned, testcase.expectedData) {
 				t.Fatalf("Invalid user data. Got %v, expected %v.", dataReturned, testcase.expectedData)

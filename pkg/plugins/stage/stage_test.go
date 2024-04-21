@@ -207,7 +207,7 @@ func TestStageLabels(t *testing.T) {
 			Body:   tc.body,
 			Action: github.GenericCommentActionCreated,
 		}
-		err := handle(fc, logrus.WithField("plugin", "fake-lifecyle"), e)
+		err := handle(fc, logrus.WithField("plugin", "fake-lifecycle"), e)
 		switch {
 		case err != nil:
 			t.Errorf("%s: unexpected error: %v", tc.name, err)

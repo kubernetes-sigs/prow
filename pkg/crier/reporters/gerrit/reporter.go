@@ -62,7 +62,7 @@ const (
 
 	// lgtm means all presubmits passed, but need someone else to approve before merge (looks good to me).
 	lgtm = "+1"
-	// lbtm means some presubmits failed, perfer not merge (looks bad to me).
+	// lbtm means some presubmits failed, prefer not merge (looks bad to me).
 	lbtm = "-1"
 	// lztm is the minimum score for a postsubmit.
 	lztm = "0"

@@ -339,7 +339,7 @@ type searchQuery struct {
 	} `graphql:"search(type: ISSUE, first: 100, after: $searchCursor, query: $query)"`
 }
 
-// constructQueries constructs the v4 queries for the peridic scan.
+// constructQueries constructs the v4 queries for the periodic scan.
 // It returns a map[org][]query.
 func constructQueries(log *logrus.Entry, now time.Time, orgs, repos []string, usesGitHubAppsAuth bool) map[string][]string {
 	result := map[string][]string{}

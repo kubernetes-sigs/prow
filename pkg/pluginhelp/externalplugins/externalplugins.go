@@ -62,7 +62,7 @@ func ServeExternalPluginHelp(mux *http.ServeMux, log *logrus.Entry, provider Ext
 			}
 			var enabledRepos []config.OrgRepo
 			if err := json.Unmarshal(b, &enabledRepos); err != nil {
-				serverError("unmarshaling request body", err)
+				serverError("unmarshalling request body", err)
 				return
 			}
 			if provider == nil {

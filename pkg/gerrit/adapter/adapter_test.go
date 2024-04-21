@@ -634,7 +634,7 @@ func TestTriggerJobs(t *testing.T) {
 		wantPjs        []*prowapi.ProwJob
 	}{
 		{
-			name: "no presubmit Prow jobs automatically triggered from WorkInProgess change",
+			name: "no presubmit Prow jobs automatically triggered from WorkInProgress change",
 			change: client.ChangeInfo{
 				CurrentRevision: "1",
 				Project:         "test-infra",
@@ -3249,7 +3249,7 @@ func TestTriggerJobs(t *testing.T) {
 					if prowjob, ok := action.Object.(*prowapi.ProwJob); ok {
 						// Comparing the entire prowjob struct is not necessary
 						// in this test, so construct only ProwJob structs with
-						// only necessary informations.
+						// only necessary information.
 						gotProwjobs = append(gotProwjobs, &prowapi.ProwJob{
 							ObjectMeta: metav1.ObjectMeta{
 								Labels:      prowjob.Labels,

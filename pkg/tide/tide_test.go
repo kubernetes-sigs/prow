@@ -4082,7 +4082,7 @@ func newFakeManager(t *testing.T, ctx context.Context, objs ...runtime.Object) t
 func prowYAMLGetterForHeadRefs(headRefsToLookFor []string, ps []config.Presubmit) config.ProwYAMLGetter {
 	return func(_ *config.Config, _ git.ClientFactory, _, _, _ string, headRefs ...string) (*config.ProwYAML, error) {
 		if len(headRefsToLookFor) != len(headRefs) {
-			return nil, fmt.Errorf("expcted %d headrefs, got %d", len(headRefsToLookFor), len(headRefs))
+			return nil, fmt.Errorf("expected %d headrefs, got %d", len(headRefsToLookFor), len(headRefs))
 		}
 		var presubmits []config.Presubmit
 		if sets.New[string](headRefsToLookFor...).Equal(sets.New[string](headRefs...)) {

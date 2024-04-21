@@ -745,8 +745,8 @@ func TestClean(t *testing.T) {
 		t.Fatalf("failed to get remaining prowjobs: %v", err)
 	}
 	actuallyDeletedProwJobs := sets.Set[string]{}
-	for _, initalProwJob := range prowJobs {
-		actuallyDeletedProwJobs.Insert(initalProwJob.(metav1.Object).GetName())
+	for _, initialProwJob := range prowJobs {
+		actuallyDeletedProwJobs.Insert(initialProwJob.(metav1.Object).GetName())
 	}
 	for _, remainingProwJob := range remainingProwJobs.Items {
 		actuallyDeletedProwJobs.Delete(remainingProwJob.Name)

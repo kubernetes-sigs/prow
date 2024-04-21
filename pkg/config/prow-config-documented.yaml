@@ -1037,7 +1037,7 @@ pod_namespace: ' '
 # Each entry in the slice specifies Repo and CLuster regexp filter fields to
 # match against the jobs and a corresponding ProwJobDefault . All entries that
 # match a job are used. Later matching entries override the fields of earlier
-# matching entires.
+# matching entries.
 prowjob_default_entries:
     - # Cluster matches against the cluster alias of the build cluster that the
       # ProwJob is configured to run on. Recall that ProwJobs default to running on

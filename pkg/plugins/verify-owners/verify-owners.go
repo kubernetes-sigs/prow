@@ -501,7 +501,7 @@ func nonTrustedUsersInOwners(ghc githubClient, log *logrus.Entry, triggerConfig 
 	return nonTrustedUsers, nil
 }
 
-// checkIfTrustedUser looks for newly addded owners by checking if they are in the patch
+// checkIfTrustedUser looks for newly added owners by checking if they are in the patch
 // and then checks if the owner is a trusted user.
 // returns a map from user to reasons for not being trusted
 func checkIfTrustedUser(ghc githubClient, log *logrus.Entry, triggerConfig plugins.Trigger, owner, patch, fileName, org, repo string, nonTrustedUsers map[string]nonTrustedReasons, trustedUsers sets.Set[string], repoAliases repoowners.RepoAliases) (map[string]nonTrustedReasons, error) {

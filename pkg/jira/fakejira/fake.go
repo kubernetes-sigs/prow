@@ -65,7 +65,7 @@ func (f *FakeClient) GetIssue(id string) (*jira.Issue, error) {
 func (f *FakeClient) GetRemoteLinks(id string) ([]jira.RemoteLink, error) {
 	issue, err := f.GetIssue(id)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to get issue when chekcing from remote links: %+v", err)
+		return nil, fmt.Errorf("Failed to get issue when checking from remote links: %+v", err)
 	}
 	return append(f.ExistingLinks[issue.ID], f.ExistingLinks[issue.Key]...), nil
 }

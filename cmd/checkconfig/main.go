@@ -100,29 +100,29 @@ func (o *options) warningEnabled(warning string) bool {
 }
 
 const (
-	mismatchedTideWarning                         = "mismatched-tide"
-	mismatchedTideLenientWarning                  = "mismatched-tide-lenient"
-	tideStrictBranchWarning                       = "tide-strict-branch"
-	tideContextPolicy                             = "tide-context-policy"
-	nonDecoratedJobsWarning                       = "non-decorated-jobs"
-	validDecorationConfigWarning                  = "valid-decoration-config"
-	jobNameLengthWarning                          = "long-job-names"
-	jobRefsDuplicationWarning                     = "duplicate-job-refs"
-	needsOkToTestWarning                          = "needs-ok-to-test"
-	managedWebhooksWarning                        = "managed-webhooks"
-	validateOwnersWarning                         = "validate-owners"
-	missingTriggerWarning                         = "missing-trigger"
-	validateURLsWarning                           = "validate-urls"
-	unknownFieldsWarning                          = "unknown-fields"
-	unknownFieldsAllWarning                       = "unknown-fields-all" // Superset of "unknown-fields" that includes validating job config.
-	verifyOwnersFilePresence                      = "verify-owners-presence"
-	validateClusterFieldWarning                   = "validate-cluster-field"
-	validateSupplementalProwConfigOrgRepoHirarchy = "validate-supplemental-prow-config-hirarchy"
-	validateUnmanagedBranchConfigHasNoSubconfig   = "validate-unmanaged-branchconfig-has-no-subconfig"
-	validateGitHubAppInstallationWarning          = "validate-github-app-installation"
-	validateLabelWarning                          = "validate-label"
-	requiredJobAnnotationsWarning                 = "required-job-annotations"
-	periodicDefaultCloneWarning                   = "periodic-default-clone-config"
+	mismatchedTideWarning                          = "mismatched-tide"
+	mismatchedTideLenientWarning                   = "mismatched-tide-lenient"
+	tideStrictBranchWarning                        = "tide-strict-branch"
+	tideContextPolicy                              = "tide-context-policy"
+	nonDecoratedJobsWarning                        = "non-decorated-jobs"
+	validDecorationConfigWarning                   = "valid-decoration-config"
+	jobNameLengthWarning                           = "long-job-names"
+	jobRefsDuplicationWarning                      = "duplicate-job-refs"
+	needsOkToTestWarning                           = "needs-ok-to-test"
+	managedWebhooksWarning                         = "managed-webhooks"
+	validateOwnersWarning                          = "validate-owners"
+	missingTriggerWarning                          = "missing-trigger"
+	validateURLsWarning                            = "validate-urls"
+	unknownFieldsWarning                           = "unknown-fields"
+	unknownFieldsAllWarning                        = "unknown-fields-all" // Superset of "unknown-fields" that includes validating job config.
+	verifyOwnersFilePresence                       = "verify-owners-presence"
+	validateClusterFieldWarning                    = "validate-cluster-field"
+	validateSupplementalProwConfigOrgRepoHierarchy = "validate-supplemental-prow-config-hierarchy"
+	validateUnmanagedBranchConfigHasNoSubconfig    = "validate-unmanaged-branchconfig-has-no-subconfig"
+	validateGitHubAppInstallationWarning           = "validate-github-app-installation"
+	validateLabelWarning                           = "validate-label"
+	requiredJobAnnotationsWarning                  = "required-job-annotations"
+	periodicDefaultCloneWarning                    = "periodic-default-clone-config"
 
 	defaultHourlyTokens = 3000
 	defaultAllowedBurst = 100
@@ -143,7 +143,7 @@ var defaultWarnings = []string{
 	validateURLsWarning,
 	unknownFieldsWarning,
 	validateClusterFieldWarning,
-	validateSupplementalProwConfigOrgRepoHirarchy,
+	validateSupplementalProwConfigOrgRepoHierarchy,
 	validateUnmanagedBranchConfigHasNoSubconfig,
 	validateLabelWarning,
 	requiredJobAnnotationsWarning,
@@ -413,7 +413,7 @@ func validate(o options) error {
 		}
 	}
 
-	if o.warningEnabled(validateSupplementalProwConfigOrgRepoHirarchy) {
+	if o.warningEnabled(validateSupplementalProwConfigOrgRepoHierarchy) {
 		if err := validateAdditionalProwConfigIsInOrgRepoDirectoryStructure(os.DirFS("./"), o.config.SupplementalProwConfigDirs.Strings(), o.pluginsConfig.SupplementalPluginsConfigDirs.Strings(), o.config.SupplementalProwConfigsFileNameSuffix, o.pluginsConfig.SupplementalPluginsConfigsFileNameSuffix); err != nil {
 			errs = append(errs, err)
 		}
@@ -1099,7 +1099,7 @@ func verifyLabelPlugin(label plugins.Label) error {
 	restrictedAndAdditionalLabels := make(map[string][]string)
 	for orgRepo, restrictedLabels := range label.RestrictedLabels {
 		for _, restrictedLabel := range restrictedLabels {
-			if label.IsRestrictedLabelInAdditionalLables(restrictedLabel.Label) {
+			if label.IsRestrictedLabelInAdditionalLabels(restrictedLabel.Label) {
 				restrictedAndAdditionalLabels[restrictedLabel.Label] = append(restrictedAndAdditionalLabels[restrictedLabel.Label], orgRepo)
 			}
 			if restrictedLabel.Label == "" {
@@ -1257,7 +1257,7 @@ func validateCluster(cfg *config.Config, opener io.Opener) error {
 			}
 			statuses = map[string]plank.ClusterStatus{}
 			if err := json.Unmarshal(b, &statuses); err != nil {
-				return fmt.Errorf("error unmarshaling build cluster status file: %w", err)
+				return fmt.Errorf("error unmarshalling build cluster status file: %w", err)
 			}
 		}
 	}

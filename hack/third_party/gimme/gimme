@@ -429,10 +429,10 @@ _try_existing() {
 		# newer envs have existing semi-colon at end of line, because newer gimme
 		# puts them there; envs created before that change lack those semi-colons
 		# and should gain them, to make it easier for people using eval without
-		# double-quoting the command substition.
+		# double-quoting the command substitution.
 		sed -e 's/\([^;]\)$/\1;/' <"${existing_env}"
-		# gimme is the corner-case where GOROOT _should_ be overriden, since if the
-		# ancilliary tooling's system-internal DefaultGoroot exists, and GOROOT is
+		# gimme is the corner-case where GOROOT _should_ be overridden, since if the
+		# ancillary tooling's system-internal DefaultGoroot exists, and GOROOT is
 		# unset, then it will be used and the wrong golang will be picked up.
 		# Lots of old installs won't have GOROOT; munge it from $PATH
 		if grep -qs '^unset GOROOT' -- "${existing_env}"; then

@@ -81,7 +81,7 @@ func (o *GitHubEnablementOptions) EnablementChecker() func(org, repo string) boo
 	enabledOrgs := o.enabledOrgs.StringSet()
 	enabledRepos := o.enabledRepos.StringSet()
 	disabledOrgs := o.disabledOrgs.StringSet()
-	diabledRepos := o.disabledRepos.StringSet()
+	disabledRepos := o.disabledRepos.StringSet()
 	return func(org, repo string) bool {
 		if len(enabledOrgs) > 0 || len(enabledRepos) > 0 {
 			if !enabledOrgs.Has(org) && !enabledRepos.Has(org+"/"+repo) {
@@ -89,6 +89,6 @@ func (o *GitHubEnablementOptions) EnablementChecker() func(org, repo string) boo
 			}
 		}
 
-		return !disabledOrgs.Has(org) && !diabledRepos.Has(org+"/"+repo)
+		return !disabledOrgs.Has(org) && !disabledRepos.Has(org+"/"+repo)
 	}
 }

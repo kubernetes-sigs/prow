@@ -115,10 +115,10 @@ func add(
 	totURL string,
 	additionalSelector string,
 	overwriteReconcile reconcile.Func,
-	predicateCallack func(bool),
+	predicateCallback func(bool),
 	numWorkers int,
 ) error {
-	predicate, err := predicates(additionalSelector, predicateCallack)
+	predicate, err := predicates(additionalSelector, predicateCallback)
 	if err != nil {
 		return fmt.Errorf("failed to construct predicate: %w", err)
 	}

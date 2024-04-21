@@ -1255,7 +1255,7 @@ func prowJobListHasProwJobWithMatchingHeadSHA(pjs *prowapi.ProwJobList, headSHA 
 func setTideStatusSuccess(pr CodeReviewCommon, ghc githubClient, cfg *config.Config, log *logrus.Entry) error {
 	// Do not waste api tokens and risk hitting the 2.5k context limit by setting it to success if it is
 	// already set to success.
-	if prHasSuccessfullTideStatusContext(pr) {
+	if prHasSuccessfulTideStatusContext(pr) {
 		return nil
 	}
 	return ghc.CreateStatus(
@@ -1269,10 +1269,10 @@ func setTideStatusSuccess(pr CodeReviewCommon, ghc githubClient, cfg *config.Con
 		})
 }
 
-// prHasSuccessfullTideStatusContext is used only by setTideStatusSuccess.
+// prHasSuccessfulTideStatusContext is used only by setTideStatusSuccess.
 //
 // Used only by setTideStatusSuccess, referenced only by GitHubProvider.
-func prHasSuccessfullTideStatusContext(pr CodeReviewCommon) bool {
+func prHasSuccessfulTideStatusContext(pr CodeReviewCommon) bool {
 	commits := pr.GitHubCommits()
 	if commits == nil {
 		return false
@@ -2232,7 +2232,7 @@ func mapKeyWithHighestvalue(m map[string]int) string {
 // no state, failure, pending and success.
 func getBetterSimpleState(a, b simpleState) simpleState {
 	if a == "" || a == failureState || b == successState {
-		// b can't be worse than no state or failure and a can't be beter than success
+		// b can't be worse than no state or failure and a can't be better than success
 		return b
 	}
 

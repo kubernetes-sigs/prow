@@ -82,7 +82,7 @@ type Action struct {
 type Parameter struct {
 	Name string `json:"name"`
 	// This needs to be an interface so we won't clobber
-	// json unmarshaling when the Jenkins job has more
+	// json unmarshalling when the Jenkins job has more
 	// parameter types than strings.
 	Value interface{} `json:"value"`
 }
@@ -440,7 +440,7 @@ func getJobName(spec *prowapi.ProwJobSpec) string {
 	return jobName
 }
 
-// getJobInfoPath builds an approriate path to use for this Jenkins Job to get the job information
+// getJobInfoPath builds an appropriate path to use for this Jenkins Job to get the job information
 func getJobInfoPath(spec *prowapi.ProwJobSpec) string {
 	jenkinsJobName := getJobName(spec)
 	jenkinsPath := fmt.Sprintf("/job/%s/api/json", jenkinsJobName)

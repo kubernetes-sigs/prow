@@ -2082,7 +2082,7 @@ func TestMaxConcurrencyWithNewlyTriggeredJobs(t *testing.T) {
 	}
 }
 
-func TestMaxConcurency(t *testing.T) {
+func TestMaxConcurrency(t *testing.T) {
 	type pendingJob struct {
 		Duplicates int
 		JobQueue   string
@@ -2099,7 +2099,7 @@ func TestMaxConcurency(t *testing.T) {
 	}
 	testCases := []testCase{
 		{
-			Name:           "Max concurency 0 always runs",
+			Name:           "Max concurrency 0 always runs",
 			ProwJob:        prowapi.ProwJob{Spec: prowapi.ProwJobSpec{MaxConcurrency: 0}},
 			ExpectedResult: true,
 		},
@@ -2116,7 +2116,7 @@ func TestMaxConcurency(t *testing.T) {
 			ExpectedResult: false,
 		},
 		{
-			Name: "Num pending plus older instances equals max concurency",
+			Name: "Num pending plus older instances equals max concurrency",
 			ProwJob: prowapi.ProwJob{
 				ObjectMeta: metav1.ObjectMeta{
 					CreationTimestamp: metav1.Now(),
@@ -2139,7 +2139,7 @@ func TestMaxConcurency(t *testing.T) {
 			ExpectedResult: false,
 		},
 		{
-			Name: "Num pending plus older instances exceeds max concurency",
+			Name: "Num pending plus older instances exceeds max concurrency",
 			ProwJob: prowapi.ProwJob{
 				ObjectMeta: metav1.ObjectMeta{
 					CreationTimestamp: metav1.Now(),

@@ -522,7 +522,7 @@ func gitCommit(name, email, message string, stdout, stderr io.Writer, signoff bo
 
 // MinimalGitPush pushes the content of the local repository to the remote, checking to make
 // sure that there are real changes that need updating by diffing the tree refs, ensuring that
-// no metadata-only pushes occur, as those re-trigger tests, remove LGTM, and cause churn whithout
+// no metadata-only pushes occur, as those re-trigger tests, remove LGTM, and cause churn without
 // changing the content being proposed in the PR.
 func MinimalGitPush(remote, remoteBranch string, stdout, stderr io.Writer, dryrun bool, opts ...CallOption) error {
 	if err := Call(stdout, stderr, gitCmd, []string{"remote", "add", forkRemoteName, remote}, opts...); err != nil {
@@ -594,7 +594,7 @@ func getTreeRef(stderr io.Writer, refname string, opts ...CallOption) (string, e
 	}
 	fields := strings.Fields(revParseStdout.String())
 	if n := len(fields); n < 1 {
-		return "", errors.New("got no otput when trying to rev-parse")
+		return "", errors.New("got no output when trying to rev-parse")
 	}
 	return fields[0], nil
 }
