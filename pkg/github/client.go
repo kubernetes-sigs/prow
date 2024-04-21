@@ -194,7 +194,6 @@ type RepositoryClient interface {
 type TeamClient interface {
 	CreateTeam(org string, team Team) (*Team, error)
 	EditTeam(org string, t Team) (*Team, error)
-	DeleteTeam(org string, id int) error
 	DeleteTeamBySlug(org, teamSlug string) error
 	ListTeams(org string) ([]Team, error)
 	UpdateTeamMembership(org string, id int, user string, maintainer bool) (*TeamMembership, error)
@@ -3593,31 +3592,6 @@ func (c *client) EditTeam(org string, t Team) (*Team, error) {
 		exitCodes:   []int{200, 201},
 	}, &retTeam)
 	return &retTeam, err
-}
-
-// DeleteTeam removes team.ID from GitHub.
-//
-// See https://developer.github.com/v3/teams/#delete-team
-// Deprecated: please use DeleteTeamBySlug
-func (c *client) DeleteTeam(org string, id int) error {
-	c.logger.WithField("methodName", "DeleteTeam").
-		Warn("method is deprecated, and will result in multiple api calls to achieve result")
-	durationLogger := c.log("DeleteTeam", org, id)
-	defer durationLogger()
-
-	organization, err := c.GetOrg(org)
-	if err != nil {
-		return err
-	}
-
-	path := fmt.Sprintf("/organizations/%d/team/%d", organization.Id, id)
-	_, err = c.request(&request{
-		method:    http.MethodDelete,
-		path:      path,
-		org:       org,
-		exitCodes: []int{204},
-	}, nil)
-	return err
 }
 
 // DeleteTeamBySlug removes team.Slug from GitHub.
