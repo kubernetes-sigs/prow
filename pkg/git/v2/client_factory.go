@@ -320,13 +320,11 @@ func (c *clientFactory) bootstrapClients(org, repo, dir string) (cacher, cloner,
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	var remote RemoteResolverFactory
-	remote = c.remote
 	client := &repoClient{
 		publisher: publisher{
 			remotes: remotes{
-				publishRemote: remote.PublishRemote(org, repo),
-				centralRemote: remote.CentralRemote(org, repo),
+				publishRemote: c.remote.PublishRemote(org, repo),
+				centralRemote: c.remote.CentralRemote(org, repo),
 			},
 			executor: executor,
 			info:     c.gitUser,
@@ -334,7 +332,7 @@ func (c *clientFactory) bootstrapClients(org, repo, dir string) (cacher, cloner,
 		},
 		interactor: interactor{
 			dir:      dir,
-			remote:   remote.CentralRemote(org, repo),
+			remote:   c.remote.CentralRemote(org, repo),
 			executor: executor,
 			logger:   logger,
 		},

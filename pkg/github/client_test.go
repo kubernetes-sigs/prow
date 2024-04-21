@@ -3085,11 +3085,11 @@ func TestAllMethodsThatDoRequestSetOrgHeader(t *testing.T) {
 			checkingRoundTripper := testRoundTripper{func(r *http.Request) (*http.Response, error) {
 				if !strings.HasPrefix(r.URL.Path, "/app") {
 					var orgVal string
-					if v := r.Context().Value(githubOrgHeaderKey); v != nil {
+					if v := r.Context().Value(githubOrgContextKey); v != nil {
 						orgVal = v.(string)
 					}
-					if orgVal != "org" {
-						t.Errorf("Request didn't have %s header set to 'org'", githubOrgHeaderKey)
+					if expected := "org"; orgVal != expected {
+						t.Errorf("Request didn't have github org key in context set to %q", expected)
 					}
 				}
 				return &http.Response{Body: io.NopCloser(&bytes.Buffer{})}, nil

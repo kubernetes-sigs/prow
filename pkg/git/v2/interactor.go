@@ -21,10 +21,11 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/sirupsen/logrus"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/sirupsen/logrus"
 )
 
 // Interactor knows how to operate on a git repository cloned from GitHub
@@ -425,7 +426,7 @@ func (i *interactor) Am(path string) error {
 		return nil
 	}
 	i.logger.WithError(err).Infof("Patch apply failed with output: %s", string(out))
-	if abortOut, abortErr := i.executor.Run("am", "--abort"); err != nil {
+	if abortOut, abortErr := i.executor.Run("am", "--abort"); abortErr != nil {
 		i.logger.WithError(abortErr).Warningf("Aborting patch apply failed with output: %s", string(abortOut))
 	}
 	return errors.New(string(bytes.TrimPrefix(out, []byte("The copy of the patch that failed is found in: .git/rebase-apply/patch"))))

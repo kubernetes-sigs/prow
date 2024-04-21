@@ -117,7 +117,7 @@ func TestHandleLogin(t *testing.T) {
 		}
 	}
 	if oauthCookie == nil {
-		t.Error("Cookie for oauth session not found")
+		t.Fatal("Cookie for oauth session not found")
 	}
 	decodedCookie := make(map[interface{}]interface{})
 	if err := securecookie.DecodeMulti(oauthCookie.Name, oauthCookie.Value, &decodedCookie, cookie.Codecs...); err != nil {
@@ -183,7 +183,7 @@ func TestHandleLogout(t *testing.T) {
 		t.Errorf("Wrong number of %s cookie. There should be only one cookie with name %s", tokenSession, tokenSession)
 	}
 	if tokenCookie == nil {
-		t.Error("Cookie for oauth session not found")
+		t.Fatal("Cookie for oauth session not found")
 	}
 	if tokenCookie.MaxAge != -1 {
 		t.Errorf("Expect cookie MaxAge equals -1, %d", tokenCookie.MaxAge)
@@ -224,7 +224,7 @@ func TestHandleLogoutWithLoginSession(t *testing.T) {
 		}
 	}
 	if loginCookie == nil {
-		t.Error("Cookie for oauth session not found")
+		t.Fatal("Cookie for oauth session not found")
 	}
 	if loginCookie.MaxAge != -1 {
 		t.Errorf("Expect cookie MaxAge equals -1, %d", loginCookie.MaxAge)
