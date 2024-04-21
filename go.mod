@@ -34,9 +34,9 @@ require (
 	github.com/hashicorp/golang-lru v0.5.4
 	github.com/mattn/go-zglob v0.0.2
 	github.com/maxbrunsfeld/counterfeiter/v6 v6.4.1
-	github.com/prometheus/client_golang v1.13.0
+	github.com/prometheus/client_golang v1.16.0
 	github.com/prometheus/client_model v0.3.0
-	github.com/prometheus/common v0.37.0
+	github.com/prometheus/common v0.42.0
 	github.com/shurcooL/githubv4 v0.0.0-20210725200734-83ba7b4c9228
 	github.com/sirupsen/logrus v1.9.0
 	github.com/spf13/pflag v1.0.5
@@ -155,7 +155,7 @@ require (
 	github.com/pjbgf/sha1cd v0.3.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/prometheus/procfs v0.8.0 // indirect
+	github.com/prometheus/procfs v0.10.1 // indirect
 	github.com/prometheus/statsd_exporter v0.21.0 // indirect
 	github.com/sergi/go-diff v1.2.0 // indirect
 	github.com/shurcooL/graphql v0.0.0-20181231061246-d48a9a75455f // indirect
