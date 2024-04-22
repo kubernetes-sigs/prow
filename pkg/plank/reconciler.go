@@ -124,7 +124,7 @@ func add(
 	}
 
 	ctx := context.Background()
-	if err := mgr.GetFieldIndexer().IndexField(ctx, &prowv1.ProwJob{}, prowJobIndexName, prowJobIndexer(cfg().ProwJobNamespace)); err != nil {
+	if err := setupIndexes(ctx, mgr.GetFieldIndexer(), cfg); err != nil {
 		return fmt.Errorf("failed to add indexer: %w", err)
 	}
 
@@ -165,6 +165,14 @@ func add(
 
 	if err := mgr.Add(manager.RunnableFunc(r.syncClusterStatus(time.Minute, knownClusters))); err != nil {
 		return fmt.Errorf("failed to add cluster status runnable to manager: %w", err)
+	}
+
+	return nil
+}
+
+func setupIndexes(ctx context.Context, indexer ctrlruntimeclient.FieldIndexer, cfg config.Getter) error {
+	if err := indexer.IndexField(ctx, &prowv1.ProwJob{}, prowJobIndexName, prowJobIndexer(cfg().ProwJobNamespace)); err != nil {
+		return err
 	}
 
 	return nil
@@ -864,7 +872,6 @@ func (r *reconciler) getBuildID(name string) (string, error) {
 // first. This allows us to get away without any global locking by just looking
 // at the jobs in the cluster.
 func (r *reconciler) canExecuteConcurrently(ctx context.Context, pj *prowv1.ProwJob) (bool, error) {
-
 	if max := r.config().Plank.MaxConcurrency; max > 0 {
 		pjs := &prowv1.ProwJobList{}
 		if err := r.pjClient.List(ctx, pjs, optPendingProwJobs()); err != nil {

@@ -54,6 +54,7 @@ import (
 	prowv1 "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 	"sigs.k8s.io/prow/pkg/config"
 	"sigs.k8s.io/prow/pkg/io"
+	"sigs.k8s.io/prow/pkg/testutil"
 )
 
 func TestAdd(t *testing.T) {
@@ -398,11 +399,8 @@ func TestMaxConcurrencyConsidersCacheStaleness(t *testing.T) {
 	testConcurrency := func(pja, pjb *prowv1.ProwJob) func(*testing.T) {
 		return func(t *testing.T) {
 			t.Parallel()
-			pjClient := &eventuallyConsistentClient{
-				t:      t,
-				Client: fakectrlruntimeclient.NewClientBuilder().WithRuntimeObjects(pja, pjb).Build(),
-			}
 
+			ctx := context.Background()
 			cfg := func() *config.Config {
 				return &config.Config{ProwConfig: config.ProwConfig{Plank: config.Plank{
 					Controller: config.Controller{
@@ -411,6 +409,18 @@ func TestMaxConcurrencyConsidersCacheStaleness(t *testing.T) {
 					JobQueueCapacities: map[string]int{"queue-1": 1},
 				}}}
 			}
+
+			fakeMgr, err := testutil.NewFakeManager(
+				ctx,
+				[]runtime.Object{pja, pjb},
+				func(ctx context.Context, indexer ctrlruntimeclient.FieldIndexer) error {
+					return setupIndexes(ctx, indexer, cfg)
+				},
+			)
+			if err != nil {
+				t.Fatalf("Failed to setup fake manager: %v", err)
+			}
+			pjClient := &eventuallyConsistentClient{t: t, Client: fakeMgr.GetClient()}
 
 			r := newReconciler(context.Background(), pjClient, nil, cfg, nil, "")
 			r.buildClients = map[string]buildClient{pja.Spec.Cluster: {Client: fakectrlruntimeclient.NewClientBuilder().Build()}}
@@ -521,11 +531,29 @@ func (ecc *eventuallyConsistentClient) Create(ctx context.Context, obj ctrlrunti
 
 func TestStartPodBlocksUntilItHasThePodInCache(t *testing.T) {
 	t.Parallel()
+
+	ctx := context.Background()
+	cfg := func() *config.Config { return &config.Config{} }
+	fakeMgr, err := testutil.NewFakeManager(
+		ctx,
+		nil,
+		func(ctx context.Context, indexer ctrlruntimeclient.FieldIndexer) error {
+			return setupIndexes(ctx, indexer, cfg)
+		},
+	)
+	if err != nil {
+		t.Fatalf("Failed to setup fake manager: %v", err)
+	}
+	pjClient := &eventuallyConsistentClient{t: t, Client: fakeMgr.GetClient()}
+
 	r := &reconciler{
 		log: logrus.NewEntry(logrus.New()),
-		buildClients: map[string]buildClient{"default": {
-			Client: &eventuallyConsistentClient{t: t, Client: fakectrlruntimeclient.NewClientBuilder().Build()}}},
-		config: func() *config.Config { return &config.Config{} },
+		buildClients: map[string]buildClient{
+			"default": {
+				Client: pjClient,
+			},
+		},
+		config: cfg,
 	}
 	pj := &prowv1.ProwJob{
 		ObjectMeta: metav1.ObjectMeta{Name: "name"},
