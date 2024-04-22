@@ -877,9 +877,8 @@ func (r *reconciler) canExecuteConcurrently(ctx context.Context, pj *prowv1.Prow
 		if err := r.pjClient.List(ctx, pjs, optPendingProwJobs()); err != nil {
 			return false, fmt.Errorf("failed to list prowjobs: %w", err)
 		}
-		// The list contains our own ProwJob
-		running := len(pjs.Items) - 1
-		if running >= max {
+
+		if running := len(pjs.Items); running >= max {
 			r.log.WithFields(pjutil.ProwJobFields(pj)).Infof("Not starting another job, already %d running.", running)
 			return false, nil
 		}

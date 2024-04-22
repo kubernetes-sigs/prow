@@ -787,6 +787,9 @@ func TestSyncTriggeredJobs(t *testing.T) {
 							Agent: prowapi.KubernetesAgent,
 							Job:   jobName,
 						},
+						Status: prowapi.ProwJobStatus{
+							State: prowapi.PendingState,
+						},
 					}); err != nil {
 						t.Fatalf("failed to create prowJob: %v", err)
 					}
