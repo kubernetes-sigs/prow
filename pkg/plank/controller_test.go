@@ -1856,7 +1856,7 @@ func TestPeriodic(t *testing.T) {
 	}
 	update := podsAfterSecondSync.Items[0].DeepCopy()
 	update.Status.Phase = v1.PodSucceeded
-	if err := buildClients["trusted"].Update(context.Background(), update); err != nil {
+	if err := buildClients["trusted"].Status().Update(ctx, update); err != nil {
 		t.Fatalf("could not update pod to be succeeded: %v", err)
 	}
 	if _, err := r.Reconcile(ctx, reconcile.Request{NamespacedName: ctrlruntimeclient.ObjectKeyFromObject(&pj)}); err != nil {
