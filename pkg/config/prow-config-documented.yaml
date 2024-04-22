@@ -718,21 +718,29 @@ plank:
             # containers used to decorate a PodSpec.
             resources:
                 clonerefs:
+                    claims:
+                        - name: ' '
                     limits:
                         "": "0"
                     requests:
                         "": "0"
                 initupload:
+                    claims:
+                        - name: ' '
                     limits:
                         "": "0"
                     requests:
                         "": "0"
                 place_entrypoint:
+                    claims:
+                        - name: ' '
                     limits:
                         "": "0"
                     requests:
                         "": "0"
                 sidecar:
+                    claims:
+                        - name: ' '
                     limits:
                         "": "0"
                     requests:
@@ -919,21 +927,29 @@ plank:
             # containers used to decorate a PodSpec.
             resources:
                 clonerefs:
+                    claims:
+                        - name: ' '
                     limits:
                         "": "0"
                     requests:
                         "": "0"
                 initupload:
+                    claims:
+                        - name: ' '
                     limits:
                         "": "0"
                     requests:
                         "": "0"
                 place_entrypoint:
+                    claims:
+                        - name: ' '
                     limits:
                         "": "0"
                     requests:
                         "": "0"
                 sidecar:
+                    claims:
+                        - name: ' '
                     limits:
                         "": "0"
                     requests:
