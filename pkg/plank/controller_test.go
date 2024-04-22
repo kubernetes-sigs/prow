@@ -31,6 +31,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/sirupsen/logrus"
+	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	kapierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -61,6 +62,8 @@ const (
 	podPendingTimeout     = time.Hour
 	podRunningTimeout     = time.Hour * 2
 	podUnscheduledTimeout = time.Minute * 5
+
+	podDeletionPreventionFinalizer = "keep-from-vanishing"
 )
 
 func newFakeConfigAgent(t *testing.T, maxConcurrency int, queueCapacities map[string]int) *fca {
@@ -1557,7 +1560,8 @@ func TestSyncPendingJob(t *testing.T) {
 						Name:              "deleted-pod-in-pending-marks-job-as-errored",
 						Namespace:         "pods",
 						CreationTimestamp: metav1.Time{Time: time.Now().Add(-time.Second)},
-						DeletionTimestamp: func() *metav1.Time { n := metav1.Now(); return &n }(),
+						DeletionTimestamp: &metav1.Time{Time: time.Now()},
+						Finalizers:        []string{podDeletionPreventionFinalizer},
 					},
 					Status: v1.PodStatus{
 						Phase: v1.PodPending,
@@ -1587,7 +1591,8 @@ func TestSyncPendingJob(t *testing.T) {
 						Name:              "pod-deleted-in-unset-phase",
 						Namespace:         "pods",
 						CreationTimestamp: metav1.Time{Time: time.Now().Add(-time.Second)},
-						DeletionTimestamp: func() *metav1.Time { n := metav1.Now(); return &n }(),
+						DeletionTimestamp: &metav1.Time{Time: time.Now()},
+						Finalizers:        []string{podDeletionPreventionFinalizer},
 					},
 				},
 			},
@@ -1614,7 +1619,8 @@ func TestSyncPendingJob(t *testing.T) {
 						Name:              "pod-deleted-in-unset-phase",
 						Namespace:         "pods",
 						CreationTimestamp: metav1.Time{Time: time.Now().Add(-time.Second)},
-						DeletionTimestamp: func() *metav1.Time { n := metav1.Now(); return &n }(),
+						DeletionTimestamp: &metav1.Time{Time: time.Now()},
+						Finalizers:        []string{podDeletionPreventionFinalizer},
 					},
 					Status: v1.PodStatus{
 						Phase: v1.PodRunning,
@@ -1755,7 +1761,7 @@ func TestSyncPendingJob(t *testing.T) {
 				t.Errorf("got %d pods, expected %d", len(actualPods.Items), tc.ExpectedNumPods)
 			}
 			for _, pod := range actualPods.Items {
-				if pod.DeletionTimestamp != nil && len(pod.Finalizers) != 0 {
+				if !podWouldBeGone(pod) {
 					t.Errorf("pod %s was deleted but still had finalizers: %v", pod.Name, pod.Finalizers)
 				}
 			}
@@ -1764,6 +1770,17 @@ func TestSyncPendingJob(t *testing.T) {
 			}
 		})
 	}
+}
+
+func podWouldBeGone(pod corev1.Pod) bool {
+	if pod.DeletionTimestamp != nil {
+		return true
+	}
+
+	actual := sets.New(pod.Finalizers...)
+	allowed := sets.New(podDeletionPreventionFinalizer)
+
+	return allowed.IsSuperset(actual)
 }
 
 // TestPeriodic walks through the happy path of a periodic job.
