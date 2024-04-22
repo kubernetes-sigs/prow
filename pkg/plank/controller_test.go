@@ -127,14 +127,12 @@ func TestTerminateDupes(t *testing.T) {
 		reallyNow := metav1.NewTime(now)
 		return &reallyNow
 	}
-	type testCase struct {
-		Name string
 
-		PJs []prowapi.ProwJob
-
+	testcases := []struct {
+		Name          string
+		PJs           []prowapi.ProwJob
 		TerminatedPJs sets.Set[string]
-	}
-	testcases := []testCase{
+	}{
 		{
 			Name: "terminate all duplicates",
 
@@ -142,44 +140,52 @@ func TestTerminateDupes(t *testing.T) {
 				{
 					ObjectMeta: metav1.ObjectMeta{Name: "newest", Namespace: "prowjobs"},
 					Spec: prowapi.ProwJobSpec{
-						Type: prowapi.PresubmitJob,
-						Job:  "j1",
-						Refs: &prowapi.Refs{Pulls: []prowapi.Pull{{}}},
+						Agent: prowapi.KubernetesAgent,
+						Type:  prowapi.PresubmitJob,
+						Job:   "j1",
+						Refs:  &prowapi.Refs{Pulls: []prowapi.Pull{{}}},
 					},
 					Status: prowapi.ProwJobStatus{
+						State:     prowapi.PendingState,
 						StartTime: metav1.NewTime(now.Add(-time.Minute)),
 					},
 				},
 				{
 					ObjectMeta: metav1.ObjectMeta{Name: "old", Namespace: "prowjobs"},
 					Spec: prowapi.ProwJobSpec{
-						Type: prowapi.PresubmitJob,
-						Job:  "j1",
-						Refs: &prowapi.Refs{Pulls: []prowapi.Pull{{}}},
+						Agent: prowapi.KubernetesAgent,
+						Type:  prowapi.PresubmitJob,
+						Job:   "j1",
+						Refs:  &prowapi.Refs{Pulls: []prowapi.Pull{{}}},
 					},
 					Status: prowapi.ProwJobStatus{
+						State:     prowapi.TriggeredState,
 						StartTime: metav1.NewTime(now.Add(-time.Hour)),
 					},
 				},
 				{
 					ObjectMeta: metav1.ObjectMeta{Name: "older", Namespace: "prowjobs"},
 					Spec: prowapi.ProwJobSpec{
-						Type: prowapi.PresubmitJob,
-						Job:  "j1",
-						Refs: &prowapi.Refs{Pulls: []prowapi.Pull{{}}},
+						Agent: prowapi.KubernetesAgent,
+						Type:  prowapi.PresubmitJob,
+						Job:   "j1",
+						Refs:  &prowapi.Refs{Pulls: []prowapi.Pull{{}}},
 					},
 					Status: prowapi.ProwJobStatus{
+						State:     prowapi.TriggeredState,
 						StartTime: metav1.NewTime(now.Add(-2 * time.Hour)),
 					},
 				},
 				{
 					ObjectMeta: metav1.ObjectMeta{Name: "complete", Namespace: "prowjobs"},
 					Spec: prowapi.ProwJobSpec{
-						Type: prowapi.PresubmitJob,
-						Job:  "j1",
-						Refs: &prowapi.Refs{Pulls: []prowapi.Pull{{}}},
+						Agent: prowapi.KubernetesAgent,
+						Type:  prowapi.PresubmitJob,
+						Job:   "j1",
+						Refs:  &prowapi.Refs{Pulls: []prowapi.Pull{{}}},
 					},
 					Status: prowapi.ProwJobStatus{
+						State:          prowapi.SuccessState,
 						StartTime:      metav1.NewTime(now.Add(-3 * time.Hour)),
 						CompletionTime: nowFn(),
 					},
@@ -187,44 +193,52 @@ func TestTerminateDupes(t *testing.T) {
 				{
 					ObjectMeta: metav1.ObjectMeta{Name: "newest_j2", Namespace: "prowjobs"},
 					Spec: prowapi.ProwJobSpec{
-						Type: prowapi.PresubmitJob,
-						Job:  "j2",
-						Refs: &prowapi.Refs{Pulls: []prowapi.Pull{{}}},
+						Agent: prowapi.KubernetesAgent,
+						Type:  prowapi.PresubmitJob,
+						Job:   "j2",
+						Refs:  &prowapi.Refs{Pulls: []prowapi.Pull{{}}},
 					},
 					Status: prowapi.ProwJobStatus{
+						State:     prowapi.TriggeredState,
 						StartTime: metav1.NewTime(now.Add(-time.Minute)),
 					},
 				},
 				{
 					ObjectMeta: metav1.ObjectMeta{Name: "old_j2", Namespace: "prowjobs"},
 					Spec: prowapi.ProwJobSpec{
-						Type: prowapi.PresubmitJob,
-						Job:  "j2",
-						Refs: &prowapi.Refs{Pulls: []prowapi.Pull{{}}},
+						Agent: prowapi.KubernetesAgent,
+						Type:  prowapi.PresubmitJob,
+						Job:   "j2",
+						Refs:  &prowapi.Refs{Pulls: []prowapi.Pull{{}}},
 					},
 					Status: prowapi.ProwJobStatus{
+						State:     prowapi.TriggeredState,
 						StartTime: metav1.NewTime(now.Add(-time.Hour)),
 					},
 				},
 				{
 					ObjectMeta: metav1.ObjectMeta{Name: "old_j3", Namespace: "prowjobs"},
 					Spec: prowapi.ProwJobSpec{
-						Type: prowapi.PresubmitJob,
-						Job:  "j3",
-						Refs: &prowapi.Refs{Pulls: []prowapi.Pull{{}}},
+						Agent: prowapi.KubernetesAgent,
+						Type:  prowapi.PresubmitJob,
+						Job:   "j3",
+						Refs:  &prowapi.Refs{Pulls: []prowapi.Pull{{}}},
 					},
 					Status: prowapi.ProwJobStatus{
+						State:     prowapi.TriggeredState,
 						StartTime: metav1.NewTime(now.Add(-time.Hour)),
 					},
 				},
 				{
 					ObjectMeta: metav1.ObjectMeta{Name: "new_j3", Namespace: "prowjobs"},
 					Spec: prowapi.ProwJobSpec{
-						Type: prowapi.PresubmitJob,
-						Job:  "j3",
-						Refs: &prowapi.Refs{Pulls: []prowapi.Pull{{}}},
+						Agent: prowapi.KubernetesAgent,
+						Type:  prowapi.PresubmitJob,
+						Job:   "j3",
+						Refs:  &prowapi.Refs{Pulls: []prowapi.Pull{{}}},
 					},
 					Status: prowapi.ProwJobStatus{
+						State:     prowapi.TriggeredState,
 						StartTime: metav1.NewTime(now.Add(-time.Minute)),
 					},
 				},
@@ -275,10 +289,7 @@ func TestTerminateDupes(t *testing.T) {
 				clock:    clock.RealClock{},
 			}
 			for _, pj := range tc.PJs {
-				res, err := r.reconcile(context.Background(), &pj)
-				if res != nil {
-					err = utilerrors.NewAggregate([]error{err, fmt.Errorf("expected reconcile.Result to be nil, was %v", res)})
-				}
+				err := r.terminateDupes(ctx, &pj)
 				if err != nil {
 					t.Fatalf("Error terminating dupes: %v", err)
 				}
