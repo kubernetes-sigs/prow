@@ -41,7 +41,7 @@ func TestProwJobLifecycleCollectorUpdate(t *testing.T) {
 		newJob *prowapi.ProwJob
 	}
 	type expected struct {
-		collected []dto.Metric
+		collected []*dto.Metric
 	}
 	tests := []struct {
 		oldJobStates []prowapi.ProwJobState
@@ -145,7 +145,7 @@ func TestProwJobLifecycleCollectorUpdate(t *testing.T) {
 					},
 				},
 			}, expected: expected{
-				collected: []dto.Metric{{Label: []*dto.LabelPair{
+				collected: []*dto.Metric{{Label: []*dto.LabelPair{
 					toLabelPair("base_ref", "master"),
 					toLabelPair("job_name", "testjob"),
 					toLabelPair("job_namespace", "testnamespace"),
@@ -210,7 +210,7 @@ func TestProwJobLifecycleCollectorUpdate(t *testing.T) {
 					},
 				},
 			}, expected: expected{
-				collected: []dto.Metric{{Label: []*dto.LabelPair{
+				collected: []*dto.Metric{{Label: []*dto.LabelPair{
 					toLabelPair("base_ref", "master"),
 					toLabelPair("job_name", "testjob"),
 					toLabelPair("job_namespace", "testnamespace"),
@@ -235,20 +235,20 @@ func TestProwJobLifecycleCollectorUpdate(t *testing.T) {
 	}
 }
 
-func collect(histogram *prometheus.HistogramVec) []dto.Metric {
+func collect(histogram *prometheus.HistogramVec) []*dto.Metric {
 	metrics := make(chan prometheus.Metric, 1000)
 	histogram.Collect(metrics)
 	close(metrics)
-	var collected []dto.Metric
+	var collected []*dto.Metric
 	for metric := range metrics {
 		m := dto.Metric{}
 		metric.Write(&m)
-		collected = append(collected, m)
+		collected = append(collected, &m)
 	}
 	return collected
 }
 
-func assertMetrics(t *testing.T, actual, expected []dto.Metric, lastState prowapi.ProwJobState, state prowapi.ProwJobState) {
+func assertMetrics(t *testing.T, actual, expected []*dto.Metric, lastState prowapi.ProwJobState, state prowapi.ProwJobState) {
 	if len(actual) != len(expected) {
 		t.Errorf("actual length differs from expected: %v, %v", len(actual), len(expected))
 		return
