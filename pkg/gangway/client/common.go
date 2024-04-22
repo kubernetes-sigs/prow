@@ -34,8 +34,7 @@ type Common struct {
 
 // WaitForJobExecutionStatus polls until the expected job status is detected.
 func (c *Common) WaitForJobExecutionStatus(ctx context.Context, jobExecutionId string, pollInterval, timeout time.Duration, expectedStatus pb.JobExecutionStatus) error {
-
-	expectJobStatus := func() (bool, error) {
+	expectJobStatus := func(ctx context.Context) (bool, error) {
 		jobExecution, err := c.GRPC.GetJobExecution(ctx, &pb.GetJobExecutionRequest{Id: jobExecutionId})
 		if err != nil {
 			// Keep trying.
@@ -49,7 +48,7 @@ func (c *Common) WaitForJobExecutionStatus(ctx context.Context, jobExecutionId s
 		return true, nil
 	}
 
-	if waitErr := wait.Poll(pollInterval, timeout, expectJobStatus); waitErr != nil {
+	if waitErr := wait.PollUntilContextTimeout(ctx, pollInterval, timeout, true, expectJobStatus); waitErr != nil {
 		return fmt.Errorf("timed out waiting for the condition: %v", waitErr)
 	}
 

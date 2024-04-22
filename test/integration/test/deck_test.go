@@ -298,7 +298,7 @@ func TestDeckTenantIDs(t *testing.T) {
 			pollInterval := 1 * time.Second
 			endpoint := fmt.Sprintf("http://localhost/%s/prowjobs.js", tt.deckInstance)
 			// Every time "scraper" below returns "false, nil" we retry it.
-			scraper := func() (bool, error) {
+			scraper := func(ctx context.Context) (bool, error) {
 				resp, err := http.Get(endpoint)
 				if err != nil {
 					t.Logf("Failed running GET request against %q: %v", endpoint, err)
@@ -344,7 +344,7 @@ func TestDeckTenantIDs(t *testing.T) {
 				t.Logf("endpoint %q (finally) matched test expectations; scraping finished", endpoint)
 				return true, nil
 			}
-			if waitErr := wait.Poll(pollInterval, timeout, scraper); waitErr != nil {
+			if waitErr := wait.PollUntilContextTimeout(ctx, pollInterval, timeout, true, scraper); waitErr != nil {
 				// If waitErr is not nil, it means we timed out waiting for this
 				// test to succeed.
 				t.Errorf("Timed out while scraping %q", endpoint)
@@ -418,7 +418,7 @@ func TestRerun(t *testing.T) {
 	ctx := context.Background()
 	getLatestJob := func(t *testing.T, jobName string, lastRun *v1.Time) *prowjobv1.ProwJob {
 		var res *prowjobv1.ProwJob
-		if err := wait.Poll(time.Second, 90*time.Second, func() (bool, error) {
+		if err := wait.PollUntilContextTimeout(ctx, time.Second, 90*time.Second, true, func(ctx context.Context) (bool, error) {
 			pjs := &prowjobv1.ProwJobList{}
 			err = kubeClient.List(ctx, pjs, &ctrlruntimeclient.ListOptions{
 				LabelSelector: labels.SelectorFromSet(map[string]string{kube.ProwJobAnnotation: jobName}),

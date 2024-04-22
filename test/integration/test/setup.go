@@ -175,7 +175,7 @@ func execRemoteCommand(restCfg *rest.Config, clientset *kubernetes.Clientset, po
 		return "", "", err
 	}
 
-	err = exec.Stream(remotecommand.StreamOptions{
+	err = exec.StreamWithContext(context.TODO(), remotecommand.StreamOptions{
 		Stdout: buf,
 		Stderr: errBuf,
 	})

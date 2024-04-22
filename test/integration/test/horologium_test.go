@@ -103,7 +103,7 @@ func TestLaunchProwJob(t *testing.T) {
 			// after lastRun, and fail if there is none found.
 			getNextRunOrFail := func(t *testing.T, jobName string, lastRun *v1.Time) *prowjobv1.ProwJob {
 				var res *prowjobv1.ProwJob
-				if err := wait.Poll(time.Second, 90*time.Second, func() (bool, error) {
+				if err := wait.PollUntilContextTimeout(ctx, time.Second, 90*time.Second, true, func(ctx context.Context) (bool, error) {
 					pjs := &prowjobv1.ProwJobList{}
 					err = kubeClient.List(ctx, pjs, &ctrlruntimeclient.ListOptions{
 						LabelSelector: labels.SelectorFromSet(map[string]string{kube.ProwJobAnnotation: existJobName}),

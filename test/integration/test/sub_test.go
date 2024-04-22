@@ -596,7 +596,7 @@ this-is-from-repo7
 			// tests more components (clonerefs, initupload, etc). In this
 			// sense, the tests here can be thought of as a superset of the
 			// TestClonerefs test in pod-utils_test.go.
-			expectJobSuccess := func() (bool, error) {
+			expectJobSuccess := func(ctx context.Context) (bool, error) {
 				err = kubeClient.List(ctx, &prowjobList, ctrlruntimeclient.MatchingLabels{"integration-test/uid": uid})
 				if err != nil {
 					t.Logf("failed getting prow job with label: %s", uid)
@@ -635,7 +635,7 @@ this-is-from-repo7
 			// that was created by sub).
 			timeout := 120 * time.Second
 			pollInterval := 500 * time.Millisecond
-			if waitErr := wait.Poll(pollInterval, timeout, expectJobSuccess); waitErr != nil {
+			if waitErr := wait.PollUntilContextTimeout(ctx, pollInterval, timeout, true, expectJobSuccess); waitErr != nil {
 				if podName == nil {
 					t.Fatal("could not find test pod")
 				}

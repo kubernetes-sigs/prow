@@ -17,6 +17,7 @@ limitations under the License.
 package integration
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strconv"
@@ -80,7 +81,7 @@ func TestHook(t *testing.T) {
 		t.Fatalf("Error sending hook: %v", err)
 	}
 
-	if err := wait.Poll(500*time.Millisecond, 1*time.Minute, func() (bool, error) {
+	if err := wait.PollUntilContextTimeout(context.Background(), 500*time.Millisecond, 1*time.Minute, true, func(ctx context.Context) (bool, error) {
 		gotLabels, err := githubClient.GetIssueLabels(org, repo, issueID)
 		if err != nil {
 			return false, fmt.Errorf("failed listing issue labels: %w", err)
