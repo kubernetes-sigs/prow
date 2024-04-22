@@ -670,16 +670,21 @@ type graphQLGitHubAppsAuthClientWrapper struct {
 	userAgent string
 }
 
-var userAgentContextKey = &struct{}{}
+type contextKey int
+
+const (
+	userAgentContextKey contextKey = iota
+	githubOrgContextKey
+)
 
 func (c *graphQLGitHubAppsAuthClientWrapper) QueryWithGitHubAppsSupport(ctx context.Context, q interface{}, vars map[string]interface{}, org string) error {
-	ctx = context.WithValue(ctx, githubOrgHeaderKey, org)
+	ctx = context.WithValue(ctx, githubOrgContextKey, org)
 	ctx = context.WithValue(ctx, userAgentContextKey, c.userAgent)
 	return c.Client.Query(ctx, q, vars)
 }
 
 func (c *graphQLGitHubAppsAuthClientWrapper) MutateWithGitHubAppsSupport(ctx context.Context, m interface{}, input githubql.Input, vars map[string]interface{}, org string) error {
-	ctx = context.WithValue(ctx, githubOrgHeaderKey, org)
+	ctx = context.WithValue(ctx, githubOrgContextKey, org)
 	ctx = context.WithValue(ctx, userAgentContextKey, c.userAgent)
 	return c.Client.Mutate(ctx, m, input, vars)
 }
@@ -1084,7 +1089,7 @@ func (c *client) doRequest(ctx context.Context, method, path, accept, org string
 		req.Header.Add("User-Agent", userAgent)
 	}
 	if org != "" {
-		req = req.WithContext(context.WithValue(req.Context(), githubOrgHeaderKey, org))
+		req = req.WithContext(context.WithValue(req.Context(), githubOrgContextKey, org))
 	}
 	// Disable keep-alive so that we don't get flakes when GitHub closes the
 	// connection prematurely.
@@ -3448,7 +3453,7 @@ func (c *client) FindIssuesWithOrg(org, query, sort string, asc bool) ([]Issue, 
 		}
 	}
 	err := c.readPaginatedResultsWithValues(
-		fmt.Sprintf("/search/issues"),
+		"/search/issues",
 		values,
 		acceptNone,
 		org,
@@ -4343,12 +4348,12 @@ func (c *client) waitForRepo(owner, name string) error {
 	// The documentation instructs us to contact support if this
 	// takes longer than five minutes.
 	after := time.After(6 * time.Minute)
-	tick := time.Tick(30 * time.Second)
+	tick := time.NewTicker(30 * time.Second)
 
 	var ghErr string
 	for {
 		select {
-		case <-tick:
+		case <-tick.C:
 			repo, err := c.GetRepo(owner, name)
 			if err != nil {
 				ghErr = fmt.Sprintf(": %v", err)

@@ -34,10 +34,6 @@ import (
 	"sigs.k8s.io/prow/pkg/ghcache"
 )
 
-const (
-	githubOrgHeaderKey = "X-PROW-GITHUB-ORG"
-)
-
 type appGitHubClient interface {
 	ListAppInstallations() ([]AppInstallation, error)
 	getAppInstallationToken(installationId int64) (*AppInstallationToken, error)
@@ -146,7 +142,7 @@ func (arr *appsRoundTripper) addAppAuth(r *http.Request) *appsAuthError {
 
 func extractOrgFromContext(ctx context.Context) string {
 	var org string
-	if v := ctx.Value(githubOrgHeaderKey); v != nil {
+	if v := ctx.Value(githubOrgContextKey); v != nil {
 		org = v.(string)
 	}
 	return org

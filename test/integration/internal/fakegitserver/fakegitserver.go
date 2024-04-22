@@ -221,7 +221,6 @@ func setupRepo(gitReposParentDir string, repoSetup *RepoSetup, mux *sync.Mutex) 
 
 // getLog creates a report of Git repo statistics.
 func getLog(repo *git.Repository) (string, error) {
-
 	var stats string
 
 	// Show `git log --all` equivalent.
@@ -233,7 +232,7 @@ func getLog(repo *git.Repository) (string, error) {
 	if err != nil {
 		return "", errors.New("could not get git logs")
 	}
-	err = commits.ForEach(func(commit *object.Commit) error {
+	_ = commits.ForEach(func(commit *object.Commit) error {
 		stats += fmt.Sprintln(commit)
 		return nil
 	})

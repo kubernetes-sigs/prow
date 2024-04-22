@@ -993,10 +993,10 @@ type ReviewState string
 // Possible review states.
 const (
 	ReviewStateApproved         ReviewState = "APPROVED"
-	ReviewStateChangesRequested             = "CHANGES_REQUESTED"
-	ReviewStateCommented                    = "COMMENTED"
-	ReviewStateDismissed                    = "DISMISSED"
-	ReviewStatePending                      = "PENDING"
+	ReviewStateChangesRequested ReviewState = "CHANGES_REQUESTED"
+	ReviewStateCommented        ReviewState = "COMMENTED"
+	ReviewStateDismissed        ReviewState = "DISMISSED"
+	ReviewStatePending          ReviewState = "PENDING"
 )
 
 // Review describes a Pull Request review.
@@ -1072,8 +1072,8 @@ type ReviewAction string
 // Possible review actions. Leave Action blank for a pending review.
 const (
 	Approve        ReviewAction = "APPROVE"
-	RequestChanges              = "REQUEST_CHANGES"
-	Comment                     = "COMMENT"
+	RequestChanges ReviewAction = "REQUEST_CHANGES"
+	Comment        ReviewAction = "COMMENT"
 )
 
 // DraftReview is what we give GitHub when we want to make a PR Review. This is

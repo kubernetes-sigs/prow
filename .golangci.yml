@@ -1,6 +1,6 @@
 run:
-  deadline: 13m
-  skip-dirs:
+  timeout: 15m
+  exclude-dirs:
   - .git
   - .tool
   - vendor
