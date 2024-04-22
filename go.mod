@@ -14,6 +14,7 @@ require (
 	github.com/aws/aws-sdk-go v1.38.49
 	github.com/bazelbuild/buildtools v0.0.0-20200922170545-10384511ce98
 	github.com/blang/semver/v4 v4.0.0
+	github.com/bombsimon/logrusr/v4 v4.1.0
 	github.com/bwmarrin/snowflake v0.0.0
 	// Upstream is unmaintained. This fork introduces two important changes:
 	// * We log an error if writing a cache key fails (e.g. because disk is full)
