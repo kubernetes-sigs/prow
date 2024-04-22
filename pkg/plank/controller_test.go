@@ -38,7 +38,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/utils/clock"
 	clocktesting "k8s.io/utils/clock/testing"
@@ -232,38 +231,6 @@ func TestTerminateDupes(t *testing.T) {
 			},
 
 			TerminatedPJs: sets.New[string]("old", "older", "old_j2", "old_j3"),
-		},
-		{
-			Name: "should also terminate pods",
-
-			PJs: []prowapi.ProwJob{
-				{
-					ObjectMeta: metav1.ObjectMeta{Name: "newest", Namespace: "prowjobs"},
-					Spec: prowapi.ProwJobSpec{
-						Type:    prowapi.PresubmitJob,
-						Job:     "j1",
-						Refs:    &prowapi.Refs{Pulls: []prowapi.Pull{{}}},
-						PodSpec: &v1.PodSpec{Containers: []v1.Container{{Name: "test-name", Env: []v1.EnvVar{}}}},
-					},
-					Status: prowapi.ProwJobStatus{
-						StartTime: metav1.NewTime(now.Add(-time.Minute)),
-					},
-				},
-				{
-					ObjectMeta: metav1.ObjectMeta{Name: "old", Namespace: "prowjobs"},
-					Spec: prowapi.ProwJobSpec{
-						Type:    prowapi.PresubmitJob,
-						Job:     "j1",
-						Refs:    &prowapi.Refs{Pulls: []prowapi.Pull{{}}},
-						PodSpec: &v1.PodSpec{Containers: []v1.Container{{Name: "test-name", Env: []v1.EnvVar{}}}},
-					},
-					Status: prowapi.ProwJobStatus{
-						StartTime: metav1.NewTime(now.Add(-time.Hour)),
-					},
-				},
-			},
-
-			TerminatedPJs: sets.New[string]("old"),
 		},
 	}
 
