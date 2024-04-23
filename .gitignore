@@ -74,3 +74,7 @@ hugo.linux
 
 # Temporary lock file while building
 .hugo_build.lock
+
+# Folders of common IDEs
+.idea/
+.vscode/
