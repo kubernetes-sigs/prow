@@ -2130,7 +2130,7 @@ func checkRunToContext(checkRun CheckRun) Context {
 		return context
 	}
 
-	if checkRun.Conclusion == checkRunConclusionNeutral || checkRun.Conclusion == githubql.String(githubql.StatusStateSuccess) {
+	if checkRun.Conclusion == checkRunConclusionNeutral || checkRun.Conclusion == githubql.String(githubql.CheckConclusionStateSkipped) || checkRun.Conclusion == githubql.String(githubql.StatusStateSuccess) {
 		context.State = githubql.StatusStateSuccess
 		return context
 	}
