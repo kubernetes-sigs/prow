@@ -2374,7 +2374,7 @@ func TestFilterSubpool(t *testing.T) {
 					},
 					checkRuns: []CheckRun{{
 						Name:       githubql.String("other-a"),
-						Status:     checkRunStatusCompleted,
+						Status:     githubql.String(githubql.CheckStatusStateCompleted),
 						Conclusion: githubql.String(githubql.StatusStateSuccess),
 					}},
 				},
@@ -2399,8 +2399,8 @@ func TestFilterSubpool(t *testing.T) {
 					},
 					checkRuns: []CheckRun{{
 						Name:       githubql.String("other-a"),
-						Status:     checkRunStatusCompleted,
-						Conclusion: checkRunConclusionNeutral,
+						Status:     githubql.String(githubql.CheckStatusStateCompleted),
+						Conclusion: githubql.String(githubql.CheckConclusionStateNeutral),
 					}},
 				},
 			},
@@ -2447,7 +2447,7 @@ func TestFilterSubpool(t *testing.T) {
 					},
 					checkRuns: []CheckRun{{
 						Name:       githubql.String("other-a"),
-						Status:     checkRunStatusCompleted,
+						Status:     githubql.String(githubql.CheckStatusStateCompleted),
 						Conclusion: githubql.String(githubql.StatusStateFailure),
 					}},
 				},
@@ -4276,24 +4276,24 @@ func TestCheckRunNodesToContexts(t *testing.T) {
 		},
 		{
 			name:      "Neutral checkrun is considered success",
-			checkRuns: []CheckRun{{Name: githubql.String("some-job"), Status: checkRunStatusCompleted, Conclusion: checkRunConclusionNeutral}},
+			checkRuns: []CheckRun{{Name: githubql.String("some-job"), Status: githubql.String(githubql.CheckStatusStateCompleted), Conclusion: githubql.String(githubql.CheckConclusionStateNeutral)}},
 			expected:  []Context{{Context: "some-job", State: githubql.StatusStateSuccess}},
 		},
 		{
 			name:      "Successful checkrun is considered success",
-			checkRuns: []CheckRun{{Name: githubql.String("some-job"), Status: checkRunStatusCompleted, Conclusion: githubql.String(githubql.StatusStateSuccess)}},
+			checkRuns: []CheckRun{{Name: githubql.String("some-job"), Status: githubql.String(githubql.CheckStatusStateCompleted), Conclusion: githubql.String(githubql.StatusStateSuccess)}},
 			expected:  []Context{{Context: "some-job", State: githubql.StatusStateSuccess}},
 		},
 		{
 			name:      "Other checkrun conclusion is considered failure",
-			checkRuns: []CheckRun{{Name: githubql.String("some-job"), Status: checkRunStatusCompleted, Conclusion: "unclear"}},
+			checkRuns: []CheckRun{{Name: githubql.String("some-job"), Status: githubql.String(githubql.CheckStatusStateCompleted), Conclusion: "unclear"}},
 			expected:  []Context{{Context: "some-job", State: githubql.StatusStateFailure}},
 		},
 		{
 			name: "Multiple checkruns are translated correctly",
 			checkRuns: []CheckRun{
-				{Name: githubql.String("some-job"), Status: checkRunStatusCompleted, Conclusion: checkRunConclusionNeutral},
-				{Name: githubql.String("another-job"), Status: checkRunStatusCompleted, Conclusion: checkRunConclusionNeutral},
+				{Name: githubql.String("some-job"), Status: githubql.String(githubql.CheckStatusStateCompleted), Conclusion: githubql.String(githubql.CheckConclusionStateNeutral)},
+				{Name: githubql.String("another-job"), Status: githubql.String(githubql.CheckStatusStateCompleted), Conclusion: githubql.String(githubql.CheckConclusionStateNeutral)},
 			},
 			expected: []Context{
 				{Context: "another-job", State: githubql.StatusStateSuccess},
@@ -4303,10 +4303,10 @@ func TestCheckRunNodesToContexts(t *testing.T) {
 		{
 			name: "De-duplicate checkruns, success > everything",
 			checkRuns: []CheckRun{
-				{Name: githubql.String("some-job"), Status: checkRunStatusCompleted, Conclusion: githubql.String("FAILURE")},
-				{Name: githubql.String("some-job"), Status: checkRunStatusCompleted, Conclusion: githubql.String("ERROR")},
-				{Name: githubql.String("some-job"), Status: checkRunStatusCompleted},
-				{Name: githubql.String("some-job"), Status: checkRunStatusCompleted, Conclusion: githubql.String(githubql.StatusStateSuccess)},
+				{Name: githubql.String("some-job"), Status: githubql.String(githubql.CheckStatusStateCompleted), Conclusion: githubql.String("FAILURE")},
+				{Name: githubql.String("some-job"), Status: githubql.String(githubql.CheckStatusStateCompleted), Conclusion: githubql.String("ERROR")},
+				{Name: githubql.String("some-job"), Status: githubql.String(githubql.CheckStatusStateCompleted)},
+				{Name: githubql.String("some-job"), Status: githubql.String(githubql.CheckStatusStateCompleted), Conclusion: githubql.String(githubql.StatusStateSuccess)},
 			},
 			expected: []Context{
 				{Context: "some-job", State: githubql.StatusStateSuccess},
@@ -4315,10 +4315,10 @@ func TestCheckRunNodesToContexts(t *testing.T) {
 		{
 			name: "De-duplicate checkruns, neutral > everything",
 			checkRuns: []CheckRun{
-				{Name: githubql.String("some-job"), Status: checkRunStatusCompleted, Conclusion: githubql.String("FAILURE")},
-				{Name: githubql.String("some-job"), Status: checkRunStatusCompleted, Conclusion: githubql.String("ERROR")},
-				{Name: githubql.String("some-job"), Status: checkRunStatusCompleted},
-				{Name: githubql.String("some-job"), Status: checkRunStatusCompleted, Conclusion: checkRunConclusionNeutral},
+				{Name: githubql.String("some-job"), Status: githubql.String(githubql.CheckStatusStateCompleted), Conclusion: githubql.String("FAILURE")},
+				{Name: githubql.String("some-job"), Status: githubql.String(githubql.CheckStatusStateCompleted), Conclusion: githubql.String("ERROR")},
+				{Name: githubql.String("some-job"), Status: githubql.String(githubql.CheckStatusStateCompleted)},
+				{Name: githubql.String("some-job"), Status: githubql.String(githubql.CheckStatusStateCompleted), Conclusion: githubql.String(githubql.CheckConclusionStateNeutral)},
 			},
 			expected: []Context{
 				{Context: "some-job", State: githubql.StatusStateSuccess},
@@ -4327,9 +4327,9 @@ func TestCheckRunNodesToContexts(t *testing.T) {
 		{
 			name: "De-duplicate checkruns, pending > failure",
 			checkRuns: []CheckRun{
-				{Name: githubql.String("some-job"), Status: checkRunStatusCompleted, Conclusion: githubql.String("FAILURE")},
-				{Name: githubql.String("some-job"), Status: checkRunStatusCompleted, Conclusion: githubql.String("ERROR")},
-				{Name: githubql.String("some-job"), Status: checkRunStatusCompleted},
+				{Name: githubql.String("some-job"), Status: githubql.String(githubql.CheckStatusStateCompleted), Conclusion: githubql.String("FAILURE")},
+				{Name: githubql.String("some-job"), Status: githubql.String(githubql.CheckStatusStateCompleted), Conclusion: githubql.String("ERROR")},
+				{Name: githubql.String("some-job"), Status: githubql.String(githubql.CheckStatusStateCompleted)},
 				{Name: githubql.String("some-job")},
 			},
 			expected: []Context{
@@ -4339,9 +4339,9 @@ func TestCheckRunNodesToContexts(t *testing.T) {
 		{
 			name: "De-duplicate checkruns, only failures",
 			checkRuns: []CheckRun{
-				{Name: githubql.String("some-job"), Status: checkRunStatusCompleted, Conclusion: githubql.String("FAILURE")},
-				{Name: githubql.String("some-job"), Status: checkRunStatusCompleted, Conclusion: githubql.String("ERROR")},
-				{Name: githubql.String("some-job"), Status: checkRunStatusCompleted},
+				{Name: githubql.String("some-job"), Status: githubql.String(githubql.CheckStatusStateCompleted), Conclusion: githubql.String("FAILURE")},
+				{Name: githubql.String("some-job"), Status: githubql.String(githubql.CheckStatusStateCompleted), Conclusion: githubql.String("ERROR")},
+				{Name: githubql.String("some-job"), Status: githubql.String(githubql.CheckStatusStateCompleted)},
 			},
 			expected: []Context{
 				{Context: "some-job", State: githubql.StatusStateFailure},

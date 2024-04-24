@@ -273,7 +273,7 @@ func TestExpectedStatus(t *testing.T) {
 		{
 			name:              "single bad checkrun",
 			labels:            neededLabels,
-			checkRuns:         []CheckRun{{Name: githubql.String("job-name"), Status: checkRunStatusCompleted, Conclusion: githubql.String(githubql.StatusStateFailure)}},
+			checkRuns:         []CheckRun{{Name: githubql.String("job-name"), Status: githubql.String(githubql.CheckStatusStateCompleted), Conclusion: githubql.String(githubql.StatusStateFailure)}},
 			author:            "batman",
 			firstQueryAuthor:  "batman",
 			secondQueryAuthor: "batman",
@@ -286,7 +286,7 @@ func TestExpectedStatus(t *testing.T) {
 		{
 			name:              "single good checkrun",
 			labels:            neededLabels,
-			checkRuns:         []CheckRun{{Name: githubql.String("job-name"), Status: checkRunStatusCompleted, Conclusion: githubql.String(githubql.StatusStateSuccess)}},
+			checkRuns:         []CheckRun{{Name: githubql.String("job-name"), Status: githubql.String(githubql.CheckStatusStateCompleted), Conclusion: githubql.String(githubql.StatusStateSuccess)}},
 			author:            "batman",
 			firstQueryAuthor:  "batman",
 			secondQueryAuthor: "batman",
@@ -300,8 +300,8 @@ func TestExpectedStatus(t *testing.T) {
 			name:   "multiple good checkruns",
 			labels: neededLabels,
 			checkRuns: []CheckRun{
-				{Name: githubql.String("job-name"), Status: checkRunStatusCompleted, Conclusion: githubql.String(githubql.StatusStateSuccess)},
-				{Name: githubql.String("another-job"), Status: checkRunStatusCompleted, Conclusion: githubql.String(githubql.StatusStateSuccess)},
+				{Name: githubql.String("job-name"), Status: githubql.String(githubql.CheckStatusStateCompleted), Conclusion: githubql.String(githubql.StatusStateSuccess)},
+				{Name: githubql.String("another-job"), Status: githubql.String(githubql.CheckStatusStateCompleted), Conclusion: githubql.String(githubql.StatusStateSuccess)},
 			},
 			author:            "batman",
 			firstQueryAuthor:  "batman",
@@ -316,8 +316,8 @@ func TestExpectedStatus(t *testing.T) {
 			name:   "mix of good and bad checkruns",
 			labels: neededLabels,
 			checkRuns: []CheckRun{
-				{Name: githubql.String("job-name"), Status: checkRunStatusCompleted, Conclusion: githubql.String(githubql.StatusStateSuccess)},
-				{Name: githubql.String("another-job"), Status: checkRunStatusCompleted, Conclusion: githubql.String(githubql.StatusStateFailure)},
+				{Name: githubql.String("job-name"), Status: githubql.String(githubql.CheckStatusStateCompleted), Conclusion: githubql.String(githubql.StatusStateSuccess)},
+				{Name: githubql.String("another-job"), Status: githubql.String(githubql.CheckStatusStateCompleted), Conclusion: githubql.String(githubql.StatusStateFailure)},
 			},
 			author:            "batman",
 			firstQueryAuthor:  "batman",
@@ -332,7 +332,7 @@ func TestExpectedStatus(t *testing.T) {
 			name:   "mix of good status contexts and checkruns",
 			labels: neededLabels,
 			checkRuns: []CheckRun{
-				{Name: githubql.String("job-name"), Status: checkRunStatusCompleted, Conclusion: githubql.String(githubql.StatusStateSuccess)},
+				{Name: githubql.String("job-name"), Status: githubql.String(githubql.CheckStatusStateCompleted), Conclusion: githubql.String(githubql.StatusStateSuccess)},
 			},
 			contexts: []Context{
 				{Context: githubql.String("other-job-name"), State: githubql.StatusStateSuccess},
@@ -350,7 +350,7 @@ func TestExpectedStatus(t *testing.T) {
 			name:   "mix of bad status contexts and checkruns",
 			labels: neededLabels,
 			checkRuns: []CheckRun{
-				{Name: githubql.String("job-name"), Status: checkRunStatusCompleted, Conclusion: githubql.String(githubql.StatusStateFailure)},
+				{Name: githubql.String("job-name"), Status: githubql.String(githubql.CheckStatusStateCompleted), Conclusion: githubql.String(githubql.StatusStateFailure)},
 			},
 			contexts: []Context{
 				{Context: githubql.String("other-job-name"), State: githubql.StatusStateFailure},
@@ -368,7 +368,7 @@ func TestExpectedStatus(t *testing.T) {
 			name:   "good context, bad checkrun",
 			labels: neededLabels,
 			checkRuns: []CheckRun{
-				{Name: githubql.String("job-name"), Status: checkRunStatusCompleted, Conclusion: githubql.String(githubql.StatusStateFailure)},
+				{Name: githubql.String("job-name"), Status: githubql.String(githubql.CheckStatusStateCompleted), Conclusion: githubql.String(githubql.StatusStateFailure)},
 			},
 			contexts: []Context{
 				{Context: githubql.String("other-job-name"), State: githubql.StatusStateSuccess},
@@ -386,7 +386,7 @@ func TestExpectedStatus(t *testing.T) {
 			name:   "bad context, good checkrun",
 			labels: neededLabels,
 			checkRuns: []CheckRun{
-				{Name: githubql.String("job-name"), Status: checkRunStatusCompleted, Conclusion: githubql.String(githubql.StatusStateSuccess)},
+				{Name: githubql.String("job-name"), Status: githubql.String(githubql.CheckStatusStateCompleted), Conclusion: githubql.String(githubql.StatusStateSuccess)},
 			},
 			contexts: []Context{
 				{Context: githubql.String("other-job-name"), State: githubql.StatusStateFailure},
@@ -424,8 +424,8 @@ func TestExpectedStatus(t *testing.T) {
 			secondQueryAuthor: "batman",
 			milestone:         "v1.0",
 			checkRuns: []CheckRun{
-				{Name: githubql.String("job-name"), Status: checkRunStatusCompleted, Conclusion: githubql.String(githubql.StatusStateFailure)},
-				{Name: githubql.String("other-job-name"), Status: checkRunStatusCompleted, Conclusion: githubql.String(githubql.StatusStateFailure)},
+				{Name: githubql.String("job-name"), Status: githubql.String(githubql.CheckStatusStateCompleted), Conclusion: githubql.String(githubql.StatusStateFailure)},
+				{Name: githubql.String("other-job-name"), Status: githubql.String(githubql.CheckStatusStateCompleted), Conclusion: githubql.String(githubql.StatusStateFailure)},
 			},
 			inPool: false,
 

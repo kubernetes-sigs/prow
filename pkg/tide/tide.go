@@ -2114,23 +2114,18 @@ func isStateBetter(previous, current githubql.StatusState) bool {
 	return false
 }
 
-const (
-	checkRunStatusCompleted   = githubql.String("COMPLETED")
-	checkRunConclusionNeutral = githubql.String("NEUTRAL")
-)
-
 // checkRunToContext translates a checkRun to a classic context
 // ref: https://developer.github.com/v3/checks/runs/#parameters
 func checkRunToContext(checkRun CheckRun) Context {
 	context := Context{
 		Context: checkRun.Name,
 	}
-	if checkRun.Status != checkRunStatusCompleted {
+	if checkRun.Status != githubql.String(githubql.CheckStatusStateCompleted) {
 		context.State = githubql.StatusStatePending
 		return context
 	}
 
-	if checkRun.Conclusion == checkRunConclusionNeutral || checkRun.Conclusion == githubql.String(githubql.CheckConclusionStateSkipped) || checkRun.Conclusion == githubql.String(githubql.StatusStateSuccess) {
+	if checkRun.Conclusion == githubql.String(githubql.CheckConclusionStateNeutral) || checkRun.Conclusion == githubql.String(githubql.CheckConclusionStateSkipped) || checkRun.Conclusion == githubql.String(githubql.StatusStateSuccess) {
 		context.State = githubql.StatusStateSuccess
 		return context
 	}
