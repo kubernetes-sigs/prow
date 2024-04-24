@@ -22,6 +22,7 @@ import (
 	"io"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -428,7 +429,9 @@ func TestRerun(t *testing.T) {
 				return false, fmt.Errorf("failed listing prow jobs: %w", err)
 			}
 			sort.Slice(pjs.Items, func(i, j int) bool {
-				return pjs.Items[i].Status.StartTime.After(pjs.Items[j].Status.StartTime.Time)
+				revi, _ := strconv.Atoi(pjs.Items[i].ResourceVersion)
+				revj, _ := strconv.Atoi(pjs.Items[j].ResourceVersion)
+				return revi > revj
 			})
 			if len(pjs.Items) > 0 {
 				if lastRun != nil && pjs.Items[0].CreationTimestamp.Before(lastRun) {
