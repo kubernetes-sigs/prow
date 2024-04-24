@@ -2895,43 +2895,6 @@ func TestAuthHeaderGetsSet(t *testing.T) {
 	}
 }
 
-func TestListTeamRepos(t *testing.T) {
-	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			t.Errorf("Bad method: %s", r.Method)
-		}
-
-		var result interface{}
-		switch r.URL.Path {
-		case "/organizations/1/team/1/repos":
-			result = []Repo{
-				{Name: "repo-bar", Permissions: RepoPermissions{Pull: true}},
-				{Name: "repo-invalid-permission-level"}}
-		case "/orgs/orgName":
-			result = Organization{Login: "orgName", Id: 1}
-		default:
-			t.Errorf("Bad request path: %s", r.URL.Path)
-			return
-		}
-
-		b, err := json.Marshal(result)
-		if err != nil {
-			t.Fatalf("Didn't expect error: %v", err)
-		}
-		fmt.Fprint(w, string(b))
-	}))
-	defer ts.Close()
-	c := getClient(ts.URL)
-	repos, err := c.ListTeamRepos("orgName", 1)
-	if err != nil {
-		t.Errorf("Didn't expect error: %v", err)
-	} else if len(repos) != 1 {
-		t.Errorf("Expected one repo, found %d: %v", len(repos), repos)
-	} else if repos[0].Name != "repo-bar" {
-		t.Errorf("Wrong repos: %v", repos)
-	}
-}
-
 func TestListTeamReposBySlug(t *testing.T) {
 	ts := simpleTestServer(t, "/orgs/orgName/teams/team-name/repos", []Repo{
 		{Name: "repo-bar", Permissions: RepoPermissions{Pull: true}},
