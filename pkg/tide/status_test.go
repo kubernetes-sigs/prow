@@ -1239,7 +1239,7 @@ func TestSetStatusRespectsRequiredContexts(t *testing.T) {
 		logger:   log,
 		ghc:      fghc,
 		config:   ca.Config,
-		pjClient: fakectrlruntimeclient.NewFakeClient(),
+		pjClient: fakectrlruntimeclient.NewClientBuilder().Build(),
 		ghProvider: &GitHubProvider{
 			ghc:          fghc,
 			mergeChecker: newMergeChecker(ca.Config, fghc),

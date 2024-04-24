@@ -34,7 +34,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	kapierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
@@ -265,13 +264,12 @@ func TestTerminateDupes(t *testing.T) {
 
 	for _, tc := range testcases {
 		t.Run(tc.Name, func(t *testing.T) {
-			var prowJobs []runtime.Object
+			builder := fakectrlruntimeclient.NewClientBuilder()
 			for i := range tc.PJs {
-				pj := &tc.PJs[i]
-				prowJobs = append(prowJobs, pj)
+				builder.WithRuntimeObjects(&tc.PJs[i])
 			}
 			fakeProwJobClient := &patchTrackingFakeClient{
-				Client: fakectrlruntimeclient.NewFakeClient(prowJobs...),
+				Client: builder.Build(),
 			}
 			fca := &fca{
 				c: &config.Config{
@@ -719,16 +717,15 @@ func TestSyncTriggeredJobs(t *testing.T) {
 				}
 			}
 			tc.PJ.Spec.Agent = prowapi.KubernetesAgent
-			fakeProwJobClient := fakectrlruntimeclient.NewFakeClient(&tc.PJ)
+			fakeProwJobClient := fakectrlruntimeclient.NewClientBuilder().WithRuntimeObjects(&tc.PJ).Build()
 			buildClients := map[string]buildClient{}
 			for alias, pods := range tc.Pods {
-				var data []runtime.Object
+				builder := fakectrlruntimeclient.NewClientBuilder()
 				for i := range pods {
-					pod := pods[i]
-					data = append(data, &pod)
+					builder.WithRuntimeObjects(&pods[i])
 				}
 				fakeClient := &clientWrapper{
-					Client:      fakectrlruntimeclient.NewFakeClient(data...),
+					Client:      builder.Build(),
 					createError: tc.PodErr,
 				}
 				buildClients[alias] = buildClient{
@@ -738,7 +735,7 @@ func TestSyncTriggeredJobs(t *testing.T) {
 			if _, exists := buildClients[prowapi.DefaultClusterAlias]; !exists {
 				buildClients[prowapi.DefaultClusterAlias] = buildClient{
 					Client: &clientWrapper{
-						Client:      fakectrlruntimeclient.NewFakeClient(),
+						Client:      fakectrlruntimeclient.NewClientBuilder().Build(),
 						createError: tc.PodErr,
 					},
 				}
@@ -1638,14 +1635,15 @@ func TestSyncPendingJob(t *testing.T) {
 			for i := range tc.Pods {
 				pm[tc.Pods[i].ObjectMeta.Name] = tc.Pods[i]
 			}
-			fakeProwJobClient := fakectrlruntimeclient.NewFakeClient(&tc.PJ)
-			var data []runtime.Object
+			fakeProwJobClient := fakectrlruntimeclient.NewClientBuilder().WithRuntimeObjects(&tc.PJ).Build()
+
+			builder := fakectrlruntimeclient.NewClientBuilder()
 			for i := range tc.Pods {
-				pod := tc.Pods[i]
-				data = append(data, &pod)
+				builder.WithRuntimeObjects(&tc.Pods[i])
 			}
+
 			fakeClient := &clientWrapper{
-				Client:                   fakectrlruntimeclient.NewFakeClient(data...),
+				Client:                   builder.Build(),
 				createError:              tc.Err,
 				errOnDeleteWithFinalizer: true,
 			}
@@ -1738,13 +1736,13 @@ func TestPeriodic(t *testing.T) {
 	defer totServ.Close()
 	pj := pjutil.NewProwJob(pjutil.PeriodicSpec(per), nil, nil)
 	pj.Namespace = "prowjobs"
-	fakeProwJobClient := fakectrlruntimeclient.NewFakeClient(&pj)
+	fakeProwJobClient := fakectrlruntimeclient.NewClientBuilder().WithRuntimeObjects(&pj).Build()
 	buildClients := map[string]buildClient{
 		prowapi.DefaultClusterAlias: {
-			Client: fakectrlruntimeclient.NewFakeClient(),
+			Client: fakectrlruntimeclient.NewClientBuilder().Build(),
 		},
 		"trusted": {
-			Client: fakectrlruntimeclient.NewFakeClient(),
+			Client: fakectrlruntimeclient.NewClientBuilder().Build(),
 		},
 	}
 
@@ -1955,17 +1953,19 @@ func TestMaxConcurrencyWithNewlyTriggeredJobs(t *testing.T) {
 			}
 			close(jobs)
 
-			var prowJobs []runtime.Object
+			builder := fakectrlruntimeclient.NewClientBuilder()
 			for i := range test.PJs {
 				test.PJs[i].Namespace = "prowjobs"
 				test.PJs[i].Spec.Agent = prowapi.KubernetesAgent
 				test.PJs[i].UID = types.UID(strconv.Itoa(i))
-				prowJobs = append(prowJobs, &test.PJs[i])
+
+				builder.WithRuntimeObjects(&test.PJs[i])
 			}
-			fakeProwJobClient := fakectrlruntimeclient.NewFakeClient(prowJobs...)
+
+			fakeProwJobClient := builder.Build()
 			buildClients := map[string]buildClient{
 				prowapi.DefaultClusterAlias: {
-					Client: fakectrlruntimeclient.NewFakeClient(),
+					Client: fakectrlruntimeclient.NewClientBuilder().Build(),
 				},
 			}
 
@@ -2172,14 +2172,16 @@ func TestMaxConcurency(t *testing.T) {
 			buildClients := map[string]buildClient{}
 			logrus.SetLevel(logrus.DebugLevel)
 
-			var prowJobs []runtime.Object
+			builder := fakectrlruntimeclient.NewClientBuilder()
+
 			for i := range tc.ExistingProwJobs {
 				tc.ExistingProwJobs[i].Namespace = "prowjobs"
-				prowJobs = append(prowJobs, &tc.ExistingProwJobs[i])
+				builder.WithRuntimeObjects(&tc.ExistingProwJobs[i])
 			}
+
 			for jobName, jobsToCreateParams := range tc.PendingJobs {
 				for i := 0; i < jobsToCreateParams.Duplicates; i++ {
-					prowJobs = append(prowJobs, &prowapi.ProwJob{
+					builder.WithRuntimeObjects(&prowapi.ProwJob{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      fmt.Sprintf("%s-%d", jobName, i),
 							Namespace: "prowjobs",
@@ -2197,7 +2199,7 @@ func TestMaxConcurency(t *testing.T) {
 			}
 			r := &reconciler{
 				pjClient: &indexingClient{
-					Client:     fakectrlruntimeclient.NewFakeClient(prowJobs...),
+					Client:     builder.Build(),
 					indexFuncs: map[string]ctrlruntimeclient.IndexerFunc{prowJobIndexName: prowJobIndexer("prowjobs")},
 				},
 				buildClients: buildClients,
@@ -2328,16 +2330,16 @@ func TestSyncAbortedJob(t *testing.T) {
 				},
 			}
 
-			var pods []runtime.Object
+			builder := fakectrlruntimeclient.NewClientBuilder()
 			if tc.Pod != nil {
-				pods = append(pods, tc.Pod)
+				builder.WithRuntimeObjects(tc.Pod)
 			}
 			podClient := &deleteTrackingFakeClient{
 				deleteError: tc.DeleteError,
-				Client:      fakectrlruntimeclient.NewFakeClient(pods...),
+				Client:      builder.Build(),
 			}
 
-			pjClient := fakectrlruntimeclient.NewFakeClient(pj)
+			pjClient := fakectrlruntimeclient.NewClientBuilder().WithRuntimeObjects(pj).Build()
 			r := &reconciler{
 				log:          logrus.NewEntry(logrus.New()),
 				config:       func() *config.Config { return &config.Config{} },

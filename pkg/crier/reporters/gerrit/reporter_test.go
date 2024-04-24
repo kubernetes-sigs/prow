@@ -32,7 +32,6 @@ import (
 	"golang.org/x/sync/errgroup"
 	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/diff"
 	fakectrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 
@@ -2012,15 +2011,16 @@ func TestReport(t *testing.T) {
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
 			fgc := &fgc{instance: "gerrit", changes: changes}
-			allpj := []runtime.Object{tc.pj}
+
+			builder := fakectrlruntimeclient.NewClientBuilder().WithRuntimeObjects(tc.pj)
 			for idx, pj := range tc.existingPJs {
 				pj.Name = strconv.Itoa(idx)
-				allpj = append(allpj, pj)
+				builder.WithRuntimeObjects(pj)
 			}
 
 			reporter := &Client{
 				gc:          fgc,
-				pjclientset: fakectrlruntimeclient.NewFakeClient(allpj...),
+				pjclientset: builder.Build(),
 				prLocks:     criercommonlib.NewShardedLock(),
 			}
 
@@ -2125,15 +2125,16 @@ func TestMultipleWorks(t *testing.T) {
 			}
 
 			fgc := &fgc{instance: "gerrit", changes: changes}
-			var allpj []runtime.Object
+
+			builder := fakectrlruntimeclient.NewClientBuilder()
 			for idx, pj := range existingPJs {
 				pj.Name = strconv.Itoa(idx)
-				allpj = append(allpj, pj)
+				builder.WithRuntimeObjects(pj)
 			}
 
 			reporter := &Client{
 				gc:          fgc,
-				pjclientset: fakectrlruntimeclient.NewFakeClient(allpj...),
+				pjclientset: builder.Build(),
 				prLocks:     criercommonlib.NewShardedLock(),
 			}
 

@@ -718,12 +718,12 @@ func TestClean(t *testing.T) {
 	deletedPodsTrusted := sets.New[string]("old-failed-trusted")
 
 	fpjc := &clientWrapper{
-		Client:          fakectrlruntimeclient.NewFakeClient(prowJobs...),
+		Client:          fakectrlruntimeclient.NewClientBuilder().WithRuntimeObjects(prowJobs...).Build(),
 		getOnlyProwJobs: map[string]*prowv1.ProwJob{"ns/get-only-prowjob": {}},
 	}
 	fkc := []*podClientWrapper{
-		{t: t, Client: fakectrlruntimeclient.NewFakeClient(pods...)},
-		{t: t, Client: fakectrlruntimeclient.NewFakeClient(podsTrusted...)},
+		{t: t, Client: fakectrlruntimeclient.NewClientBuilder().WithRuntimeObjects(pods...).Build()},
+		{t: t, Client: fakectrlruntimeclient.NewClientBuilder().WithRuntimeObjects(podsTrusted...).Build()},
 	}
 	fpc := map[string]ctrlruntimeclient.Client{"unreachable": unreachableCluster{}}
 	for idx, fakeClient := range fkc {
@@ -810,14 +810,14 @@ func TestNotClean(t *testing.T) {
 	)
 
 	fpjc := &clientWrapper{
-		Client:          fakectrlruntimeclient.NewFakeClient(prowJobs...),
+		Client:          fakectrlruntimeclient.NewClientBuilder().WithRuntimeObjects(prowJobs...).Build(),
 		getOnlyProwJobs: map[string]*prowv1.ProwJob{"ns/get-only-prowjob": {}},
 	}
 	podClientValid := podClientWrapper{
-		t: t, Client: fakectrlruntimeclient.NewFakeClient(pods...),
+		t: t, Client: fakectrlruntimeclient.NewClientBuilder().WithRuntimeObjects(pods...).Build(),
 	}
 	podClientExcluded := podClientWrapper{
-		t: t, Client: fakectrlruntimeclient.NewFakeClient(podsExcluded...),
+		t: t, Client: fakectrlruntimeclient.NewClientBuilder().WithRuntimeObjects(podsExcluded...).Build(),
 	}
 	fpc := map[string]ctrlruntimeclient.Client{
 		"build-cluster-valid":    &podClientValid,
@@ -963,7 +963,7 @@ func TestDeletePodToleratesNotFound(t *testing.T) {
 			},
 		},
 	}
-	client := fakectrlruntimeclient.NewFakeClient(pod)
+	client := fakectrlruntimeclient.NewClientBuilder().WithRuntimeObjects(pod).Build()
 
 	c.deletePod(l, &corev1api.Pod{}, "reason", client, m)
 	c.deletePod(l, pod, "reason", client, m)

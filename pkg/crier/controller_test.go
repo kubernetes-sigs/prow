@@ -27,7 +27,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/sirupsen/logrus"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrlruntime "sigs.k8s.io/controller-runtime"
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -278,12 +277,12 @@ func TestReconcile(t *testing.T) {
 				err: test.reportErr,
 			}
 
-			var prowjobs []runtime.Object
+			builder := fakectrlruntimeclient.NewClientBuilder()
 			if test.job != nil {
-				prowjobs = append(prowjobs, test.job)
 				test.job.Name = toReconcile
+				builder.WithRuntimeObjects(test.job)
 			}
-			cs := &patchTrackingClient{Client: fakectrlruntimeclient.NewFakeClient(prowjobs...)}
+			cs := &patchTrackingClient{Client: builder.Build()}
 			r := &reconciler{
 				pjclientset:       cs,
 				reporter:          &rp,

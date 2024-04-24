@@ -716,12 +716,12 @@ func TestListProwJobs(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		var data []runtime.Object
+		builder := fakectrlruntimeclient.NewClientBuilder()
 		for _, generator := range testCase.prowJobs {
-			data = append(data, generator(templateJob.DeepCopy()))
+			builder.WithRuntimeObjects(generator(templateJob.DeepCopy()))
 		}
 		fakeProwJobClient := &possiblyErroringFakeCtrlRuntimeClient{
-			Client:      fakectrlruntimeclient.NewFakeClient(data...),
+			Client:      builder.Build(),
 			shouldError: testCase.listErr,
 		}
 		lister := filteringProwJobLister{

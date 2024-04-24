@@ -27,7 +27,6 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 
 	v1 "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 	"sigs.k8s.io/prow/pkg/config"
@@ -998,12 +997,12 @@ func TestPjsToReport(t *testing.T) {
 
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
-			allpj := []runtime.Object{tc.pj}
+			builder := fakectrlruntimeclient.NewClientBuilder().WithObjects(tc.pj)
 			for _, pj := range tc.existingPJs {
-				allpj = append(allpj, pj)
+				builder.WithObjects(pj)
 			}
 
-			lister := fakectrlruntimeclient.NewFakeClient(allpj...)
+			lister := builder.Build()
 
 			gotPjs, gotErr := pjsToReport(context.Background(), &logrus.Entry{}, lister, tc.pj)
 			if (gotErr != nil && !tc.wantErr) || (gotErr == nil && tc.wantErr) {
