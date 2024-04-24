@@ -69,13 +69,12 @@ func (p *parsingSecretReloader[T]) reloadSecret(reloadCensor func()) {
 			lastModTime = recentModTime
 		}
 
+		p.lock.Lock()
 		raw, parsed, err := loadSingleSecretWithParser(p.path, p.parsingFN)
 		if err != nil {
 			logger.WithField("secret-path", p.path).WithError(err).Error("Error loading secret.")
 			continue
 		}
-
-		p.lock.Lock()
 		p.rawValue = raw
 		p.parsed = parsed
 		p.lock.Unlock()

@@ -22,6 +22,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -122,17 +123,26 @@ func testAddWithParser(t *testing.T) {
 		t.Fatalf("failed to write initial content of secret: %v", err)
 	}
 
-	vals := make(chan int, 3)
-	errs := make(chan error, 3)
+	newValAvailable := make(chan struct{})
+	// The first time the secret gets parsed synchronously, hence we don't want
+	// to block because nobody will listen for any notification.
+	firstRead := atomic.Bool{}
+	errs := make(chan error)
 	generator, err := AddWithParser(
 		secretPath,
 		func(raw []byte) (int, error) {
 			val, err := strconv.Atoi(string(raw))
 			if err != nil {
-				errs <- err
+				// This compare n swap shouldn't be needed as we don't expect any error the first time.
+				// It's just for extra safety.
+				if !firstRead.CompareAndSwap(false, true) {
+					errs <- err
+				}
 				return val, err
 			}
-			vals <- val
+			if !firstRead.CompareAndSwap(false, true) {
+				newValAvailable <- struct{}{}
+			}
 			return val, err
 		},
 	)
@@ -142,22 +152,22 @@ func testAddWithParser(t *testing.T) {
 
 	checkValueAndErr := func(expected int, e error) {
 		t.Helper()
-		select {
-		case v := <-vals:
-			if v != expected {
-				t.Errorf("expected value to get updated to %d but got updated to %d", expected, v)
+	perpetualCheck:
+		for {
+			select {
+			case <-newValAvailable:
+				if actual := generator(); actual == expected {
+					break perpetualCheck
+				}
+			case err := <-errs:
+				if e == nil || e.Error() != err.Error() {
+					t.Fatalf("expected error %v, got %v", e, err)
+				}
+				break perpetualCheck
+			// the agent reloads every second, so ten seconds should be plenty
+			case <-time.After(10 * time.Second):
+				t.Fatalf("timed out waiting for value %d and error %d", expected, e)
 			}
-			break
-		case err := <-errs:
-			if e == nil || e.Error() != err.Error() {
-				t.Fatalf("expected error %v, got %v", e, err)
-			}
-		// the agent reloads every second, so ten seconds should be plenty
-		case <-time.After(10 * time.Second):
-			t.Fatalf("timed out waiting for value %d and error %d", expected, e)
-		}
-		if actual := generator(); actual != expected {
-			t.Errorf("expected value %d from generator, got %d", expected, actual)
 		}
 	}
 	checkValueAndErr(1, nil)
