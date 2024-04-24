@@ -100,6 +100,13 @@ func (o *options) parseArgs(flags *flag.FlagSet, args []string) error {
 		return err
 	}
 
+	level, err := logrus.ParseLevel(o.logLevel)
+	if err != nil {
+		return fmt.Errorf("--log-level invalid: %w", err)
+	}
+	logrus.SetLevel(level)
+	logrus.SetReportCaller(level >= logrus.DebugLevel)
+
 	if err := o.github.Validate(!o.confirm); err != nil {
 		return err
 	}
@@ -137,12 +144,6 @@ func (o *options) parseArgs(flags *flag.FlagSet, args []string) error {
 	if o.fixTeamRepos && !o.fixTeams {
 		return fmt.Errorf("--fix-team-repos requires --fix-teams")
 	}
-
-	level, err := logrus.ParseLevel(o.logLevel)
-	if err != nil {
-		return fmt.Errorf("--log-level invalid: %w", err)
-	}
-	logrus.SetLevel(level)
 
 	return nil
 }
