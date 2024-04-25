@@ -27,6 +27,8 @@ import (
 	"time"
 
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/utils/ptr"
+
 	prowapi "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 	"sigs.k8s.io/prow/pkg/config"
 	"sigs.k8s.io/prow/pkg/git/types"
@@ -243,6 +245,8 @@ func (gi *GitHubProvider) mergePRs(sp subpool, prs []CodeReviewCommon, dontUpdat
 	var errs []error
 	log := sp.log.WithField("merge-targets", prNumbers(prs))
 	tideConfig := gi.cfg().Tide
+	tideContextPolicy := config.ParseTideContextPolicyOptions(sp.org, sp.repo, sp.branch, tideConfig.ContextOptions)
+	prowJobsForPRs := getProwJobsForPRs(prs, sp.pjs)
 
 	for i, pr := range prs {
 		log := log.WithFields(pr.logFields())
@@ -263,6 +267,17 @@ func (gi *GitHubProvider) mergePRs(sp subpool, prs []CodeReviewCommon, dontUpdat
 			errs = append(errs, err)
 			failed = append(failed, pr.Number)
 			continue
+		}
+
+		// Overwrite context of pending presubmit prow jobs if enabled
+		if i := len(prowJobsForPRs[pr.Number].pendingPresubmitJobs); i > 0 && ptr.Deref(tideContextPolicy.OverwritePendingContexts, false) {
+			log.Infof("%d Contexts of pending presubmit jobs will be overwritten", i)
+			if err := overwriteProwJobContexts(pr, prowJobsForPRs[pr.Number], gi.ghc, log); err != nil {
+				log.WithError(err).Error("Unable to set contexts of pending presubmit jobs to SUCCESS.")
+				errs = append(errs, err)
+				failed = append(failed, pr.Number)
+				continue
+			}
 		}
 
 		commitTemplates := tideConfig.MergeCommitTemplate(config.OrgRepo{Org: sp.org, Repo: sp.repo})
@@ -582,4 +597,74 @@ func (mc *mergeChecker) prMergeMethod(c config.Tide, crc *CodeReviewCommon) *typ
 		}
 	}
 	return &method
+}
+
+type prowJobsByContext struct {
+	successfulBatchJob   map[string]prowapi.ProwJob
+	pendingPresubmitJobs map[string]bool
+}
+
+func getProwJobsForPRs(prs []CodeReviewCommon, pjs []prowapi.ProwJob) map[int]prowJobsByContext {
+	prowJobsForPRs := make(map[int]prowJobsByContext)
+	prNums := make(map[int]CodeReviewCommon)
+	for _, pr := range prs {
+		prNums[pr.Number] = pr
+	}
+
+	for _, pj := range pjs {
+		for _, pull := range pj.Spec.Refs.Pulls {
+			if pr, found := prNums[pull.Number]; found && pr.HeadRefOID == pull.SHA {
+				if _, ok := prowJobsForPRs[pr.Number]; !ok {
+					prowJobsForPRs[pr.Number] = prowJobsByContext{
+						successfulBatchJob:   make(map[string]prowapi.ProwJob),
+						pendingPresubmitJobs: make(map[string]bool),
+					}
+				}
+				jobState := toSimpleState(pj.Status.State)
+				switch pj.Spec.Type {
+				case prowapi.BatchJob:
+					if jobState == successState {
+						prowJobsForPRs[pull.Number].successfulBatchJob[pj.Spec.Context] = pj
+					}
+				case prowapi.PresubmitJob:
+					if jobState == pendingState {
+						prowJobsForPRs[pull.Number].pendingPresubmitJobs[pj.Spec.Context] = true
+					}
+				default:
+					continue
+				}
+			}
+		}
+	}
+
+	return prowJobsForPRs
+}
+
+func overwriteProwJobContexts(pr CodeReviewCommon, pjs prowJobsByContext, ghc githubClient, log *logrus.Entry) error {
+	for pjContext, pending := range pjs.pendingPresubmitJobs {
+		if !pending {
+			continue
+		}
+		batch, found := pjs.successfulBatchJob[pjContext]
+		if !found {
+			log.Infof("No successful batch job for context %q found for PR %d - skip overwrite context", pjContext, pr.Number)
+			continue
+		}
+
+		log.Infof("Overwriting context %q of PR %d to SUCCESS", pjContext, pr.Number)
+		if err := ghc.CreateStatus(
+			pr.Org,
+			pr.Repo,
+			pr.HeadRefOID,
+			github.Status{
+				State:       github.StatusSuccess,
+				Description: config.ContextDescriptionWithBaseSha(batch.Status.Description, batch.Spec.Refs.BaseSHA),
+				Context:     batch.Spec.Context,
+				TargetURL:   batch.Status.URL,
+			}); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

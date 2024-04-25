@@ -769,7 +769,7 @@ func (f *fgc) CreateStatus(org, repo, ref string, s github.Status) error {
 		if f.statuses == nil {
 			f.statuses = map[string]github.Status{}
 		}
-		f.statuses[org+"/"+repo+"/"+ref] = s
+		f.statuses[org+"/"+repo+"/"+ref+"/"+s.Context] = s
 		f.setStatus = true
 		return nil
 	}

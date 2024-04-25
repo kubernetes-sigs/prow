@@ -27,6 +27,8 @@ import (
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/util/diff"
+
+	prowapi "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 	"sigs.k8s.io/prow/pkg/config"
 	"sigs.k8s.io/prow/pkg/git/types"
 	"sigs.k8s.io/prow/pkg/github"
@@ -367,6 +369,289 @@ func TestHeadContexts(t *testing.T) {
 			if len(contexts) != 1 || string(contexts[0].Context) != win {
 				t.Errorf("Expected exactly 1 %q context, but got: %#v", win, contexts)
 			}
+		})
+	}
+}
+
+func TestGetProwJobsForPRs(t *testing.T) {
+	t.Parallel()
+
+	batchJobSuccess := prowapi.ProwJob{
+		Spec: prowapi.ProwJobSpec{
+			Context: "fooContext",
+			Type:    prowapi.BatchJob,
+			Refs: &prowapi.Refs{
+				Pulls: []prowapi.Pull{
+					{Number: 1, SHA: "fooRef"},
+					{Number: 2, SHA: "fooRef"},
+				},
+			},
+		},
+		Status: prowapi.ProwJobStatus{
+			State: prowapi.SuccessState,
+		},
+	}
+	batchJobPending := *batchJobSuccess.DeepCopy()
+	batchJobPending.Status.State = prowapi.PendingState
+
+	presubmitJobSuccess := prowapi.ProwJob{
+		Spec: prowapi.ProwJobSpec{
+			Context: "fooContext",
+			Type:    prowapi.PresubmitJob,
+			Refs: &prowapi.Refs{
+				Pulls: []prowapi.Pull{
+					{Number: 1, SHA: "fooRef"},
+				},
+			},
+		},
+		Status: prowapi.ProwJobStatus{
+			State: prowapi.SuccessState,
+		},
+	}
+	presubmitJobPending := *presubmitJobSuccess.DeepCopy()
+	presubmitJobPending.Status.State = prowapi.PendingState
+	presubmitJobPR2Success := *presubmitJobSuccess.DeepCopy()
+	presubmitJobPR2Success.Spec.Refs.Pulls = []prowapi.Pull{
+		{Number: 2, SHA: "fooRef"},
+	}
+	presubmitJobPR2Pending := *presubmitJobPR2Success.DeepCopy()
+	presubmitJobPR2Pending.Status.State = prowapi.PendingState
+
+	testCases := []struct {
+		name string
+		prs  []CodeReviewCommon
+		pjs  []prowapi.ProwJob
+
+		expected map[int]prowJobsByContext
+	}{
+		{
+			name:     "no PRs, no prow jobs",
+			expected: map[int]prowJobsByContext{},
+		},
+		{
+			name: "PR but no prow jobs",
+			prs: []CodeReviewCommon{
+				{Number: 1, HeadRefOID: "fooRef"},
+			},
+			expected: map[int]prowJobsByContext{},
+		},
+		{
+			name: "no matching refs",
+			prs: []CodeReviewCommon{
+				{Number: 1, HeadRefOID: "barRef"},
+			},
+			pjs: []prowapi.ProwJob{
+				*batchJobSuccess.DeepCopy(),
+				*presubmitJobPending.DeepCopy(),
+			},
+			expected: map[int]prowJobsByContext{},
+		},
+		{
+			name: "matching refs for batch and presubmit jobs",
+			prs: []CodeReviewCommon{
+				{Number: 1, HeadRefOID: "fooRef"},
+			},
+			pjs: []prowapi.ProwJob{
+				*batchJobSuccess.DeepCopy(),
+				*presubmitJobPending.DeepCopy(),
+			},
+			expected: map[int]prowJobsByContext{
+				1: {
+					successfulBatchJob:   map[string]prowapi.ProwJob{"fooContext": *batchJobSuccess.DeepCopy()},
+					pendingPresubmitJobs: map[string]bool{"fooContext": true},
+				},
+			},
+		},
+		{
+			name: "matching refs, presubmit job successful",
+			prs: []CodeReviewCommon{
+				{Number: 1, HeadRefOID: "fooRef"},
+			},
+			pjs: []prowapi.ProwJob{
+				*batchJobSuccess.DeepCopy(),
+				*presubmitJobSuccess.DeepCopy(),
+			},
+			expected: map[int]prowJobsByContext{
+				1: {
+					successfulBatchJob:   map[string]prowapi.ProwJob{"fooContext": *batchJobSuccess.DeepCopy()},
+					pendingPresubmitJobs: map[string]bool{},
+				},
+			},
+		},
+		{
+			name: "matching refs, all jobs pending",
+			prs: []CodeReviewCommon{
+				{Number: 1, HeadRefOID: "fooRef"},
+			},
+			pjs: []prowapi.ProwJob{
+				*batchJobPending.DeepCopy(),
+				*presubmitJobPending.DeepCopy(),
+			},
+			expected: map[int]prowJobsByContext{
+				1: {
+					successfulBatchJob:   map[string]prowapi.ProwJob{},
+					pendingPresubmitJobs: map[string]bool{"fooContext": true},
+				},
+			},
+		},
+		{
+			name: "multiple PRs with matching refs for successful batch and pending presubmit/successful jobs",
+			prs: []CodeReviewCommon{
+				{Number: 1, HeadRefOID: "fooRef"},
+				{Number: 2, HeadRefOID: "fooRef"},
+			},
+			pjs: []prowapi.ProwJob{
+				*batchJobSuccess.DeepCopy(),
+				*presubmitJobPending.DeepCopy(),
+				*presubmitJobPR2Success.DeepCopy(),
+			},
+			expected: map[int]prowJobsByContext{
+				1: {
+					successfulBatchJob:   map[string]prowapi.ProwJob{"fooContext": *batchJobSuccess.DeepCopy()},
+					pendingPresubmitJobs: map[string]bool{"fooContext": true},
+				},
+				2: {
+					successfulBatchJob:   map[string]prowapi.ProwJob{"fooContext": *batchJobSuccess.DeepCopy()},
+					pendingPresubmitJobs: map[string]bool{},
+				},
+			},
+		},
+		{
+			name: "multiple PRs with matching refs for successful batch and pending presubmit jobs",
+			prs: []CodeReviewCommon{
+				{Number: 1, HeadRefOID: "fooRef"},
+				{Number: 2, HeadRefOID: "fooRef"},
+			},
+			pjs: []prowapi.ProwJob{
+				*batchJobSuccess.DeepCopy(),
+				*presubmitJobPending.DeepCopy(),
+				*presubmitJobPR2Pending.DeepCopy(),
+			},
+			expected: map[int]prowJobsByContext{
+				1: {
+					successfulBatchJob:   map[string]prowapi.ProwJob{"fooContext": *batchJobSuccess.DeepCopy()},
+					pendingPresubmitJobs: map[string]bool{"fooContext": true},
+				},
+				2: {
+					successfulBatchJob:   map[string]prowapi.ProwJob{"fooContext": *batchJobSuccess.DeepCopy()},
+					pendingPresubmitJobs: map[string]bool{"fooContext": true},
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			actual := getProwJobsForPRs(tc.prs, tc.pjs)
+			if !reflect.DeepEqual(actual, tc.expected) {
+				t.Errorf("expected %+v, got %+v", tc.expected, actual)
+			}
+		})
+	}
+}
+
+func TestOverwriteProwJobContexts(t *testing.T) {
+	t.Parallel()
+
+	batchJobFooRefSuccess := prowapi.ProwJob{
+		Spec: prowapi.ProwJobSpec{
+			Context: "fooContext",
+			Type:    prowapi.BatchJob,
+			Refs: &prowapi.Refs{
+				BaseSHA: "fooBaseRef",
+				Pulls: []prowapi.Pull{
+					{Number: 1, SHA: "fooRef"},
+					{Number: 2, SHA: "fooRef"},
+				},
+			},
+		},
+		Status: prowapi.ProwJobStatus{
+			Description: "Job succeeded.",
+			State:       prowapi.SuccessState,
+			URL:         "https://prow.foo.bar/foobar",
+		},
+	}
+	batchJobBarRefSuccess := *batchJobFooRefSuccess.DeepCopy()
+	batchJobBarRefSuccess.Spec.Context = "barContext"
+
+	testCases := []struct {
+		name string
+		pr   CodeReviewCommon
+		pjs  prowJobsByContext
+
+		expectedOverwrittenContexts []string
+	}{
+		{
+			name: "no pending presubmit job",
+			pr:   CodeReviewCommon{Org: "foo", Repo: "bar", Number: 1, HeadRefOID: "fooRef"},
+			pjs: prowJobsByContext{
+				successfulBatchJob: map[string]prowapi.ProwJob{"fooContext": *batchJobFooRefSuccess.DeepCopy()},
+			},
+			expectedOverwrittenContexts: []string{},
+		},
+		{
+			name: "pending presubmit job with matching context",
+			pr:   CodeReviewCommon{Org: "foo", Repo: "bar", Number: 1, HeadRefOID: "fooRef"},
+			pjs: prowJobsByContext{
+				successfulBatchJob:   map[string]prowapi.ProwJob{"fooContext": *batchJobFooRefSuccess.DeepCopy()},
+				pendingPresubmitJobs: map[string]bool{"fooContext": true},
+			},
+			expectedOverwrittenContexts: []string{"fooContext"},
+		},
+		{
+			name: "pending presubmit job without matching context",
+			pr:   CodeReviewCommon{Org: "foo", Repo: "bar", Number: 1, HeadRefOID: "fooRef"},
+			pjs: prowJobsByContext{
+				successfulBatchJob:   map[string]prowapi.ProwJob{"barContext": *batchJobBarRefSuccess.DeepCopy()},
+				pendingPresubmitJobs: map[string]bool{"fooContext": true},
+			},
+			expectedOverwrittenContexts: []string{},
+		},
+		{
+			name: "pending presubmit job with multiple matching contexts",
+			pr:   CodeReviewCommon{Org: "foo", Repo: "bar", Number: 1, HeadRefOID: "fooRef"},
+			pjs: prowJobsByContext{
+				successfulBatchJob: map[string]prowapi.ProwJob{
+					"fooContext": *batchJobFooRefSuccess.DeepCopy(),
+					"barContext": *batchJobBarRefSuccess.DeepCopy(),
+				},
+				pendingPresubmitJobs: map[string]bool{"fooContext": true, "barContext": true},
+			},
+			expectedOverwrittenContexts: []string{"fooContext", "barContext"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ghc := &fgc{}
+			err := overwriteProwJobContexts(tc.pr, tc.pjs, ghc, logrus.WithField("test", tc.name))
+			if err != nil {
+				t.Fatalf("failed to set status: %v", err)
+			}
+			switch len(tc.expectedOverwrittenContexts) {
+			case 0:
+				if ghc.setStatus {
+					t.Errorf("expected CreateStatusApiCall: false, got CreateStatusApiCall: %t", ghc.setStatus)
+				}
+			default:
+				if !ghc.setStatus {
+					t.Errorf("expected CreateStatusApiCall: true, got CreateStatusApiCall: %t", ghc.setStatus)
+				}
+			}
+			for _, expectedContext := range tc.expectedOverwrittenContexts {
+				batchJob := tc.pjs.successfulBatchJob[expectedContext]
+				githubStatus := ghc.statuses[tc.pr.Org+"/"+tc.pr.Repo+"/"+tc.pr.HeadRefOID+"/"+expectedContext]
+				expectedStatus := github.Status{
+					State:       github.StatusSuccess,
+					Description: config.ContextDescriptionWithBaseSha(batchJob.Status.Description, batchJob.Spec.Refs.BaseSHA),
+					Context:     expectedContext,
+					TargetURL:   batchJob.Status.URL,
+				}
+				if githubStatus != expectedStatus {
+					t.Errorf("expected GitHub Status: %+v, got GitHub Status: %+v", expectedStatus, githubStatus)
+				}
+			}
+
 		})
 	}
 }
