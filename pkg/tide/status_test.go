@@ -33,6 +33,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"k8s.io/apimachinery/pkg/util/sets"
+
 	prowapi "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 	"sigs.k8s.io/prow/pkg/config"
 	"sigs.k8s.io/prow/pkg/github"
@@ -1270,7 +1271,7 @@ func TestSetStatusRespectsRequiredContexts(t *testing.T) {
 	}
 
 	expectedDescription := "Not mergeable. Retesting: bar foo"
-	val, exists := fghc.statuses["//"]
+	val, exists := fghc.statuses["///tide"]
 	if !exists {
 		t.Fatal("Status didn't get set")
 	}
