@@ -351,7 +351,6 @@ func testCherryPickIC(clients localgit.Clients, t *testing.T) {
 	if err := s.handleIssueComment(logrus.NewEntry(logrus.StandardLogger()), ic); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	t.Logf("Comments: %+v; PRs: %+v", ghc.comments, ghc.prs)
 	got := prToString(ghc.prs[0])
 	if got != expected {
 		t.Errorf("Expected (%d):\n%s\nGot (%d):\n%+v\n", len(expected), expected, len(got), got)
@@ -366,7 +365,7 @@ func TestCherryPickPRV2(t *testing.T) {
 func testCherryPickPR(clients localgit.Clients, t *testing.T) {
 	prNumber := fakePR.GetPRNumber()
 	lg, c := makeFakeRepoWithCommit(clients, t)
-	expectedBranches := []string{"release-1.5", "release-1.6", "release-1.8", "release-1.3"}
+	expectedBranches := []string{"release-1.5", "release-1.6", "release-1.8", "release-1.3", "release-1.12"}
 	for _, branch := range expectedBranches {
 		if err := lg.CheckoutNewBranch("foo", "bar", branch); err != nil {
 			t.Fatalf("Checking out pull branch: %v", err)
@@ -409,6 +408,12 @@ func testCherryPickPR(clients localgit.Clients, t *testing.T) {
 					Login: "approver",
 				},
 				Body: "/cherrypick release-1.3 release-1.2",
+			},
+			{
+				User: github.User{
+					Login: "approver",
+				},
+				Body: "/cherrypick release-1.12 release-1.11 release-1.10 release-1.9",
 			},
 			{
 				User: github.User{
@@ -490,6 +495,9 @@ func testCherryPickPR(clients localgit.Clients, t *testing.T) {
 		expectedBody := fmt.Sprintf("This is an automated cherry-pick of #%d", prNumber)
 		if branch == "release-1.3" {
 			expectedBody = fmt.Sprintf("%s\n\n/cherrypick release-1.2", expectedBody)
+		}
+		if branch == "release-1.12" {
+			expectedBody = fmt.Sprintf("%s\n\n/cherrypick release-1.11 release-1.10 release-1.9", expectedBody)
 		}
 		expectedHead := fmt.Sprintf(botUser.Login+":"+cherryPickBranchFmt, prNumber, branch)
 		expectedLabels := s.labels
