@@ -129,7 +129,7 @@ If you need to contact the maintainers of Prow you have a few options:
 
 1. Open an issue in the [kubernetes/test-infra](https://github.com/kubernetes/test-infra) repo.
 1. Reach out to the `#prow` channel of the [Kubernetes Slack](https://github.com/kubernetes/community/tree/master/communication#social-media).
-1. Contact one of the code owners in [prow/OWNERS](https://github.com/kubernetes/test-infra/tree/master/prow/OWNERS) or in a more specifically scoped OWNERS file.
+1. Contact one of the code owners in [prow/pkg/OWNERS](https://github.com/kubernetes-sigs/prow/tree/main/pkg/OWNERS) or in a more specifically scoped OWNERS file.
 
 ### Bots home
 

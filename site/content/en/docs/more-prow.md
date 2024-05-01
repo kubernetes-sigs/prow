@@ -23,7 +23,7 @@ postsubmit job that `kubectl apply`s the resource files whenever they are
 changed (based on a `run_if_changed` or `skip_if_only_changed` regexp). In
 order to `kubectl apply` to the cluster, the job will need to supply credentials
 (e.g. a kubeconfig file or
-[GCP service account key-file](https://github.com/kubernetes/test-infra/tree/master/prow/gcloud-deployer-service-account.sh)). Since
+[GCP service account key-file](https://github.com/kubernetes-sigs/prow/tree/main/pkg/gcloud-deployer-service-account.sh)). Since
 this job requires priviledged credentials to deploy to the cluster, it is
 important that it is run in a separate build cluster that is isolated from all
 presubmit jobs. See the

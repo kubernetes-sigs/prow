@@ -12,7 +12,7 @@ Crier reports your prowjobs on their status changes.
 For any reporter you want to use, you need to mount your prow configs and specify `--config-path` and `job-config-path`
 flag as most of other prow controllers do.
 
-### [Gerrit reporter](https://github.com/kubernetes/test-infra/tree/master/prow/crier/reporters/gerrit)
+### [Gerrit reporter](https://github.com/kubernetes-sigs/prow/tree/main/pkg/crier/reporters/gerrit)
 
 You can enable gerrit reporter in crier by specifying `--gerrit-workers=n` flag.
 
@@ -27,7 +27,7 @@ The reporter will also cast a +1/-1 vote on the `prow.k8s.io/gerrit-report-label
 or by default it will vote on `CodeReview` label. Where `+1` means all jobs on the patshset pass and `-1`
 means one or more jobs failed on the patchset.
 
-### [Pubsub reporter](https://github.com/kubernetes/test-infra/tree/master/prow/crier/reporters/pubsub)
+### [Pubsub reporter](https://github.com/kubernetes-sigs/prow/tree/main/pkg/crier/reporters/pubsub)
 
 You can enable pubsub reporter in crier by specifying `--pubsub-workers=n` flag.
 
@@ -45,7 +45,7 @@ Pubsub reporter will report whenever prowjob has a state transition.
 
 You can check the reported result by [list the pubsub topic](https://cloud.google.com/sdk/gcloud/reference/pubsub/topics/list).
 
-### [GitHub reporter](https://github.com/kubernetes/test-infra/tree/master/prow/crier/reporters/github)
+### [GitHub reporter](https://github.com/kubernetes-sigs/prow/tree/main/pkg/crier/reporters/github)
 
 You can enable github reporter in crier by specifying `--github-workers=N` flag (N>0).
 
@@ -53,9 +53,9 @@ You also need to mount a github oauth token by specifying `--github-token-path` 
 
 If you have a [ghproxy](https://github.com/kubernetes/test-infra/tree/master/ghproxy) deployed, also remember to point `--github-endpoint` to your ghproxy to avoid token throttle.
 
-The actual report logic is in the [github report library](https://github.com/kubernetes/test-infra/tree/master/prow/github/report) for your reference.
+The actual report logic is in the [github report library](https://github.com/kubernetes-sigs/prow/tree/main/pkg/github/report) for your reference.
 
-### [Slack reporter](https://github.com/kubernetes/test-infra/tree/master/prow/crier/reporters/slack)
+### [Slack reporter](https://github.com/kubernetes-sigs/prow/tree/main/pkg/crier/reporters/slack)
 
 > **NOTE:** if enabling the slack reporter for the *first* time, Crier will message to the Slack channel for **all** ProwJobs matching the configured filtering criteria.
 

@@ -35,7 +35,7 @@ External plugins are well suited for:
 - Isolating a more or less privileged plugin or a plugin that executes PR code.
 - Integrating existing GitHub services with Prow.
 
-Examples of external plugins can be found in the [`prow/external-plugins`](https://github.com/kubernetes/test-infra/tree/master/prow/external-plugins) directory. The following is an example external plugin configuration that would live in [`plugins.yaml`](https://github.com/kubernetes/test-infra/tree/master/config/prow/plugins.yaml).
+Examples of external plugins can be found in the [`prow/pkg/external-plugins`](https://github.com/kubernetes-sigs/prow/tree/main/cmd/external-plugins) directory. The following is an example external plugin configuration that would live in [`plugins.yaml`](https://github.com/kubernetes/test-infra/tree/master/config/prow/plugins.yaml).
 
 ```yaml
 external_plugins:
