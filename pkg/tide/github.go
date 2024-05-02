@@ -612,28 +612,49 @@ func getProwJobsForPRs(prs []CodeReviewCommon, pjs []prowapi.ProwJob) map[int]pr
 	}
 
 	for _, pj := range pjs {
-		for _, pull := range pj.Spec.Refs.Pulls {
-			if pr, found := prNums[pull.Number]; found && pr.HeadRefOID == pull.SHA {
-				if _, ok := prowJobsForPRs[pr.Number]; !ok {
-					prowJobsForPRs[pr.Number] = prowJobsByContext{
+		jobState := toSimpleState(pj.Status.State)
+
+		switch pj.Spec.Type {
+		case prowapi.BatchJob:
+			if jobState != successState {
+				continue
+			}
+			validPulls := true
+			for _, pull := range pj.Spec.Refs.Pulls {
+				if pr, found := prNums[pull.Number]; !found || pr.HeadRefOID != pull.SHA {
+					validPulls = false
+					break
+				}
+			}
+			if !validPulls {
+				continue
+			}
+			for _, pull := range pj.Spec.Refs.Pulls {
+				if _, ok := prowJobsForPRs[pull.Number]; !ok {
+					prowJobsForPRs[pull.Number] = prowJobsByContext{
 						successfulBatchJob:   make(map[string]prowapi.ProwJob),
 						pendingPresubmitJobs: make(map[string]bool),
 					}
 				}
-				jobState := toSimpleState(pj.Status.State)
-				switch pj.Spec.Type {
-				case prowapi.BatchJob:
-					if jobState == successState {
-						prowJobsForPRs[pull.Number].successfulBatchJob[pj.Spec.Context] = pj
+				prowJobsForPRs[pull.Number].successfulBatchJob[pj.Spec.Context] = pj
+			}
+		case prowapi.PresubmitJob:
+			if jobState != pendingState {
+				continue
+			}
+			for _, pull := range pj.Spec.Refs.Pulls {
+				if pr, found := prNums[pull.Number]; found && pr.HeadRefOID == pull.SHA {
+					if _, ok := prowJobsForPRs[pr.Number]; !ok {
+						prowJobsForPRs[pr.Number] = prowJobsByContext{
+							successfulBatchJob:   make(map[string]prowapi.ProwJob),
+							pendingPresubmitJobs: make(map[string]bool),
+						}
 					}
-				case prowapi.PresubmitJob:
-					if jobState == pendingState {
-						prowJobsForPRs[pull.Number].pendingPresubmitJobs[pj.Spec.Context] = true
-					}
-				default:
-					continue
+					prowJobsForPRs[pull.Number].pendingPresubmitJobs[pj.Spec.Context] = true
 				}
 			}
+		default:
+			continue
 		}
 	}
 

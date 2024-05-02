@@ -447,7 +447,7 @@ func TestGetProwJobsForPRs(t *testing.T) {
 			expected: map[int]prowJobsByContext{},
 		},
 		{
-			name: "matching refs for batch and presubmit jobs",
+			name: "One PR with matching ref and one PR left pool",
 			prs: []CodeReviewCommon{
 				{Number: 1, HeadRefOID: "fooRef"},
 			},
@@ -457,22 +457,28 @@ func TestGetProwJobsForPRs(t *testing.T) {
 			},
 			expected: map[int]prowJobsByContext{
 				1: {
-					successfulBatchJob:   map[string]prowapi.ProwJob{"fooContext": *batchJobSuccess.DeepCopy()},
+					successfulBatchJob:   map[string]prowapi.ProwJob{},
 					pendingPresubmitJobs: map[string]bool{"fooContext": true},
 				},
 			},
 		},
 		{
-			name: "matching refs, presubmit job successful",
+			name: "matching refs, presubmit jobs successful",
 			prs: []CodeReviewCommon{
 				{Number: 1, HeadRefOID: "fooRef"},
+				{Number: 2, HeadRefOID: "fooRef"},
 			},
 			pjs: []prowapi.ProwJob{
 				*batchJobSuccess.DeepCopy(),
 				*presubmitJobSuccess.DeepCopy(),
+				*presubmitJobPR2Success.DeepCopy(),
 			},
 			expected: map[int]prowJobsByContext{
 				1: {
+					successfulBatchJob:   map[string]prowapi.ProwJob{"fooContext": *batchJobSuccess.DeepCopy()},
+					pendingPresubmitJobs: map[string]bool{},
+				},
+				2: {
 					successfulBatchJob:   map[string]prowapi.ProwJob{"fooContext": *batchJobSuccess.DeepCopy()},
 					pendingPresubmitJobs: map[string]bool{},
 				},
@@ -482,13 +488,19 @@ func TestGetProwJobsForPRs(t *testing.T) {
 			name: "matching refs, all jobs pending",
 			prs: []CodeReviewCommon{
 				{Number: 1, HeadRefOID: "fooRef"},
+				{Number: 2, HeadRefOID: "fooRef"},
 			},
 			pjs: []prowapi.ProwJob{
 				*batchJobPending.DeepCopy(),
 				*presubmitJobPending.DeepCopy(),
+				*presubmitJobPR2Pending.DeepCopy(),
 			},
 			expected: map[int]prowJobsByContext{
 				1: {
+					successfulBatchJob:   map[string]prowapi.ProwJob{},
+					pendingPresubmitJobs: map[string]bool{"fooContext": true},
+				},
+				2: {
 					successfulBatchJob:   map[string]prowapi.ProwJob{},
 					pendingPresubmitJobs: map[string]bool{"fooContext": true},
 				},
