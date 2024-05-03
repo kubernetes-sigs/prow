@@ -124,10 +124,10 @@ Here is a summary of the above:
 [api-ProwJob]:                                https://github.com/kubernetes-sigs/prow/blob/db89760fea406dd2813e331c3d52b53b5bcbd140/pkg/apis/prowjobs/v1/types.go#L129
 [api-ProwJobSpec]:                            https://github.com/kubernetes-sigs/prow/blob/db89760fea406dd2813e331c3d52b53b5bcbd140/pkg/apis/prowjobs/v1/types.go#L141
 [api-ProwJobStatus]:                          https://github.com/kubernetes-sigs/prow/blob/db89760fea406dd2813e331c3d52b53b5bcbd140/pkg/apis/prowjobs/v1/types.go#L1044
-[hook-initialize-configAgent]:                https://github.com/kubernetes-sigs/prow/blob/db89760fea406dd2813e331c3d52b53b5bcbd140/pkg/cmd/hook/main.go#L115
-[hook-main]:                                  https://github.com/kubernetes-sigs/prow/blob/db89760fea406dd2813e331c3d52b53b5bcbd140/pkg/cmd/hook/main.go#L107
-[sinker-clean]:                               https://github.com/kubernetes-sigs/prow/blob/db89760fea406dd2813e331c3d52b53b5bcbd140/pkg/cmd/sinker/main.go#L327
-[sinker]:                                     https://github.com/kubernetes-sigs/prow/blob/db89760fea406dd2813e331c3d52b53b5bcbd140/pkg/cmd/sinker/main.go#L98
+[hook-initialize-configAgent]:                https://github.com/kubernetes-sigs/prow/blob/db89760fea406dd2813e331c3d52b53b5bcbd140/cmd/hook/main.go#L115
+[hook-main]:                                  https://github.com/kubernetes-sigs/prow/blob/db89760fea406dd2813e331c3d52b53b5bcbd140/cmd/hook/main.go#L107
+[sinker-clean]:                               https://github.com/kubernetes-sigs/prow/blob/db89760fea406dd2813e331c3d52b53b5bcbd140/cmd/sinker/main.go#L327
+[sinker]:                                     https://github.com/kubernetes-sigs/prow/blob/db89760fea406dd2813e331c3d52b53b5bcbd140/cmd/sinker/main.go#L98
 [github-GenericCommentEvent]:                 https://github.com/kubernetes-sigs/prow/blob/db89760fea406dd2813e331c3d52b53b5bcbd140/pkg/github/types.go#L1291
 [github-ValidateWebhook]:                     https://github.com/kubernetes-sigs/prow/blob/db89760fea406dd2813e331c3d52b53b5bcbd140/pkg/github/webhooks.go#L31
 [githubeventserver-handleEvent]:              https://github.com/kubernetes-sigs/prow/blob/db89760fea406dd2813e331c3d52b53b5bcbd140/pkg/githubeventserver/githubeventserver.go#L222

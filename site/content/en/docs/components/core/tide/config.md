@@ -160,7 +160,7 @@ All PRs that conform to the criteria are processed and merged.
 The processing itself can include running jobs (e.g. tests) to verify the PRs are good to go.
 All commits in PRs from `github.com/kubeflow/community` repository are squashed before merging.
 
-For a full list of properties of queries, please refer to [here](https://github.com/kubernetes-sigs/prow/blob/db89760fea406dd2813e331c3d52b53b5bcbd140/pkg/config/prow-config-documented.yaml#L1236).
+For a full list of properties of queries, please refer to [`prow-config-documented.yaml`](https://github.com/kubernetes-sigs/prow/blob/db89760fea406dd2813e331c3d52b53b5bcbd140/pkg/config/prow-config-documented.yaml#L1236).
 
 ### Persistent Storage of Action History
 

@@ -25,7 +25,7 @@ This is performed by prow service/build clusters maintainer.
    `kubernetes-external-secrets_deployment.yaml`,
    `kubernetes-external-secrets_rbac.yaml`,
    and  `kubernetes-external-secrets_service.yaml` under
-   [`config/prow/cluster`](https://github.com/kubernetes-sigs/prow/tree/main/config/prow/cluster). The deployment file assumes
+   [`config/prow/cluster`](https://github.com/kubernetes/test-infra/tree/master/config/prow/cluster). The deployment file assumes
    using the same service account name as used in step #1
 2. [Optional but recommended] Create postsubmit deploy job for managing the
    deployment, for example
