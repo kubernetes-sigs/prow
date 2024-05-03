@@ -135,7 +135,7 @@ fakegitserver over port 8123 on the host.
 ### Custom Base Image
 
 To use a custom base image for FGS, change the `baseImageOverrides` entry for
-fakegitserver in [`.ko.yaml`](https://github.com/kubernetes/test-infra/tree/master/.ko.yaml) like this:
+fakegitserver in [`.ko.yaml`](https://github.com/kubernetes-sigs/prow/blob/main/.ko.yaml) like this:
 
 ```yaml
 baseImageOverrides:

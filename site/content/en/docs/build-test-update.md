@@ -33,7 +33,7 @@ go build ./cmd/hook
 go test ./pkg/plugins/lgtm
 ```
 (Note: `deck` depends on non-go static files, these were tested by integration
-tests, and for e2e test use [`runlocal`](https://github.com/kubernetes/test-infra/tree/master/prow/cmd/deck/runlocal) if desired.)
+tests, and for e2e test use [`runlocal`](https://github.com/kubernetes-sigs/prow/blob/main/cmd/deck/runlocal) if desired.)
 
 ### How to test a plugin
 
@@ -115,7 +115,7 @@ The ProwJob must use `agent: kubernetes` (the default, runs ProwJobs as Pods).
 Each Prow instance can supply a preconfigured variant of pj-on-kind.sh that properly
 defaults the config file locations. [Example](https://github.com/istio/test-infra/blob/01167b0dc9cb19bee40aa8dff958f526cfeeb570/prow/pj-on-kind.sh)
 for [prow.istio.io](https://prow.istio.io).
-To test ProwJobs for the [prow.k8s.io] instance use [`config/pj-on-kind.sh`](https://github.com/kubernetes/test-infra/tree/master/config/pj-on-kind.sh).
+To test ProwJobs for the [prow.k8s.io] instance use [`config/pj-on-kind.sh`](https://github.com/kubernetes/test-infra/blob/master/config/pj-on-kind.sh).
 
 ##### Example
 This command runs the ProwJob [`pull-test-infra-yamllint`](https://github.com/kubernetes/test-infra/blob/170921984a34ca40f2763f9e71d6ce6e033dec03/config/jobs/kubernetes/test-infra/test-infra-presubmits.yaml#L94-L107) locally on Kind.
@@ -141,17 +141,6 @@ To point `kubectl` to the Kind cluster you will need to export the `KUBECONFIG` 
 export KUBECONFIG='/<path to user dir>/.kube/kind-config-mkpod'
 ```
 After pointing to the correct master you will be able to drop into the container using `kubectl exec -it <pod name> <bash/sh/etc>`. **This pod will only last the lifecycle of the job, if you need more time to debug you might add a `sleep` within the job execution.
-
-#### Using Phaino
-[Phaino](/docs/components/cli-tools/phaino/) lets you interactively mock and run the job locally on
-your workstation in a docker container. Detailed instructions can be found in
-Phaino's [Readme](/docs/components/cli-tools/phaino/).
-
-Note: Test containers designed for decorated jobs (configured with `decorate: true`)
-may behave incorrectly or fail entirely without the environment the pod utilities
-provide. Similarly jobs that mount volumes or use `extra_refs` likely won't work
-properly.
-These jobs are best run locally as decorated pods inside a [Kind] cluster [Using pj-on-kind.sh](#using-pj-on-kindsh).
 
 ### How to manually run a given job on Prow
 
@@ -187,4 +176,4 @@ to generate ProwJob YAML.
 [Kind]: https://sigs.k8s.io/kind
 [mkpj]: /docs/components/cli-tools/mkpj/
 [mkpod]: /docs/components/cli-tools/mkpod/
-[pj-on-kind.sh]: https://github.com/kubernetes/test-infra/tree/master/prow/pj-on-kind.sh
+[pj-on-kind.sh]: https://github.com/kubernetes-sigs/prow/blob/main/pkg/pj-on-kind.sh

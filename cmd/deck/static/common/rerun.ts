@@ -4,7 +4,7 @@ import {relativeURL} from "./urls";
 export function createRerunProwJobIcon(modal: HTMLElement, parentEl: Element, prowjob: string, showRerunButton: boolean, csrfToken: string): HTMLElement {
   const LATEST_JOB = 'latest';
   const ORIGINAL_JOB = 'original';
-  const inrepoconfigURL = 'https://github.com/kubernetes/test-infra/blob/master/prow/inrepoconfig.md';
+  const inrepoconfigURL = 'https://docs.prow.k8s.io/docs/inrepoconfig/';
   const i = icon.create("refresh", "Show instructions for rerunning this job");
 
   const closeModal = (): void => {

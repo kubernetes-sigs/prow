@@ -5,7 +5,7 @@ description: >
   
 ---
 
-Configuration of Tide is located under the [config/prow/config.yaml](https://github.com/kubernetes/test-infra/tree/master/config/prow/config.yaml) file. All configuration for merge behavior and criteria belongs in the `tide` yaml struct, but it may be necessary to also configure presubmits for Tide to run against PRs (see ['Configuring Presubmit Jobs'](#configuring-presubmit-jobs) below).
+Configuration of Tide is located under the [config/prow/config.yaml](https://github.com/kubernetes/test-infra/blob/master/config/prow/config.yaml) file. All configuration for merge behavior and criteria belongs in the `tide` yaml struct, but it may be necessary to also configure presubmits for Tide to run against PRs (see ['Configuring Presubmit Jobs'](#configuring-presubmit-jobs) below).
 
 This document will describe the fields of the `tide` configuration and how to populate them, but you can also check out the [GoDocs](https://godoc.org/github.com/kubernetes/test-infra/prow/config#Tide) for the most up to date configuration specification.
 
@@ -160,7 +160,7 @@ All PRs that conform to the criteria are processed and merged.
 The processing itself can include running jobs (e.g. tests) to verify the PRs are good to go.
 All commits in PRs from `github.com/kubeflow/community` repository are squashed before merging.
 
-For a full list of properties of queries, please refer to [https://github.com/kubernetes/test-infra/blob/27c9a7f2784088c2db5ff133e8a7a1e2eab9ab3f/prow/config/prow-config-documented.yaml#:~:text=meet%20merge%20requirements.-,queries%3A,-%2D%20author%3A%20%27%20%27](https://github.com/kubernetes/test-infra/tree/master/prow/config/prow-config-documented.yaml).
+For a full list of properties of queries, please refer to [`prow-config-documented.yaml`](https://github.com/kubernetes-sigs/prow/blob/db89760fea406dd2813e331c3d52b53b5bcbd140/pkg/config/prow-config-documented.yaml#L1236).
 
 ### Persistent Storage of Action History
 

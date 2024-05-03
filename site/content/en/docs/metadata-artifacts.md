@@ -88,7 +88,7 @@ Decorated PR (finished): "revision":"5dd9241d43f256984358354d1fec468f274f9ac4"
 }
 ```
 
-[`Started.json` PodUtil](https://github.com/kubernetes/test-infra/blob/016edc15b8271c7528993cea0615cb11ecff201c/prow/initupload/run.go#L37)
+[`Started.json` PodUtil](https://github.com/kubernetes-sigs/prow/blob/db89760fea406dd2813e331c3d52b53b5bcbd140/pkg/pod-utils/downwardapi/jobspec.go#L213)
 |Fields|Content|
 |---|---|
 |timestamp|epoch|
@@ -96,7 +96,7 @@ Decorated PR (finished): "revision":"5dd9241d43f256984358354d1fec468f274f9ac4"
 |job-version (dep)|Never set|
 |pull|Pr number primary is testing, first pull in Spec Pull list|
 |repo-commit|*unset* (but shouldn't be)|
-|repos|For Ref, ExtraRef add Org/Repo: [Ref](https://github.com/kubernetes/test-infra/blob/4b5c7c99a851eb427f5c77bd0c8d11526f7b63c4/prow/apis/prowjobs/v1/types.go#L789) |
+|repos|For Ref, ExtraRef add Org/Repo: [Ref](https://github.com/kubernetes-sigs/prow/blob/db89760fea406dd2813e331c3d52b53b5bcbd140/pkg/apis/prowjobs/v1/types.go#L1174) |
 |node| *unset*|
 |metadata| *misc*|
 *Ex*
@@ -120,7 +120,7 @@ Decorated PR (finished): "revision":"5dd9241d43f256984358354d1fec468f274f9ac4"
 }
 ```
 
-[`Finished.json` *PodUtils*](https://github.com/kubernetes/test-infra/blob/016edc15b8271c7528993cea0615cb11ecff201c/prow/sidecar/run.go#L209)
+[`Finished.json` *PodUtils*](https://github.com/kubernetes-sigs/prow/blob/db89760fea406dd2813e331c3d52b53b5bcbd140/pkg/sidecar/run.go#L297)
 |Fields|Content|
 |---|---|
 |timestamp|epoch|
@@ -128,7 +128,7 @@ Decorated PR (finished): "revision":"5dd9241d43f256984358354d1fec468f274f9ac4"
 |result|SUCCESS, ABORTED, FAILURE|
 |repo-version (dep)|*unset*|
 |job-version (dep)|*unset*|
-|revision (dep)|[SHA from Refs](https://github.com/kubernetes/test-infra/blob/4b5c7c99a851eb427f5c77bd0c8d11526f7b63c4/prow/pod-utils/downwardapi/jobspec.go#L163)|
+|revision (dep)|[SHA from Refs](https://github.com/kubernetes-sigs/prow/blob/db89760fea406dd2813e331c3d52b53b5bcbd140/pkg/pod-utils/downwardapi/jobspec.go#L175)|
 |metadata| *unset*|
 *Ex*
 ```

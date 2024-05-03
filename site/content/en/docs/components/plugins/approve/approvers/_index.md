@@ -228,12 +228,12 @@ If an approval is cancelled, the bot will delete the status added to the PR and 
 ### Code Implementation Links
 
 Blunderbuss: 
-[prow/plugins/blunderbuss/blunderbuss.go](https://git.sigs.k8s.io/prow/pkg/plugins/blunderbuss/blunderbuss.go)
+[prow/plugins/blunderbuss/blunderbuss.go](https://github.com/kubernetes-sigs/prow/blob/main/pkg/plugins/blunderbuss/blunderbuss.go)
 
 LGTM:
-[prow/plugins/lgtm/lgtm.go](https://git.sigs.k8s.io/prow/pkg/plugins/lgtm/lgtm.go)
+[prow/plugins/lgtm/lgtm.go](https://github.com/kubernetes-sigs/prow/blob/main/pkg/plugins/lgtm/lgtm.go)
 
 Approve:
-[prow/plugins/approve/approve.go](https://git.sigs.k8s.io/prow/pkg/plugins/approve/approve.go)
+[prow/plugins/approve/approve.go](https://github.com/kubernetes-sigs/prow/blob/main/pkg/plugins/approve/approve.go)
 
-[prow/plugins/approve/approvers/owners.go](https://git.sigs.k8s.io/prow/pkg/plugins/approve/approvers/owners.go)
+[prow/plugins/approve/approvers/owners.go](https://github.com/kubernetes-sigs/prow/blob/main/pkg/plugins/approve/approvers/owners.go)

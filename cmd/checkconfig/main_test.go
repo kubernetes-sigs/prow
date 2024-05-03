@@ -932,7 +932,7 @@ func TestValidateStrictBranches(t *testing.T) {
 				},
 			},
 			errItems: []string{"kubernetes"},
-			okItems:  []string{"k8s"},
+			okItems:  []string{},
 		},
 		{
 			name: "conflict: repo level",

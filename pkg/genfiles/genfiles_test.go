@@ -35,7 +35,7 @@ func TestGroupLoad(t *testing.T) {
 			src: `# Files that should be ignored by tools which do not want to consider generated
 # code.
 #
-# eg: https://git.sigs.k8s.io/prow/pkg/plugins/size/size.go
+# eg: https://github.com/kubernetes-sigs/prow/blob/main/pkg/plugins/size/size.go
 #
 # This file is a series of lines, each of the form:
 #     <type> <name>

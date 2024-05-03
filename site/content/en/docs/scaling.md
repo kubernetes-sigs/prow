@@ -70,7 +70,7 @@ keys (different files once mounted to a container).
 
 ### GitHub API Cache
 
-[`ghproxy`](https://github.com/kubernetes/test-infra/tree/master/ghproxy/) is a reverse proxy HTTP cache optimized for the GitHub API.
+[`ghproxy`](/docs/ghproxy/) is a reverse proxy HTTP cache optimized for the GitHub API.
 It takes advantage of how GitHub responds to E-tags in order to fulfill repeated
 requests without spending additional API tokens. Check out this tool if you find
 that your GitHub bot is consuming or approaching its token limit. Similarly,
@@ -126,7 +126,7 @@ if users have the appropriate permissions before taking action on their behalf.
 The following is an overview of some of the automation Prow implements to work
 around GitHub's limited permission system:
   - Permission to trigger presubmit tests is determined based on org membership
-  as configured in the [`triggers`](https://github.com/kubernetes/test-infra/blob/526195d3e22cb90d784c1e4db1c43041a006c848/prow/plugins/plugins.go#L180) plugin config section.
+  as configured in the [`triggers`](https://github.com/kubernetes-sigs/prow/blob/db89760fea406dd2813e331c3d52b53b5bcbd140/pkg/plugins/config.go#L94) plugin config section.
   - File ownership is described with OWNERS files and change approval is
   enforced with the [`approve` plugin](/docs/components/plugins/approve/). See the [docs](/docs/components/plugins/approve/approvers/) for details.
   - Org member review of the most recent version of the PR is enforced with the

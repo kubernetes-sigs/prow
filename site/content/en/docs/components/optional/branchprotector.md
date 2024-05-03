@@ -214,8 +214,8 @@ for more details.
 Branchprotector runs as a prow periodic job, for example
 [ci-test-infra-branchprotector](https://github.com/kubernetes/test-infra/blob/6155b657d8958e60e6767be6569863e4dd08c413/config/jobs/kubernetes/test-infra/test-infra-trusted.yaml#L662).
 
-[`branch_protection.go`]: https://github.com/kubernetes/test-infra/tree/master/prow/config/branch_protection.go
-[`config.yaml`]: https://github.com/kubernetes/test-infra/tree/master/config/prow/config.yaml
+[`branch_protection.go`]: https://github.com/kubernetes-sigs/prow/blob/main/pkg/config/branch_protection.go
+[`config.yaml`]: https://github.com/kubernetes/test-infra/blob/master/config/prow/config.yaml
 [github branch protection]: https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/defining-the-mergeability-of-pull-requests/about-protected-branches
 [status contexts]: https://developer.github.com/v3/repos/statuses/#create-a-status
 [protection api]: https://developer.github.com/v3/repos/branches/#update-branch-protection

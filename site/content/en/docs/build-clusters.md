@@ -34,7 +34,7 @@ Service Account** and **GSA** means **GCP (IAM) Service Account**.
 ## Running the build cluster setup script
 
 The Prow source repo comes with a default
-[create-build-cluster.sh](https://github.com/kubernetes/test-infra/blob/master/prow/create-build-cluster.sh)
+[create-build-cluster.sh](https://github.com/kubernetes-sigs/prow/blob/main/pkg/create-build-cluster.sh)
 script which allows you to create a new GKE cluster with the intent of giving
 the [Kubernetes Prow instance](https://prow.k8s.io) access to it. Because there
 are different Prow instances and each instance has its own default settings
@@ -54,7 +54,7 @@ There are two requirements:
 
 1. Prow must be able to schedule jobs into your build cluster.
 2. The jobs themselves must be able to upload artifacts to the GCS bucket used
-by [Deck](../components/deck), in order to report job status (e.g., "passing" or
+by [Deck](../components/core/deck/), in order to report job status (e.g., "passing" or
 "failing").
 
 We look at both requirements below.

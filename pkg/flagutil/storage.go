@@ -41,7 +41,7 @@ type StorageClientOptions struct {
 // AddFlags injects status client options into the given FlagSet.
 func (o *StorageClientOptions) AddFlags(fs *flag.FlagSet) {
 	fs.StringVar(&o.GCSCredentialsFile, "gcs-credentials-file", "", "File where GCS credentials are stored")
-	fs.StringVar(&o.S3CredentialsFile, "s3-credentials-file", "", "File where s3 credentials are stored. For the exact format see https://github.com/kubernetes/test-infra/blob/master/prow/io/providers/providers.go")
+	fs.StringVar(&o.S3CredentialsFile, "s3-credentials-file", "", "File where s3 credentials are stored. For the exact format see https://github.com/kubernetes-sigs/prow/blob/main/pkg/io/providers/providers.go")
 }
 
 func (o *StorageClientOptions) HasGCSCredentials() bool {

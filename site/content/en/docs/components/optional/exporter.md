@@ -21,7 +21,7 @@ in [kubernetes/kube-state-metrics](https://github.com/kubernetes/kube-state-metr
 A typical usage of `prow_job_labels` is to [join](https://github.com/kubernetes/kube-state-metrics/tree/master/docs#join-metrics)
 it with other metrics using a [Prometheus matching operator](https://prometheus.io/docs/prometheus/latest/querying/operators/#vector-matching).
 
-Note that `job_name` is [`.spec.job`](https://github.com/kubernetes/test-infra/blob/98fac12af0e0b98970606dd7a5c48028a72e7f1d/prow/apis/prowjobs/v1/types.go#L117)
+Note that `job_name` is [`.spec.job`](https://github.com/kubernetes-sigs/prow/blob/db89760fea406dd2813e331c3d52b53b5bcbd140/pkg/apis/prowjobs/v1/types.go#L158)
 instead of `.metadata.name` as taken in `kube_pod_labels`.
 The gauge value is always `1` because we have another metric [`prowjobs`](/docs/metrics/)
 for the number jobs by name. The metric here shows only the existence of such a job with the label set in the cluster.

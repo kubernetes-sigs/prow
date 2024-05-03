@@ -192,7 +192,7 @@ Triggering presubmit job is similar to periodic jobs. Two things to change:
 This will start postsubmit job `my-postsubmit-job`, clones source code from `base_ref`
 at `base_sha`.
 
-(There are more fields can be supplied, see [full documentation](https://github.com/kubernetes/test-infra/blob/18678b3b8f4bc7c51475f41964927ff7e635f3b9/prow/apis/prowjobs/v1/types.go#L883))
+(There are more fields can be supplied, see [full documentation](https://github.com/kubernetes-sigs/prow/blob/db89760fea406dd2813e331c3d52b53b5bcbd140/pkg/apis/prowjobs/v1/types.go#L1128))
 
 #### Presubmit Prow Jobs
 
@@ -228,7 +228,7 @@ This will start presubmit job `my-presubmit-job`, clones source code like pull r
 defined under `pulls`, which merges to `base_ref` at `base_sha`.
 
 (There are more fields that can be supplied, see [full
-documentation](https://github.com/kubernetes/test-infra/blob/18678b3b8f4bc7c51475f41964927ff7e635f3b9/prow/apis/prowjobs/v1/types.go#L883).
+documentation](https://github.com/kubernetes-sigs/prow/blob/db89760fea406dd2813e331c3d52b53b5bcbd140/pkg/apis/prowjobs/v1/types.go#L1128).
 For example, if you want the job to be reported on the PR, add `number` field
 right next to `sha`)
 

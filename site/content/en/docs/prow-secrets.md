@@ -20,7 +20,7 @@ https://github.com/external-secrets/kubernetes-external-secrets#backends_
 This is performed by prow service/build clusters maintainer.
 
 1. In the cluster that the secrets are synced to, enable workload identity by
-   following [`workload-identity`](https://github.com/kubernetes/test-infra/tree/master/workload-identity/README.md).
+   following [`workload-identity`](https://github.com/kubernetes/test-infra/blob/master/workload-identity/README.md).
 1. Deploy `kubernetes-external-secrets_crd.yaml`,
    `kubernetes-external-secrets_deployment.yaml`,
    `kubernetes-external-secrets_rbac.yaml`,
