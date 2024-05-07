@@ -21,10 +21,12 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"os/signal"
 	"regexp"
 	"sort"
 	"strings"
 	"sync"
+	"syscall"
 
 	"github.com/sirupsen/logrus"
 
@@ -132,6 +134,14 @@ func main() {
 		enableAppsRestrictions: o.enableAppsRestrictions,
 		enabled:                o.githubEnablement.EnablementChecker(),
 	}
+
+	interrupt := make(chan os.Signal, 1)
+	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
+	go func() {
+		s := <-interrupt
+		logrus.Errorf("Received an interrupt: %s, cancelling...", s)
+		os.Exit(1)
+	}()
 
 	go p.configureBranches()
 	p.protect()
