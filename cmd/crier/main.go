@@ -33,6 +33,7 @@ import (
 	"sigs.k8s.io/prow/pkg/config"
 	"sigs.k8s.io/prow/pkg/config/secret"
 	"sigs.k8s.io/prow/pkg/crier"
+	dingtalkreporter "sigs.k8s.io/prow/pkg/crier/reporters/dingtalk"
 	gcsreporter "sigs.k8s.io/prow/pkg/crier/reporters/gcs"
 	k8sgcsreporter "sigs.k8s.io/prow/pkg/crier/reporters/gcs/kubernetes"
 	gerritreporter "sigs.k8s.io/prow/pkg/crier/reporters/gerrit"
@@ -64,6 +65,7 @@ type options struct {
 	blobStorageWorkers    int
 	k8sBlobStorageWorkers int
 	resultStoreWorkers    int
+	dingTalkWorkers       int
 
 	slackTokenFile            string
 	additionalSlackTokenFiles slackclient.HostsFlag
@@ -81,7 +83,7 @@ type options struct {
 }
 
 func (o *options) validate() error {
-	if o.gerritWorkers+o.pubsubWorkers+o.githubWorkers+o.slackWorkers+o.blobStorageWorkers+o.k8sBlobStorageWorkers+o.resultStoreWorkers <= 0 {
+	if o.gerritWorkers+o.pubsubWorkers+o.githubWorkers+o.slackWorkers+o.blobStorageWorkers+o.k8sBlobStorageWorkers+o.resultStoreWorkers+o.dingTalkWorkers <= 0 {
 		return errors.New("crier need to have at least one report worker to start")
 	}
 
@@ -125,6 +127,7 @@ func (o *options) parseArgs(fs *flag.FlagSet, args []string) error {
 	fs.IntVar(&o.pubsubWorkers, "pubsub-workers", 0, "Number of pubsub report workers (0 means disabled)")
 	fs.IntVar(&o.githubWorkers, "github-workers", 0, "Number of github report workers (0 means disabled)")
 	fs.IntVar(&o.slackWorkers, "slack-workers", 0, "Number of Slack report workers (0 means disabled)")
+	fs.IntVar(&o.dingTalkWorkers, "dingtalk-workers", 0, "Number of DingTalk report workers (0 means disabled)")
 	fs.Var(&o.additionalSlackTokenFiles, "additional-slack-token-files", "Map of additional slack token files. example: --additional-slack-token-files=foo=/etc/foo-slack-tokens/token, repeat flag for each host")
 	fs.IntVar(&o.blobStorageWorkers, "blob-storage-workers", 0, "Number of blob storage report workers (0 means disabled)")
 	fs.IntVar(&o.k8sBlobStorageWorkers, "kubernetes-blob-storage-workers", 0, "Number of Kubernetes-specific blob storage report workers (0 means disabled)")
@@ -302,6 +305,20 @@ func main() {
 		uploader := resultstore.NewUploader(resultstore.NewClient(conn))
 		if err := crier.New(mgr, resultstorereporter.New(cfg, opener, uploader, o.resultstoreArtifactsDirOnly), o.resultStoreWorkers, o.githubEnablement.EnablementChecker()); err != nil {
 			logrus.WithError(err).Fatal("failed to construct resultstorereporter controller")
+		}
+	}
+
+	if o.dingTalkWorkers > 0 {
+		hasReporter = true
+		if cfg().DingTalkReporterConfigs == nil {
+			logrus.Fatal("dingtalkreporter is enabled but has no config")
+		}
+		dingTalkConfig := func(refs *prowapi.Refs) config.DingTalkReporter {
+			return cfg().DingTalkReporterConfigs.GetDingTalkReporter(refs)
+		}
+		dingTalkReporter := dingtalkreporter.New(dingTalkConfig, o.dryrun)
+		if err := crier.New(mgr, dingTalkReporter, o.dingTalkWorkers, o.githubEnablement.EnablementChecker()); err != nil {
+			logrus.WithError(err).Fatal("failed to construct slack reporter controller")
 		}
 	}
 

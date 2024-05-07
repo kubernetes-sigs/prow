@@ -38,3 +38,4 @@ pj.yaml
 pod.yaml
 *.min.js
 vendor/
+.idea
