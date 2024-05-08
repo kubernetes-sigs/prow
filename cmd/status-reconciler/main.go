@@ -127,6 +127,11 @@ func main() {
 		logrus.WithError(err).Fatal("Error getting GitHub client.")
 	}
 
+	gitClient, err := o.github.GitClientFactory("", &o.config.InRepoConfigCacheDirBase, o.dryRun, false)
+	if err != nil {
+		logrus.WithError(err).Fatal("Error getting Git client.")
+	}
+
 	prowJobClient, err := o.kubernetes.ProwJobClient(configAgent.Config().ProwJobNamespace, o.dryRun)
 	if err != nil {
 		logrus.WithError(err).Fatal("Error getting kube client.")
@@ -139,7 +144,7 @@ func main() {
 		logrus.WithError(err).Fatal("Cannot create opener")
 	}
 
-	c := statusreconciler.NewController(o.continueOnError, o.getDenyList(), o.getDenyListAll(), opener, o.config, o.statusURI, prowJobClient, githubClient, pluginAgent)
+	c := statusreconciler.NewController(o.continueOnError, o.getDenyList(), o.getDenyListAll(), opener, o.config, o.statusURI, prowJobClient, gitClient, githubClient, pluginAgent)
 	interrupts.Run(func(ctx context.Context) {
 		c.Run(ctx)
 	})

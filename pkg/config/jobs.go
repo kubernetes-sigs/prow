@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"sigs.k8s.io/prow/pkg/git/v2"
 	"strings"
 	"time"
 
@@ -525,7 +526,8 @@ type githubClient interface {
 // NewGitHubDeferredChangedFilesProvider uses a closure to lazily retrieve the file changes only if they are needed.
 // We only have to fetch the changes if there is at least one RunIfChanged/SkipIfOnlyChanged job that is not being
 // force run (due to a `/retest` after a failure or because it is explicitly triggered with `/test foo`).
-func NewGitHubDeferredChangedFilesProvider(client githubClient, org, repo string, num int) ChangedFilesProvider {
+func NewGitHubDeferredChangedFilesProvider(gc git.ClientFactory, client githubClient, org, repo string, num int,
+	baseSHA, headSHA string) ChangedFilesProvider {
 	var changedFiles []string
 	return func() ([]string, error) {
 		// Fetch the changed files from github at most once.
@@ -534,8 +536,25 @@ func NewGitHubDeferredChangedFilesProvider(client githubClient, org, repo string
 			if err != nil {
 				return nil, fmt.Errorf("error getting pull request changes: %w", err)
 			}
-			for _, change := range changes {
-				changedFiles = append(changedFiles, change.Filename)
+
+			// Fallback to use gitClient since github API truncated the response
+			if len(changes) == github.ChangesFilesLimit && gc != nil {
+				repoClient, err := gc.ClientFor(org, repo)
+				if err == nil {
+					// Use git client since Github PushEvent is limited to 3000 keys:
+					// https://docs.github.com/en/rest/pulls/pulls?apiVersion=2022-11-28#list-pull-requests-files
+					files, err := repoClient.Diff(headSHA, baseSHA)
+					if err == nil {
+						changedFiles = files
+					}
+				}
+			}
+
+			// in all failure cases, return truncated files
+			if len(changedFiles) == 0 {
+				for _, change := range changes {
+					changedFiles = append(changedFiles, change.Filename)
+				}
 			}
 		}
 		return changedFiles, nil

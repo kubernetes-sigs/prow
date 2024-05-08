@@ -21,27 +21,45 @@ import (
 
 	prowapi "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 	"sigs.k8s.io/prow/pkg/config"
+	"sigs.k8s.io/prow/pkg/git/v2"
 	"sigs.k8s.io/prow/pkg/github"
 	"sigs.k8s.io/prow/pkg/pjutil"
 )
 
-func listPushEventChanges(pe github.PushEvent) config.ChangedFilesProvider {
+func listPushEventChanges(gc git.ClientFactory, pe github.PushEvent) config.ChangedFilesProvider {
+	var changedFiles []string
 	return func() ([]string, error) {
-		changed := make(map[string]bool)
-		for _, commit := range pe.Commits {
-			for _, added := range commit.Added {
-				changed[added] = true
+		if changedFiles == nil {
+			// Fallback to use PushEvent
+			changes := make(map[string]bool)
+			for _, commit := range pe.Commits {
+				for _, added := range commit.Added {
+					changes[added] = true
+				}
+				for _, removed := range commit.Removed {
+					changes[removed] = true
+				}
+				for _, modified := range commit.Modified {
+					changes[modified] = true
+				}
 			}
-			for _, removed := range commit.Removed {
-				changed[removed] = true
+			if len(changes) == github.ChangesFilesLimit && gc != nil {
+				repoClient, err := gc.ClientFor(pe.Repo.Owner.Name, pe.Repo.Name)
+				if err == nil {
+					// Use git client since Github PushEvent is limited to 3000 keys:
+					// https://docs.github.com/en/rest/pulls/pulls?apiVersion=2022-11-28#list-pull-requests-files
+					files, err := repoClient.Diff(pe.After, pe.Before)
+					if err == nil {
+						changedFiles = files
+					}
+				}
 			}
-			for _, modified := range commit.Modified {
-				changed[modified] = true
+
+			if len(changedFiles) == 0 {
+				for file := range changes {
+					changedFiles = append(changedFiles, file)
+				}
 			}
-		}
-		var changedFiles []string
-		for file := range changed {
-			changedFiles = append(changedFiles, file)
 		}
 		return changedFiles, nil
 	}
@@ -74,7 +92,7 @@ func handlePE(c Client, pe github.PushEvent) error {
 	postsubmits := getPostsubmits(c.Logger, c.GitClient, c.Config, org+"/"+repo, shaGetter)
 
 	for _, j := range postsubmits {
-		if shouldRun, err := j.ShouldRun(pe.Branch(), listPushEventChanges(pe)); err != nil {
+		if shouldRun, err := j.ShouldRun(pe.Branch(), listPushEventChanges(c.GitClient, pe)); err != nil {
 			return err
 		} else if !shouldRun {
 			continue
