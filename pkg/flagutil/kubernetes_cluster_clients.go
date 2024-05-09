@@ -40,8 +40,10 @@ import (
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	prow "sigs.k8s.io/prow/pkg/client/clientset/versioned"
 	prowv1 "sigs.k8s.io/prow/pkg/client/clientset/versioned/typed/prowjobs/v1"
@@ -356,15 +358,24 @@ var clientCreationFailures = prometheus.NewCounterVec(prometheus.CounterOpts{
 // BuildClusterManagers returns a manager per buildCluster.
 // Per default, LeaderElection and the metrics listener are disabled, as we assume
 // that there is another manager for ProwJobs that handles that.
-func (o *KubernetesOptions) BuildClusterManagers(dryRun bool, requiredTestPodVerbs []string, callBack func(), opts ...func(*manager.Options)) (map[string]manager.Manager, error) {
+func (o *KubernetesOptions) BuildClusterManagers(dryRun bool, requiredTestPodVerbs []string, callBack func(), namespace string, opts ...func(*manager.Options)) (map[string]manager.Manager, error) {
 	if err := o.resolve(dryRun); err != nil {
 		return nil, err
 	}
 
 	options := manager.Options{
-		LeaderElection:     false,
-		MetricsBindAddress: "0",
-		DryRunClient:       o.dryRun,
+		LeaderElection: false,
+		Metrics: server.Options{
+			BindAddress: "0",
+		},
+		Client: ctrlruntimeclient.Options{
+			DryRun: &o.dryRun,
+		},
+		Cache: cache.Options{
+			DefaultNamespaces: map[string]cache.Config{
+				namespace: {},
+			},
+		},
 	}
 	for _, opt := range opts {
 		opt(&options)
@@ -400,7 +411,7 @@ func (o *KubernetesOptions) BuildClusterManagers(dryRun bool, requiredTestPodVer
 				lock.Unlock()
 				return
 			}
-			if err := CheckAuthorizations(authzClient.SelfSubjectAccessReviews(), options.Namespace, requiredTestPodVerbs); err != nil {
+			if err := CheckAuthorizations(authzClient.SelfSubjectAccessReviews(), namespace, requiredTestPodVerbs); err != nil {
 				lock.Lock()
 				errs = append(errs, fmt.Errorf("failed pod resource authorization check for cluster %s: %w", name, err))
 				lock.Unlock()
@@ -442,7 +453,7 @@ func (o *KubernetesOptions) BuildClusterManagers(dryRun bool, requiredTestPodVer
 						logrus.WithField("build-cluster", buildClusterName).Tracef("failed to construct authz client: %s", err)
 						continue
 					}
-					if err := CheckAuthorizations(authzClient.SelfSubjectAccessReviews(), options.Namespace, requiredTestPodVerbs); err != nil {
+					if err := CheckAuthorizations(authzClient.SelfSubjectAccessReviews(), namespace, requiredTestPodVerbs); err != nil {
 						logrus.WithField("build-cluster", buildClusterName).Tracef("failed to construct build cluster manager: %s", err)
 						continue
 					}

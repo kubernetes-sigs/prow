@@ -31,7 +31,6 @@ import (
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	fakectrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"k8s.io/apimachinery/pkg/util/sets"
 	prowapi "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
@@ -831,11 +830,14 @@ func TestExpectedStatus(t *testing.T) {
 				}}}})
 			mmc := newMergeChecker(ca.Config, &fgc{})
 
+			ctx := context.Background()
+			mgr := newFakeManager(t, ctx, tc.prowJobs...)
+
 			sc, err := newStatusController(
-				context.Background(),
+				ctx,
 				logrus.NewEntry(logrus.StandardLogger()),
 				nil,
-				newFakeManager(tc.prowJobs...),
+				mgr,
 				nil,
 				ca.Config,
 				nil,
@@ -988,12 +990,14 @@ func TestSetStatuses(t *testing.T) {
 			t.Fatalf("Failed to get log output before testing: %v", err)
 		}
 
+		ctx := context.Background()
+		mgr := newFakeManager(t, ctx)
 		mmc := newMergeChecker(ca.Config, fc)
 		sc, err := newStatusController(
-			context.Background(),
+			ctx,
 			log,
 			fc,
-			newFakeManager(),
+			mgr,
 			nil,
 			ca.Config,
 			nil,
@@ -1235,11 +1239,14 @@ func TestSetStatusRespectsRequiredContexts(t *testing.T) {
 	ca := &config.Agent{}
 	ca.Set(&config.Config{})
 
+	ctx := context.Background()
+	mgr := newFakeManager(t, ctx)
+
 	sc := &statusController{
 		logger:   log,
 		ghc:      fghc,
 		config:   ca.Config,
-		pjClient: fakectrlruntimeclient.NewClientBuilder().Build(),
+		pjClient: mgr.GetClient(),
 		ghProvider: &GitHubProvider{
 			ghc:          fghc,
 			mergeChecker: newMergeChecker(ca.Config, fghc),
@@ -1361,11 +1368,13 @@ func TestStatusControllerSearch(t *testing.T) {
 				return &config.Config{ProwConfig: config.ProwConfig{Tide: config.Tide{
 					TideGitHubConfig: config.TideGitHubConfig{Queries: config.TideQueries{{Orgs: []string{"org-a", "org-b"}}}}}}}
 			}
+			ctx := context.Background()
+			mgr := newFakeManager(t, ctx)
 			sc, err := newStatusController(
-				context.Background(),
+				ctx,
 				logrus.WithField("tc", tc),
 				ghc,
-				newFakeManager(),
+				mgr,
 				nil,
 				cfg,
 				nil,

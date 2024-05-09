@@ -18,6 +18,7 @@ package moonraker
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -64,7 +65,7 @@ func NewClient(host string, configAgent prowConfigAgentClient) (*Client, error) 
 
 	// isMoonrakerUp is a ConditionFunc (see
 	// https://pkg.go.dev/k8s.io/apimachinery/pkg/util/wait#ConditionFunc).
-	isMoonrakerUp := func() (bool, error) {
+	isMoonrakerUp := func(_ context.Context) (bool, error) {
 		if err := c.Ping(); err != nil {
 			return false, nil
 		} else {
@@ -74,7 +75,7 @@ func NewClient(host string, configAgent prowConfigAgentClient) (*Client, error) 
 
 	pollLoopTimeout := 15 * time.Second
 	pollInterval := 500 * time.Millisecond
-	if err := wait.Poll(pollInterval, pollLoopTimeout, isMoonrakerUp); err != nil {
+	if err := wait.PollUntilContextTimeout(context.TODO(), pollInterval, pollLoopTimeout, true, isMoonrakerUp); err != nil {
 		return nil, errors.New("timed out waiting for Moonraker to be available")
 	}
 

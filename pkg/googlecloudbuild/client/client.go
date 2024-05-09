@@ -158,13 +158,13 @@ func (c *Client) CreateBuild(ctx context.Context, project string, bld *cloudbuil
 
 	// CreateBuild returns CreateBuildOperation, wait until the operation results in build.
 	// CreateBuildOperation contains `Wait` method, which however polls every minute, which is
-	// too slow. So use `wait.Poll` instead.
+	// too slow. So use `wait.PollUntilContextTimeout` instead.
 	var triggered *cloudbuildpb.Build
 	const (
 		pollInterval = 100 * time.Millisecond
 		pollTimeout  = 30 * time.Second
 	)
-	if err := wait.Poll(pollInterval, pollTimeout, func() (bool, error) {
+	if err := wait.PollUntilContextTimeout(ctx, pollInterval, pollTimeout, true, func(ctx context.Context) (bool, error) {
 		triggered, err = op.Poll(ctx)
 		if err != nil {
 			return false, fmt.Errorf("failed to create build in project %s: %w", project, err)

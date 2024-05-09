@@ -24,7 +24,9 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/prow/pkg/io"
 	"sigs.k8s.io/prow/pkg/pjutil/pprof"
 	"sigs.k8s.io/prow/pkg/resultstore"
@@ -179,8 +181,14 @@ func main() {
 		logrus.WithError(err).Fatal("Failed to get kubeconfig")
 	}
 	mgr, err := manager.New(restCfg, manager.Options{
-		Namespace:          cfg().ProwJobNamespace,
-		MetricsBindAddress: "0",
+		Cache: cache.Options{
+			DefaultNamespaces: map[string]cache.Config{
+				cfg().ProwJobNamespace: {},
+			},
+		},
+		Metrics: server.Options{
+			BindAddress: "0",
+		},
 	})
 	if err != nil {
 		logrus.WithError(err).Fatal("failed to create manager")

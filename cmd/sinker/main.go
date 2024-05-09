@@ -34,10 +34,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlruntimelog "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/prow/pkg/pjutil/pprof"
 
 	prowapi "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
@@ -137,8 +139,14 @@ func main() {
 	}
 
 	opts := manager.Options{
-		MetricsBindAddress:            "0",
-		Namespace:                     cfg().ProwJobNamespace,
+		Cache: cache.Options{
+			DefaultNamespaces: map[string]cache.Config{
+				cfg().ProwJobNamespace: {},
+			},
+		},
+		Metrics: metricsserver.Options{
+			BindAddress: "0",
+		},
 		LeaderElection:                true,
 		LeaderElectionNamespace:       configAgent.Config().ProwJobNamespace,
 		LeaderElectionID:              "prow-sinker-leaderlock",
@@ -172,9 +180,7 @@ func main() {
 		// The watch apimachinery doesn't support restarts, so just exit the
 		// binary if a build cluster can be connected later .
 		callBack,
-		func(o *manager.Options) {
-			o.Namespace = cfg().PodNamespace
-		},
+		cfg().PodNamespace,
 	)
 	if err != nil {
 		logrus.WithError(err).Error("Failed to construct build cluster managers. Is there a bad entry in the kubeconfig secret?")

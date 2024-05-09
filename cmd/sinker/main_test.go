@@ -1010,12 +1010,12 @@ type clientWrapper struct {
 	getOnlyProwJobs map[string]*prowv1.ProwJob
 }
 
-func (c *clientWrapper) Get(ctx context.Context, key ctrlruntimeclient.ObjectKey, obj ctrlruntimeclient.Object) error {
+func (c *clientWrapper) Get(ctx context.Context, key ctrlruntimeclient.ObjectKey, obj ctrlruntimeclient.Object, getOpts ...ctrlruntimeclient.GetOption) error {
 	if pj, exists := c.getOnlyProwJobs[key.String()]; exists {
 		*obj.(*prowv1.ProwJob) = *pj
 		return nil
 	}
-	return c.Client.Get(ctx, key, obj)
+	return c.Client.Get(ctx, key, obj, getOpts...)
 }
 
 func TestGetConfigMapSize(t *testing.T) {

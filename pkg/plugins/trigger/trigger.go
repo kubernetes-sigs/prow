@@ -382,7 +382,7 @@ func createWithRetry(ctx context.Context, client prowJobClient, pj *prowapi.Prow
 		}
 		return true, nil
 	}); err != nil {
-		if err != wait.ErrWaitTimeout {
+		if !wait.Interrupted(err) {
 			return err
 		}
 		return utilerrors.NewAggregate(errs)

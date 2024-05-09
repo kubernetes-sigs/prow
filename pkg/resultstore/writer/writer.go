@@ -159,7 +159,7 @@ func onlyPermanentError(err error) error {
 }
 
 func (w *writer) createInvocation(ctx context.Context, inv *resultstore.Invocation) error {
-	return wait.ExponentialBackoffWithContext(ctx, rpcRetryBackoff, func() (bool, error) {
+	return wait.ExponentialBackoffWithContext(ctx, rpcRetryBackoff, func(ctx context.Context) (bool, error) {
 		_, err := w.client.CreateInvocation(ctx, w.createInvocationRequest(inv))
 		if err != nil {
 			w.log.Errorf("resultstore.CreateInvocation: %v", err)
@@ -170,7 +170,7 @@ func (w *writer) createInvocation(ctx context.Context, inv *resultstore.Invocati
 }
 
 func (w *writer) touchInvocation(ctx context.Context) error {
-	return wait.ExponentialBackoffWithContext(ctx, rpcRetryBackoff, func() (bool, error) {
+	return wait.ExponentialBackoffWithContext(ctx, rpcRetryBackoff, func(ctx context.Context) (bool, error) {
 		_, err := w.client.TouchInvocation(ctx, w.touchInvocationRequest())
 		if err != nil {
 			w.log.Errorf("resultstore.TouchInvocation: %v", err)
@@ -181,7 +181,7 @@ func (w *writer) touchInvocation(ctx context.Context) error {
 }
 
 func (w *writer) retrieveResumeToken(ctx context.Context) error {
-	return wait.ExponentialBackoffWithContext(ctx, rpcRetryBackoff, func() (bool, error) {
+	return wait.ExponentialBackoffWithContext(ctx, rpcRetryBackoff, func(ctx context.Context) (bool, error) {
 		meta, err := w.client.GetInvocationUploadMetadata(ctx, w.getInvocationUploadMetadataRequest())
 		if err != nil {
 			w.log.Errorf("resultstore.GetInvocationUploadMetadata: %v", err)
@@ -261,7 +261,7 @@ func (w *writer) flushUpdates(ctx context.Context) error {
 	b := w.uploadBatchRequest(w.updates)
 	ctx, cancel := context.WithTimeout(ctx, rpcRetryDuration)
 	defer cancel()
-	return wait.ExponentialBackoffWithContext(ctx, rpcRetryBackoff, func() (bool, error) {
+	return wait.ExponentialBackoffWithContext(ctx, rpcRetryBackoff, func(ctx context.Context) (bool, error) {
 		if _, err := w.client.UploadBatch(ctx, b); err != nil {
 			w.log.Errorf("resultstore.UploadBatch: %v", err)
 			if IsPermanentError(err) {
