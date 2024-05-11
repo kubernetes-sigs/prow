@@ -40,7 +40,7 @@ const (
 	StatusNew            = "NEW"
 	StatusBacklog        = "BACKLOG"
 	StatusAssigned       = "ASSIGNED"
-	StatusInProgess      = "IN PROGRESS"
+	StatusInProgress     = "IN PROGRESS"
 	StatusModified       = "MODIFIED"
 	StatusPost           = "POST"
 	StatusOnDev          = "ON_DEV"

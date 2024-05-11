@@ -393,8 +393,8 @@ type RepoRequest struct {
 }
 
 type WorkflowRuns struct {
-	Count       int           `json:"total_count,omitempty"`
-	WorflowRuns []WorkflowRun `json:"workflow_runs"`
+	Count        int           `json:"total_count,omitempty"`
+	WorkflowRuns []WorkflowRun `json:"workflow_runs"`
 }
 
 // RepoCreateRequest contains metadata used in requests to create a repo.

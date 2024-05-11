@@ -71,7 +71,7 @@ func NewLensServer(
 			ConfigGetter:           cfg,
 			LensOpt:                lens.Config,
 		}
-		mux.Handle(DyanmicPathForLens(lens.Config.LensName), newLensHandler(lens.Lens, opt))
+		mux.Handle(DynamicPathForLens(lens.Config.LensName), newLensHandler(lens.Lens, opt))
 	}
 	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		logrus.WithField("path", r.URL.Path).Error("LensServer got request on unhandled path")
@@ -312,6 +312,6 @@ func KeyToJob(src string) (jobName string, buildID string, err error) {
 
 const prefixSpyglassDynamicHandlers = "dynamic"
 
-func DyanmicPathForLens(lensName string) string {
+func DynamicPathForLens(lensName string) string {
 	return fmt.Sprintf("/%s/%s", prefixSpyglassDynamicHandlers, lensName)
 }

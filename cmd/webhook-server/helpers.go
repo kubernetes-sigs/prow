@@ -462,7 +462,7 @@ func (wa *webhookAgent) fetchClusters(d time.Duration, ctx context.Context, stat
 					}
 					var tempMap map[string]plank.ClusterStatus
 					if err := json.Unmarshal(b, &tempMap); err != nil {
-						return fmt.Errorf("error unmarshaling build cluster status file: %w", err)
+						return fmt.Errorf("error unmarshalling build cluster status file: %w", err)
 					}
 					wa.mu.Lock()
 					wa.statuses = tempMap

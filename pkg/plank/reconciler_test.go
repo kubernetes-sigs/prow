@@ -200,10 +200,10 @@ func TestAdd(t *testing.T) {
 					t.Errorf("failed to start build mgr: %v", err)
 				}
 			}()
-			if err := singnalOrTimout(prowJobInformerStarted); err != nil {
+			if err := signalOrTimeout(prowJobInformerStarted); err != nil {
 				t.Fatalf("failure waiting for prowJobInformer: %v", err)
 			}
-			if err := singnalOrTimout(podInformerStarted); err != nil {
+			if err := signalOrTimeout(podInformerStarted); err != nil {
 				t.Fatalf("failure waiting for podInformer: %v", err)
 			}
 
@@ -280,7 +280,7 @@ func (ehsi *eventHandlerSignalingInformer) AddEventHandler(handler toolscache.Re
 	return reg, err
 }
 
-func singnalOrTimout(signal <-chan struct{}) error {
+func signalOrTimeout(signal <-chan struct{}) error {
 	select {
 	case <-signal:
 		return nil

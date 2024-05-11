@@ -93,9 +93,9 @@ func (o *options) validate() error {
 	return utilerrors.NewAggregate(errs)
 }
 
-// interruptableServer is a wrapper type around the gRPC server, so that we can
+// interruptibleServer is a wrapper type around the gRPC server, so that we can
 // pass it along to our own interrupts package.
-type interruptableServer struct {
+type interruptibleServer struct {
 	grpcServer *grpc.Server
 	listener   net.Listener
 	port       int
@@ -107,7 +107,7 @@ type interruptableServer struct {
 // context cancels us), we forcefully kill the server by calling Stop(). Stop()
 // interrupts GracefulStop() (see
 // https://pkg.go.dev/google.golang.org/grpc#Server.Stop).
-func (s *interruptableServer) Shutdown(ctx context.Context) error {
+func (s *interruptibleServer) Shutdown(ctx context.Context) error {
 
 	gracefulStopFinished := make(chan struct{})
 
@@ -125,7 +125,7 @@ func (s *interruptableServer) Shutdown(ctx context.Context) error {
 	}
 }
 
-func (s *interruptableServer) ListenAndServe() error {
+func (s *interruptibleServer) ListenAndServe() error {
 	logrus.Infof("serving gRPC on port %d", s.port)
 	return s.grpcServer.Serve(s.listener)
 }
@@ -217,7 +217,7 @@ func main() {
 	// clients that don't have the generated stubs baked in, such as grpcurl.
 	reflection.Register(grpcServer)
 
-	s := &interruptableServer{
+	s := &interruptibleServer{
 		grpcServer: grpcServer,
 		listener:   lis,
 		port:       o.port,

@@ -2,7 +2,7 @@
 title: "generic-autobumper"
 weight: 10
 description: >
-  
+
 ---
 
 This tool automates the version upgrading of images such as the [prow.k8s.io](https://prow.k8s.io) Prow deployment.
@@ -42,9 +42,9 @@ We need to fulfil those requirements to use this tool:
 * a [GitHub token](https://help.github.com/en/articles/creating-a-personal-access-token-for-the-command-line) which has permissions
     to be used by this tool to push changes and create PRs against the remote repo.
 
-* a yaml config file that specifies the follwing information passed in with the flag -config=FILEPATH:
+* a yaml config file that specifies the following information passed in with the flag -config=FILEPATH:
 * For info about what should go in the config look at [the documentation for the Options here](https://pkg.go.dev/sigs.k8s.io/prow/cmd/generic-autobumper/bumper#Options) and look at the example below.
-  
+
 e.g.,
 
 ```yaml

@@ -58,7 +58,7 @@ type Node struct {
 	Greedy bool
 }
 
-// PathFragment Interface for tree leafs to help resolve paths
+// PathFragment Interface for tree leaves to help resolve paths
 type PathFragment interface {
 	Matches(part string) bool
 	Represent() string

@@ -122,7 +122,7 @@ type Record struct {
 	TenantIDs []string       `json:"tenantids"`
 }
 
-// New creates a new History struct with the specificed recordLog size limit.
+// New creates a new History struct with the specified recordLog size limit.
 func New(maxRecordsPerKey int, opener io.Opener, path string) (*History, error) {
 	hist := &History{
 		logs:         map[string]*recordLog{},

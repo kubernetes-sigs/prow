@@ -306,18 +306,18 @@ func (sc *statusController) expectedStatus(log *logrus.Entry, queryMap *config.Q
 			return github.StatusError, fmt.Sprintf(statusNotInPool, fmt.Sprintf(" Merging is blocked by issue%s %s.", s, strings.Join(numbers, ", "))), nil
 		}
 
-		// hasFullfilledQuery is a weird state, it means that the PR is not in the pool but should be. It happens when all requirements were fulfilled
+		// hasFulfilledQuery is a weird state, it means that the PR is not in the pool but should be. It happens when all requirements were fulfilled
 		// at the time the status controller queried GitHub but not at the time the sync controller queried GitHub.
 		// We just fall through to check if there are missing jobs to avoid wasting api tokens by sending it to pending and then to success in the next
 		// sync or status controller iteration.
-		var hasFullfilledQuery bool
+		var hasFulfilledQuery bool
 
 		minDiffCount := -1
 		var minDiff string
 		for _, q := range queryMap.ForRepo(repo) {
 			diff, diffCount := requirementDiff(pr, &q, cc)
 			if diffCount == 0 {
-				hasFullfilledQuery = true
+				hasFulfilledQuery = true
 				break
 			} else if sc.config().Tide.DisplayAllQueriesInStatus {
 				if diffCount >= 2000 {
@@ -337,7 +337,7 @@ func (sc *statusController) expectedStatus(log *logrus.Entry, queryMap *config.Q
 			minDiff = " No Tide query for branch " + crc.BaseRefName + " found."
 		}
 
-		if !hasFullfilledQuery {
+		if !hasFulfilledQuery {
 			return github.StatusPending, fmt.Sprintf(statusNotInPool, minDiff), nil
 		}
 	}

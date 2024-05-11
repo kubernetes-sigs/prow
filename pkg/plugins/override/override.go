@@ -527,7 +527,7 @@ If you are trying to override a checkrun that has a space in it, you must put a 
 		done.Insert(status.Context)
 	}
 
-	// We want to interate over the checkrunContexts, create a new checkrun with the same name as the context and mark it as successful.
+	// We want to iterate over the checkrunContexts, create a new checkrun with the same name as the context and mark it as successful.
 	// Tide has logic to pick the best checkrun result
 	// Checkruns have been converted to contexts and deduped
 	if oc.UsesAppAuth() {

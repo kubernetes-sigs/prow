@@ -555,6 +555,6 @@ func testShowRef(clients localgit.Clients, t *testing.T) {
 		t.Fatalf("ShowRef: %v", err)
 	}
 	if res != reference {
-		t.Errorf("expeted result to be %s, was %s", reference, res)
+		t.Errorf("expected result to be %s, was %s", reference, res)
 	}
 }

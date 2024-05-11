@@ -224,7 +224,7 @@ type ProwConfig struct {
 	// Each entry in the slice specifies Repo and CLuster regexp filter fields to
 	// match against the jobs and a corresponding ProwJobDefault . All entries that
 	// match a job are used. Later matching entries override the fields of earlier
-	// matching entires.
+	// matching entries.
 	ProwJobDefaultEntries []*ProwJobDefaultEntry `json:"prowjob_default_entries,omitempty"`
 
 	// DisabledClusters holds a list of disabled build cluster names. The same context names will be ignored while
@@ -608,7 +608,7 @@ type Controller struct {
 	// Use `org/repo`, `org` or `*` as a key.
 	ReportTemplateStrings map[string]string `json:"report_templates,omitempty"`
 
-	// ReportTemplates is a mapping of templates that is compliled at load
+	// ReportTemplates is a mapping of templates that is compiled at load
 	// time from ReportTemplateStrings.
 	ReportTemplates map[string]*template.Template `json:"-"`
 
@@ -1908,7 +1908,7 @@ func yamlToConfig(path string, nc interface{}, opts ...yaml.JSONOpt) error {
 		return fmt.Errorf("error reading %s: %w", path, err)
 	}
 	if err := yaml.Unmarshal(b, nc, opts...); err != nil {
-		return fmt.Errorf("error unmarshaling %s: %w", path, err)
+		return fmt.Errorf("error unmarshalling %s: %w", path, err)
 	}
 	var jc *JobConfig
 	switch v := nc.(type) {
@@ -3302,7 +3302,7 @@ func SetPostsubmitRegexes(ps []Postsubmit) error {
 	return nil
 }
 
-// OrgRepo supercedes org/repo string handling.
+// OrgRepo supersedes org/repo string handling.
 type OrgRepo struct {
 	Org  string
 	Repo string

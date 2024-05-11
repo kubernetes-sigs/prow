@@ -136,7 +136,7 @@ func TestApplyGlobalConfigOnce(t *testing.T) {
 			},
 		},
 		{
-			name: "empty-addtionalfunc",
+			name: "empty-additionalfunc",
 			orgRepoConfigGetter: func() *config.GerritOrgRepoConfigs {
 				return cfg.Gerrit.OrgReposConfig
 			},
@@ -146,7 +146,7 @@ func TestApplyGlobalConfigOnce(t *testing.T) {
 			},
 		},
 		{
-			name: "nil-addtionalfunc",
+			name: "nil-additionalfunc",
 			orgRepoConfigGetter: func() *config.GerritOrgRepoConfigs {
 				return cfg.Gerrit.OrgReposConfig
 			},

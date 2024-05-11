@@ -452,7 +452,7 @@ triggers:
 			expectedErr: "repoz",
 		},
 		// Options like DisallowUnknownFields can not be passed when using
-		// a custon json.Unmarshaler like we do here for defaulting:
+		// a custom json.Unmarshaler like we do here for defaulting:
 		// https://github.com/golang/go/issues/41144
 		//		{
 		//			name:     "invalid map entry",

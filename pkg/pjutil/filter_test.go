@@ -368,7 +368,7 @@ func TestFilterPresubmits(t *testing.T) {
 			expectErr: false,
 		},
 		{
-			name: "everything matches and some that are forces to run supercede some that are skipped due to shared contexts",
+			name: "everything matches and some that are forces to run supersede some that are skipped due to shared contexts",
 			filter: &ArbitraryFilter{
 				override: func(p config.Presubmit) (shouldRun bool, forcedToRun bool, defaultBehavior bool) {
 					return true, p.Name == "should-trigger", p.Name == "should-trigger"

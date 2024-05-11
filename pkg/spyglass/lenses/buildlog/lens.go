@@ -94,7 +94,7 @@ func (lens Lens) Header(artifacts []api.Artifact, resourceDir string, config jso
 }
 
 // defaultErrRE matches keywords and glog error messages.
-// It is only used if higlight_regexes is not specified in the lens config.
+// It is only used if highlight_regexes is not specified in the lens config.
 var defaultErrRE = regexp.MustCompile(`timed out|ERROR:|(FAIL|Failure \[)\b|panic\b|^E\d{4} \d\d:\d\d:\d\d\.\d\d\d]`)
 
 func init() {

@@ -218,7 +218,7 @@ func init() {
 	prometheus.MustRegister(httpResponseSize)
 }
 
-var simplifier = simplifypath.NewSimplifier(l("", // shadow element mimicing the root
+var simplifier = simplifypath.NewSimplifier(l("", // shadow element mimicking the root
 	l(""),
 	l("badge.svg"),
 	l("command-help"),
@@ -1609,8 +1609,8 @@ func defaultLensRemoteConfig(lfc *config.LensFileConfig) error {
 	}
 
 	if lfc.RemoteConfig.Endpoint == "" {
-		// Must not have a slash in between, DyanmicPathForLens already returns a slash-prefixed path
-		lfc.RemoteConfig.Endpoint = fmt.Sprintf("http://%s%s", spyglassLocalLensListenerAddr, common.DyanmicPathForLens(lfc.Lens.Name))
+		// Must not have a slash in between, DynamicPathForLens already returns a slash-prefixed path
+		lfc.RemoteConfig.Endpoint = fmt.Sprintf("http://%s%s", spyglassLocalLensListenerAddr, common.DynamicPathForLens(lfc.Lens.Name))
 	}
 
 	if lfc.RemoteConfig.Title == "" {

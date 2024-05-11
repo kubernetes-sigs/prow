@@ -87,7 +87,7 @@ func isUnderPath(name string, paths []string) bool {
 }
 
 // isBumpedPrefix takes a prefix and a map of new tags resulted from bumping
-// : the images using those tags and itterates over the map to find if the
+// : the images using those tags and iterates over the map to find if the
 // prefix is found. If it is, this means it has been bumped.
 func isBumpedPrefix(prefix prefix, versions map[string][]string) (string, bool) {
 	for tag, imageList := range versions {

@@ -86,7 +86,7 @@ type controllerOptions struct {
 	rl              workqueue.RateLimitingInterface
 }
 
-// pjNamespace retruns the prow namespace from configuration
+// pjNamespace returns the prow namespace from configuration
 func (c *controller) pjNamespace() string {
 	return c.config().ProwJobNamespace
 }
