@@ -140,17 +140,18 @@ type JobConfig struct {
 // ProwConfig is config for all prow controllers.
 type ProwConfig struct {
 	// The git sha from which this config was generated.
-	ConfigVersionSHA     string               `json:"config_version_sha,omitempty"`
-	Tide                 Tide                 `json:"tide,omitempty"`
-	Plank                Plank                `json:"plank,omitempty"`
-	Sinker               Sinker               `json:"sinker,omitempty"`
-	Deck                 Deck                 `json:"deck,omitempty"`
-	BranchProtection     BranchProtection     `json:"branch-protection"`
-	Gerrit               Gerrit               `json:"gerrit"`
-	GitHubReporter       GitHubReporter       `json:"github_reporter"`
-	Horologium           Horologium           `json:"horologium"`
-	SlackReporterConfigs SlackReporterConfigs `json:"slack_reporter_configs,omitempty"`
-	InRepoConfig         InRepoConfig         `json:"in_repo_config"`
+	ConfigVersionSHA        string                  `json:"config_version_sha,omitempty"`
+	Tide                    Tide                    `json:"tide,omitempty"`
+	Plank                   Plank                   `json:"plank,omitempty"`
+	Sinker                  Sinker                  `json:"sinker,omitempty"`
+	Deck                    Deck                    `json:"deck,omitempty"`
+	BranchProtection        BranchProtection        `json:"branch-protection"`
+	Gerrit                  Gerrit                  `json:"gerrit"`
+	GitHubReporter          GitHubReporter          `json:"github_reporter"`
+	Horologium              Horologium              `json:"horologium"`
+	SlackReporterConfigs    SlackReporterConfigs    `json:"slack_reporter_configs,omitempty"`
+	DingTalkReporterConfigs DingTalkReporterConfigs `json:"dingtalk_reporter_configs,omitempty"`
+	InRepoConfig            InRepoConfig            `json:"in_repo_config"`
 
 	// Gangway contains configurations needed by the the Prow API server of the
 	// same name. It encodes an allowlist of API clients and what kinds of Prow
@@ -1634,6 +1635,82 @@ func (cfg *SlackReporter) DefaultAndValidate() error {
 	return nil
 }
 
+// DingTalkReporter represents the config for the DingTalk reporter. The token can be overridden
+// on the job via the .reporter_config.ding_talk.token property.
+type DingTalkReporter struct {
+	JobTypesToReport               []prowapi.ProwJobType `json:"job_types_to_report,omitempty"`
+	prowapi.DingTalkReporterConfig `json:",inline"`
+}
+
+// DingTalkReporterConfigs represents the config for the Slack reporter(s).
+// Use `org/repo`, `org` or `*` as key and an `DingTalkReporter` struct as value.
+type DingTalkReporterConfigs map[string]DingTalkReporter
+
+func (cfg DingTalkReporterConfigs) mergeFrom(additional *DingTalkReporterConfigs) error {
+	if additional == nil {
+		return nil
+	}
+
+	var errs []error
+	for orgOrRepo, dingTalkReporter := range *additional {
+		if _, alreadyConfigured := cfg[orgOrRepo]; alreadyConfigured {
+			errs = append(errs, fmt.Errorf("config for org or repo %s passed more than once", orgOrRepo))
+			continue
+		}
+		cfg[orgOrRepo] = dingTalkReporter
+	}
+
+	return utilerrors.NewAggregate(errs)
+}
+
+func (cfg DingTalkReporterConfigs) GetDingTalkReporter(refs *prowapi.Refs) DingTalkReporter {
+	if refs == nil {
+		return cfg["*"]
+	}
+
+	if dingtalk, ok := cfg[fmt.Sprintf("%s/%s", refs.Org, refs.Repo)]; ok {
+		return dingtalk
+	}
+
+	if dingtalk, ok := cfg[refs.Org]; ok {
+		return dingtalk
+	}
+
+	return cfg["*"]
+}
+
+func (cfg DingTalkReporterConfigs) HasGlobalConfig() bool {
+	_, exists := cfg["*"]
+	return exists
+}
+
+func (cfg *DingTalkReporter) DefaultAndValidate() error {
+	// Default ReportTemplate.
+	if cfg.ReportTemplate == "" {
+		cfg.ReportTemplate = `{{ $repo := "" }}{{with .Spec.Refs}}{{$repo = .Repo}}{{end}}{{if eq $repo ""}}{{if .Spec.ExtraRefs}}{{with index .Spec.ExtraRefs 0}}{{$repo = .Repo}}{{end}}{{end}}{{end}}## Repo: {{ $repo }}
+---
+- Job: {{.Spec.Job}}
+- Type: {{.Spec.Type}}
+- State: {{if eq .Status.State "triggered"}}<font color="orange">**{{.Status.State}}**</font>{{end}}{{if eq .Status.State "pending"}}<font color="yellow">**{{.Status.State}}**</font>{{end}}{{if eq .Status.State "success"}}<font color="green">**{{.Status.State}}**</font>{{end}}{{if eq .Status.State "failure"}}<font color="red">**{{.Status.State}}**</font>{{end}}{{if eq .Status.State "aborted"}}<font color="gray">**{{.Status.State}}**</font>{{end}}{{if eq .Status.State "error"}}<font color="red">**{{.Status.State}}**</font>{{end}}
+- Log: [View logs]({{.Status.URL}})`
+	}
+
+	if cfg.Token == "" {
+		return errors.New("token must be set")
+	}
+
+	// Validate ReportTemplate.
+	tmpl, err := template.New("").Parse(cfg.ReportTemplate)
+	if err != nil {
+		return fmt.Errorf("failed to parse template: %w", err)
+	}
+	if err := tmpl.Execute(&bytes.Buffer{}, &prowapi.ProwJob{}); err != nil {
+		return fmt.Errorf("failed to execute report_template: %w", err)
+	}
+
+	return nil
+}
+
 // Load loads and parses the config at path.
 func Load(prowConfig, jobConfig string, supplementalProwConfigDirs []string, supplementalProwConfigsFileNameSuffix string, additionals ...func(*Config) error) (c *Config, err error) {
 	return loadWithYamlOpts(nil, prowConfig, jobConfig, supplementalProwConfigDirs, supplementalProwConfigsFileNameSuffix, additionals...)
@@ -2190,6 +2267,15 @@ func (c *Config) validateComponentConfig() error {
 				return fmt.Errorf("failed to validate slackreporter config: %w", err)
 			}
 			c.SlackReporterConfigs[k] = config
+		}
+	}
+
+	if c.DingTalkReporterConfigs != nil {
+		for k, config := range c.DingTalkReporterConfigs {
+			if err := config.DefaultAndValidate(); err != nil {
+				return fmt.Errorf("failed to validate dingtalkreporter config: %w", err)
+			}
+			c.DingTalkReporterConfigs[k] = config
 		}
 	}
 
@@ -3353,7 +3439,7 @@ func (pc *ProwConfig) mergeFrom(additional *ProwConfig) error {
 
 	var errs []error
 	if diff := cmp.Diff(additional, emptyReference, DefaultDiffOpts...); diff != "" {
-		errs = append(errs, fmt.Errorf("only 'branch-protection', 'slack_reporter_configs', 'tide.merge_method' and 'tide.queries' may be set via additional config, all other fields have no merging logic yet. Diff: %s", diff))
+		errs = append(errs, fmt.Errorf("only 'branch-protection', 'slack_reporter_configs', 'dingtalk_reporter_configs', 'tide.merge_method' and 'tide.queries' may be set via additional config, all other fields have no merging logic yet. Diff: %s", diff))
 	}
 	if err := pc.BranchProtection.merge(&additional.BranchProtection); err != nil {
 		errs = append(errs, fmt.Errorf("failed to merge branch protection config: %w", err))
