@@ -276,24 +276,22 @@ func TestTriggerFor(t *testing.T) {
 }
 
 func TestSetApproveDefaults(t *testing.T) {
-	c := &Configuration{
-		Approve: []Approve{
-			{
-				Repos: []string{
-					"kubernetes/kubernetes",
-					"kubernetes-client",
-				},
-			},
-			{
-				Repos: []string{
-					"kubernetes-sigs/cluster-api",
-				},
-				CommandHelpLink: "https://prow.k8s.io/command-help",
-				PrProcessLink:   "https://github.com/kubernetes/community/blob/427ccfbc7d423d8763ed756f3b8c888b7de3cf34/contributors/guide/pull-requests.md",
-			},
-		},
-	}
-
+	var c Configuration
+	configYaml := `
+---
+approve:
+  config:
+    commandHelpLink: https://go.k8s.io/bot-commands
+    pr_process_link: https://git.k8s.io/community/contributors/guide/owners.md#the-code-review-process
+  orgs:
+    kubernetes-sigs:
+      repos:
+        cluster-api:
+          config:
+            commandHelpLink: https://prow.k8s.io/command-help
+            pr_process_link: https://github.com/kubernetes/community/blob/427ccfbc7d423d8763ed756f3b8c888b7de3cf34/contributors/guide/pull-requests.md
+`
+	yaml.Unmarshal([]byte(configYaml), &c)
 	tests := []struct {
 		name                    string
 		org                     string
@@ -326,7 +324,7 @@ func TestSetApproveDefaults(t *testing.T) {
 
 	for _, test := range tests {
 
-		a := c.ApproveFor(test.org, test.repo)
+		a := c.Approve.RepoOptions(test.org, test.repo)
 
 		if a.CommandHelpLink != test.expectedCommandHelpLink {
 			t.Errorf("unexpected commandHelpLink: %s, expected: %s", a.CommandHelpLink, test.expectedCommandHelpLink)
@@ -2060,7 +2058,7 @@ func TestHasConfigFor(t *testing.T) {
 			resultGenerator: func(fuzzedConfig *Configuration) (toCheck *Configuration, expectGlobal bool, expectOrgs sets.Set[string], expectRepos sets.Set[string]) {
 				fuzzedConfig.Plugins = nil
 				fuzzedConfig.Bugzilla = Bugzilla{}
-				fuzzedConfig.Approve = nil
+				fuzzedConfig.Approve = ConfigTree[Approve]{}
 				fuzzedConfig.Label.RestrictedLabels = nil
 				fuzzedConfig.Lgtm = nil
 				fuzzedConfig.Triggers = nil
@@ -2108,13 +2106,10 @@ func TestHasConfigFor(t *testing.T) {
 				fuzzedConfig = &Configuration{Approve: fuzzedConfig.Approve}
 				expectOrgs, expectRepos = sets.Set[string]{}, sets.Set[string]{}
 
-				for _, approveConfig := range fuzzedConfig.Approve {
-					for _, orgOrRepo := range approveConfig.Repos {
-						if strings.Contains(orgOrRepo, "/") {
-							expectRepos.Insert(orgOrRepo)
-						} else {
-							expectOrgs.Insert(orgOrRepo)
-						}
+				for org, approveOrg := range fuzzedConfig.Approve.Orgs {
+					expectOrgs.Insert(org)
+					for repo := range approveOrg.Repos {
+						expectRepos.Insert(repo)
 					}
 				}
 
@@ -2259,12 +2254,12 @@ func TestMergeFrom(t *testing.T) {
 	}{
 		{
 			name:                "Approve config gets merged",
-			in:                  Configuration{Approve: []Approve{{Repos: []string{"foo/bar"}}}},
-			supplementalConfigs: []Configuration{{Approve: []Approve{{Repos: []string{"foo/baz"}}}}},
-			expected: Configuration{Approve: []Approve{
+			in:                  Configuration{Approve: oldToNewApproveConfig([]DeprecatedApprove{{Repos: []string{"foo/bar"}}})},
+			supplementalConfigs: []Configuration{{Approve: oldToNewApproveConfig([]DeprecatedApprove{{Repos: []string{"foo/baz"}}})}},
+			expected: Configuration{Approve: oldToNewApproveConfig([]DeprecatedApprove{
 				{Repos: []string{"foo/bar"}},
 				{Repos: []string{"foo/baz"}},
-			}},
+			})},
 		},
 		{
 			name:                "LGTM config gets merged",
