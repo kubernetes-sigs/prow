@@ -1,0 +1,23 @@
+# See https://cloud.google.com/cloud-build/docs/build-config
+timeout: 3600s
+options:
+  substitution_option: ALLOW_LOOSE
+  machineType: 'E2_HIGHCPU_32'
+steps:
+  - name: us-central1-docker.pkg.dev/k8s-staging-test-infra/images/kubekins-e2e:latest-master
+    entrypoint: runner.sh
+    env:
+    - GIT_TAG=$_GIT_TAG
+    - BASE_REF=$_PULL_BASE_REF
+    - COMMIT=$_PULL_BASE_SHA
+    - REGISTRY=us-docker.pkg.dev/k8s-infra-prow/images
+    args:
+    - make 
+    - push-images
+# Unlike a typical image staging project, the images are being published to a privileged prod project
+# GCB is only configured to launch jobs with the specified service account.
+serviceAccount: image-builder@k8s-infra-prow.iam.gserviceaccount.com
+substitutions:
+  _GIT_TAG: "12345"
+  _PULL_BASE_REF: "main"
+  _PULL_BASE_SHA: 'abcdef'
