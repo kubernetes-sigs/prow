@@ -40,6 +40,7 @@ import (
 const (
 	HEADER_API_CONSUMER_TYPE = "x-endpoint-api-consumer-type"
 	HEADER_API_CONSUMER_ID   = "x-endpoint-api-consumer-number"
+	MAX_JOBS_IN_REQ_COUNT    = 10
 )
 
 type Gangway struct {
@@ -50,10 +51,12 @@ type Gangway struct {
 }
 
 // ProwJobClient describes a Kubernetes client for the Prow Job CR. Unlike a
-// general-purpose client, it only expects 2 methods, Create() and Get().
+// general-purpose client, it only expects 4 methods, Create(), Get(), List() and Update().
 type ProwJobClient interface {
 	Create(context.Context, *prowcrd.ProwJob, metav1.CreateOptions) (*prowcrd.ProwJob, error)
 	Get(context.Context, string, metav1.GetOptions) (*prowcrd.ProwJob, error)
+	List(context.Context, metav1.ListOptions) (*prowcrd.ProwJobList, error)
+	Update(context.Context, *prowcrd.ProwJob, metav1.UpdateOptions) (*prowcrd.ProwJob, error)
 }
 
 // CreateJobExecution triggers a new Prow job.
@@ -115,10 +118,19 @@ func (gw *Gangway) GetJobExecution(ctx context.Context, gjer *GetJobExecutionReq
 		return nil, err
 	}
 
+	jobExec := &JobExecution{
+		Id:        prowJobCR.Name,
+		JobStatus: TranslateProwJobStatus(&prowJobCR.Status),
+	}
+
+	return jobExec, nil
+}
+
+// Translate ProwJobStatus.State in the Prow Job CR into a JobExecutionStatus.
+func TranslateProwJobStatus(prowJobStatus *prowcrd.ProwJobStatus) JobExecutionStatus {
 	var jobStatus JobExecutionStatus
 
-	// Translate ProwJobStatus.State in the Prow Job CR into a JobExecutionStatus.
-	switch prowJobCR.Status.State {
+	switch prowJobStatus.State {
 	case prowcrd.TriggeredState:
 		jobStatus = JobExecutionStatus_TRIGGERED
 	case prowcrd.PendingState:
@@ -135,13 +147,145 @@ func (gw *Gangway) GetJobExecution(ctx context.Context, gjer *GetJobExecutionReq
 		jobStatus = JobExecutionStatus_JOB_EXECUTION_STATUS_UNSPECIFIED
 
 	}
+	return jobStatus
+}
 
-	jobExec := &JobExecution{
-		Id:        prowJobCR.Name,
-		JobStatus: jobStatus,
+// Translate ProwjobType into JobExecutionType
+func TranslateProwJobType(prowJobType prowcrd.ProwJobType) JobExecutionType {
+	var jobExecutionType JobExecutionType
+
+	switch prowJobType {
+	case prowcrd.PeriodicJob:
+		jobExecutionType = JobExecutionType_PERIODIC
+	case prowcrd.PostsubmitJob:
+		jobExecutionType = JobExecutionType_POSTSUBMIT
+	case prowcrd.PresubmitJob:
+		jobExecutionType = JobExecutionType_PRESUBMIT
+	case prowcrd.BatchJob:
+		jobExecutionType = JobExecutionType_BATCH
+	default:
+		jobExecutionType = JobExecutionType_JOB_EXECUTION_TYPE_UNSPECIFIED
+	}
+	return jobExecutionType
+}
+
+func (gw *Gangway) BulkJobStatusChange(ctx context.Context, request *BulkJobStatusChangeRequest) (*JobsAffected, error) {
+
+	err, md := getHttpRequestHeaders(ctx)
+	if err != nil {
+		logrus.WithError(err).Debug("could not find request HTTP headers")
+		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	return jobExec, nil
+	if err := request.Validate(); err != nil {
+		logrus.WithError(err).Debug("could not validate request fields")
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	mainConfig := gw.ConfigAgent.Config()
+	allowedApiClient, err := mainConfig.IdentifyAllowedClient(md)
+	if err != nil {
+		logrus.WithError(err).Debug("could not find client in allowlist")
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	// TODO:
+	// All ProwJob need to be listed, because FieldSelectors are not supported by CRDs yet.
+	// Once FieldSelectors are supported (Kubernetes 1.30 maybe), we can filter the ProwJob list by the desired fields.
+	// Issue link: https://github.com/kubernetes/kubernetes/issues/53459
+	pjList, err := gw.ProwJobClient.List(ctx, metav1.ListOptions{})
+	if err != nil {
+		logrus.WithError(err).Debug("failed to list ProwJobs")
+		return nil, err
+	}
+
+	jobExecutions := []*JobExecution{}
+	for _, pj := range pjList.Items {
+		if !isMatchingCondition(pj, request) {
+			continue
+		}
+		if allowedApiClient != nil {
+			authorized := ClientAuthorized(allowedApiClient, pj)
+			if !authorized {
+				logrus.Error("client is not authorized to modify the given job")
+				return nil, status.Error(codes.PermissionDenied, "client is not authorized to modify the given job")
+			}
+		}
+
+		pj.Status.State = prowcrd.ProwJobState(strings.ToLower(request.GetJobStatusChange().GetDesired().String()))
+		updatedPj, err := gw.ProwJobClient.Update(ctx, &pj, metav1.UpdateOptions{})
+		if err != nil {
+			logrus.WithError(err).Errorf("failed to update ProwJob status")
+			continue
+		}
+		logrus.WithField("name", pj.Name).Infof("ProwJob status updated to: %s", updatedPj.Status.State)
+
+		jobExec := &JobExecution{
+			Id:        updatedPj.Name,
+			JobName:   updatedPj.Spec.Job,
+			JobType:   JobExecutionType(TranslateProwJobType(updatedPj.Spec.Type)),
+			JobStatus: TranslateProwJobStatus(&updatedPj.Status),
+		}
+		jobExecutions = append(jobExecutions, jobExec)
+	}
+
+	// If more than 10 jobs were affected, we only return the first 10 jobs
+	// because we don't want to return a huge list of jobs and wait for a long time
+	jobLen := len(jobExecutions)
+	if jobLen > MAX_JOBS_IN_REQ_COUNT {
+		jobExecutions = jobExecutions[:MAX_JOBS_IN_REQ_COUNT]
+	}
+	jobsAffected := &JobsAffected{
+		Count:         int32(jobLen),
+		JobExecutions: jobExecutions,
+	}
+	return jobsAffected, nil
+}
+
+func isMatchingCondition(pj prowcrd.ProwJob, request *BulkJobStatusChangeRequest) bool {
+	pjStateString := strings.ToLower(request.GetJobStatusChange().GetCurrent().String())
+	pjCluster := request.GetCluster()
+	pjTypeString := request.GetJobType().String()
+	pjRefs := request.GetRefs()
+	startedBefore := request.GetStartedBefore()
+	startedAfter := request.GetStartedAfter()
+
+	if pj.Status.State != prowcrd.ProwJobState(pjStateString) {
+		return false
+	}
+	if pjCluster != "" {
+		if pj.Spec.Cluster != pjCluster {
+			return false
+		}
+	}
+	if pjTypeString != "JOB_EXECUTION_TYPE_UNSPECIFIED" {
+		if pj.Spec.Type != prowcrd.ProwJobType(pjTypeString) {
+			return false
+		}
+	}
+	if startedBefore != nil {
+		if pj.Status.StartTime.Time.After(startedBefore.AsTime()) {
+			return false
+		}
+	}
+	if startedAfter != nil {
+		if pj.Status.StartTime.Time.Before(startedAfter.AsTime()) {
+			return false
+		}
+	}
+	if pjRefs != nil {
+		if pjRefs.GetOrg() != "" {
+			if pjRefs.GetOrg() != pj.Spec.Refs.Org {
+				return false
+			}
+		}
+		if pjRefs.GetRepo() != "" {
+			if pjRefs.GetRepo() != pj.Spec.Refs.Repo {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 // ClientAuthorized checks whether or not a client can run a Prow job based on
@@ -346,6 +490,27 @@ func (cjer *CreateJobExecutionRequest) Validate() error {
 		}
 	}
 
+	return nil
+}
+
+func (bjscr *BulkJobStatusChangeRequest) Validate() error {
+
+	if bjscr.GetJobStatusChange().GetCurrent() == JobExecutionStatus_JOB_EXECUTION_STATUS_UNSPECIFIED {
+		return errors.New("current status is unspecified")
+	}
+	if bjscr.GetJobStatusChange().GetDesired() == JobExecutionStatus_JOB_EXECUTION_STATUS_UNSPECIFIED {
+		return errors.New("desired status is unspecified")
+	}
+	if bjscr.GetStartedAfter() != nil {
+		if err := bjscr.GetStartedAfter().CheckValid(); err != nil {
+			return errors.New("started_after field is invalid")
+		}
+	}
+	if bjscr.GetStartedBefore() != nil {
+		if err := bjscr.GetStartedBefore().CheckValid(); err != nil {
+			return errors.New("started_before field is invalid")
+		}
+	}
 	return nil
 }
 
