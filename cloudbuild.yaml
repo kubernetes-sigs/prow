@@ -16,7 +16,7 @@ steps:
     - push-images
 # Unlike a typical image staging project, the images are being published to a privileged prod project
 # GCB is only configured to launch jobs with the specified service account.
-serviceAccount: image-builder@k8s-infra-prow.iam.gserviceaccount.com
+serviceAccount: projects/k8s-infra-prow/serviceAccounts/image-builder@k8s-infra-prow.iam.gserviceaccount.com
 substitutions:
   _GIT_TAG: "12345"
   _PULL_BASE_REF: "main"
