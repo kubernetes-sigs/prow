@@ -18,7 +18,6 @@ rules:
       - create
       - get
       - list
-      - update
 ---
 kind: RoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
