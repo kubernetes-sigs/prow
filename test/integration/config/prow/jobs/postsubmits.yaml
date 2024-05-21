@@ -21,3 +21,19 @@ postsubmits:
             # Cat out the contents of the file that is only available from the
             # repo1 Git repo.
             cat README.txt
+    - name: sleep-postsubmit
+      always_run: false
+      decorate: true
+      prowjob_defaults:
+        tenant_id: "well-behaved-tenant-for-gangway"
+      clone_uri: "http://fakegitserver.default/repo/repo1"
+      spec:
+        containers:
+        - image: localhost:5001/alpine
+          command:
+          - sh
+          args:
+          - -c
+          - |
+            set -eu
+            sleep infinity
