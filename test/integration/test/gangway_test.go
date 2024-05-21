@@ -457,20 +457,19 @@ func TestGangwayBulkJobStatusChange(t *testing.T) {
 			},
 		},
 	}
-	// One client for all tests.
-	c, err := gangwayGoogleClient.NewInsecure(":32000", "123")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer c.Close()
 
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			c, err := gangwayGoogleClient.NewInsecure(":32000", "123")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer c.Close()
 
 			ctx := context.Background()
 			ctx = c.EmbedProjectNumber(ctx)
-
+			cleanup(t, ctx)
 			for i := 0; i < tt.count; i++ {
 				jobExecution, err := c.GRPC.CreateJobExecution(ctx, tt.creationMsg)
 				if err != nil {
@@ -487,6 +486,12 @@ func TestGangwayBulkJobStatusChange(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
+
+			pjs := getProwJobs(t, ctx)
+			for _, pj := range pjs.Items {
+				t.Logf("ProwJob: %s,  %s", pj.Name, pj.Status.State)
+			}
+			t.Logf("Created %d jobs", len(pjs.Items))
 
 			jobsAffected, err := c.GRPC.BulkJobStatusChange(ctx, tt.bulkMsg)
 			if tt.expectedErr != nil {
@@ -535,4 +540,19 @@ func cleanup(t *testing.T, ctx context.Context) {
 			t.Logf("Failed cleanup resource %q: %v", pj.Name, err)
 		}
 	}
+}
+
+func getProwJobs(t *testing.T, ctx context.Context) *prowjobv1.ProwJobList {
+	clusterContext := getClusterContext()
+	restConfig, err := NewRestConfig("", clusterContext)
+	if err != nil {
+		t.Fatalf("could not create restConfig: %v", err)
+	}
+	kubeClient, err := ctrlruntimeclient.New(restConfig, ctrlruntimeclient.Options{})
+	if err != nil {
+		t.Fatalf("Failed creating clients for cluster %q: %v", clusterContext, err)
+	}
+	pjList := &prowjobv1.ProwJobList{}
+	kubeClient.List(ctx, pjList, ctrlruntimeclient.MatchingLabels{})
+	return pjList
 }
