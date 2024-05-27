@@ -87,7 +87,7 @@ func handleGenericComment(pc plugins.Agent, e github.GenericCommentEvent) error 
 }
 
 func isTeamLogin(login string) bool {
-	match, err := regexp.MatchString(`^[a-zA-Z0-9]+/[a-zA-Z0-9]+$`, login)
+	match, err := regexp.MatchString(`^[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*/[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*$`, login)
 	if err != nil {
 		return false
 	}
