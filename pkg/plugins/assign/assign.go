@@ -44,21 +44,21 @@ func init() {
 func helpProvider(config *plugins.Configuration, _ []config.OrgRepo) (*pluginhelp.PluginHelp, error) {
 	// The Config field is omitted because this plugin is not configurable.
 	pluginHelp := &pluginhelp.PluginHelp{
-		Description: "The assign plugin assigns or requests reviews from users. Specific users can be assigned with the command '/assign @user1' or have reviews requested of them with the command '/cc @user1'. If no users are specified, the commands default to targeting the user who created the command. Assignments and requested reviews can be removed in the same way that they are added by prefixing the commands with 'un'.",
+		Description: "The assign plugin assigns or requests reviews from users/teams. Specific users can be assigned with the command '/assign @user1' or have reviews requested of them with the command '/cc @user1'. If no users are specified, the commands default to targeting the user who created the command. Assignments and requested reviews can be removed in the same way that they are added by prefixing the commands with 'un'.",
 	}
 	pluginHelp.AddCommand(pluginhelp.Command{
-		Usage:       "/[un]assign [[@]<username>...]",
-		Description: "Assigns assignee(s) to the PR",
+		Usage:       "/[un]assign [[@]<username>...|[@]<orgname/teamname>...]",
+		Description: "Assigns assignee(s) or team(s) to the PR",
 		Featured:    true,
 		WhoCanUse:   "Anyone can use the command, but the target user(s) must be an org member, a repo collaborator, or should have previously commented on the issue or PR.",
-		Examples:    []string{"/assign", "/unassign", "/assign @spongebob", "/assign spongebob patrick"},
+		Examples:    []string{"/assign", "/unassign", "/assign @spongebob", "/assign spongebob patrick", "/assign @kubernetes/sig-foo-bar"},
 	})
 	pluginHelp.AddCommand(pluginhelp.Command{
-		Usage:       "/[un]cc [[@]<username>...]",
-		Description: "Requests a review from the user(s).",
+		Usage:       "/[un]cc [[@]<username>...|[@]<orgname/teamname>...]",
+		Description: "Requests a review from the user(s) or team(s).",
 		Featured:    true,
 		WhoCanUse:   "Anyone can use the command, but the target user(s) must be a member of the org that owns the repository.",
-		Examples:    []string{"/cc", "/uncc", "/cc @spongebob", "/cc spongebob patrick"},
+		Examples:    []string{"/cc", "/uncc", "/cc @spongebob", "/cc spongebob patrick", "/cc @kubernetes/sig-foo-bar"},
 	})
 	return pluginHelp, nil
 }
