@@ -259,7 +259,7 @@ func (s *Server) handleIssueComment(l *logrus.Entry, ic github.IssueCommentEvent
 
 func (s *Server) handlePullRequest(l *logrus.Entry, pre github.PullRequestEvent) error {
 	// Only consider newly merged PRs
-	if pre.Action != github.PullRequestActionClosed && pre.Action != github.PullRequestActionLabeled {
+	if pre.Action != github.PullRequestActionClosed && pre.Action != github.PullRequestActionLabeled && pre.Action != github.PullRequestActionOpened {
 		return nil
 	}
 
@@ -291,6 +291,12 @@ func (s *Server) handlePullRequest(l *logrus.Entry, pre github.PullRequestEvent)
 	requestorToComments := make(map[string]map[string]*github.IssueComment)
 	// target branch -> chain branches (eg. "release-1.6" -> []string{"release-1.5", "release-1.4"})
 	targetBranchToChainBranches := make(map[string][]string)
+
+	// treat PR body/description as a comment
+	comments = append([]github.IssueComment{{
+		Body: body,
+		User: pr.User,
+	}}, comments...)
 
 	// first look for our special comments
 	for i := range comments {
