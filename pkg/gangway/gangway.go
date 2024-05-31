@@ -29,6 +29,7 @@ import (
 	status "google.golang.org/grpc/status"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/validation"
 	prowcrd "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 	"sigs.k8s.io/prow/pkg/config"
@@ -195,10 +196,11 @@ func (gw *Gangway) BulkJobStatusChange(ctx context.Context, request *BulkJobStat
 	// Issue link: https://github.com/kubernetes/kubernetes/issues/53459
 	pjList, err := gw.ProwJobClient.List(ctx, metav1.ListOptions{})
 	if err != nil {
-		logrus.WithError(err).Debug("failed to list ProwJobs")
+		logrus.WithError(err).Errorf("failed to list ProwJobs")
 		return nil, err
 	}
 
+	var errs []error
 	jobExecutions := []*JobExecution{}
 	for _, pj := range pjList.Items {
 		if !isMatchingCondition(pj, request) {
@@ -208,7 +210,8 @@ func (gw *Gangway) BulkJobStatusChange(ctx context.Context, request *BulkJobStat
 			authorized := ClientAuthorized(allowedApiClient, pj)
 			if !authorized {
 				logrus.Error("client is not authorized to modify the given job")
-				return nil, status.Error(codes.PermissionDenied, "client is not authorized to modify the given job")
+				errs = append(errs, status.Errorf(codes.PermissionDenied, "client is not authorized to modify the given job: %s", pj.Name))
+				continue
 			}
 		}
 
@@ -216,6 +219,7 @@ func (gw *Gangway) BulkJobStatusChange(ctx context.Context, request *BulkJobStat
 		updatedPj, err := gw.ProwJobClient.Update(ctx, &pj, metav1.UpdateOptions{})
 		if err != nil {
 			logrus.WithError(err).Errorf("failed to update ProwJob status")
+			errs = append(errs, fmt.Errorf("%s, failed to update ProwJob status: %s", err, pj.Name))
 			continue
 		}
 		logrus.WithField("name", pj.Name).Infof("ProwJob status updated to: %s", updatedPj.Status.State)
@@ -239,7 +243,7 @@ func (gw *Gangway) BulkJobStatusChange(ctx context.Context, request *BulkJobStat
 		Count:         int32(jobLen),
 		JobExecutions: jobExecutions,
 	}
-	return jobsAffected, nil
+	return jobsAffected, utilerrors.NewAggregate(errs)
 }
 
 func isMatchingCondition(pj prowcrd.ProwJob, request *BulkJobStatusChangeRequest) bool {
