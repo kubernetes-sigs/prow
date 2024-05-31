@@ -45,7 +45,7 @@ func (c *Common) WaitForJobExecutionStatus(ctx context.Context, jobExecutionId s
 			return true, nil
 		}
 
-		return true, nil
+		return false, nil
 	}
 
 	if waitErr := wait.PollUntilContextTimeout(ctx, pollInterval, timeout, true, expectJobStatus); waitErr != nil {
