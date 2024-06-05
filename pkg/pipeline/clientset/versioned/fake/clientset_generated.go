@@ -25,6 +25,8 @@ import (
 	fakediscovery "k8s.io/client-go/discovery/fake"
 	"k8s.io/client-go/testing"
 	clientset "sigs.k8s.io/prow/pkg/pipeline/clientset/versioned"
+	tektonv1 "sigs.k8s.io/prow/pkg/pipeline/clientset/versioned/typed/pipeline/v1"
+	faketektonv1 "sigs.k8s.io/prow/pkg/pipeline/clientset/versioned/typed/pipeline/v1/fake"
 	tektonv1beta1 "sigs.k8s.io/prow/pkg/pipeline/clientset/versioned/typed/pipeline/v1beta1"
 	faketektonv1beta1 "sigs.k8s.io/prow/pkg/pipeline/clientset/versioned/typed/pipeline/v1beta1/fake"
 )
@@ -75,6 +77,11 @@ func (c *Clientset) Tracker() testing.ObjectTracker {
 }
 
 var _ clientset.Interface = &Clientset{}
+
+// TektonV1 retrieves the TektonV1Client
+func (c *Clientset) TektonV1() tektonv1.TektonV1Interface {
+	return &faketektonv1.FakeTektonV1{Fake: &c.Fake}
+}
 
 // TektonV1beta1 retrieves the TektonV1beta1Client
 func (c *Clientset) TektonV1beta1() tektonv1beta1.TektonV1beta1Interface {
