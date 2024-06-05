@@ -418,7 +418,7 @@ func TestReconcile(t *testing.T) {
 			observedPipelineRun: func() *pipelinev1.PipelineRun {
 				pj := prowjobv1.ProwJob{}
 				pj.Spec.Type = prowjobv1.PeriodicJob
-				pj.Spec.TektonPipelineRunSpec.V1 = &pipelinev1.PipelineRunSpec{}
+				pj.Spec.TektonPipelineRunSpec = &prowjobv1.TektonPipelineRunSpec{V1: &pipelinev1.PipelineRunSpec{}}
 				pj.Status.BuildID = pipelineID
 				p, err := makePipelineRun(pj)
 				if err != nil {
@@ -432,7 +432,7 @@ func TestReconcile(t *testing.T) {
 			observedPipelineRun: func() *pipelinev1.PipelineRun {
 				pj := prowjobv1.ProwJob{}
 				pj.Spec.Type = prowjobv1.PeriodicJob
-				pj.Spec.TektonPipelineRunSpec.V1 = &pipelinev1.PipelineRunSpec{}
+				pj.Spec.TektonPipelineRunSpec = &prowjobv1.TektonPipelineRunSpec{V1: &pipelinev1.PipelineRunSpec{}}
 				pj.Status.BuildID = pipelineID
 				p, err := makePipelineRun(pj)
 				p.DeletionTimestamp = &now
@@ -448,7 +448,7 @@ func TestReconcile(t *testing.T) {
 			observedPipelineRun: func() *pipelinev1.PipelineRun {
 				pj := prowjobv1.ProwJob{}
 				pj.Spec.Type = prowjobv1.PeriodicJob
-				pj.Spec.TektonPipelineRunSpec.V1 = &pipelinev1.PipelineRunSpec{}
+				pj.Spec.TektonPipelineRunSpec = &prowjobv1.TektonPipelineRunSpec{V1: &pipelinev1.PipelineRunSpec{}}
 				pj.Status.BuildID = pipelineID
 				p, err := makePipelineRun(pj)
 				if err != nil {
@@ -928,6 +928,7 @@ func TestMakeResources(t *testing.T) {
 					BaseRef:  "feature-branch",
 					Pulls:    []prowjobv1.Pull{{Number: 1}},
 				}
+				// pj.Spec.TektonPipelineRunSpec = &prowjobv1.TektonPipelineRunSpec{V1: &pipelinev1.PipelineRunSpec{}}
 				pj.Spec.TektonPipelineRunSpec.V1.PipelineSpec = &pipelinev1.PipelineSpec{
 					Tasks: []pipelinev1.PipelineTask{{
 						Name:    "implicit git resource",
@@ -1020,7 +1021,7 @@ func TestMakeResources(t *testing.T) {
 			pj.Spec.Type = prowjobv1.PeriodicJob
 			pj.Spec.Job = "ci-job"
 			pj.Spec.TektonPipelineRunSpec = &prowjobv1.TektonPipelineRunSpec{
-				V1Beta1: &pipelinev1beta1.PipelineRunSpec{},
+				V1: &pipelinev1.PipelineRunSpec{},
 			}
 			pj.Status.BuildID = randomPipelineRunID
 
