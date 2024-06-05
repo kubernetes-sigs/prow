@@ -27,6 +27,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/sirupsen/logrus"
+	pipelinev1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
 	pipelinev1beta1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
 
 	corev1 "k8s.io/api/core/v1"
@@ -55,7 +56,7 @@ const (
 
 type fakeReconciler struct {
 	jobs      map[string]prowjobv1.ProwJob
-	pipelines map[string]pipelinev1beta1.PipelineRun
+	pipelines map[string]pipelinev1.PipelineRun
 	nows      metav1.Time
 }
 
@@ -96,7 +97,7 @@ func (r *fakeReconciler) patchProwJob(pj *prowjobv1.ProwJob, newpj *prowjobv1.Pr
 	return newpj, nil
 }
 
-func (r *fakeReconciler) getPipelineRun(context, namespace, name string) (*pipelinev1beta1.PipelineRun, error) {
+func (r *fakeReconciler) getPipelineRun(context, namespace, name string) (*pipelinev1.PipelineRun, error) {
 	logrus.Debugf("getPipelineRun: ctx=%s, ns=%s, name=%s", context, namespace, name)
 	if namespace == errorGetPipelineRun {
 		return nil, errors.New("injected create pipeline error")
@@ -104,7 +105,7 @@ func (r *fakeReconciler) getPipelineRun(context, namespace, name string) (*pipel
 	k := toKey(context, namespace, name)
 	p, present := r.pipelines[k]
 	if !present {
-		return nil, apierrors.NewNotFound(pipelinev1beta1.Resource("PipelineRun"), name)
+		return nil, apierrors.NewNotFound(pipelinev1.Resource("PipelineRun"), name)
 	}
 	return &p, nil
 }
@@ -127,13 +128,13 @@ func (r *fakeReconciler) deletePipelineRun(context, namespace, name string) erro
 	}
 	k := toKey(context, namespace, name)
 	if _, present := r.pipelines[k]; !present {
-		return apierrors.NewNotFound(pipelinev1beta1.Resource("PipelineRun"), name)
+		return apierrors.NewNotFound(pipelinev1.Resource("PipelineRun"), name)
 	}
 	delete(r.pipelines, k)
 	return nil
 }
 
-func (r *fakeReconciler) createPipelineRun(context, namespace string, p *pipelinev1beta1.PipelineRun) (*pipelinev1beta1.PipelineRun, error) {
+func (r *fakeReconciler) createPipelineRun(context, namespace string, p *pipelinev1.PipelineRun) (*pipelinev1.PipelineRun, error) {
 	logrus.Debugf("createPipelineRun: ctx=%s, ns=%s", context, namespace)
 	if p == nil {
 		return nil, errors.New("nil pipeline")
@@ -153,8 +154,8 @@ func (r *fakeReconciler) pipelineID(pj prowjobv1.ProwJob) (string, string, error
 	return pipelineID, "", nil
 }
 
-func (r *fakeReconciler) cancelPipelineRun(context string, pr *pipelinev1beta1.PipelineRun) error {
-	pr.Spec.Status = pipelinev1beta1.PipelineRunSpecStatusCancelledRunFinally
+func (r *fakeReconciler) cancelPipelineRun(context string, pr *pipelinev1.PipelineRun) error {
+	pr.Spec.Status = pipelinev1.PipelineRunSpecStatusCancelledRunFinally
 	return nil
 }
 
@@ -198,7 +199,7 @@ func TestEnqueueKey(t *testing.T) {
 		{
 			name:    "enqueue pipeline directly",
 			context: "hey",
-			obj: &pipelinev1beta1.PipelineRun{
+			obj: &pipelinev1.PipelineRun{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "foo",
 					Name:      "bar",
@@ -247,10 +248,10 @@ func TestReconcile(t *testing.T) {
 	now := metav1.Now()
 	future := metav1.Time{Time: time.Now().Add(time.Minute)}
 	pipelineSpec := pipelinev1beta1.PipelineRunSpec{}
-	noJobChange := func(pj prowjobv1.ProwJob, _ pipelinev1beta1.PipelineRun) prowjobv1.ProwJob {
+	noJobChange := func(pj prowjobv1.ProwJob, _ pipelinev1.PipelineRun) prowjobv1.ProwJob {
 		return pj
 	}
-	noPipelineRunChange := func(_ prowjobv1.ProwJob, p pipelinev1beta1.PipelineRun) pipelinev1beta1.PipelineRun {
+	noPipelineRunChange := func(_ prowjobv1.ProwJob, p pipelinev1.PipelineRun) pipelinev1.PipelineRun {
 		return p
 	}
 	cases := []struct {
@@ -258,9 +259,9 @@ func TestReconcile(t *testing.T) {
 		namespace           string
 		context             string
 		observedJob         *prowjobv1.ProwJob
-		observedPipelineRun *pipelinev1beta1.PipelineRun
-		expectedJob         func(prowjobv1.ProwJob, pipelinev1beta1.PipelineRun) prowjobv1.ProwJob
-		expectedPipelineRun func(prowjobv1.ProwJob, pipelinev1beta1.PipelineRun) pipelinev1beta1.PipelineRun
+		observedPipelineRun *pipelinev1.PipelineRun
+		expectedJob         func(prowjobv1.ProwJob, pipelinev1.PipelineRun) prowjobv1.ProwJob
+		expectedPipelineRun func(prowjobv1.ProwJob, pipelinev1.PipelineRun) pipelinev1.PipelineRun
 		duplicateStartTime  *metav1.Time
 		err                 bool
 	}{
@@ -275,7 +276,7 @@ func TestReconcile(t *testing.T) {
 					BuildID: pipelineID,
 				},
 			},
-			expectedJob: func(pj prowjobv1.ProwJob, _ pipelinev1beta1.PipelineRun) prowjobv1.ProwJob {
+			expectedJob: func(pj prowjobv1.ProwJob, _ pipelinev1.PipelineRun) prowjobv1.ProwJob {
 				pj.Status = prowjobv1.ProwJobStatus{
 					StartTime:   now,
 					PendingTime: &now,
@@ -285,7 +286,7 @@ func TestReconcile(t *testing.T) {
 				}
 				return pj
 			},
-			expectedPipelineRun: func(pj prowjobv1.ProwJob, _ pipelinev1beta1.PipelineRun) pipelinev1beta1.PipelineRun {
+			expectedPipelineRun: func(pj prowjobv1.ProwJob, _ pipelinev1.PipelineRun) pipelinev1.PipelineRun {
 				pj.Spec.Type = prowjobv1.PeriodicJob
 				p, err := makePipelineRun(pj)
 				if err != nil {
@@ -309,7 +310,7 @@ func TestReconcile(t *testing.T) {
 					Job:             "foobar",
 				},
 			},
-			expectedJob: func(pj prowjobv1.ProwJob, _ pipelinev1beta1.PipelineRun) prowjobv1.ProwJob {
+			expectedJob: func(pj prowjobv1.ProwJob, _ pipelinev1.PipelineRun) prowjobv1.ProwJob {
 				if !strings.Contains(pj.Name, duplicateAppendix) {
 					pj.Status = prowjobv1.ProwJobStatus{
 						StartTime:      now,
@@ -343,7 +344,7 @@ func TestReconcile(t *testing.T) {
 					Job:             "foobar",
 				},
 			},
-			expectedJob: func(pj prowjobv1.ProwJob, _ pipelinev1beta1.PipelineRun) prowjobv1.ProwJob {
+			expectedJob: func(pj prowjobv1.ProwJob, _ pipelinev1.PipelineRun) prowjobv1.ProwJob {
 				if !strings.Contains(pj.Name, duplicateAppendix) {
 					pj.Status = prowjobv1.ProwJobStatus{
 						StartTime:   future,
@@ -362,7 +363,7 @@ func TestReconcile(t *testing.T) {
 				}
 				return pj
 			},
-			expectedPipelineRun: func(pj prowjobv1.ProwJob, _ pipelinev1beta1.PipelineRun) pipelinev1beta1.PipelineRun {
+			expectedPipelineRun: func(pj prowjobv1.ProwJob, _ pipelinev1.PipelineRun) pipelinev1.PipelineRun {
 				pj.Spec.Type = prowjobv1.PeriodicJob
 				p, err := makePipelineRun(pj)
 				if err != nil {
@@ -414,10 +415,10 @@ func TestReconcile(t *testing.T) {
 		},
 		{
 			name: "delete pipeline run after deleting prowjob",
-			observedPipelineRun: func() *pipelinev1beta1.PipelineRun {
+			observedPipelineRun: func() *pipelinev1.PipelineRun {
 				pj := prowjobv1.ProwJob{}
 				pj.Spec.Type = prowjobv1.PeriodicJob
-				pj.Spec.PipelineRunSpec = &pipelinev1beta1.PipelineRunSpec{}
+				pj.Spec.TektonPipelineRunSpec.V1 = &pipelinev1.PipelineRunSpec{}
 				pj.Status.BuildID = pipelineID
 				p, err := makePipelineRun(pj)
 				if err != nil {
@@ -428,10 +429,10 @@ func TestReconcile(t *testing.T) {
 		},
 		{
 			name: "do not delete deleted pipeline runs",
-			observedPipelineRun: func() *pipelinev1beta1.PipelineRun {
+			observedPipelineRun: func() *pipelinev1.PipelineRun {
 				pj := prowjobv1.ProwJob{}
 				pj.Spec.Type = prowjobv1.PeriodicJob
-				pj.Spec.PipelineRunSpec = &pipelinev1beta1.PipelineRunSpec{}
+				pj.Spec.TektonPipelineRunSpec.V1 = &pipelinev1.PipelineRunSpec{}
 				pj.Status.BuildID = pipelineID
 				p, err := makePipelineRun(pj)
 				p.DeletionTimestamp = &now
@@ -444,10 +445,10 @@ func TestReconcile(t *testing.T) {
 		},
 		{
 			name: "only delete pipeline runs created by controller",
-			observedPipelineRun: func() *pipelinev1beta1.PipelineRun {
+			observedPipelineRun: func() *pipelinev1.PipelineRun {
 				pj := prowjobv1.ProwJob{}
 				pj.Spec.Type = prowjobv1.PeriodicJob
-				pj.Spec.PipelineRunSpec = &pipelinev1beta1.PipelineRunSpec{}
+				pj.Spec.TektonPipelineRunSpec.V1 = &pipelinev1.PipelineRunSpec{}
 				pj.Status.BuildID = pipelineID
 				p, err := makePipelineRun(pj)
 				if err != nil {
@@ -475,7 +476,7 @@ func TestReconcile(t *testing.T) {
 					Description: "fancy",
 				},
 			},
-			observedPipelineRun: func() *pipelinev1beta1.PipelineRun {
+			observedPipelineRun: func() *pipelinev1.PipelineRun {
 				pj := prowjobv1.ProwJob{}
 				pj.Spec.Type = prowjobv1.PeriodicJob
 				pj.Spec.Agent = prowjobv1.TektonAgent
@@ -506,7 +507,7 @@ func TestReconcile(t *testing.T) {
 					Description: "fancy",
 				},
 			},
-			observedPipelineRun: func() *pipelinev1beta1.PipelineRun {
+			observedPipelineRun: func() *pipelinev1.PipelineRun {
 				pj := prowjobv1.ProwJob{}
 				pj.Spec.Type = prowjobv1.PeriodicJob
 				pj.Spec.Agent = prowjobv1.TektonAgent
@@ -537,7 +538,7 @@ func TestReconcile(t *testing.T) {
 					Description: "fancy",
 				},
 			},
-			observedPipelineRun: func() *pipelinev1beta1.PipelineRun {
+			observedPipelineRun: func() *pipelinev1.PipelineRun {
 				pj := prowjobv1.ProwJob{}
 				pj.Spec.Type = prowjobv1.PeriodicJob
 				pj.Spec.Agent = prowjobv1.TektonAgent
@@ -551,7 +552,7 @@ func TestReconcile(t *testing.T) {
 				}
 				return p
 			}(),
-			expectedJob: func(pj prowjobv1.ProwJob, _ pipelinev1beta1.PipelineRun) prowjobv1.ProwJob {
+			expectedJob: func(pj prowjobv1.ProwJob, _ pipelinev1.PipelineRun) prowjobv1.ProwJob {
 				pj.Status.State = prowjobv1.PendingState
 				pj.Status.Description = descScheduling
 				return pj
@@ -570,7 +571,7 @@ func TestReconcile(t *testing.T) {
 					Description: "fancy",
 				},
 			},
-			observedPipelineRun: func() *pipelinev1beta1.PipelineRun {
+			observedPipelineRun: func() *pipelinev1.PipelineRun {
 				pj := prowjobv1.ProwJob{}
 				pj.Spec.Type = prowjobv1.PeriodicJob
 				pj.Spec.Agent = prowjobv1.TektonAgent
@@ -586,7 +587,7 @@ func TestReconcile(t *testing.T) {
 				})
 				return p
 			}(),
-			expectedJob: func(pj prowjobv1.ProwJob, _ pipelinev1beta1.PipelineRun) prowjobv1.ProwJob {
+			expectedJob: func(pj prowjobv1.ProwJob, _ pipelinev1.PipelineRun) prowjobv1.ProwJob {
 				pj.Status = prowjobv1.ProwJobStatus{
 					StartTime:   now,
 					State:       prowjobv1.PendingState,
@@ -608,7 +609,7 @@ func TestReconcile(t *testing.T) {
 					Description: "fancy",
 				},
 			},
-			observedPipelineRun: func() *pipelinev1beta1.PipelineRun {
+			observedPipelineRun: func() *pipelinev1.PipelineRun {
 				pj := prowjobv1.ProwJob{}
 				pj.Spec.Type = prowjobv1.PeriodicJob
 				pj.Spec.Agent = prowjobv1.TektonAgent
@@ -625,7 +626,7 @@ func TestReconcile(t *testing.T) {
 				})
 				return p
 			}(),
-			expectedJob: func(pj prowjobv1.ProwJob, _ pipelinev1beta1.PipelineRun) prowjobv1.ProwJob {
+			expectedJob: func(pj prowjobv1.ProwJob, _ pipelinev1.PipelineRun) prowjobv1.ProwJob {
 				pj.Status = prowjobv1.ProwJobStatus{
 					StartTime:      now,
 					CompletionTime: &now,
@@ -648,7 +649,7 @@ func TestReconcile(t *testing.T) {
 					Description: "fancy",
 				},
 			},
-			observedPipelineRun: func() *pipelinev1beta1.PipelineRun {
+			observedPipelineRun: func() *pipelinev1.PipelineRun {
 				pj := prowjobv1.ProwJob{}
 				pj.Spec.Type = prowjobv1.PeriodicJob
 				pj.Spec.Agent = prowjobv1.TektonAgent
@@ -665,7 +666,7 @@ func TestReconcile(t *testing.T) {
 				})
 				return p
 			}(),
-			expectedJob: func(pj prowjobv1.ProwJob, _ pipelinev1beta1.PipelineRun) prowjobv1.ProwJob {
+			expectedJob: func(pj prowjobv1.ProwJob, _ pipelinev1.PipelineRun) prowjobv1.ProwJob {
 				pj.Status = prowjobv1.ProwJobStatus{
 					StartTime:      now,
 					CompletionTime: &now,
@@ -695,7 +696,7 @@ func TestReconcile(t *testing.T) {
 			name:      "error when we cannot get pipeline run",
 			namespace: errorGetPipelineRun,
 			err:       true,
-			observedPipelineRun: func() *pipelinev1beta1.PipelineRun {
+			observedPipelineRun: func() *pipelinev1.PipelineRun {
 				pj := prowjobv1.ProwJob{}
 				pj.Spec.Type = prowjobv1.PeriodicJob
 				pj.Spec.Agent = prowjobv1.TektonAgent
@@ -717,7 +718,7 @@ func TestReconcile(t *testing.T) {
 			name:      "error when we cannot delete pipeline run",
 			namespace: errorDeletePipelineRun,
 			err:       true,
-			observedPipelineRun: func() *pipelinev1beta1.PipelineRun {
+			observedPipelineRun: func() *pipelinev1.PipelineRun {
 				pj := prowjobv1.ProwJob{}
 				pj.Spec.Type = prowjobv1.PeriodicJob
 				pj.Spec.PipelineRunSpec = &pipelinev1beta1.PipelineRunSpec{}
@@ -739,7 +740,7 @@ func TestReconcile(t *testing.T) {
 					PipelineRunSpec: &pipelineSpec,
 				},
 			},
-			expectedJob: func(pj prowjobv1.ProwJob, _ pipelinev1beta1.PipelineRun) prowjobv1.ProwJob {
+			expectedJob: func(pj prowjobv1.ProwJob, _ pipelinev1.PipelineRun) prowjobv1.ProwJob {
 				pj.Status = prowjobv1.ProwJobStatus{
 					BuildID:        pipelineID,
 					StartTime:      now,
@@ -777,7 +778,7 @@ func TestReconcile(t *testing.T) {
 					Description: "fancy",
 				},
 			},
-			observedPipelineRun: func() *pipelinev1beta1.PipelineRun {
+			observedPipelineRun: func() *pipelinev1.PipelineRun {
 				pj := prowjobv1.ProwJob{}
 				pj.Spec.Type = prowjobv1.PeriodicJob
 				pj.Spec.Agent = prowjobv1.TektonAgent
@@ -810,7 +811,7 @@ func TestReconcile(t *testing.T) {
 			}
 			r := &fakeReconciler{
 				jobs:      map[string]prowjobv1.ProwJob{},
-				pipelines: map[string]pipelinev1beta1.PipelineRun{},
+				pipelines: map[string]pipelinev1.PipelineRun{},
 				nows:      now,
 			}
 
@@ -840,10 +841,10 @@ func TestReconcile(t *testing.T) {
 				expectedJobs[jk] = j(r.jobs[jk], r.pipelines[pk])
 				if tc.duplicateStartTime != nil {
 					// use empty pipeline run as we don't care about the duplicate
-					expectedJobs[jkDuplicate] = j(r.jobs[jkDuplicate], pipelinev1beta1.PipelineRun{})
+					expectedJobs[jkDuplicate] = j(r.jobs[jkDuplicate], pipelinev1.PipelineRun{})
 				}
 			}
-			expectedPipelineRuns := map[string]pipelinev1beta1.PipelineRun{}
+			expectedPipelineRuns := map[string]pipelinev1.PipelineRun{}
 			if p := tc.expectedPipelineRun; p != nil {
 				expectedPipelineRuns[pk] = p(r.jobs[jk], r.pipelines[pk])
 			}
@@ -903,11 +904,11 @@ func TestPipelineMeta(t *testing.T) {
 	}
 }
 
-func TestMakeResourcesBeta1(t *testing.T) {
+func TestMakeResources(t *testing.T) {
 	cases := []struct {
 		name        string
 		job         func(prowjobv1.ProwJob) prowjobv1.ProwJob
-		pipelineRun func(pipelinev1beta1.PipelineRun) pipelinev1beta1.PipelineRun
+		pipelineRun func(pipelinev1.PipelineRun) pipelinev1.PipelineRun
 		err         bool
 	}{
 		{
@@ -927,37 +928,37 @@ func TestMakeResourcesBeta1(t *testing.T) {
 					BaseRef:  "feature-branch",
 					Pulls:    []prowjobv1.Pull{{Number: 1}},
 				}
-				pj.Spec.TektonPipelineRunSpec.V1Beta1.PipelineSpec = &pipelinev1beta1.PipelineSpec{
-					Tasks: []pipelinev1beta1.PipelineTask{{
+				pj.Spec.TektonPipelineRunSpec.V1.PipelineSpec = &pipelinev1.PipelineSpec{
+					Tasks: []pipelinev1.PipelineTask{{
 						Name:    "implicit git resource",
-						TaskRef: &pipelinev1beta1.TaskRef{Name: config.ProwImplicitGitResource},
+						TaskRef: &pipelinev1.TaskRef{Name: config.ProwImplicitGitResource},
 					}},
 				}
 
 				return pj
 			},
-			pipelineRun: func(pr pipelinev1beta1.PipelineRun) pipelinev1beta1.PipelineRun {
-				pr.Spec.Params[4].Value = pipelinev1beta1.ParamValue{
-					Type:      pipelinev1beta1.ParamTypeString,
+			pipelineRun: func(pr pipelinev1.PipelineRun) pipelinev1.PipelineRun {
+				pr.Spec.Params[4].Value = pipelinev1.ParamValue{
+					Type:      pipelinev1.ParamTypeString,
 					StringVal: string(prowjobv1.PresubmitJob),
 				}
 				pr.Spec.Params = append(pr.Spec.Params,
-					pipelinev1beta1.Param{Name: "PULL_BASE_REF", Value: pipelinev1beta1.ParamValue{Type: pipelinev1beta1.ParamTypeString, StringVal: "feature-branch"}},
-					pipelinev1beta1.Param{Name: "PULL_BASE_SHA", Value: pipelinev1beta1.ParamValue{Type: pipelinev1beta1.ParamTypeString}},
-					pipelinev1beta1.Param{Name: "PULL_HEAD_REF", Value: pipelinev1beta1.ParamValue{Type: pipelinev1beta1.ParamTypeString}},
-					pipelinev1beta1.Param{Name: "PULL_NUMBER", Value: pipelinev1beta1.ParamValue{Type: pipelinev1beta1.ParamTypeString, StringVal: "1"}},
-					pipelinev1beta1.Param{Name: "PULL_PULL_SHA", Value: pipelinev1beta1.ParamValue{Type: pipelinev1beta1.ParamTypeString}},
-					pipelinev1beta1.Param{Name: "PULL_REFS", Value: pipelinev1beta1.ParamValue{Type: pipelinev1beta1.ParamTypeString, StringVal: "feature-branch,1:"}},
-					pipelinev1beta1.Param{Name: "PULL_TITLE", Value: pipelinev1beta1.ParamValue{Type: pipelinev1beta1.ParamTypeString}},
-					pipelinev1beta1.Param{Name: "REPO_NAME", Value: pipelinev1beta1.ParamValue{Type: pipelinev1beta1.ParamTypeString}},
-					pipelinev1beta1.Param{Name: "REPO_OWNER", Value: pipelinev1beta1.ParamValue{Type: pipelinev1beta1.ParamTypeString}},
+					pipelinev1.Param{Name: "PULL_BASE_REF", Value: pipelinev1.ParamValue{Type: pipelinev1.ParamTypeString, StringVal: "feature-branch"}},
+					pipelinev1.Param{Name: "PULL_BASE_SHA", Value: pipelinev1.ParamValue{Type: pipelinev1.ParamTypeString}},
+					pipelinev1.Param{Name: "PULL_HEAD_REF", Value: pipelinev1.ParamValue{Type: pipelinev1.ParamTypeString}},
+					pipelinev1.Param{Name: "PULL_NUMBER", Value: pipelinev1.ParamValue{Type: pipelinev1.ParamTypeString, StringVal: "1"}},
+					pipelinev1.Param{Name: "PULL_PULL_SHA", Value: pipelinev1.ParamValue{Type: pipelinev1.ParamTypeString}},
+					pipelinev1.Param{Name: "PULL_REFS", Value: pipelinev1.ParamValue{Type: pipelinev1.ParamTypeString, StringVal: "feature-branch,1:"}},
+					pipelinev1.Param{Name: "PULL_TITLE", Value: pipelinev1.ParamValue{Type: pipelinev1.ParamTypeString}},
+					pipelinev1.Param{Name: "REPO_NAME", Value: pipelinev1.ParamValue{Type: pipelinev1.ParamTypeString}},
+					pipelinev1.Param{Name: "REPO_OWNER", Value: pipelinev1.ParamValue{Type: pipelinev1.ParamTypeString}},
 				)
-				pr.Spec.PipelineSpec.Tasks = []pipelinev1beta1.PipelineTask{
+				pr.Spec.PipelineSpec.Tasks = []pipelinev1.PipelineTask{
 					{
-						TaskRef: &pipelinev1beta1.TaskRef{Name: "git-clone"},
-						Params: []pipelinev1beta1.Param{
-							{Name: "url", Value: pipelinev1beta1.ParamValue{StringVal: "https://source.host/test/test.git"}},
-							{Name: "revision", Value: pipelinev1beta1.ParamValue{StringVal: "pull/1/head"}},
+						TaskRef: &pipelinev1.TaskRef{Name: "git-clone"},
+						Params: []pipelinev1.Param{
+							{Name: "url", Value: pipelinev1.ParamValue{StringVal: "https://source.host/test/test.git"}},
+							{Name: "revision", Value: pipelinev1.ParamValue{StringVal: "pull/1/head"}},
 						},
 					},
 				}
@@ -968,27 +969,27 @@ func TestMakeResourcesBeta1(t *testing.T) {
 			name: "configure sources when extra refs are configured",
 			job: func(pj prowjobv1.ProwJob) prowjobv1.ProwJob {
 				pj.Spec.ExtraRefs = []prowjobv1.Refs{{Org: "org0"}, {Org: "org1"}}
-				pj.Spec.TektonPipelineRunSpec.V1Beta1.PipelineSpec = &pipelinev1beta1.PipelineSpec{
-					Tasks: []pipelinev1beta1.PipelineTask{
-						{Name: "git resource A", TaskRef: &pipelinev1beta1.TaskRef{Name: "PROW_EXTRA_GIT_REF_0"}},
-						{Name: "git resource B", TaskRef: &pipelinev1beta1.TaskRef{Name: "PROW_EXTRA_GIT_REF_1"}},
+				pj.Spec.TektonPipelineRunSpec.V1.PipelineSpec = &pipelinev1.PipelineSpec{
+					Tasks: []pipelinev1.PipelineTask{
+						{Name: "git resource A", TaskRef: &pipelinev1.TaskRef{Name: "PROW_EXTRA_GIT_REF_0"}},
+						{Name: "git resource B", TaskRef: &pipelinev1.TaskRef{Name: "PROW_EXTRA_GIT_REF_1"}},
 					},
 				}
 				return pj
 			},
-			pipelineRun: func(pr pipelinev1beta1.PipelineRun) pipelinev1beta1.PipelineRun {
-				pr.Spec.PipelineSpec.Tasks = []pipelinev1beta1.PipelineTask{
+			pipelineRun: func(pr pipelinev1.PipelineRun) pipelinev1.PipelineRun {
+				pr.Spec.PipelineSpec.Tasks = []pipelinev1.PipelineTask{
 					{
-						TaskRef: &pipelinev1beta1.TaskRef{Name: "git-clone"},
-						Params: []pipelinev1beta1.Param{
-							{Name: "url", Value: pipelinev1beta1.ParamValue{StringVal: "https://github.com/org0/.git"}},
+						TaskRef: &pipelinev1.TaskRef{Name: "git-clone"},
+						Params: []pipelinev1.Param{
+							{Name: "url", Value: pipelinev1.ParamValue{StringVal: "https://github.com/org0/.git"}},
 							{Name: "revision"},
 						},
 					},
 					{
-						TaskRef: &pipelinev1beta1.TaskRef{Name: "git-clone"},
-						Params: []pipelinev1beta1.Param{
-							{Name: "url", Value: pipelinev1beta1.ParamValue{StringVal: "https://github.com/org1/.git"}},
+						TaskRef: &pipelinev1.TaskRef{Name: "git-clone"},
+						Params: []pipelinev1.Param{
+							{Name: "url", Value: pipelinev1.ParamValue{StringVal: "https://github.com/org1/.git"}},
 							{Name: "revision"},
 						},
 					},
@@ -999,10 +1000,10 @@ func TestMakeResourcesBeta1(t *testing.T) {
 		{
 			name: "do not override unrelated git resources",
 			job: func(pj prowjobv1.ProwJob) prowjobv1.ProwJob {
-				pj.Spec.TektonPipelineRunSpec.V1Beta1.PipelineSpec = &pipelinev1beta1.PipelineSpec{
-					Tasks: []pipelinev1beta1.PipelineTask{
-						{Name: "git resource A", TaskRef: &pipelinev1beta1.TaskRef{Name: "PROW_EXTRA_GIT_REF_LOL_JK"}},
-						{Name: "git resource B", TaskRef: &pipelinev1beta1.TaskRef{Name: "some-other-ref"}},
+				pj.Spec.TektonPipelineRunSpec.V1.PipelineSpec = &pipelinev1.PipelineSpec{
+					Tasks: []pipelinev1.PipelineTask{
+						{Name: "git resource A", TaskRef: &pipelinev1.TaskRef{Name: "PROW_EXTRA_GIT_REF_LOL_JK"}},
+						{Name: "git resource B", TaskRef: &pipelinev1.TaskRef{Name: "some-other-ref"}},
 					},
 				}
 				return pj
@@ -1045,17 +1046,17 @@ func TestMakeResourcesBeta1(t *testing.T) {
 			if err != nil {
 				t.Errorf("failed to get pipeline run spec: %v", err)
 			}
-			expectedRun := pipelinev1beta1.PipelineRun{
+			expectedRun := pipelinev1.PipelineRun{
 				ObjectMeta: pipelineMeta(pj.Name, pj),
 				Spec:       *pipelineRunSpec,
 			}
-			expectedRun.Spec.Params = []pipelinev1beta1.Param{
-				{Name: "BUILD_ID", Value: pipelinev1beta1.ParamValue{Type: pipelinev1beta1.ParamTypeString, StringVal: randomPipelineRunID}},
-				{Name: "CI", Value: pipelinev1beta1.ParamValue{Type: pipelinev1beta1.ParamTypeString, StringVal: "true"}},
-				{Name: "JOB_NAME", Value: pipelinev1beta1.ParamValue{Type: pipelinev1beta1.ParamTypeString, StringVal: pj.Spec.Job}},
-				{Name: "JOB_SPEC", Value: pipelinev1beta1.ParamValue{Type: pipelinev1beta1.ParamTypeString, StringVal: string(jobSpecRaw)}},
-				{Name: "JOB_TYPE", Value: pipelinev1beta1.ParamValue{Type: pipelinev1beta1.ParamTypeString, StringVal: string(prowjobv1.PeriodicJob)}},
-				{Name: "PROW_JOB_ID", Value: pipelinev1beta1.ParamValue{Type: pipelinev1beta1.ParamTypeString, StringVal: pj.Name}},
+			expectedRun.Spec.Params = []pipelinev1.Param{
+				{Name: "BUILD_ID", Value: pipelinev1.ParamValue{Type: pipelinev1.ParamTypeString, StringVal: randomPipelineRunID}},
+				{Name: "CI", Value: pipelinev1.ParamValue{Type: pipelinev1.ParamTypeString, StringVal: "true"}},
+				{Name: "JOB_NAME", Value: pipelinev1.ParamValue{Type: pipelinev1.ParamTypeString, StringVal: pj.Spec.Job}},
+				{Name: "JOB_SPEC", Value: pipelinev1.ParamValue{Type: pipelinev1.ParamTypeString, StringVal: string(jobSpecRaw)}},
+				{Name: "JOB_TYPE", Value: pipelinev1.ParamValue{Type: pipelinev1.ParamTypeString, StringVal: string(prowjobv1.PeriodicJob)}},
+				{Name: "PROW_JOB_ID", Value: pipelinev1.ParamValue{Type: pipelinev1.ParamTypeString, StringVal: pj.Name}},
 			}
 			if tc.pipelineRun != nil {
 				expectedRun = tc.pipelineRun(expectedRun)
@@ -1112,7 +1113,7 @@ func TestProwJobStatus(t *testing.T) {
 	later := metav1.NewTime(now.Time.Add(1 * time.Hour))
 	cases := []struct {
 		name     string
-		input    pipelinev1beta1.PipelineRunStatus
+		input    pipelinev1.PipelineRunStatus
 		state    prowjobv1.ProwJobState
 		desc     string
 		fallback string
@@ -1124,7 +1125,7 @@ func TestProwJobStatus(t *testing.T) {
 		},
 		{
 			name: "truly succeeded state returns success",
-			input: pipelinev1beta1.PipelineRunStatus{
+			input: pipelinev1.PipelineRunStatus{
 				Status: duckv1.Status{
 					Conditions: []apis.Condition{
 						{
@@ -1141,7 +1142,7 @@ func TestProwJobStatus(t *testing.T) {
 		},
 		{
 			name: "falsely succeeded state returns failure",
-			input: pipelinev1beta1.PipelineRunStatus{
+			input: pipelinev1.PipelineRunStatus{
 				Status: duckv1.Status{
 					Conditions: []apis.Condition{
 						{
@@ -1158,7 +1159,7 @@ func TestProwJobStatus(t *testing.T) {
 		},
 		{
 			name: "unstarted job returns pending/initializing",
-			input: pipelinev1beta1.PipelineRunStatus{
+			input: pipelinev1.PipelineRunStatus{
 				Status: duckv1.Status{
 					Conditions: []apis.Condition{
 						{
@@ -1175,8 +1176,8 @@ func TestProwJobStatus(t *testing.T) {
 		},
 		{
 			name: "unfinished job returns running",
-			input: pipelinev1beta1.PipelineRunStatus{
-				PipelineRunStatusFields: pipelinev1beta1.PipelineRunStatusFields{
+			input: pipelinev1.PipelineRunStatus{
+				PipelineRunStatusFields: pipelinev1.PipelineRunStatusFields{
 					StartTime: now.DeepCopy(),
 				},
 				Status: duckv1.Status{
@@ -1195,8 +1196,8 @@ func TestProwJobStatus(t *testing.T) {
 		},
 		{
 			name: "pipelines with unknown success status are still running",
-			input: pipelinev1beta1.PipelineRunStatus{
-				PipelineRunStatusFields: pipelinev1beta1.PipelineRunStatusFields{
+			input: pipelinev1.PipelineRunStatus{
+				PipelineRunStatusFields: pipelinev1.PipelineRunStatusFields{
 					StartTime:      now.DeepCopy(),
 					CompletionTime: later.DeepCopy(),
 				},
@@ -1216,8 +1217,8 @@ func TestProwJobStatus(t *testing.T) {
 		},
 		{
 			name: "completed pipelines without a succeeded condition end in error",
-			input: pipelinev1beta1.PipelineRunStatus{
-				PipelineRunStatusFields: pipelinev1beta1.PipelineRunStatusFields{
+			input: pipelinev1.PipelineRunStatus{
+				PipelineRunStatusFields: pipelinev1.PipelineRunStatusFields{
 					StartTime:      now.DeepCopy(),
 					CompletionTime: later.DeepCopy(),
 				},

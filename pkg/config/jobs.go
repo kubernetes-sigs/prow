@@ -17,6 +17,7 @@ limitations under the License.
 package config
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/url"
@@ -24,6 +25,7 @@ import (
 	"strings"
 	"time"
 
+	pipelinev1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
 	pipelinev1beta1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
 
 	v1 "k8s.io/api/core/v1"
@@ -161,17 +163,28 @@ func (jb JobBase) HasPipelineRunSpec() bool {
 	return false
 }
 
-func (jb JobBase) GetPipelineRunSpec() (*pipelinev1beta1.PipelineRunSpec, error) {
-	var found *pipelinev1beta1.PipelineRunSpec
-	if jb.TektonPipelineRunSpec != nil {
-		found = jb.TektonPipelineRunSpec.V1Beta1
+func (jb JobBase) GetPipelineRunSpec() (*pipelinev1.PipelineRunSpec, error) {
+	var found *pipelinev1.PipelineRunSpec
+	if jb.TektonPipelineRunSpec != nil && jb.TektonPipelineRunSpec.V1 != nil {
+		found = jb.TektonPipelineRunSpec.V1
+	} else if jb.TektonPipelineRunSpec != nil && jb.TektonPipelineRunSpec.V1Beta1 != nil {
+		var spec pipelinev1.PipelineRunSpec
+		if err := jb.TektonPipelineRunSpec.V1Beta1.ConvertTo(context.TODO(), &spec); err != nil {
+			return nil, err
+		}
+		found = &spec
 	}
 	if found == nil && jb.PipelineRunSpec != nil {
-		found = jb.PipelineRunSpec
+		var spec pipelinev1.PipelineRunSpec
+		if err := jb.PipelineRunSpec.ConvertTo(context.TODO(), &spec); err != nil {
+			return nil, err
+		}
+		found = &spec
 	}
 	if found == nil {
 		return nil, errors.New("pipeline run spec not found")
 	}
+
 	return found, nil
 }
 

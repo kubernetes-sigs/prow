@@ -24,6 +24,7 @@ package v1
 import (
 	url "net/url"
 
+	pipelinev1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
 	v1beta1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -711,6 +712,11 @@ func (in *TektonPipelineRunSpec) DeepCopyInto(out *TektonPipelineRunSpec) {
 	if in.V1Beta1 != nil {
 		in, out := &in.V1Beta1, &out.V1Beta1
 		*out = new(v1beta1.PipelineRunSpec)
+		(*in).DeepCopyInto(*out)
+	}
+	if in.V1 != nil {
+		in, out := &in.V1, &out.V1
+		*out = new(pipelinev1.PipelineRunSpec)
 		(*in).DeepCopyInto(*out)
 	}
 	return

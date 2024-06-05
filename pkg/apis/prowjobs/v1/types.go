@@ -17,6 +17,7 @@ limitations under the License.
 package v1
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -25,6 +26,7 @@ import (
 	"strings"
 	"time"
 
+	pipelinev1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
 	pipelinev1beta1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -232,7 +234,7 @@ type ProwJobSpec struct {
 }
 
 func (pjs ProwJobSpec) HasPipelineRunSpec() bool {
-	if pjs.TektonPipelineRunSpec != nil && pjs.TektonPipelineRunSpec.V1Beta1 != nil {
+	if pjs.TektonPipelineRunSpec != nil && (pjs.TektonPipelineRunSpec.V1Beta1 != nil || pjs.TektonPipelineRunSpec.V1 != nil){
 		return true
 	}
 	if pjs.PipelineRunSpec != nil {
@@ -241,13 +243,23 @@ func (pjs ProwJobSpec) HasPipelineRunSpec() bool {
 	return false
 }
 
-func (pjs ProwJobSpec) GetPipelineRunSpec() (*pipelinev1beta1.PipelineRunSpec, error) {
-	var found *pipelinev1beta1.PipelineRunSpec
-	if pjs.TektonPipelineRunSpec != nil {
-		found = pjs.TektonPipelineRunSpec.V1Beta1
+func (pjs ProwJobSpec) GetPipelineRunSpec() (*pipelinev1.PipelineRunSpec, error) {
+	var found *pipelinev1.PipelineRunSpec
+	if pjs.TektonPipelineRunSpec != nil && pjs.TektonPipelineRunSpec.V1 != nil {
+		found = pjs.TektonPipelineRunSpec.V1
+	} else if pjs.TektonPipelineRunSpec != nil && pjs.TektonPipelineRunSpec.V1Beta1 != nil {
+		var spec pipelinev1.PipelineRunSpec
+		if err := pjs.TektonPipelineRunSpec.V1Beta1.ConvertTo(context.TODO(), &spec); err != nil {
+			return nil, err
+		}
+		found = &spec
 	}
 	if found == nil && pjs.PipelineRunSpec != nil {
-		found = pjs.PipelineRunSpec
+		var spec pipelinev1.PipelineRunSpec
+		if err := pjs.PipelineRunSpec.ConvertTo(context.TODO(), &spec); err != nil {
+			return nil, err
+		}
+		found = &spec
 	}
 	if found == nil {
 		return nil, errors.New("pipeline run spec not found")
@@ -1208,6 +1220,7 @@ type JenkinsSpec struct {
 // TektonPipelineRunSpec is optional parameters for Tekton pipeline jobs.
 type TektonPipelineRunSpec struct {
 	V1Beta1 *pipelinev1beta1.PipelineRunSpec `json:"v1beta1,omitempty"`
+	V1 	*pipelinev1.PipelineRunSpec      `json:"v1,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

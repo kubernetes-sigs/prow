@@ -40,7 +40,7 @@ import (
 	"sigs.k8s.io/prow/pkg/logrusutil"
 	pipelineset "sigs.k8s.io/prow/pkg/pipeline/clientset/versioned"
 	pipelineinfo "sigs.k8s.io/prow/pkg/pipeline/informers/externalversions"
-	pipelineinfov1beta1 "sigs.k8s.io/prow/pkg/pipeline/informers/externalversions/pipeline/v1beta1"
+	pipelineinfov1 "sigs.k8s.io/prow/pkg/pipeline/informers/externalversions/pipeline/v1"
 )
 
 type options struct {
@@ -77,7 +77,7 @@ func (o *options) parse(flags *flag.FlagSet, args []string) error {
 
 type pipelineConfig struct {
 	client   pipelineset.Interface
-	informer pipelineinfov1beta1.PipelineRunInformer
+	informer pipelineinfov1.PipelineRunInformer
 }
 
 // newPipelineConfig returns a client and informer capable of mutating and monitoring the specified config.
@@ -99,7 +99,7 @@ func newPipelineConfig(cfg rest.Config, stop <-chan struct{}) (*pipelineConfig, 
 	go bif.Start(stop)
 	return &pipelineConfig{
 		client:   bc,
-		informer: bif.Tekton().V1beta1().PipelineRuns(),
+		informer: bif.Tekton().V1().PipelineRuns(),
 	}, nil
 }
 
