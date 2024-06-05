@@ -62,6 +62,9 @@ type githubClient interface {
 	GetRepo(owner, name string) (github.FullRepo, error)
 	Merge(string, string, int, github.MergeDetails) error
 	QueryWithGitHubAppsSupport(ctx context.Context, q interface{}, vars map[string]interface{}, org string) error
+	ListIssueComments(org, repo string, number int) ([]github.IssueComment, error)
+	BotUserChecker() (func(candidate string) bool, error)
+	DeleteComment(org, repo string, id int) error
 }
 
 type contextChecker interface {
