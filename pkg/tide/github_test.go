@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"slices"
 	"testing"
 	"time"
 
@@ -636,7 +637,10 @@ func TestOverwriteProwJobContexts(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			ghc := &fgc{}
-			err := overwriteProwJobContexts(tc.pr, tc.pjs, ghc, logrus.WithField("test", tc.name))
+			client := &GitHubProvider{
+				ghc: ghc,
+			}
+			err := client.overwriteProwJobContexts(tc.pr, tc.pjs, logrus.WithField("test", tc.name))
 			if err != nil {
 				t.Fatalf("failed to set status: %v", err)
 			}
@@ -664,6 +668,68 @@ func TestOverwriteProwJobContexts(t *testing.T) {
 				}
 			}
 
+		})
+	}
+}
+
+func TestDeleteReportIssueComment(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name          string
+		issueComments []github.IssueComment
+
+		expectedIssueComments []github.IssueComment
+	}{
+		{
+			name: "no test report issue comment",
+			issueComments: []github.IssueComment{
+				{ID: 1, User: github.User{Login: "foo-bot"}, Body: "foo-body"},
+				{ID: 2, User: github.User{Login: "bar"}, Body: "bar-body"},
+			},
+			expectedIssueComments: []github.IssueComment{
+				{ID: 1, User: github.User{Login: "foo-bot"}, Body: "foo-body"},
+				{ID: 2, User: github.User{Login: "bar"}, Body: "bar-body"},
+			},
+		},
+		{
+			name: "report issue comment from bot user exists",
+			issueComments: []github.IssueComment{
+				{ID: 1, User: github.User{Login: "foo-bot"}, Body: "foo-body\n<!-- test report -->\n"},
+				{ID: 2, User: github.User{Login: "bar"}, Body: "bar-body"},
+			},
+			expectedIssueComments: []github.IssueComment{
+				{ID: 2, User: github.User{Login: "bar"}, Body: "bar-body"},
+			},
+		},
+		{
+			name: "report issue comment from non-bot user exists",
+			issueComments: []github.IssueComment{
+				{ID: 1, User: github.User{Login: "foo"}, Body: "foo-body\n<!-- test report -->\n"},
+				{ID: 2, User: github.User{Login: "bar"}, Body: "bar-body"},
+			},
+			expectedIssueComments: []github.IssueComment{
+				{ID: 1, User: github.User{Login: "foo"}, Body: "foo-body\n<!-- test report -->\n"},
+				{ID: 2, User: github.User{Login: "bar"}, Body: "bar-body"},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ghc := &fgc{
+				issueComments: map[int][]github.IssueComment{1: tc.issueComments},
+			}
+			client := &GitHubProvider{
+				ghc: ghc,
+			}
+			err := client.deleteReportIssueComment(CodeReviewCommon{Number: 1}, logrus.WithField("test", tc.name))
+			if err != nil {
+				t.Fatalf("failed delete report issue comment: %v", err)
+			}
+			if !slices.Equal(ghc.issueComments[1], tc.expectedIssueComments) {
+				t.Errorf("expected issue comments: %+v, got issue comments: %+v", tc.expectedIssueComments, ghc.issueComments)
+			}
 		})
 	}
 }

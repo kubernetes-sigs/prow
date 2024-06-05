@@ -34,6 +34,7 @@ import (
 	"sigs.k8s.io/prow/pkg/git/types"
 	"sigs.k8s.io/prow/pkg/git/v2"
 	"sigs.k8s.io/prow/pkg/github"
+	"sigs.k8s.io/prow/pkg/github/report"
 	"sigs.k8s.io/prow/pkg/tide/blockers"
 
 	githubql "github.com/shurcooL/githubv4"
@@ -272,7 +273,7 @@ func (gi *GitHubProvider) mergePRs(sp subpool, prs []CodeReviewCommon, dontUpdat
 		// Overwrite context of pending presubmit prow jobs if enabled
 		if i := len(prowJobsForPRs[pr.Number].pendingPresubmitJobs); i > 0 && ptr.Deref(tideContextPolicy.OverwritePendingContexts, false) {
 			log.Infof("%d Contexts of pending presubmit jobs will be overwritten", i)
-			if err := overwriteProwJobContexts(pr, prowJobsForPRs[pr.Number], gi.ghc, log); err != nil {
+			if err := gi.overwriteProwJobContexts(pr, prowJobsForPRs[pr.Number], log); err != nil {
 				log.WithError(err).Error("Unable to set contexts of pending presubmit jobs to SUCCESS.")
 				errs = append(errs, err)
 				failed = append(failed, pr.Number)
@@ -435,6 +436,64 @@ func (gi *GitHubProvider) labelsAndAnnotations(instance string, jobLabels, jobAn
 
 func (gi *GitHubProvider) jobIsRequiredByTide(ps *config.Presubmit, pr *CodeReviewCommon) bool {
 	return ps.ContextRequired() || ps.RunBeforeMerge
+}
+
+func (gi *GitHubProvider) overwriteProwJobContexts(pr CodeReviewCommon, pjs prowJobsByContext, log *logrus.Entry) error {
+	for pjContext, pending := range pjs.pendingPresubmitJobs {
+		if !pending {
+			continue
+		}
+		batch, found := pjs.successfulBatchJob[pjContext]
+		if !found {
+			log.Infof("No successful batch job for context %q found for PR %d - skip overwrite context", pjContext, pr.Number)
+			continue
+		}
+
+		log.Infof("Overwriting context %q of PR %d to SUCCESS", pjContext, pr.Number)
+		if err := gi.ghc.CreateStatus(
+			pr.Org,
+			pr.Repo,
+			pr.HeadRefOID,
+			github.Status{
+				State:       github.StatusSuccess,
+				Description: config.ContextDescriptionWithBaseSha(batch.Status.Description, batch.Spec.Refs.BaseSHA),
+				Context:     batch.Spec.Context,
+				TargetURL:   batch.Status.URL,
+			}); err != nil {
+			return err
+		}
+		if err := gi.deleteReportIssueComment(pr, log); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (gi *GitHubProvider) deleteReportIssueComment(pr CodeReviewCommon, log *logrus.Entry) error {
+	ics, err := gi.ghc.ListIssueComments(pr.Org, pr.Repo, pr.Number)
+	if err != nil {
+		return fmt.Errorf("error listing comments: %w", err)
+	}
+	isBot, err := gi.ghc.BotUserChecker()
+	if err != nil {
+		return fmt.Errorf("error getting bot name checker: %w", err)
+	}
+
+	for _, ic := range ics {
+		if !isBot(ic.User.Login) {
+			continue
+		}
+		if !strings.Contains(ic.Body, report.CommentTag) {
+			continue
+		}
+		log.Infof("Deleting test report comment for PR %d", pr.Number)
+		if err := gi.ghc.DeleteComment(pr.Org, pr.Repo, ic.ID); err != nil {
+			return fmt.Errorf("error deleting comment: %w", err)
+		}
+	}
+
+	return nil
 }
 
 // dateToken generates a GitHub search query token for the specified date range.
@@ -659,33 +718,4 @@ func getProwJobsForPRs(prs []CodeReviewCommon, pjs []prowapi.ProwJob) map[int]pr
 	}
 
 	return prowJobsForPRs
-}
-
-func overwriteProwJobContexts(pr CodeReviewCommon, pjs prowJobsByContext, ghc githubClient, log *logrus.Entry) error {
-	for pjContext, pending := range pjs.pendingPresubmitJobs {
-		if !pending {
-			continue
-		}
-		batch, found := pjs.successfulBatchJob[pjContext]
-		if !found {
-			log.Infof("No successful batch job for context %q found for PR %d - skip overwrite context", pjContext, pr.Number)
-			continue
-		}
-
-		log.Infof("Overwriting context %q of PR %d to SUCCESS", pjContext, pr.Number)
-		if err := ghc.CreateStatus(
-			pr.Org,
-			pr.Repo,
-			pr.HeadRefOID,
-			github.Status{
-				State:       github.StatusSuccess,
-				Description: config.ContextDescriptionWithBaseSha(batch.Status.Description, batch.Spec.Refs.BaseSHA),
-				Context:     batch.Spec.Context,
-				TargetURL:   batch.Status.URL,
-			}); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
