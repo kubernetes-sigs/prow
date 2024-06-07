@@ -433,11 +433,6 @@ func (in *ProwJobSpec) DeepCopyInto(out *ProwJobSpec) {
 		*out = new(JenkinsSpec)
 		**out = **in
 	}
-	if in.PipelineRunSpec != nil {
-		in, out := &in.PipelineRunSpec, &out.PipelineRunSpec
-		*out = new(v1beta1.PipelineRunSpec)
-		(*in).DeepCopyInto(*out)
-	}
 	if in.TektonPipelineRunSpec != nil {
 		in, out := &in.TektonPipelineRunSpec, &out.TektonPipelineRunSpec
 		*out = new(TektonPipelineRunSpec)
