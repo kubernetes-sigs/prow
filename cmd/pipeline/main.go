@@ -89,13 +89,13 @@ func newPipelineConfig(cfg rest.Config, stop <-chan struct{}) (*pipelineConfig, 
 
 	// Ensure the pipeline CRD is deployed
 	// TODO(fejta): probably a better way to do this
-	if _, err := bc.TektonV1beta1().PipelineRuns("").List(context.TODO(), metav1.ListOptions{Limit: 1}); err != nil {
+	if _, err := bc.TektonV1().PipelineRuns("").List(context.TODO(), metav1.ListOptions{Limit: 1}); err != nil {
 		return nil, err
 	}
 
 	// Assume watches receive updates, but resync every 30m in case something wonky happens
 	bif := pipelineinfo.NewSharedInformerFactory(bc, 30*time.Minute)
-	bif.Tekton().V1beta1().PipelineRuns().Lister()
+	bif.Tekton().V1().PipelineRuns().Lister()
 	go bif.Start(stop)
 	return &pipelineConfig{
 		client:   bc,
