@@ -42,8 +42,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
-	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
+	"sigs.k8s.io/controller-runtime/pkg/cluster"
 
 	prow "sigs.k8s.io/prow/pkg/client/clientset/versioned"
 	prowv1 "sigs.k8s.io/prow/pkg/client/clientset/versioned/typed/prowjobs/v1"
@@ -355,19 +354,13 @@ var clientCreationFailures = prometheus.NewCounterVec(prometheus.CounterOpts{
 	Help: "The number of clusters for which we failed to create a client.",
 }, []string{"cluster"})
 
-// BuildClusterManagers returns a manager per buildCluster.
-// Per default, LeaderElection and the metrics listener are disabled, as we assume
-// that there is another manager for ProwJobs that handles that.
-func (o *KubernetesOptions) BuildClusterManagers(dryRun bool, requiredTestPodVerbs []string, callBack func(), namespace string, opts ...func(*manager.Options)) (map[string]manager.Manager, error) {
+// BuildClusters returns the build clusters.
+func (o *KubernetesOptions) BuildClusters(dryRun bool, requiredTestPodVerbs []string, callBack func(), namespace string, opts ...func(*cluster.Options)) (map[string]cluster.Cluster, error) {
 	if err := o.resolve(dryRun); err != nil {
 		return nil, err
 	}
 
-	options := manager.Options{
-		LeaderElection: false,
-		Metrics: server.Options{
-			BindAddress: "0",
-		},
+	options := cluster.Options{
 		Client: ctrlruntimeclient.Options{
 			DryRun: &o.dryRun,
 		},
@@ -381,7 +374,7 @@ func (o *KubernetesOptions) BuildClusterManagers(dryRun bool, requiredTestPodVer
 		opt(&options)
 	}
 
-	res := map[string]manager.Manager{}
+	res := map[string]cluster.Cluster{}
 	var errs []error
 	var lock sync.Mutex
 	var threads sync.WaitGroup
@@ -393,11 +386,13 @@ func (o *KubernetesOptions) BuildClusterManagers(dryRun bool, requiredTestPodVer
 			// due to missing or expired kubeconfig secrets, or if some other
 			// auth-related executable (e.g., gke-gcloud-auth-plugin) is missing
 			// from the base image.
-			mgr, err := manager.New(&config, options)
+			mgr, err := cluster.New(&config, func(opts *cluster.Options) {
+				*opts = options
+			})
 			if err != nil {
 				clientCreationFailures.WithLabelValues(name).Add(1)
 				lock.Lock()
-				errs = append(errs, fmt.Errorf("failed to construct manager for cluster %s: %w", name, err))
+				errs = append(errs, fmt.Errorf("failed to construct cluster %s: %w", name, err))
 				lock.Unlock()
 				return
 			}
@@ -443,7 +438,9 @@ func (o *KubernetesOptions) BuildClusterManagers(dryRun bool, requiredTestPodVer
 
 					// If there are any errors with this (still troublesome)
 					// build cluster, keep checking.
-					if _, err := manager.New(&buildClusterConfig, options); err != nil {
+					if _, err := cluster.New(&buildClusterConfig, func(o *cluster.Options) {
+						*o = options
+					}); err != nil {
 						logrus.WithField("build-cluster", buildClusterName).Tracef("failed to construct build cluster manager: %s", err)
 						continue
 					}
@@ -466,7 +463,7 @@ func (o *KubernetesOptions) BuildClusterManagers(dryRun bool, requiredTestPodVer
 			}
 		}()
 	} else {
-		logrus.Debug("No error constructing managers for build clusters, skip polling build clusters.")
+		logrus.Debug("No error constructing build clusters, skip polling build clusters.")
 	}
 	return res, aggregatedErr
 }

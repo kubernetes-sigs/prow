@@ -38,6 +38,7 @@ import (
 	"k8s.io/utils/clock"
 	controllerruntime "sigs.k8s.io/controller-runtime"
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/cluster"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -75,14 +76,14 @@ const (
 // have permissions for when interacting with the test pods. This is used during
 // startup to check that we have the necessary authorizations on build clusters.
 //
-// NOTE: Setting up build cluster managers is tricky because if we don't
+// NOTE: Setting up build clusters is tricky because if we don't
 // have the required permissions, the controller manager setup machinery
 // (library code, not our code) can return an error and this can essentially
 // result in a fatal error, resulting in a crash loop on startup. Although
 // other components such as crier, deck, and hook also need to talk to build
 // clusters, we only perform this preemptive requiredTestPodVerbs check for
 // PCM and sinker because only these latter components make use of the
-// BuildClusterManagers() call.
+// BuildClustes() call.
 func RequiredTestPodVerbs() []string {
 	return []string{
 		"create",
@@ -96,19 +97,19 @@ func RequiredTestPodVerbs() []string {
 
 func Add(
 	mgr controllerruntime.Manager,
-	buildMgrs map[string]controllerruntime.Manager,
+	buildClusters map[string]cluster.Cluster,
 	knownClusters map[string]rest.Config,
 	cfg config.Getter,
 	opener io.Opener,
 	totURL string,
 	additionalSelector string,
 ) error {
-	return add(mgr, buildMgrs, knownClusters, cfg, opener, totURL, additionalSelector, nil, nil, 10)
+	return add(mgr, buildClusters, knownClusters, cfg, opener, totURL, additionalSelector, nil, nil, 10)
 }
 
 func add(
 	mgr controllerruntime.Manager,
-	buildMgrs map[string]controllerruntime.Manager,
+	buildClusters map[string]cluster.Cluster,
 	knownClusters map[string]rest.Config,
 	cfg config.Getter,
 	opener io.Opener,
@@ -135,24 +136,24 @@ func add(
 		WithOptions(controller.Options{MaxConcurrentReconciles: numWorkers})
 
 	r := newReconciler(ctx, mgr.GetClient(), overwriteReconcile, cfg, opener, totURL)
-	for buildCluster, buildClusterMgr := range buildMgrs {
+	for buildClusterName, buildCluster := range buildClusters {
 		r.log.WithFields(logrus.Fields{
-			"buildCluster": buildCluster,
-			"host":         buildClusterMgr.GetConfig().Host,
+			"buildCluster": buildClusterName,
+			"host":         buildCluster.GetConfig().Host,
 		}).Debug("creating client")
 		blder = blder.WatchesRawSource(
-			source.Kind(buildClusterMgr.GetCache(), &corev1.Pod{}),
+			source.Kind(buildCluster.GetCache(), &corev1.Pod{}),
 			podEventRequestMapper(cfg().ProwJobNamespace))
 		bc := buildClient{
-			Client: buildClusterMgr.GetClient()}
-		if restConfig, ok := knownClusters[buildCluster]; ok {
+			Client: buildCluster.GetClient()}
+		if restConfig, ok := knownClusters[buildClusterName]; ok {
 			authzClient, err := authorizationv1.NewForConfig(&restConfig)
 			if err != nil {
 				return fmt.Errorf("failed to construct authz client: %s", err)
 			}
 			bc.ssar = authzClient.SelfSubjectAccessReviews()
 		}
-		r.buildClients[buildCluster] = bc
+		r.buildClients[buildClusterName] = bc
 	}
 
 	if err := blder.Complete(r); err != nil {
