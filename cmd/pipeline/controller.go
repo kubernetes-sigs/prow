@@ -322,7 +322,7 @@ func (c *controller) deletePipelineRun(pContext, namespace, name string) error {
 	if err != nil {
 		return err
 	}
-	return p.client.TektonV1beta1().PipelineRuns(namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
+	return p.client.TektonV1().PipelineRuns(namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
 }
 
 func (c *controller) cancelPipelineRun(pContext string, pipeline *pipelinev1.PipelineRun) error {

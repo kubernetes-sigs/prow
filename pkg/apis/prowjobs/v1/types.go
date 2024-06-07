@@ -192,11 +192,6 @@ type ProwJobSpec struct {
 	// JenkinsSpec holds configuration specific to Jenkins jobs
 	JenkinsSpec *JenkinsSpec `json:"jenkins_spec,omitempty"`
 
-	// PipelineRunSpec provides the basis for running the test as
-	// a pipeline-crd resource
-	// https://github.com/tektoncd/pipeline
-	PipelineRunSpec *pipelinev1beta1.PipelineRunSpec `json:"pipeline_run_spec,omitempty"`
-
 	// TektonPipelineRunSpec provides the basis for running the test as
 	// a pipeline-crd resource
 	// https://github.com/tektoncd/pipeline
@@ -234,32 +229,21 @@ type ProwJobSpec struct {
 }
 
 func (pjs ProwJobSpec) HasPipelineRunSpec() bool {
-	if pjs.TektonPipelineRunSpec != nil && (pjs.TektonPipelineRunSpec.V1Beta1 != nil || pjs.TektonPipelineRunSpec.V1 != nil){
-		return true
-	}
-	if pjs.PipelineRunSpec != nil {
-		return true
-	}
-	return false
+	return pjs.TektonPipelineRunSpec != nil && (pjs.TektonPipelineRunSpec.V1 != nil || pjs.TektonPipelineRunSpec.V1Beta1 != nil)
 }
 
 func (pjs ProwJobSpec) GetPipelineRunSpec() (*pipelinev1.PipelineRunSpec, error) {
 	var found *pipelinev1.PipelineRunSpec
-	if pjs.TektonPipelineRunSpec != nil && pjs.TektonPipelineRunSpec.V1 != nil {
-		found = pjs.TektonPipelineRunSpec.V1
-	} else if pjs.TektonPipelineRunSpec != nil && pjs.TektonPipelineRunSpec.V1Beta1 != nil {
-		var spec pipelinev1.PipelineRunSpec
-		if err := pjs.TektonPipelineRunSpec.V1Beta1.ConvertTo(context.TODO(), &spec); err != nil {
-			return nil, err
+	if pjs.TektonPipelineRunSpec != nil {
+		if pjs.TektonPipelineRunSpec.V1 != nil {
+			found = pjs.TektonPipelineRunSpec.V1
+		} else if pjs.TektonPipelineRunSpec.V1Beta1 != nil {
+			var spec pipelinev1.PipelineRunSpec
+			if err := pjs.TektonPipelineRunSpec.V1Beta1.ConvertTo(context.TODO(), &spec); err != nil {
+				return nil, err
+			}
+			found = &spec
 		}
-		found = &spec
-	}
-	if found == nil && pjs.PipelineRunSpec != nil {
-		var spec pipelinev1.PipelineRunSpec
-		if err := pjs.PipelineRunSpec.ConvertTo(context.TODO(), &spec); err != nil {
-			return nil, err
-		}
-		found = &spec
 	}
 	if found == nil {
 		return nil, errors.New("pipeline run spec not found")

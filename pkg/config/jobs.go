@@ -26,7 +26,6 @@ import (
 	"time"
 
 	pipelinev1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
-	pipelinev1beta1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -115,8 +114,6 @@ type JobBase struct {
 	SourcePath string `json:"-"`
 	// Spec is the Kubernetes pod spec used if Agent is kubernetes.
 	Spec *v1.PodSpec `json:"spec,omitempty"`
-	// PipelineRunSpec is the tekton pipeline spec used if Agent is tekton-pipeline.
-	PipelineRunSpec *pipelinev1beta1.PipelineRunSpec `json:"pipeline_run_spec,omitempty"`
 	// TektonPipelineRunSpec is the versioned tekton pipeline spec used if Agent is tekton-pipeline.
 	TektonPipelineRunSpec *prowapi.TektonPipelineRunSpec `json:"tekton_pipeline_run_spec,omitempty"`
 	// Annotations are unused by prow itself, but provide a space to configure other automation.
@@ -154,33 +151,23 @@ func (jb JobBase) GetAnnotations() map[string]string {
 }
 
 func (jb JobBase) HasPipelineRunSpec() bool {
-	if jb.TektonPipelineRunSpec != nil && jb.TektonPipelineRunSpec.V1Beta1 != nil {
-		return true
-	}
-	if jb.PipelineRunSpec != nil {
-		return true
-	}
-	return false
+	return jb.TektonPipelineRunSpec != nil && (jb.TektonPipelineRunSpec.V1Beta1 != nil || jb.TektonPipelineRunSpec.V1 != nil)
 }
 
 func (jb JobBase) GetPipelineRunSpec() (*pipelinev1.PipelineRunSpec, error) {
 	var found *pipelinev1.PipelineRunSpec
-	if jb.TektonPipelineRunSpec != nil && jb.TektonPipelineRunSpec.V1 != nil {
-		found = jb.TektonPipelineRunSpec.V1
-	} else if jb.TektonPipelineRunSpec != nil && jb.TektonPipelineRunSpec.V1Beta1 != nil {
-		var spec pipelinev1.PipelineRunSpec
-		if err := jb.TektonPipelineRunSpec.V1Beta1.ConvertTo(context.TODO(), &spec); err != nil {
-			return nil, err
+	if jb.TektonPipelineRunSpec != nil {
+		if jb.TektonPipelineRunSpec.V1 != nil {
+			found = jb.TektonPipelineRunSpec.V1
+		} else if jb.TektonPipelineRunSpec.V1Beta1 != nil {
+			var spec pipelinev1.PipelineRunSpec
+			if err := jb.TektonPipelineRunSpec.V1Beta1.ConvertTo(context.TODO(), &spec); err != nil {
+				return nil, err
+			}
+			found = &spec
 		}
-		found = &spec
 	}
-	if found == nil && jb.PipelineRunSpec != nil {
-		var spec pipelinev1.PipelineRunSpec
-		if err := jb.PipelineRunSpec.ConvertTo(context.TODO(), &spec); err != nil {
-			return nil, err
-		}
-		found = &spec
-	}
+
 	if found == nil {
 		return nil, errors.New("pipeline run spec not found")
 	}

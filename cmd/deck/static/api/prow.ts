@@ -102,7 +102,7 @@ export interface ProwJobSpec {
   pod_spec?: PodSpec;
   build_spec?: object;
   jenkins_spec?: object;
-  pipeline_run_spec?: object;
+  tekton_pipeline_run_spec?: object;
   decoration_config?: object;
   reporter_config?: object;
   rerun_auth_config?: object;
