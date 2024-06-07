@@ -28,7 +28,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/sirupsen/logrus"
 	pipelinev1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
-	pipelinev1beta1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -247,7 +246,9 @@ func TestReconcile(t *testing.T) {
 	logrus.SetLevel(logrus.DebugLevel)
 	now := metav1.Now()
 	future := metav1.Time{Time: time.Now().Add(time.Minute)}
-	pipelineSpec := pipelinev1beta1.PipelineRunSpec{}
+	pipelineSpec := &prowjobv1.TektonPipelineRunSpec{
+		V1: &pipelinev1.PipelineRunSpec{},
+	}
 	noJobChange := func(pj prowjobv1.ProwJob, _ pipelinev1.PipelineRun) prowjobv1.ProwJob {
 		return pj
 	}
@@ -270,7 +271,10 @@ func TestReconcile(t *testing.T) {
 			observedJob: &prowjobv1.ProwJob{
 				Spec: prowjobv1.ProwJobSpec{
 					Agent:           prowjobv1.TektonAgent,
-					PipelineRunSpec: &pipelineSpec,
+					TektonPipelineRunSpec: &prowjobv1.TektonPipelineRunSpec{
+						V1: &pipelinev1.PipelineRunSpec{},
+					},
+					// TektonPipelineRunSpec: &pipelineSpec,
 				},
 				Status: prowjobv1.ProwJobStatus{
 					BuildID: pipelineID,
@@ -306,7 +310,9 @@ func TestReconcile(t *testing.T) {
 				},
 				Spec: prowjobv1.ProwJobSpec{
 					Agent:           prowjobv1.TektonAgent,
-					PipelineRunSpec: &pipelineSpec,
+					TektonPipelineRunSpec: &prowjobv1.TektonPipelineRunSpec{
+						V1: &pipelinev1.PipelineRunSpec{},
+					},
 					Job:             "foobar",
 				},
 			},
@@ -340,7 +346,9 @@ func TestReconcile(t *testing.T) {
 				},
 				Spec: prowjobv1.ProwJobSpec{
 					Agent:           prowjobv1.TektonAgent,
-					PipelineRunSpec: &pipelineSpec,
+					TektonPipelineRunSpec: &prowjobv1.TektonPipelineRunSpec{
+						V1: &pipelinev1.PipelineRunSpec{},
+					},
 					Job:             "foobar",
 				},
 			},
@@ -377,7 +385,9 @@ func TestReconcile(t *testing.T) {
 			observedJob: &prowjobv1.ProwJob{
 				Spec: prowjobv1.ProwJobSpec{
 					Agent:           prowjobv1.TektonAgent,
-					PipelineRunSpec: &pipelineSpec,
+					TektonPipelineRunSpec: &prowjobv1.TektonPipelineRunSpec{
+						V1: &pipelinev1.PipelineRunSpec{},
+					},
 				},
 				Status: prowjobv1.ProwJobStatus{
 					State:   prowjobv1.FailureState,
@@ -391,7 +401,9 @@ func TestReconcile(t *testing.T) {
 			observedJob: &prowjobv1.ProwJob{
 				Spec: prowjobv1.ProwJobSpec{
 					Agent:           prowjobv1.TektonAgent,
-					PipelineRunSpec: &pipelineSpec,
+					TektonPipelineRunSpec: &prowjobv1.TektonPipelineRunSpec{
+						V1: &pipelinev1.PipelineRunSpec{},
+					},
 				},
 				Status: prowjobv1.ProwJobStatus{
 					State: prowjobv1.SuccessState,
@@ -404,8 +416,9 @@ func TestReconcile(t *testing.T) {
 			observedJob: &prowjobv1.ProwJob{
 				Spec: prowjobv1.ProwJobSpec{
 					Agent:           prowjobv1.TektonAgent,
-					PipelineRunSpec: &pipelineSpec,
-				},
+					TektonPipelineRunSpec: &prowjobv1.TektonPipelineRunSpec{
+						V1: &pipelinev1.PipelineRunSpec{},
+					},				},
 				Status: prowjobv1.ProwJobStatus{
 					State:   prowjobv1.AbortedState,
 					BuildID: pipelineID,
@@ -466,8 +479,12 @@ func TestReconcile(t *testing.T) {
 				Spec: prowjobv1.ProwJobSpec{
 					Agent:   prowjobv1.TektonAgent,
 					Cluster: "target-cluster",
-					PipelineRunSpec: &pipelinev1beta1.PipelineRunSpec{
-						ServiceAccountName: "robot",
+					TektonPipelineRunSpec: &prowjobv1.TektonPipelineRunSpec{
+						V1: &pipelinev1.PipelineRunSpec{
+							TaskRunTemplate: (pipelinev1.PipelineTaskRunTemplate{
+								ServiceAccountName: "robot",
+							}),
+						},
 					},
 				},
 				Status: prowjobv1.ProwJobStatus{
@@ -480,7 +497,7 @@ func TestReconcile(t *testing.T) {
 				pj := prowjobv1.ProwJob{}
 				pj.Spec.Type = prowjobv1.PeriodicJob
 				pj.Spec.Agent = prowjobv1.TektonAgent
-				pj.Spec.PipelineRunSpec = &pipelineSpec
+				pj.Spec.TektonPipelineRunSpec = pipelineSpec
 				pj.Status.BuildID = pipelineID
 				p, err := makePipelineRun(pj)
 				if err != nil {
@@ -497,8 +514,12 @@ func TestReconcile(t *testing.T) {
 				Spec: prowjobv1.ProwJobSpec{
 					Agent:   prowjobv1.TektonAgent,
 					Cluster: "target-cluster",
-					PipelineRunSpec: &pipelinev1beta1.PipelineRunSpec{
-						ServiceAccountName: "robot",
+					TektonPipelineRunSpec: &prowjobv1.TektonPipelineRunSpec{
+						V1: &pipelinev1.PipelineRunSpec{
+							TaskRunTemplate: (pipelinev1.PipelineTaskRunTemplate{
+								ServiceAccountName: "robot",
+							}),
+						},
 					},
 				},
 				Status: prowjobv1.ProwJobStatus{
@@ -511,7 +532,7 @@ func TestReconcile(t *testing.T) {
 				pj := prowjobv1.ProwJob{}
 				pj.Spec.Type = prowjobv1.PeriodicJob
 				pj.Spec.Agent = prowjobv1.TektonAgent
-				pj.Spec.PipelineRunSpec = &pipelineSpec
+				pj.Spec.TektonPipelineRunSpec = pipelineSpec
 				pj.Status.BuildID = pipelineID
 				p, err := makePipelineRun(pj)
 				if err != nil {
@@ -528,8 +549,12 @@ func TestReconcile(t *testing.T) {
 			observedJob: &prowjobv1.ProwJob{
 				Spec: prowjobv1.ProwJobSpec{
 					Agent: prowjobv1.TektonAgent,
-					PipelineRunSpec: &pipelinev1beta1.PipelineRunSpec{
-						ServiceAccountName: "robot",
+					TektonPipelineRunSpec: &prowjobv1.TektonPipelineRunSpec{
+						V1: &pipelinev1.PipelineRunSpec{
+							TaskRunTemplate: (pipelinev1.PipelineTaskRunTemplate{
+								ServiceAccountName: "robot",
+							}),
+						},
 					},
 				},
 				Status: prowjobv1.ProwJobStatus{
@@ -542,8 +567,12 @@ func TestReconcile(t *testing.T) {
 				pj := prowjobv1.ProwJob{}
 				pj.Spec.Type = prowjobv1.PeriodicJob
 				pj.Spec.Agent = prowjobv1.TektonAgent
-				pj.Spec.PipelineRunSpec = &pipelinev1beta1.PipelineRunSpec{
-					ServiceAccountName: "robot",
+				pj.Spec.TektonPipelineRunSpec = &prowjobv1.TektonPipelineRunSpec{
+					V1: &pipelinev1.PipelineRunSpec{
+						TaskRunTemplate: (pipelinev1.PipelineTaskRunTemplate{
+							ServiceAccountName: "robot",
+						}),
+					},
 				}
 				pj.Status.BuildID = pipelineID
 				p, err := makePipelineRun(pj)
@@ -564,7 +593,7 @@ func TestReconcile(t *testing.T) {
 			observedJob: &prowjobv1.ProwJob{
 				Spec: prowjobv1.ProwJobSpec{
 					Agent:           prowjobv1.TektonAgent,
-					PipelineRunSpec: &pipelineSpec,
+					TektonPipelineRunSpec: pipelineSpec,
 				},
 				Status: prowjobv1.ProwJobStatus{
 					State:       prowjobv1.PendingState,
@@ -575,7 +604,7 @@ func TestReconcile(t *testing.T) {
 				pj := prowjobv1.ProwJob{}
 				pj.Spec.Type = prowjobv1.PeriodicJob
 				pj.Spec.Agent = prowjobv1.TektonAgent
-				pj.Spec.PipelineRunSpec = &pipelineSpec
+				pj.Spec.TektonPipelineRunSpec = pipelineSpec
 				pj.Status.BuildID = pipelineID
 				p, err := makePipelineRun(pj)
 				if err != nil {
@@ -602,7 +631,7 @@ func TestReconcile(t *testing.T) {
 			observedJob: &prowjobv1.ProwJob{
 				Spec: prowjobv1.ProwJobSpec{
 					Agent:           prowjobv1.TektonAgent,
-					PipelineRunSpec: &pipelineSpec,
+					TektonPipelineRunSpec: pipelineSpec,
 				},
 				Status: prowjobv1.ProwJobStatus{
 					State:       prowjobv1.PendingState,
@@ -613,7 +642,7 @@ func TestReconcile(t *testing.T) {
 				pj := prowjobv1.ProwJob{}
 				pj.Spec.Type = prowjobv1.PeriodicJob
 				pj.Spec.Agent = prowjobv1.TektonAgent
-				pj.Spec.PipelineRunSpec = &pipelineSpec
+				pj.Spec.TektonPipelineRunSpec = pipelineSpec
 				pj.Status.BuildID = pipelineID
 				p, err := makePipelineRun(pj)
 				if err != nil {
@@ -642,7 +671,7 @@ func TestReconcile(t *testing.T) {
 			observedJob: &prowjobv1.ProwJob{
 				Spec: prowjobv1.ProwJobSpec{
 					Agent:           prowjobv1.TektonAgent,
-					PipelineRunSpec: &pipelineSpec,
+					TektonPipelineRunSpec: pipelineSpec,
 				},
 				Status: prowjobv1.ProwJobStatus{
 					State:       prowjobv1.PendingState,
@@ -653,7 +682,7 @@ func TestReconcile(t *testing.T) {
 				pj := prowjobv1.ProwJob{}
 				pj.Spec.Type = prowjobv1.PeriodicJob
 				pj.Spec.Agent = prowjobv1.TektonAgent
-				pj.Spec.PipelineRunSpec = &pipelineSpec
+				pj.Spec.TektonPipelineRunSpec = pipelineSpec
 				pj.Status.BuildID = pipelineID
 				p, err := makePipelineRun(pj)
 				if err != nil {
@@ -684,7 +713,7 @@ func TestReconcile(t *testing.T) {
 			observedJob: &prowjobv1.ProwJob{
 				Spec: prowjobv1.ProwJobSpec{
 					Agent:           prowjobv1.TektonAgent,
-					PipelineRunSpec: &pipelineSpec,
+					TektonPipelineRunSpec: pipelineSpec,
 				},
 				Status: prowjobv1.ProwJobStatus{
 					State:       prowjobv1.PendingState,
@@ -700,7 +729,7 @@ func TestReconcile(t *testing.T) {
 				pj := prowjobv1.ProwJob{}
 				pj.Spec.Type = prowjobv1.PeriodicJob
 				pj.Spec.Agent = prowjobv1.TektonAgent
-				pj.Spec.PipelineRunSpec = &pipelineSpec
+				pj.Spec.TektonPipelineRunSpec = pipelineSpec
 				pj.Status.BuildID = pipelineID
 				p, err := makePipelineRun(pj)
 				if err != nil {
@@ -721,7 +750,9 @@ func TestReconcile(t *testing.T) {
 			observedPipelineRun: func() *pipelinev1.PipelineRun {
 				pj := prowjobv1.ProwJob{}
 				pj.Spec.Type = prowjobv1.PeriodicJob
-				pj.Spec.PipelineRunSpec = &pipelinev1beta1.PipelineRunSpec{}
+				pj.Spec.TektonPipelineRunSpec = &prowjobv1.TektonPipelineRunSpec{
+					V1: &pipelinev1.PipelineRunSpec{},
+				}
 				pj.Status.BuildID = pipelineID
 				p, err := makePipelineRun(pj)
 				if err != nil {
@@ -737,7 +768,7 @@ func TestReconcile(t *testing.T) {
 			observedJob: &prowjobv1.ProwJob{
 				Spec: prowjobv1.ProwJobSpec{
 					Agent:           prowjobv1.TektonAgent,
-					PipelineRunSpec: &pipelineSpec,
+					TektonPipelineRunSpec: pipelineSpec,
 				},
 			},
 			expectedJob: func(pj prowjobv1.ProwJob, _ pipelinev1.PipelineRun) prowjobv1.ProwJob {
@@ -757,7 +788,7 @@ func TestReconcile(t *testing.T) {
 			observedJob: &prowjobv1.ProwJob{
 				Spec: prowjobv1.ProwJobSpec{
 					Agent:           prowjobv1.TektonAgent,
-					PipelineRunSpec: nil,
+					TektonPipelineRunSpec: nil,
 				},
 				Status: prowjobv1.ProwJobStatus{
 					State: prowjobv1.TriggeredState,
@@ -771,7 +802,7 @@ func TestReconcile(t *testing.T) {
 			observedJob: &prowjobv1.ProwJob{
 				Spec: prowjobv1.ProwJobSpec{
 					Agent:           prowjobv1.TektonAgent,
-					PipelineRunSpec: &pipelineSpec,
+					TektonPipelineRunSpec: pipelineSpec,
 				},
 				Status: prowjobv1.ProwJobStatus{
 					State:       prowjobv1.PendingState,
@@ -782,7 +813,7 @@ func TestReconcile(t *testing.T) {
 				pj := prowjobv1.ProwJob{}
 				pj.Spec.Type = prowjobv1.PeriodicJob
 				pj.Spec.Agent = prowjobv1.TektonAgent
-				pj.Spec.PipelineRunSpec = &pipelineSpec
+				pj.Spec.TektonPipelineRunSpec = pipelineSpec
 				pj.Status.BuildID = pipelineID
 				p, err := makePipelineRun(pj)
 				if err != nil {
