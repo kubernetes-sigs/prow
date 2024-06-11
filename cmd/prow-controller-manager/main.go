@@ -167,20 +167,20 @@ func main() {
 		interrupts.Terminate()
 	}
 
-	buildClusterManagers, err := o.kubernetes.BuildClusterManagers(o.dryRun,
+	buildClusters, err := o.kubernetes.BuildClusters(o.dryRun,
 		plank.RequiredTestPodVerbs(),
 		callBack,
 		cfg().PodNamespace,
 	)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to construct build cluster managers. Please check that the kubeconfig secrets are correct, and that RBAC roles on the build cluster allow Prow's service account to list pods on it.")
+		logrus.WithError(err).Error("Failed to construct build clusters. Please check that the kubeconfig secrets are correct, and that RBAC roles on the build cluster allow Prow's service account to list pods on it.")
 	}
 
-	for buildClusterName, buildClusterManager := range buildClusterManagers {
-		if err := mgr.Add(buildClusterManager); err != nil {
+	for buildClusterName, buildCluster := range buildClusters {
+		if err := mgr.Add(buildCluster); err != nil {
 			logrus.WithError(err).WithFields(logrus.Fields{
 				"cluster": buildClusterName,
-			}).Fatalf("Failed to add build cluster manager to main manager")
+			}).Fatalf("Failed to add build clusters to manager")
 		}
 	}
 
@@ -205,7 +205,7 @@ func main() {
 	}
 
 	if enabledControllersSet.Has(plank.ControllerName) {
-		if err := plank.Add(mgr, buildClusterManagers, knownClusters, cfg, opener, o.totURL, o.selector); err != nil {
+		if err := plank.Add(mgr, buildClusters, knownClusters, cfg, opener, o.totURL, o.selector); err != nil {
 			logrus.WithError(err).Fatal("Failed to add plank to manager")
 		}
 	}

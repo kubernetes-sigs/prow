@@ -44,6 +44,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/cache/informertest"
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	fakectrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/cluster"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllertest"
 	ctrlruntimelog "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
@@ -159,11 +160,11 @@ func TestAdd(t *testing.T) {
 				t.Fatalf("failed to construct mgr: %v", err)
 			}
 			podInformerStarted := make(chan struct{})
-			buildMgr, err := mgrFromFakeInformer(corev1.SchemeGroupVersion.WithKind("Pod"), fakePodInformers, podInformerStarted)
+			buildCluster, err := mgrFromFakeInformer(corev1.SchemeGroupVersion.WithKind("Pod"), fakePodInformers, podInformerStarted)
 			if err != nil {
 				t.Fatalf("failed to construct mgr: %v", err)
 			}
-			buildMgrs := map[string]manager.Manager{"default": buildMgr}
+			buildMgrs := map[string]cluster.Cluster{"default": buildCluster}
 			cfg := func() *config.Config {
 				return &config.Config{ProwConfig: config.ProwConfig{ProwJobNamespace: prowJobNamespace}}
 			}
