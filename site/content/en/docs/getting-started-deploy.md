@@ -22,12 +22,12 @@ Repository permissions:
 * Actions: Read-Only (Only needed when using the merge automation `tide`)
 * Administration: Read-Only (Required to fetch teams and collaborators, Read & write needed when using branch protection automation)
 * Checks: Read-Only (Only needed when using the merge automation `tide`)
+* Commit statuses: Read & write
 * Contents: Read (Read & write needed when using the merge automation `tide`)
 * Issues: Read & write
 * Metadata: Read-Only
 * Pull Requests: Read & write
 * Projects: Admin when using the `projects` plugin, none otherwise
-* Commit statuses: Read & write
 
 Organization permissions:
 
@@ -107,6 +107,15 @@ $ kubectl create clusterrolebinding cluster-admin-binding-"<CLUSTER_USER>" \
 
 There are [relevant docs on Kubernetes Authentication](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#authentication-strategies) that may help if neither of the above work.
 
+### Create the namespace
+
+Kubernetes objects that are required for Prow will be created and Prow will be deployed in the `prow` namespace of the cluster.
+Create the namespace before you proceed further.
+
+```sh
+$ kubectl create namespace prow
+```
+
 ### Create the GitHub secrets
 
 You will need two secrets to talk to GitHub. The `hmac-token` is the token that
@@ -146,7 +155,7 @@ Regardless of which object storage you choose, the below adjustments are always 
 
 ### Add the prow components to the cluster
 
-First you need to create the ProwJob custom resource:
+First you need to create the [ProwJob custom resource](https://github.com/kubernetes-sigs/prow/blob/main/config/prow/cluster/prowjob-crd/prowjob_customresourcedefinition.yaml):
 
 ```
 kubectl apply --server-side=true -f config/prow/cluster/prowjob-crd/prowjob_customresourcedefinition.yaml
