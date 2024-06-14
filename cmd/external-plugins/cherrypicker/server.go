@@ -446,7 +446,8 @@ func (s *Server) handle(logger *logrus.Entry, requestor string, comment *github.
 	// Fetch the patch from GitHub
 	localPath, err := s.getPatch(org, repo, targetBranch, num)
 	if err != nil {
-		return fmt.Errorf("failed to get patch: %w", err)
+		logger.WithError(err).Errorf("Failed to get patch for %s/%s#%d", org, repo, num)
+		return s.createComment(logger, org, repo, num, comment, fmt.Sprintf("Failed to get PR patch from GitHub. This PR will need to be manually cherrypicked.\n<details><summary>Error message</summary>%v</details>", err))
 	}
 
 	if err := r.Config("user.name", s.botUser.Login); err != nil {
