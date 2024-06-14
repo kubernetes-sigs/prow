@@ -218,7 +218,7 @@ func defaultClientFactoryOpts(cfo *ClientFactoryOpts) {
 // sshRemoteResolverFactory, and if CookieFilePath is provided then returns
 // gerritResolverFactory(Assuming that git http.cookiefile is used only by
 // Gerrit, this function needs to be updated if it turned out that this
-// assumtpion is not correct.)
+// assumption is not correct.)
 func NewClientFactory(opts ...ClientFactoryOpt) (ClientFactory, error) {
 	o := ClientFactoryOpts{}
 	defaultClientFactoryOpts(&o)

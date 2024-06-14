@@ -142,7 +142,7 @@ func handleGenericComment(c Client, trigger plugins.Trigger, gc github.GenericCo
 	if trigger.TriggerGitHubWorkflows && (pjutil.RetestRe.MatchString(gc.Body) || pjutil.TestAllRe.MatchString(gc.Body)) {
 		headSHA, err := refGetter.HeadSHA()
 		if err != nil {
-			c.Logger.Warnf("headSHA unvailable, failed github actions for pr will not be triggered: %v", pr)
+			c.Logger.Warnf("headSHA unavailable, failed github actions for pr will not be triggered: %v", pr)
 		} else {
 			failedRuns, err := c.GitHubClient.GetFailedActionRunsByHeadBranch(org, repo, pr.Head.Ref, headSHA)
 			if err != nil {

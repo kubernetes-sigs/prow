@@ -259,7 +259,7 @@ func (s *Server) handleIssueComment(l *logrus.Entry, ic github.IssueCommentEvent
 
 func (s *Server) handlePullRequest(l *logrus.Entry, pre github.PullRequestEvent) error {
 	// Only consider newly merged PRs
-	if pre.Action != github.PullRequestActionClosed && pre.Action != github.PullRequestActionLabeled {
+	if pre.Action != github.PullRequestActionClosed && pre.Action != github.PullRequestActionLabeled && pre.Action != github.PullRequestActionOpened {
 		return nil
 	}
 
@@ -291,6 +291,12 @@ func (s *Server) handlePullRequest(l *logrus.Entry, pre github.PullRequestEvent)
 	requestorToComments := make(map[string]map[string]*github.IssueComment)
 	// target branch -> chain branches (eg. "release-1.6" -> []string{"release-1.5", "release-1.4"})
 	targetBranchToChainBranches := make(map[string][]string)
+
+	// treat PR body/description as a comment
+	comments = append([]github.IssueComment{{
+		Body: body,
+		User: pr.User,
+	}}, comments...)
 
 	// first look for our special comments
 	for i := range comments {
@@ -440,7 +446,8 @@ func (s *Server) handle(logger *logrus.Entry, requestor string, comment *github.
 	// Fetch the patch from GitHub
 	localPath, err := s.getPatch(org, repo, targetBranch, num)
 	if err != nil {
-		return fmt.Errorf("failed to get patch: %w", err)
+		logger.WithError(err).Errorf("Failed to get patch for %s/%s#%d", org, repo, num)
+		return s.createComment(logger, org, repo, num, comment, fmt.Sprintf("Failed to get PR patch from GitHub. This PR will need to be manually cherrypicked.\n<details><summary>Error message</summary>%v</details>", err))
 	}
 
 	if err := r.Config("user.name", s.botUser.Login); err != nil {

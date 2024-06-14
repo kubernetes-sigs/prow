@@ -106,7 +106,7 @@ func (lens Lens) Body(artifacts []api.Artifact, resourceDir string, data string,
 		case prowv1.StartedStatusFile:
 			if len(read) > 0 {
 				if err = json.Unmarshal(read, &started); err != nil {
-					logrus.WithError(err).Error("Error unmarshaling started.json")
+					logrus.WithError(err).Error("Error unmarshalling started.json")
 				}
 				metadataViewData.StartTime = time.Unix(started.Timestamp, 0)
 			} else {
@@ -115,7 +115,7 @@ func (lens Lens) Body(artifacts []api.Artifact, resourceDir string, data string,
 		case prowv1.FinishedStatusFile:
 			if len(read) > 0 {
 				if err = json.Unmarshal(read, &finished); err != nil {
-					logrus.WithError(err).Error("Error unmarshaling finished.json")
+					logrus.WithError(err).Error("Error unmarshalling finished.json")
 				}
 				metadataViewData.Finished = true
 				if finished.Timestamp != nil {

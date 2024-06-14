@@ -2070,7 +2070,7 @@ func (c *client) GetFailedActionRunsByHeadBranch(org, repo, branchName, headSHA 
 	prRuns := []WorkflowRun{}
 
 	// keep only the runs matching the current PR headSHA
-	for _, run := range runs.WorflowRuns {
+	for _, run := range runs.WorkflowRuns {
 		if run.HeadSha == headSHA {
 			prRuns = append(prRuns, run)
 		}
@@ -4488,7 +4488,7 @@ func (c *client) GetColumnProjectCards(org string, columnID int) ([]ProjectCard,
 	var cards []ProjectCard
 	err := c.readPaginatedResults(
 		path,
-		// projects api requies the accept header to be set this way
+		// projects api requires the accept header to be set this way
 		"application/vnd.github.inertia-preview+json",
 		org,
 		func() interface{} {

@@ -2,7 +2,7 @@
 title: "ProwJobs"
 weight: 160
 description: >
-  
+
 ---
 
 For a brief overview of how Prow runs jobs take a look at ["Life of a Prow Job"](/docs/life-of-a-prow-job/).
@@ -146,7 +146,7 @@ And to use the preset, add corresponding label in prow job definition like:
     preset-foo-bar: "true"
 ```
 
-Alternatively, annonymous presets can be applied to all jobs, the config looks
+Alternatively, anonymous presets can be applied to all jobs, the config looks
 like:
 
 ```yaml

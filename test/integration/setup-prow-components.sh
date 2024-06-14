@@ -66,7 +66,7 @@ Options:
         service that needs frequent recompilation. The images are a
         comma-separated string.
 
-        The value "ALL" for this falg is an alias for all images (PROW_IMAGES in
+        The value "ALL" for this flag is an alias for all images (PROW_IMAGES in
         lib.sh).
 
     -delete='':

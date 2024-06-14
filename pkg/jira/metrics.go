@@ -36,7 +36,7 @@ var requestResults = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 }, []string{methodField, pathField, statusField})
 
 func pathSimplifier() simplifypath.Simplifier {
-	return simplifypath.NewSimplifier(simplifypath.L("", // shadow element mimicing the root
+	return simplifypath.NewSimplifier(simplifypath.L("", // shadow element mimicking the root
 		simplifypath.L("rest",
 			simplifypath.L("api",
 				simplifypath.L("2",

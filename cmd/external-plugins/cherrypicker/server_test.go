@@ -365,7 +365,7 @@ func TestCherryPickPRV2(t *testing.T) {
 func testCherryPickPR(clients localgit.Clients, t *testing.T) {
 	prNumber := fakePR.GetPRNumber()
 	lg, c := makeFakeRepoWithCommit(clients, t)
-	expectedBranches := []string{"release-1.5", "release-1.6", "release-1.8", "release-1.3", "release-1.12"}
+	expectedBranches := []string{"release-1.5", "release-1.6", "release-1.8", "release-1.3", "release-1.12", "release-1.13"}
 	for _, branch := range expectedBranches {
 		if err := lg.CheckoutNewBranch("foo", "bar", branch); err != nil {
 			t.Fatalf("Checking out pull branch: %v", err)
@@ -465,6 +465,10 @@ func testCherryPickPR(clients localgit.Clients, t *testing.T) {
 			Merged:   true,
 			MergeSHA: new(string),
 			Title:    "This is a fix for Y",
+			Body:     "This is a cherrypick.\n/cherrypick release-1.13",
+			User: github.User{
+				Login: "merge-bot",
+			},
 		},
 	}
 

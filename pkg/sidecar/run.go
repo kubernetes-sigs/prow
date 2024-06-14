@@ -125,7 +125,7 @@ func (o Options) Run(ctx context.Context, logFile *os.File) (int, error) {
 				buildLogs := logReadersFuncs(entries)
 				metadata := combineMetadata(entries)
 
-				//Peform best-effort upload
+				// perform best-effort upload
 				err := o.doUpload(ctx, spec, false, true, metadata, buildLogs, logFile, &once)
 				if err != nil {
 					logrus.WithError(err).Error("Failed to perform best-effort upload")
@@ -216,7 +216,7 @@ func combineMetadata(entries []wrapper.Options) map[string]interface{} {
 	return metadata
 }
 
-// preUpload peforms steps required before actual upload
+// preUpload performs steps required before actual upload
 func (o Options) preUpload() {
 	if o.DeprecatedWrapperOptions != nil {
 		// This only fires if the prowjob controller and sidecar are at different commits

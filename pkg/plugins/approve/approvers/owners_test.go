@@ -463,7 +463,7 @@ func TestGetAllPotentialApprovers(t *testing.T) {
 			expectedApprovers: sets.List(setToLower(aApprovers)),
 		},
 		{
-			testName:          "Two Leafs",
+			testName:          "Two Leaves",
 			filenames:         []string{"a/d/test.go", "b/test.go"},
 			expectedApprovers: sets.List(setToLower(dApprovers.Union(bApprovers))),
 		},

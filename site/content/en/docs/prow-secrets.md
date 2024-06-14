@@ -2,7 +2,7 @@
 title: "Prow Secrets Management"
 weight: 140
 description: >
-  
+
 ---
 
 Secrets in prow service/build clusters are managed with [Kubernetes External
@@ -90,6 +90,6 @@ data:
 The `Secret` will be updated automatically when the secret value in gsm changed
 or the `ExternalSecret` is changed. when `ExternalSecret` CR is deleted from the
 cluster, the secret will be also be deleted by kubernetes external secret.
-(Note: deleting the `ExternelSecret` CR config from source control doesn't
+(Note: deleting the `ExternalSecret` CR config from source control doesn't
 result in deletion of corresponding `ExternalSecret` CR from the cluster as the
 postsubmit action only does `kubectl apply`).

@@ -632,7 +632,7 @@ func cloneBugStruct(bug *Bug, subcomponents map[string][]string, comments []Comm
 }
 
 // clone handles the bz client calls for the bug cloning process and allows us to share the implementation
-// between the real and fake client to prevent bugs from accidental discrepencies between the two.
+// between the real and fake client to prevent bugs from accidental discrepancies between the two.
 func clone(c Client, bug *Bug, mutations []func(bug *BugCreate)) (int, error) {
 	subcomponents, err := c.GetSubComponentsOnBug(bug.ID)
 	if err != nil {

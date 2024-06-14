@@ -2,7 +2,7 @@
 title: "Getting more out of Prow"
 weight: 100
 description: >
-  
+
 ---
 
 If you want more functionality from your Prow instance this guide is for you. It primarily links to other resources that catalogue existing components and features.
@@ -24,7 +24,7 @@ changed (based on a `run_if_changed` or `skip_if_only_changed` regexp). In
 order to `kubectl apply` to the cluster, the job will need to supply credentials
 (e.g. a kubeconfig file or
 [GCP service account key-file](https://github.com/kubernetes-sigs/prow/blob/main/pkg/gcloud-deployer-service-account.sh)). Since
-this job requires priviledged credentials to deploy to the cluster, it is
+this job requires privileged credentials to deploy to the cluster, it is
 important that it is run in a separate build cluster that is isolated from all
 presubmit jobs. See the
 [documentation about separate build clusters](/docs/scaling/#separate-build-clusters)
@@ -56,4 +56,4 @@ If your Prow instance operates on a lot of GitHub repos or runs lots of jobs you
 
 ## Private Front end
 
-If you want to create a private Deck instnace that contains a subset of prowjobs, you should review the ["Private Deck"](/docs/private-deck/) guide.
+If you want to create a private Deck instance that contains a subset of prowjobs, you should review the ["Private Deck"](/docs/private-deck/) guide.

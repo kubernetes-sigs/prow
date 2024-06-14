@@ -194,7 +194,7 @@ func TestReconcile(t *testing.T) {
 			expectReport: false,
 		},
 		{
-			name:         "doesn't report nonexistant job",
+			name:         "doesn't report nonexistent job",
 			shouldReport: true,
 			expectReport: false,
 		},

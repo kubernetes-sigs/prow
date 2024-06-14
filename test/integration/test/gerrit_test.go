@@ -18,6 +18,7 @@ package integration
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -62,7 +63,7 @@ func TestGerrit(t *testing.T) {
 			expectedMessages: []string{"/test all", "Triggered 1 prow jobs (0 suppressed reporting): \n  * Name: hello-world-presubmit"},
 		},
 		{
-			name: "no presubmit Prow jobs automatically triggered from WorkInProgess change",
+			name: "no presubmit Prow jobs automatically triggered from WorkInProgress change",
 			change: client.ChangeInfo{
 				CurrentRevision: "1",
 				ChangeID:        "2",
@@ -136,8 +137,8 @@ func TestGerrit(t *testing.T) {
 
 			}
 
-			//Give some time for gerrit to pick up the change
-			wait.Poll(5*time.Second, 20*time.Second, expectedMessagesRecievedFunc(gerritClient, tc.change.ChangeID, tc.expectedMessages))
+			// Give some time for gerrit to pick up the change
+			wait.PollUntilContextTimeout(context.TODO(), 5*time.Second, 20*time.Second, true, expectedMessagesReceivedFunc(gerritClient, tc.change.ChangeID, tc.expectedMessages))
 
 			resp, err := gerritClient.GetChange(gerritServer, tc.change.ChangeID)
 			if err != nil {
@@ -158,8 +159,8 @@ func TestGerrit(t *testing.T) {
 
 }
 
-func expectedMessagesRecievedFunc(gerritClient *client.Client, ChangeID string, expectedMessages []string) func() (bool, error) {
-	return func() (bool, error) {
+func expectedMessagesReceivedFunc(gerritClient *client.Client, ChangeID string, expectedMessages []string) wait.ConditionWithContextFunc {
+	return func(ctx context.Context) (bool, error) {
 		resp, err := gerritClient.GetChange(gerritServer, ChangeID)
 		if err != nil {
 			return false, nil

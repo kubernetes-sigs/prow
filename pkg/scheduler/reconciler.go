@@ -78,7 +78,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, request reconcile.Request) (
 
 	var result strategy.Result
 	var err error
-	// So far only k8s and tekton use the cluster field in a meaninful way. Hence
+	// So far only k8s and tekton use the cluster field in a meaningful way. Hence
 	// if we're reconciling a job having a different agent (or no agent at all) applying
 	// the passthrough strategy may be the safest approach.
 	if pj.Spec.Agent == prowv1.KubernetesAgent || pj.Spec.Agent == prowv1.TektonAgent {

@@ -35,7 +35,7 @@ type Interface interface {
 }
 
 // Get gets a scheduling strategy in accordance to configuration. It defaults
-// to Passthrough stategy if none has been configured.
+// to Passthrough strategy if none has been configured.
 func Get(cfg *config.Config) Interface {
 	if cfg.Scheduler.Failover != nil {
 		return NewFailover(*cfg.Scheduler.Failover)

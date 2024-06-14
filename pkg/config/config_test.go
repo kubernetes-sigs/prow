@@ -4536,10 +4536,10 @@ func TestPlankJobURLPrefix(t *testing.T) {
 				},
 			},
 			prowjob: &prowapi.ProwJob{Spec: prowapi.ProwJobSpec{
-				DecorationConfig: &prowapi.DecorationConfig{GCSConfiguration: &prowapi.GCSConfiguration{JobURLPrefix: "https://overriden"}},
+				DecorationConfig: &prowapi.DecorationConfig{GCSConfiguration: &prowapi.GCSConfiguration{JobURLPrefix: "https://overridden"}},
 				Refs:             &prowapi.Refs{Org: "my-alternate-org", Repo: "my-repo"},
 			}},
-			expectedJobURLPrefix: "https://overriden",
+			expectedJobURLPrefix: "https://overridden",
 		},
 		{
 			name: "Matching org and not matching repo returns JobURLPrefix from org",
@@ -4944,7 +4944,7 @@ func TestValidateTriggering(t *testing.T) {
 			errExpected: true,
 		},
 		{
-			name: "Triger unset, rerun command set, err",
+			name: "Trigger unset, rerun command set, err",
 			presubmit: Presubmit{
 				RerunCommand: "my-rerun-command",
 				Reporter: Reporter{
@@ -5464,7 +5464,7 @@ default_decoration_config_entries:
 			t.Parallel()
 			p := Plank{}
 			if err := yaml.Unmarshal([]byte(tc.raw), &p); err != nil {
-				t.Errorf("error unmarshaling: %v", err)
+				t.Errorf("error unmarshalling: %v", err)
 			}
 			if err := p.FinalizeDefaultDecorationConfigs(); err != nil && !tc.expectErr {
 				t.Errorf("unexpected error finalizing DefaultDecorationConfigs: %v", err)
@@ -8965,7 +8965,7 @@ func TestHasConfigFor(t *testing.T) {
 				actualIsGlobal, actualOrgs, actualRepos := fuzzedAndManipulatedConfig.HasConfigFor()
 
 				if expectIsGlobal != actualIsGlobal {
-					t.Errorf("exepcted isGlobal: %t, got: %t", expectIsGlobal, actualIsGlobal)
+					t.Errorf("expected isGlobal: %t, got: %t", expectIsGlobal, actualIsGlobal)
 				}
 
 				if diff := cmp.Diff(expectOrgs, actualOrgs); diff != "" {

@@ -47,7 +47,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/apimachinery/pkg/util/sets"
 	utilpointer "k8s.io/utils/pointer"
-	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	fakectrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	prowapi "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
@@ -57,6 +56,7 @@ import (
 	"sigs.k8s.io/prow/pkg/git/v2"
 	"sigs.k8s.io/prow/pkg/github"
 	"sigs.k8s.io/prow/pkg/kube"
+	"sigs.k8s.io/prow/pkg/testutil"
 	"sigs.k8s.io/prow/pkg/tide/history"
 )
 
@@ -244,7 +244,6 @@ func TestAccumulateBatch(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-
 			var pulls []CodeReviewCommon
 			for _, p := range test.pulls {
 				pr := PullRequest{
@@ -919,9 +918,10 @@ func TestDividePool(t *testing.T) {
 	mmc := newMergeChecker(configGetter, fc)
 	log := logrus.NewEntry(logrus.StandardLogger())
 	ghProvider := newGitHubProvider(log, fc, nil, configGetter, mmc, false)
-	mgr := newFakeManager()
+	ctx := context.Background()
+	mgr := newFakeManager(t, ctx)
 	c, err := newSyncController(
-		context.Background(),
+		ctx,
 		log,
 		mgr,
 		ghProvider,
@@ -953,7 +953,7 @@ func TestDividePool(t *testing.T) {
 				},
 			},
 		}
-		if err := mgr.GetClient().Create(context.Background(), prowjob); err != nil {
+		if err := mgr.GetClient().Create(ctx, prowjob); err != nil {
 			t.Fatalf("failed to create prowjob: %v", err)
 		}
 	}
@@ -1960,10 +1960,12 @@ func testTakeAction(clients localgit.Clients, t *testing.T) {
 			fgc := fgc{mergeErrs: tc.mergeErrs}
 			log := logrus.WithField("controller", "tide")
 			ghProvider := newGitHubProvider(log, &fgc, gc, ca.Config, nil, false)
+			ctx := context.Background()
+			mgr := newFakeManager(t, ctx, tc.preExistingJobs...)
 			c, err := newSyncController(
-				context.Background(),
+				ctx,
 				log,
-				newFakeManager(tc.preExistingJobs...),
+				mgr,
 				ghProvider,
 				ca.Config,
 				gc,
@@ -1990,7 +1992,7 @@ func testTakeAction(clients localgit.Clients, t *testing.T) {
 			}
 
 			prowJobs := &prowapi.ProwJobList{}
-			if err := c.prowJobClient.List(context.Background(), prowJobs); err != nil {
+			if err := c.prowJobClient.List(ctx, prowJobs); err != nil {
 				t.Fatalf("failed to list ProwJobs: %v", err)
 			}
 			var filteredProwJobs []prowapi.ProwJob
@@ -2245,8 +2247,11 @@ func TestSync(t *testing.T) {
 				t.Fatalf("Failed to create history client: %v", err)
 			}
 			mergeChecker := newMergeChecker(ca.Config, fgc)
+
+			ctx := context.Background()
+			mgr := newFakeManager(t, ctx)
 			sc := &statusController{
-				pjClient: fakectrlruntimeclient.NewClientBuilder().Build(),
+				pjClient: mgr.GetClient(),
 				logger:   logrus.WithField("controller", "status-update"),
 				ghc:      fgc,
 				gc:       nil,
@@ -2264,7 +2269,7 @@ func TestSync(t *testing.T) {
 			c := &syncController{
 				config:        ca.Config,
 				provider:      ghProvider,
-				prowJobClient: fakectrlruntimeclient.NewClientBuilder().Build(),
+				prowJobClient: mgr.GetClient(),
 				logger:        log,
 				changedFiles: &changedFilesAgent{
 					provider:        ghProvider,
@@ -4060,99 +4065,24 @@ func getProwJob(pjtype prowapi.ProwJobType, org, repo, branch, sha string, state
 	return pj
 }
 
-func newFakeManager(objs ...runtime.Object) *fakeManager {
-	client := &indexingClient{
-		Client:     fakectrlruntimeclient.NewClientBuilder().WithRuntimeObjects(objs...).Build(),
-		indexFuncs: map[string]ctrlruntimeclient.IndexerFunc{},
-	}
-	return &fakeManager{
-		client: client,
-		fakeFieldIndexer: &fakeFieldIndexer{
-			client: client,
-		},
-	}
-}
-
-type fakeManager struct {
-	client *indexingClient
-	*fakeFieldIndexer
-}
-
-type fakeFieldIndexer struct {
-	client *indexingClient
-}
-
-func (fi *fakeFieldIndexer) IndexField(_ context.Context, _ ctrlruntimeclient.Object, field string, extractValue ctrlruntimeclient.IndexerFunc) error {
-	fi.client.indexFuncs[field] = extractValue
-	return nil
-}
-
-func (fm *fakeManager) GetClient() ctrlruntimeclient.Client {
-	return fm.client
-}
-
-func (fm *fakeManager) GetFieldIndexer() ctrlruntimeclient.FieldIndexer {
-	return fm.fakeFieldIndexer
-}
-
-type indexingClient struct {
-	ctrlruntimeclient.Client
-	indexFuncs map[string]ctrlruntimeclient.IndexerFunc
-}
-
-func (c *indexingClient) List(ctx context.Context, list ctrlruntimeclient.ObjectList, opts ...ctrlruntimeclient.ListOption) error {
-	if err := c.Client.List(ctx, list, opts...); err != nil {
-		return err
+func newFakeManager(t *testing.T, ctx context.Context, objs ...runtime.Object) testutil.IndexableManager {
+	fakeMgr, err := testutil.NewFakeManager(
+		ctx,
+		objs,
+		setupStatusControllerIndexes,
+		setupSyncControllerIndexes,
+	)
+	if err != nil {
+		t.Fatalf("Failed to setup fake manager: %v", err)
 	}
 
-	listOpts := &ctrlruntimeclient.ListOptions{}
-	for _, opt := range opts {
-		opt.ApplyToList(listOpts)
-	}
-
-	if listOpts.FieldSelector == nil {
-		return nil
-	}
-
-	if n := len(listOpts.FieldSelector.Requirements()); n == 0 {
-		return nil
-	} else if n > 1 {
-		return fmt.Errorf("the indexing client supports at most one field selector requirement, got %d", n)
-	}
-
-	indexKey := listOpts.FieldSelector.Requirements()[0].Field
-	if indexKey == "" {
-		return nil
-	}
-
-	indexFunc, ok := c.indexFuncs[indexKey]
-	if !ok {
-		return fmt.Errorf("no index with key %q found", indexKey)
-	}
-
-	pjList, ok := list.(*prowapi.ProwJobList)
-	if !ok {
-		return errors.New("indexes are only supported for ProwJobLists")
-	}
-
-	result := prowapi.ProwJobList{}
-	for _, pj := range pjList.Items {
-		for _, indexVal := range indexFunc(&pj) {
-			logrus.Infof("indexVal: %q, requirementVal: %q, match: %t", indexVal, listOpts.FieldSelector.Requirements()[0].Value, indexVal == listOpts.FieldSelector.Requirements()[0].Value)
-			if indexVal == listOpts.FieldSelector.Requirements()[0].Value {
-				result.Items = append(result.Items, pj)
-			}
-		}
-	}
-
-	*pjList = result
-	return nil
+	return fakeMgr
 }
 
 func prowYAMLGetterForHeadRefs(headRefsToLookFor []string, ps []config.Presubmit) config.ProwYAMLGetter {
 	return func(_ *config.Config, _ git.ClientFactory, _, _, _ string, headRefs ...string) (*config.ProwYAML, error) {
 		if len(headRefsToLookFor) != len(headRefs) {
-			return nil, fmt.Errorf("expcted %d headrefs, got %d", len(headRefsToLookFor), len(headRefs))
+			return nil, fmt.Errorf("expected %d headrefs, got %d", len(headRefsToLookFor), len(headRefs))
 		}
 		var presubmits []config.Presubmit
 		if sets.New[string](headRefsToLookFor...).Equal(sets.New[string](headRefs...)) {
@@ -5018,7 +4948,8 @@ func TestBatchPickingConsidersPRThatIsCurrentlyBeingSeriallyRetested(t *testing.
 	}
 	ghc := &fgc{}
 	mmc := newMergeChecker(configGetter, ghc)
-	mgr := newFakeManager()
+	ctx := context.Background()
+	mgr := newFakeManager(t, ctx)
 	log := logrus.WithField("test", t.Name())
 	history, err := history.New(1, nil, "")
 	if err != nil {
@@ -5026,7 +4957,7 @@ func TestBatchPickingConsidersPRThatIsCurrentlyBeingSeriallyRetested(t *testing.
 	}
 	ghProvider := newGitHubProvider(log, ghc, nil, configGetter, mmc, false)
 	c, err := newSyncController(
-		context.Background(),
+		ctx,
 		log,
 		mgr,
 		ghProvider,
@@ -5300,7 +5231,8 @@ func TestSerialRetestingConsidersPRThatIsCurrentlyBeingSRetested(t *testing.T) {
 	}
 	ghc := &fgc{}
 	mmc := newMergeChecker(configGetter, ghc)
-	mgr := newFakeManager()
+	ctx := context.Background()
+	mgr := newFakeManager(t, ctx)
 	log := logrus.WithField("test", t.Name())
 	history, err := history.New(1, nil, "")
 	if err != nil {
@@ -5308,7 +5240,7 @@ func TestSerialRetestingConsidersPRThatIsCurrentlyBeingSRetested(t *testing.T) {
 	}
 	ghProvider := newGitHubProvider(log, ghc, nil, configGetter, mmc, false)
 	c, err := newSyncController(
-		context.Background(),
+		ctx,
 		log,
 		mgr,
 		ghProvider,

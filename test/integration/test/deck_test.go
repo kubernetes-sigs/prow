@@ -22,6 +22,7 @@ import (
 	"io"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -298,7 +299,7 @@ func TestDeckTenantIDs(t *testing.T) {
 			pollInterval := 1 * time.Second
 			endpoint := fmt.Sprintf("http://localhost/%s/prowjobs.js", tt.deckInstance)
 			// Every time "scraper" below returns "false, nil" we retry it.
-			scraper := func() (bool, error) {
+			scraper := func(ctx context.Context) (bool, error) {
 				resp, err := http.Get(endpoint)
 				if err != nil {
 					t.Logf("Failed running GET request against %q: %v", endpoint, err)
@@ -344,7 +345,7 @@ func TestDeckTenantIDs(t *testing.T) {
 				t.Logf("endpoint %q (finally) matched test expectations; scraping finished", endpoint)
 				return true, nil
 			}
-			if waitErr := wait.Poll(pollInterval, timeout, scraper); waitErr != nil {
+			if waitErr := wait.PollUntilContextTimeout(ctx, pollInterval, timeout, true, scraper); waitErr != nil {
 				// If waitErr is not nil, it means we timed out waiting for this
 				// test to succeed.
 				t.Errorf("Timed out while scraping %q", endpoint)
@@ -386,7 +387,7 @@ func TestRerun(t *testing.T) {
 	// Now we are waiting on Horologium to create the first prow job so that we
 	// can rerun from.
 	// Horologium itself is pretty good at handling the configmap update, but
-	// not kubelet, accoriding to
+	// not kubelet, according to
 	// https://github.com/kubernetes/kubernetes/issues/30189 kubelet syncs
 	// configmap updates on existing pods every minute, which is a long wait.
 	// The proposed fix in the issue was updating the deployment, which imo
@@ -418,7 +419,7 @@ func TestRerun(t *testing.T) {
 	ctx := context.Background()
 	getLatestJob := func(t *testing.T, jobName string, lastRun *v1.Time) *prowjobv1.ProwJob {
 		var res *prowjobv1.ProwJob
-		if err := wait.Poll(time.Second, 90*time.Second, func() (bool, error) {
+		if err := wait.PollUntilContextTimeout(ctx, time.Second, 90*time.Second, true, func(ctx context.Context) (bool, error) {
 			pjs := &prowjobv1.ProwJobList{}
 			err = kubeClient.List(ctx, pjs, &ctrlruntimeclient.ListOptions{
 				LabelSelector: labels.SelectorFromSet(map[string]string{kube.ProwJobAnnotation: jobName}),
@@ -428,7 +429,9 @@ func TestRerun(t *testing.T) {
 				return false, fmt.Errorf("failed listing prow jobs: %w", err)
 			}
 			sort.Slice(pjs.Items, func(i, j int) bool {
-				return pjs.Items[i].Status.StartTime.After(pjs.Items[j].Status.StartTime.Time)
+				revi, _ := strconv.Atoi(pjs.Items[i].ResourceVersion)
+				revj, _ := strconv.Atoi(pjs.Items[j].ResourceVersion)
+				return revi > revj
 			})
 			if len(pjs.Items) > 0 {
 				if lastRun != nil && pjs.Items[0].CreationTimestamp.Before(lastRun) {

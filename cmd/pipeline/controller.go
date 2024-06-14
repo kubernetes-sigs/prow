@@ -86,7 +86,7 @@ type controllerOptions struct {
 	rl              workqueue.RateLimitingInterface
 }
 
-// pjNamespace retruns the prow namespace from configuration
+// pjNamespace returns the prow namespace from configuration
 func (c *controller) pjNamespace() string {
 	return c.config().ProwJobNamespace
 }
@@ -350,7 +350,7 @@ func (c *controller) createPipelineRun(pContext, namespace string, p *pipelinev1
 	}
 	// Block until the pipelinerun is in the lister, otherwise we may attempt to create it again
 	var errOut error
-	wait.Poll(time.Second, 10*time.Second, func() (bool, error) {
+	wait.PollUntilContextTimeout(context.TODO(), time.Second, 10*time.Second, true, func(_ context.Context) (bool, error) {
 		_, errOut = c.getPipelineRun(pContext, namespace, p.Name)
 		return errOut == nil, nil
 	})

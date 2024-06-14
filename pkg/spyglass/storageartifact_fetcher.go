@@ -195,7 +195,7 @@ func (h *storageArtifactHandle) Attrs(ctx context.Context) (pkgio.Attributes, er
 }
 
 func (h *storageArtifactHandle) UpdateAttrs(ctx context.Context, attrs pkgio.ObjectAttrsToUpdate) (*pkgio.Attributes, error) {
-	return h.UpdateAtributes(ctx, h.Name, attrs)
+	return h.UpdateAttributes(ctx, h.Name, attrs)
 }
 
 // Artifact constructs a GCS artifact from the given GCS bucket and key. Uses the golang GCS library

@@ -253,7 +253,7 @@ func TestGetAssignment(t *testing.T) {
 		expectResKeyword     string
 	}{
 		{
-			description:      "AssignTo takes precedence over oncall setings",
+			description:      "AssignTo takes precedence over oncall settings",
 			assignTo:         "some-user",
 			expectResKeyword: "/cc @some-user",
 		},
@@ -280,11 +280,11 @@ func TestCDToRootDir(t *testing.T) {
 		"testdata/dir": {"extra-file"},
 	} {
 		if err := os.MkdirAll(path.Join(tmpDir, dir), 0755); err != nil {
-			t.Fatalf("Faile creating dir %q: %v", dir, err)
+			t.Fatalf("Failed creating dir %q: %v", dir, err)
 		}
 		for _, f := range fps {
 			if _, err := os.Create(path.Join(tmpDir, dir, f)); err != nil {
-				t.Fatalf("Faile creating file %q: %v", f, err)
+				t.Fatalf("Failed creating file %q: %v", f, err)
 			}
 		}
 	}

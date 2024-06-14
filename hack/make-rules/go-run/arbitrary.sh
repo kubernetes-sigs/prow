@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# arbitrary.sh runs arbitry go command, ensures go version is from .go-version
+# arbitrary.sh runs arbitrary go command, ensures go version is from .go-version
 # Usage: ./arbitrary.sh <go args>
 # Example: ./arbitrary.sh build prow/cmd/crier
 

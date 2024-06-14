@@ -128,7 +128,7 @@ func (allowedApiClient *AllowedApiClient) GetApiClientCloudVendor() (ApiClientCl
 //
 // Each supported client type (e.g., GCP) has custom logic around the HTTP
 // metadata headers to know what kind of headers to look for. Different cloud
-// vendors will have different HTTP metdata headers, although technically
+// vendors will have different HTTP metadata headers, although technically
 // nothing stops users from injecting these headers manually on their own.
 func (c *Config) IdentifyAllowedClient(md *metadata.MD) (*AllowedApiClient, error) {
 	if md == nil {

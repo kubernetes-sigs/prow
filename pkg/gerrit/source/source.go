@@ -75,7 +75,7 @@ func ensuresHTTPSPrefix(in string) string {
 	return fmt.Sprintf("%s%s", scheme, strings.Trim(TrimHTTPSPrefix(in), "/"))
 }
 
-// TrimHTTPSPrefix trims https:// and http:// from input, also remvoes all
+// TrimHTTPSPrefix trims https:// and http:// from input, also removes all
 // trailing slashes from the end.
 func TrimHTTPSPrefix(in string) string {
 	in = strings.TrimPrefix(in, "https://")
@@ -83,7 +83,7 @@ func TrimHTTPSPrefix(in string) string {
 	return strings.TrimRight(in, "/")
 }
 
-// orgRepo returns <org>/<repo>, removes all extra slashs.
+// orgRepo returns <org>/<repo>, removes all extra slashes.
 func orgRepo(org, repo string) string {
 	org = strings.Trim(org, "/")
 	repo = strings.Trim(repo, "/")

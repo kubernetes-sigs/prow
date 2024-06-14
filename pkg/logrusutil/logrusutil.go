@@ -21,8 +21,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bombsimon/logrusr/v4"
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"sigs.k8s.io/prow/pkg/secretutil"
 	"sigs.k8s.io/prow/pkg/version"
@@ -48,6 +50,9 @@ func Init(formatter *DefaultFieldsFormatter) {
 	}
 	logrus.SetFormatter(formatter)
 	logrus.SetReportCaller(formatter.PrintLineNumber)
+
+	// set the logger used by controller-runtime
+	log.SetLogger(logrusr.New(logrus.StandardLogger()))
 }
 
 // ComponentInit is a syntax sugar for easier Init

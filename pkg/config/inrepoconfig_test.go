@@ -291,7 +291,7 @@ func testDefaultProwYAMLGetter(clients localgit.Clients, t *testing.T) {
 			},
 		},
 		{
-			name: "Yaml unmarshaling is not strict",
+			name: "Yaml unmarshalling is not strict",
 			baseContent: map[string][]byte{
 				".prow.yaml": []byte(`postsubmits: [{"name": "hans", "undef_attr": true, "spec": {"containers": [{}]}}]`),
 			},

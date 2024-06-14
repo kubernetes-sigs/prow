@@ -42,7 +42,7 @@ var ghTokenUntilResetGaugeVec = prometheus.NewGaugeVec(
 var ghTokenUsageGaugeVec = prometheus.NewGaugeVec(
 	prometheus.GaugeOpts{
 		Name: "github_token_usage",
-		Help: "How many GitHub token requets are remaining for the current hour.",
+		Help: "How many GitHub token requests are remaining for the current hour.",
 	},
 	[]string{"token_hash", "api_version", "ratelimit_resource"},
 )
@@ -166,7 +166,7 @@ func timestampStringToTime(tstamp string) time.Time {
 	return time.Unix(timestamp, 0)
 }
 
-// userAgentWithouVersion formats a user agent without the version to reduce label cardinality
+// userAgentWithoutVersion formats a user agent without the version to reduce label cardinality
 func userAgentWithoutVersion(userAgent string) string {
 	if !strings.Contains(userAgent, "/") {
 		return userAgent

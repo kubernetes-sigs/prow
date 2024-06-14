@@ -1722,7 +1722,7 @@ func TestPluginsMergeFrom(t *testing.T) {
 			}
 
 			if diff := cmp.Diff(tc.expected, tc.to); diff != "" {
-				t.Errorf("expexcted config differs from actual: %s", diff)
+				t.Errorf("expected config differs from actual: %s", diff)
 			}
 		})
 	}
@@ -2043,7 +2043,7 @@ func TestBugzillaMergeFrom(t *testing.T) {
 			}
 
 			if diff := cmp.Diff(tc.expected, tc.to); diff != "" {
-				t.Errorf("expexcted config differs from actual: %s", diff)
+				t.Errorf("expected config differs from actual: %s", diff)
 			}
 		})
 	}
@@ -2233,7 +2233,7 @@ func TestHasConfigFor(t *testing.T) {
 				actualIsGlobal, actualOrgs, actualRepos := fuzzedAndManipulatedConfig.HasConfigFor()
 
 				if expectIsGlobal != actualIsGlobal {
-					t.Errorf("exepcted isGlobal: %t, got: %t", expectIsGlobal, actualIsGlobal)
+					t.Errorf("expected isGlobal: %t, got: %t", expectIsGlobal, actualIsGlobal)
 				}
 
 				if diff := cmp.Diff(expectOrgs, actualOrgs); diff != "" {

@@ -67,7 +67,7 @@ var (
 	CommentMap, _ = genyaml.NewCommentMap(nil)
 
 	//go:embed config.go
-	embededConfigGoFileContent []byte
+	embeddedConfigGoFileContent []byte
 )
 
 func init() {
@@ -79,7 +79,7 @@ func init() {
 		return
 	}
 
-	if cm, err := genyaml.NewCommentMap(map[string][]byte{"prow/plugins/config.go": embededConfigGoFileContent}); err == nil {
+	if cm, err := genyaml.NewCommentMap(map[string][]byte{"prow/plugins/config.go": embeddedConfigGoFileContent}); err == nil {
 		CommentMap = cm
 	} else {
 		logrus.WithError(err).Error("Failed to initialize commentMap")

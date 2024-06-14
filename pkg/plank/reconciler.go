@@ -38,6 +38,7 @@ import (
 	"k8s.io/utils/clock"
 	controllerruntime "sigs.k8s.io/controller-runtime"
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/cluster"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -75,14 +76,14 @@ const (
 // have permissions for when interacting with the test pods. This is used during
 // startup to check that we have the necessary authorizations on build clusters.
 //
-// NOTE: Setting up build cluster managers is tricky because if we don't
+// NOTE: Setting up build clusters is tricky because if we don't
 // have the required permissions, the controller manager setup machinery
 // (library code, not our code) can return an error and this can essentially
 // result in a fatal error, resulting in a crash loop on startup. Although
 // other components such as crier, deck, and hook also need to talk to build
 // clusters, we only perform this preemptive requiredTestPodVerbs check for
 // PCM and sinker because only these latter components make use of the
-// BuildClusterManagers() call.
+// BuildClustes() call.
 func RequiredTestPodVerbs() []string {
 	return []string{
 		"create",
@@ -96,35 +97,35 @@ func RequiredTestPodVerbs() []string {
 
 func Add(
 	mgr controllerruntime.Manager,
-	buildMgrs map[string]controllerruntime.Manager,
+	buildClusters map[string]cluster.Cluster,
 	knownClusters map[string]rest.Config,
 	cfg config.Getter,
 	opener io.Opener,
 	totURL string,
 	additionalSelector string,
 ) error {
-	return add(mgr, buildMgrs, knownClusters, cfg, opener, totURL, additionalSelector, nil, nil, 10)
+	return add(mgr, buildClusters, knownClusters, cfg, opener, totURL, additionalSelector, nil, nil, 10)
 }
 
 func add(
 	mgr controllerruntime.Manager,
-	buildMgrs map[string]controllerruntime.Manager,
+	buildClusters map[string]cluster.Cluster,
 	knownClusters map[string]rest.Config,
 	cfg config.Getter,
 	opener io.Opener,
 	totURL string,
 	additionalSelector string,
 	overwriteReconcile reconcile.Func,
-	predicateCallack func(bool),
+	predicateCallback func(bool),
 	numWorkers int,
 ) error {
-	predicate, err := predicates(additionalSelector, predicateCallack)
+	predicate, err := predicates(additionalSelector, predicateCallback)
 	if err != nil {
 		return fmt.Errorf("failed to construct predicate: %w", err)
 	}
 
 	ctx := context.Background()
-	if err := mgr.GetFieldIndexer().IndexField(ctx, &prowv1.ProwJob{}, prowJobIndexName, prowJobIndexer(cfg().ProwJobNamespace)); err != nil {
+	if err := setupIndexes(ctx, mgr.GetFieldIndexer(), cfg); err != nil {
 		return fmt.Errorf("failed to add indexer: %w", err)
 	}
 
@@ -135,24 +136,24 @@ func add(
 		WithOptions(controller.Options{MaxConcurrentReconciles: numWorkers})
 
 	r := newReconciler(ctx, mgr.GetClient(), overwriteReconcile, cfg, opener, totURL)
-	for buildCluster, buildClusterMgr := range buildMgrs {
+	for buildClusterName, buildCluster := range buildClusters {
 		r.log.WithFields(logrus.Fields{
-			"buildCluster": buildCluster,
-			"host":         buildClusterMgr.GetConfig().Host,
+			"buildCluster": buildClusterName,
+			"host":         buildCluster.GetConfig().Host,
 		}).Debug("creating client")
-		blder = blder.Watches(
-			source.NewKindWithCache(&corev1.Pod{}, buildClusterMgr.GetCache()),
+		blder = blder.WatchesRawSource(
+			source.Kind(buildCluster.GetCache(), &corev1.Pod{}),
 			podEventRequestMapper(cfg().ProwJobNamespace))
 		bc := buildClient{
-			Client: buildClusterMgr.GetClient()}
-		if restConfig, ok := knownClusters[buildCluster]; ok {
+			Client: buildCluster.GetClient()}
+		if restConfig, ok := knownClusters[buildClusterName]; ok {
 			authzClient, err := authorizationv1.NewForConfig(&restConfig)
 			if err != nil {
 				return fmt.Errorf("failed to construct authz client: %s", err)
 			}
 			bc.ssar = authzClient.SelfSubjectAccessReviews()
 		}
-		r.buildClients[buildCluster] = bc
+		r.buildClients[buildClusterName] = bc
 	}
 
 	if err := blder.Complete(r); err != nil {
@@ -165,6 +166,14 @@ func add(
 
 	if err := mgr.Add(manager.RunnableFunc(r.syncClusterStatus(time.Minute, knownClusters))); err != nil {
 		return fmt.Errorf("failed to add cluster status runnable to manager: %w", err)
+	}
+
+	return nil
+}
+
+func setupIndexes(ctx context.Context, indexer ctrlruntimeclient.FieldIndexer, cfg config.Getter) error {
+	if err := indexer.IndexField(ctx, &prowv1.ProwJob{}, prowJobIndexName, prowJobIndexer(cfg().ProwJobNamespace)); err != nil {
+		return err
 	}
 
 	return nil
@@ -651,7 +660,7 @@ func (r *reconciler) syncPendingJob(ctx context.Context, pj *prowv1.ProwJob) (*r
 		return nil, nil
 	}
 	nn := types.NamespacedName{Namespace: pj.Namespace, Name: pj.Name}
-	if err := wait.Poll(100*time.Millisecond, 2*time.Second, func() (bool, error) {
+	if err := wait.PollUntilContextTimeout(ctx, 100*time.Millisecond, 2*time.Second, true, func(ctx context.Context) (bool, error) {
 		if err := r.pjClient.Get(ctx, nn, pj); err != nil {
 			return false, fmt.Errorf("failed to get prowjob: %w", err)
 		}
@@ -733,7 +742,7 @@ func (r *reconciler) syncTriggeredJob(ctx context.Context, pj *prowv1.ProwJob) (
 	}
 	nn := types.NamespacedName{Namespace: pj.Namespace, Name: pj.Name}
 	state := pj.Status.State
-	if err := wait.Poll(100*time.Millisecond, 2*time.Second, func() (bool, error) {
+	if err := wait.PollUntilContextTimeout(ctx, 100*time.Millisecond, 2*time.Second, true, func(ctx context.Context) (bool, error) {
 		if err := r.pjClient.Get(ctx, nn, pj); err != nil {
 			return false, fmt.Errorf("failed to get prowjob: %w", err)
 		}
@@ -840,7 +849,7 @@ func (r *reconciler) startPod(ctx context.Context, pj *prowv1.ProwJob) (string, 
 
 	// We must block until we see the pod, otherwise a new reconciliation may be triggered that tries to create
 	// the pod because its not in the cache yet, errors with IsAlreadyExists and sets the prowjob to failed
-	if err := wait.Poll(100*time.Millisecond, 10*time.Second, func() (bool, error) {
+	if err := wait.PollUntilContextTimeout(ctx, 100*time.Millisecond, 10*time.Second, true, func(ctx context.Context) (bool, error) {
 		if err := client.Get(ctx, podName, pod); err != nil {
 			if kerrors.IsNotFound(err) {
 				return false, nil
@@ -864,15 +873,13 @@ func (r *reconciler) getBuildID(name string) (string, error) {
 // first. This allows us to get away without any global locking by just looking
 // at the jobs in the cluster.
 func (r *reconciler) canExecuteConcurrently(ctx context.Context, pj *prowv1.ProwJob) (bool, error) {
-
 	if max := r.config().Plank.MaxConcurrency; max > 0 {
 		pjs := &prowv1.ProwJobList{}
 		if err := r.pjClient.List(ctx, pjs, optPendingProwJobs()); err != nil {
 			return false, fmt.Errorf("failed to list prowjobs: %w", err)
 		}
-		// The list contains our own ProwJob
-		running := len(pjs.Items) - 1
-		if running >= max {
+
+		if running := len(pjs.Items); running >= max {
 			r.log.WithFields(pjutil.ProwJobFields(pj)).Infof("Not starting another job, already %d running.", running)
 			return false, nil
 		}
@@ -974,7 +981,7 @@ func predicates(additionalSelector string, callback func(bool)) (predicate.Predi
 }
 
 func podEventRequestMapper(prowJobNamespace string) handler.EventHandler {
-	return handler.EnqueueRequestsFromMapFunc(func(o ctrlruntimeclient.Object) []reconcile.Request {
+	return handler.EnqueueRequestsFromMapFunc(func(_ context.Context, o ctrlruntimeclient.Object) []reconcile.Request {
 		return []reconcile.Request{{NamespacedName: ctrlruntimeclient.ObjectKey{
 			Namespace: prowJobNamespace,
 			Name:      o.GetName(),

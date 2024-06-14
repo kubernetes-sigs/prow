@@ -295,19 +295,19 @@ func getReviewers(rc reviewersClient, ghc githubClient, log *logrus.Entry, autho
 		// record required reviewers if any
 		requiredReviewers.Insert(rc.RequiredReviewers(file.Filename).UnsortedList()...)
 
-		fileUnusedLeafs := layeredsets.NewString(sets.List(rc.LeafReviewers(file.Filename))...).Difference(reviewers.Set()).Difference(authorSet)
-		if fileUnusedLeafs.Len() == 0 {
+		fileUnusedLeaves := layeredsets.NewString(sets.List(rc.LeafReviewers(file.Filename))...).Difference(reviewers.Set()).Difference(authorSet)
+		if fileUnusedLeaves.Len() == 0 {
 			continue
 		}
-		leafReviewers = leafReviewers.Union(fileUnusedLeafs)
-		if r := findReviewer(ghc, log, useStatusAvailability, &busyReviewers, &fileUnusedLeafs); r != "" {
+		leafReviewers = leafReviewers.Union(fileUnusedLeaves)
+		if r := findReviewer(ghc, log, useStatusAvailability, &busyReviewers, &fileUnusedLeaves); r != "" {
 			reviewers.Insert(0, r)
 		}
 	}
 	// now ensure that we request review from at least minReviewers reviewers. Favor leaf reviewers.
-	unusedLeafs := leafReviewers.Difference(reviewers.Set())
-	for reviewers.Len() < minReviewers && unusedLeafs.Len() > 0 {
-		if r := findReviewer(ghc, log, useStatusAvailability, &busyReviewers, &unusedLeafs); r != "" {
+	unusedLeaves := leafReviewers.Difference(reviewers.Set())
+	for reviewers.Len() < minReviewers && unusedLeaves.Len() > 0 {
+		if r := findReviewer(ghc, log, useStatusAvailability, &busyReviewers, &unusedLeaves); r != "" {
 			reviewers.Insert(1, r)
 		}
 	}

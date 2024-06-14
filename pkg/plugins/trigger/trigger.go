@@ -361,7 +361,7 @@ func getPostsubmits(log *logrus.Entry, gc git.ClientFactory, cfg *config.Config,
 	return postsubmits
 }
 
-// createWithRetry will retry the cration of a ProwJob. The Name must be set, otherwise we might end up creating it multiple times
+// createWithRetry will retry the creation of a ProwJob. The Name must be set, otherwise we might end up creating it multiple times
 // if one Create request errors but succeeds under the hood.
 func createWithRetry(ctx context.Context, client prowJobClient, pj *prowapi.ProwJob, millisecondOverride ...time.Duration) error {
 	millisecond := time.Millisecond
@@ -382,7 +382,7 @@ func createWithRetry(ctx context.Context, client prowJobClient, pj *prowapi.Prow
 		}
 		return true, nil
 	}); err != nil {
-		if err != wait.ErrWaitTimeout {
+		if !wait.Interrupted(err) {
 			return err
 		}
 		return utilerrors.NewAggregate(errs)
