@@ -354,7 +354,7 @@ func main() {
 		mgr, err := manager.New(restCfg, manager.Options{
 			Cache: cache.Options{
 				DefaultNamespaces: map[string]cache.Config{
-					cfg().ProwJobNamespace: cache.Config{},
+					cfg().ProwJobNamespace: {},
 				},
 			},
 			Metrics: metricsserver.Options{
