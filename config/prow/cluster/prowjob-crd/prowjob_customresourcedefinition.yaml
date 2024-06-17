@@ -54486,6 +54486,9 @@ spec:
                 description: PrevReportStates stores the previous reported prowjob
                   state per reporter So crier won't make duplicated report attempt
                 type: object
+              retryCount:
+                description: Amount of times the Pod was retried.
+                type: integer
               startTime:
                 description: StartTime is equal to the creation time of the ProwJob
                 format: date-time
