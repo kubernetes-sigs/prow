@@ -541,7 +541,7 @@ func NewGitHubDeferredChangedFilesProvider(gc git.ClientFactory, client githubCl
 			if len(changes) == github.ChangesFilesLimit && gc != nil {
 				repoClient, err := gc.ClientFor(org, repo)
 				if err == nil {
-					// Use git client since Github PushEvent is limited to 3000 keys:
+					// Use git client since github PushEvent is limited to 3000 keys:
 					// https://docs.github.com/en/rest/pulls/pulls?apiVersion=2022-11-28#list-pull-requests-files
 					files, err := repoClient.Diff(headSHA, baseSHA)
 					if err == nil {

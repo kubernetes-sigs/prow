@@ -46,7 +46,7 @@ func listPushEventChanges(gc git.ClientFactory, pe github.PushEvent) config.Chan
 			if len(changes) == github.ChangesFilesLimit && gc != nil {
 				repoClient, err := gc.ClientFor(pe.Repo.Owner.Name, pe.Repo.Name)
 				if err == nil {
-					// Use git client since Github PushEvent is limited to 3000 keys:
+					// Use git client since github PushEvent is limited to 3000 keys:
 					// https://docs.github.com/en/rest/pulls/pulls?apiVersion=2022-11-28#list-pull-requests-files
 					files, err := repoClient.Diff(pe.After, pe.Before)
 					if err == nil {
