@@ -1681,6 +1681,19 @@ type PackageVersion struct {
 	PackageURL          string            `json:"package_url"`
 }
 
+type GitHubTag struct {
+	Name       string    `json:"name"`
+	ZipballURL string    `json:"zipball_url"`
+	TarballURL string    `json:"tarball_url"`
+	Commit     TagCommit `json:"commit"`
+	NodeID     string    `json:"node_id"`
+}
+
+type TagCommit struct {
+	Sha string `json:"sha"`
+	URL string `json:"url"`
+}
+
 type ContainerMetadata struct {
 	Tag      Tag      `json:"tag"`
 	Labels   Labels   `json:"labels"`
