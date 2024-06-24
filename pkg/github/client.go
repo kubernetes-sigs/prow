@@ -164,6 +164,7 @@ type CommitClient interface {
 type RepositoryClient interface {
 	GetRepo(owner, name string) (FullRepo, error)
 	GetRepos(org string, isUser bool) ([]Repo, error)
+	ListTags(org, repo string) ([]GitHubTag, error)
 	GetBranches(org, repo string, onlyProtected bool) ([]Branch, error)
 	GetBranchProtection(org, repo, branch string) (*BranchProtection, error)
 	RemoveBranchProtection(org, repo, branch string) error
@@ -2556,6 +2557,27 @@ func (c *client) GetRepos(org string, isUser bool) ([]Repo, error) {
 		return nil, err
 	}
 	return repos, nil
+}
+
+func (c *client) ListTags(org, repo string) ([]GitHubTag, error) {
+	durationLogger := c.log("GetTags", org, repo)
+	defer durationLogger()
+
+	var tags []GitHubTag
+	if err := c.readPaginatedResults(
+		fmt.Sprintf("/repos/%s/%s/tags", org, repo),
+		"",
+		org,
+		func() interface{} {
+			return &[]GitHubTag{}
+		},
+		func(obj interface{}) {
+			tags = append(tags, *(obj.(*[]GitHubTag))...)
+		},
+	); err != nil {
+		return nil, err
+	}
+	return tags, nil
 }
 
 // GetSingleCommit returns a single commit.
