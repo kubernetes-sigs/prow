@@ -279,11 +279,17 @@ func isMatchingCondition(pj prowcrd.ProwJob, request *BulkJobStatusChangeRequest
 	}
 	if pjRefs != nil {
 		if pjRefs.GetOrg() != "" {
+			if pj.Spec.Refs == nil || pj.Spec.Refs.Org == "" {
+				return false
+			}
 			if pjRefs.GetOrg() != pj.Spec.Refs.Org {
 				return false
 			}
 		}
 		if pjRefs.GetRepo() != "" {
+			if pj.Spec.Refs == nil || pj.Spec.Refs.Repo == "" {
+				return false
+			}
 			if pjRefs.GetRepo() != pj.Spec.Refs.Repo {
 				return false
 			}

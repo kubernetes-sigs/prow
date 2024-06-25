@@ -338,6 +338,28 @@ func TestGangwayBulkJobStatusChange(t *testing.T) {
 			},
 		},
 		{
+			name:          "refs-check on periodic",
+			count:         3,
+			expectedCount: 0,
+			expectedErr:   nil,
+			bulkMsg: &gangway.BulkJobStatusChangeRequest{
+				JobStatusChange: &gangway.JobStatusChange{
+					Current: gangway.JobExecutionStatus_PENDING,
+					Desired: gangway.JobExecutionStatus_ABORTED,
+				},
+				Refs: &gangway.Refs{
+					Org:     "org1",
+					Repo:    "repo1",
+					BaseRef: "master",
+					BaseSha: "thi5-1s-n0t-a-r34l-sh4",
+				},
+			},
+			creationMsg: &gangway.CreateJobExecutionRequest{
+				JobName:          "sleep-periodic",
+				JobExecutionType: gangway.JobExecutionType_PERIODIC,
+			},
+		},
+		{
 			name:          "startedBefore-fail",
 			count:         3,
 			expectedCount: 0,
