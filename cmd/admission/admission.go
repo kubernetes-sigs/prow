@@ -37,7 +37,7 @@ import (
 
 var (
 	vscheme = runtime.NewScheme()
-	codecs  = serializer.NewCodecFactory(vscheme)
+	codecs  = serializer.NewCodecFactory(vscheme, serializer.EnableStrict)
 )
 
 func init() {
@@ -149,6 +149,12 @@ func onlyUpdateStatus(req admissionapi.AdmissionRequest) (*admissionapi.Admissio
 	if _, _, err := codecs.UniversalDeserializer().Decode(req.Object.Raw, nil, &new); err != nil {
 		return nil, fmt.Errorf("decode new: %w", err)
 	}
+
+	if req.Operation == admissionapi.Create {
+		logrus.Info("accept create with valid spec")
+		return &allow, nil
+	}
+
 	var old prowjobv1.ProwJob
 	if _, _, err := codecs.UniversalDeserializer().Decode(req.OldObject.Raw, nil, &old); err != nil {
 		return nil, fmt.Errorf("decode old: %w", err)

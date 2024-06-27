@@ -59,19 +59,23 @@ spec:
   type: ClusterIP
 ---
 
-apiVersion: admissionregistration.k8s.io/v1beta1
+apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
 metadata:
   name: prow-admission
 webhooks:
 - name: prowjob-validator.prow.k8s.io
   failurePolicy: Fail
+  sideEffects: None
+  admissionReviewVersions:
+    - v1beta1
   rules:
   - apiGroups:
     - prow.k8s.io
     apiVersions:
     - "*"
     operations:
+    - CREATE
     - UPDATE
     resources:
     - prowjobs
