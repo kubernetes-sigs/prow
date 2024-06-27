@@ -64,7 +64,7 @@ func push(job string, grouping map[string]string, pushURL string, g prometheus.G
 		return err
 	}
 	buf := &bytes.Buffer{}
-	enc := expfmt.NewEncoder(buf, expfmt.FmtProtoDelim)
+	enc := expfmt.NewEncoder(buf, expfmt.NewFormat(expfmt.TypeProtoDelim))
 	// Check for pre-existing grouping labels:
 	for _, mf := range mfs {
 		for _, m := range mf.GetMetric() {
@@ -86,7 +86,7 @@ func push(job string, grouping map[string]string, pushURL string, g prometheus.G
 	if err != nil {
 		return err
 	}
-	req.Header.Set(contentTypeHeader, string(expfmt.FmtProtoDelim))
+	req.Header.Set(contentTypeHeader, string(expfmt.NewFormat(expfmt.TypeProtoDelim)))
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err
