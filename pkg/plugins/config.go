@@ -66,7 +66,7 @@ type Configuration struct {
 	Owners Owners `json:"owners,omitempty"`
 
 	// Built-in plugins specific configuration.
-	Approve              []Approve                    `json:"approve,omitempty"`
+	Approve              ConfigTree[Approve]          `json:"approve,omitempty"`
 	Blockades            []Blockade                   `json:"blockades,omitempty"`
 	Blunderbuss          Blunderbuss                  `json:"blunderbuss,omitempty"`
 	Bugzilla             Bugzilla                     `json:"bugzilla,omitempty"`
@@ -309,17 +309,15 @@ type Blockade struct {
 //
 // The configuration for the approve plugin is defined as a list of these structures.
 type Approve struct {
-	// Repos is either of the form org/repos or just org.
-	Repos []string `json:"repos,omitempty"`
 	// IssueRequired indicates if an associated issue is required for approval in
 	// the specified repos.
-	IssueRequired bool `json:"issue_required,omitempty"`
+	IssueRequired *bool `json:"issue_required,omitempty"`
 	// RequireSelfApproval disables automatic approval from PR authors with approval rights.
 	// Otherwise the plugin assumes the author of the PR with approval rights approves the changes in the PR.
 	RequireSelfApproval *bool `json:"require_self_approval,omitempty"`
 	// LgtmActsAsApprove indicates that the lgtm command should be used to
 	// indicate approval
-	LgtmActsAsApprove bool `json:"lgtm_acts_as_approve,omitempty"`
+	LgtmActsAsApprove *bool `json:"lgtm_acts_as_approve,omitempty"`
 	// IgnoreReviewState causes the approve plugin to ignore the GitHub review state. Otherwise:
 	// * an APPROVE github review is equivalent to leaving an "/approve" message.
 	// * A REQUEST_CHANGES github review is equivalent to leaving an /approve cancel" message.
@@ -333,9 +331,31 @@ type Approve struct {
 	PrProcessLink string `json:"pr_process_link,omitempty"`
 }
 
+// DeprecatedApprove is a composed type for compatibility with the old config format
+type DeprecatedApprove struct {
+	// Repos is either of the form org/repos or just org.
+	Repos []string `json:"repos,omitempty"`
+
+	Approve
+}
+
 var (
 	warnDependentBugTargetRelease time.Time
 )
+
+func (a Approve) AreIssueRequired() bool {
+	if a.IssueRequired != nil {
+		return *a.IssueRequired
+	}
+	return false
+}
+
+func (a Approve) ShouldLgtmActsAsApprove() bool {
+	if a.LgtmActsAsApprove != nil {
+		return *a.LgtmActsAsApprove
+	}
+	return false
+}
 
 func (a Approve) HasSelfApproval() bool {
 	if a.RequireSelfApproval != nil {
@@ -349,10 +369,6 @@ func (a Approve) ConsiderReviewState() bool {
 		return !*a.IgnoreReviewState
 	}
 	return true
-}
-
-func (a Approve) getRepos() []string {
-	return a.Repos
 }
 
 // Lgtm specifies a configuration for a single lgtm.
@@ -846,39 +862,62 @@ func (r RequireMatchingLabel) Describe() string {
 	return str.String()
 }
 
-// ApproveFor finds the Approve for a repo, if one exists.
-// Approval configuration can be listed for a repository
-// or an organization.
-func (c *Configuration) ApproveFor(org, repo string) *Approve {
-	fullName := fmt.Sprintf("%s/%s", org, repo)
-
-	a := func() *Approve {
-		// First search for repo config
-		for _, approve := range c.Approve {
-			if !sets.New[string](approve.Repos...).Has(fullName) {
-				continue
-			}
-			return &approve
-		}
-
-		// If you don't find anything, loop again looking for an org config
-		for _, approve := range c.Approve {
-			if !sets.New[string](approve.Repos...).Has(org) {
-				continue
-			}
-			return &approve
-		}
-
-		// Return an empty config, and use plugin defaults
-		return &Approve{}
-	}()
-	if a.CommandHelpLink == "" {
-		a.CommandHelpLink = "https://go.k8s.io/bot-commands"
+func oldToNewApprove(old DeprecatedApprove) *Approve {
+	a := Approve{
+		IgnoreReviewState:   old.IgnoreReviewState,
+		IssueRequired:       old.IssueRequired,
+		LgtmActsAsApprove:   old.LgtmActsAsApprove,
+		RequireSelfApproval: old.RequireSelfApproval,
+		CommandHelpLink:     old.CommandHelpLink,
+		PrProcessLink:       old.PrProcessLink,
 	}
-	if a.PrProcessLink == "" {
-		a.PrProcessLink = "https://git.k8s.io/community/contributors/guide/owners.md#the-code-review-process"
+	return &a
+}
+
+func oldToNewApproveConfig(old []DeprecatedApprove) ConfigTree[Approve] {
+	a := ConfigTree[Approve]{}
+	a.Orgs = make(map[string]Org[Approve])
+	for _, entry := range old {
+		for _, repo := range entry.Repos {
+			s := strings.Split(repo, "/")
+			ao := a.Orgs[s[0]]
+			switch len(s) {
+			case 1:
+				ao.Config = *oldToNewApprove(entry)
+			case 2:
+				if ao.Repos == nil {
+					ao.Repos = make(map[string]Repo[Approve])
+				}
+				ar := ao.Repos[s[1]]
+				ar.Config = *oldToNewApprove(entry)
+				ao.Repos[s[1]] = ar
+			}
+			a.Orgs[s[0]] = ao
+		}
 	}
 	return a
+}
+
+type withoutUnmarshaler[T ProwConfig] ConfigTree[T]
+
+var warnTriggerDeprecatedApprove time.Time
+
+func (a *ConfigTree[T]) UnmarshalJSON(d []byte) error {
+	switch v := any(a).(type) {
+	case *ConfigTree[Approve]:
+		var oldApprove []DeprecatedApprove
+		if err := yaml.Unmarshal(d, &oldApprove); err == nil {
+			logrusutil.ThrottledWarnf(&warnTriggerDeprecatedApprove, time.Hour, "Approve plugin uses a deprecated config style, please migrate to a ConfigTree based config")
+			*v = oldToNewApproveConfig(oldApprove)
+			return nil
+		}
+	default:
+		return fmt.Errorf("unknown type for ConfigTree object %v", v)
+	}
+	var target withoutUnmarshaler[T]
+	err := yaml.Unmarshal(d, &target)
+	*a = ConfigTree[T](target)
+	return err
 }
 
 // LgtmFor finds the Lgtm for a repo, if one exists
@@ -1419,9 +1458,7 @@ func (c *Configuration) Validate() error {
 	if err := validateTrigger(c.Triggers); err != nil {
 		return err
 	}
-	if err := validateRepoDupes(c.Approve); err != nil {
-		return err
-	}
+	// no need to check for repo duplicates in Approve as the ConfigTree uses maps
 	if err := validateRepoDupes(c.Welcome); err != nil {
 		return err
 	}
@@ -2029,7 +2066,7 @@ func (c *Configuration) mergeFrom(other *Configuration) error {
 		errs = append(errs, fmt.Errorf("failed to merge .bugzilla from supplemental config: %w", err))
 	}
 
-	c.Approve = append(c.Approve, other.Approve...)
+	c.Approve = c.Approve.Apply(other.Approve)
 	c.Lgtm = append(c.Lgtm, other.Lgtm...)
 	c.Triggers = append(c.Triggers, other.Triggers...)
 	c.Welcome = append(c.Welcome, other.Welcome...)
@@ -2188,13 +2225,10 @@ func (c *Configuration) HasConfigFor() (global bool, orgs sets.Set[string], repo
 		}
 	}
 
-	for _, approveConfig := range c.Approve {
-		for _, orgOrRepo := range approveConfig.Repos {
-			if strings.Contains(orgOrRepo, "/") {
-				repos.Insert(orgOrRepo)
-			} else {
-				orgs.Insert(orgOrRepo)
-			}
+	for org, approveOrg := range c.Approve.Orgs {
+		orgs.Insert(org)
+		for repo := range approveOrg.Repos {
+			repos.Insert(repo)
 		}
 	}
 
