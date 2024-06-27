@@ -35,7 +35,8 @@ import (
 )
 
 const (
-	commentTag = "<!-- test report -->"
+	// CommentTag is the tag which identifies an issue comment containing a test report
+	CommentTag = "<!-- test report -->"
 )
 
 // GitHubClient provides a client interface to report job status updates
@@ -232,7 +233,7 @@ func parseIssueComments(pjs []prowapi.ProwJob, isBot func(string) bool, ics []gi
 		if !isBot(ic.User.Login) {
 			continue
 		}
-		if !strings.Contains(ic.Body, commentTag) {
+		if !strings.Contains(ic.Body, CommentTag) {
 			continue
 		}
 		if latestComment != 0 {
@@ -357,7 +358,7 @@ func createComment(reportTemplate *template.Template, pjs []prowapi.ProwJob, ent
 		"",
 		plugins.AboutThisBot,
 		"</details>",
-		commentTag,
+		CommentTag,
 	}...)
 	return strings.Join(lines, "\n"), nil
 }
