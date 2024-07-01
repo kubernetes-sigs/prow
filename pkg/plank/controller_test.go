@@ -65,6 +65,11 @@ const (
 	podDeletionPreventionFinalizer = "keep-from-vanishing"
 )
 
+var (
+	maxRetries             = 3
+	nodeTerminationReasons = []string{"DeletionByPodGC", "DeletionByGCPControllerManager"}
+)
+
 func newFakeConfigAgent(t *testing.T, maxConcurrency int, queueCapacities map[string]int) *fca {
 	presubmits := []config.Presubmit{
 		{
@@ -102,10 +107,12 @@ func newFakeConfigAgent(t *testing.T, maxConcurrency int, queueCapacities map[st
 						MaxConcurrency: maxConcurrency,
 						MaxGoroutines:  20,
 					},
-					JobQueueCapacities:    queueCapacities,
-					PodPendingTimeout:     &metav1.Duration{Duration: podPendingTimeout},
-					PodRunningTimeout:     &metav1.Duration{Duration: podRunningTimeout},
-					PodUnscheduledTimeout: &metav1.Duration{Duration: podUnscheduledTimeout},
+					JobQueueCapacities:     queueCapacities,
+					PodPendingTimeout:      &metav1.Duration{Duration: podPendingTimeout},
+					PodRunningTimeout:      &metav1.Duration{Duration: podRunningTimeout},
+					PodUnscheduledTimeout:  &metav1.Duration{Duration: podUnscheduledTimeout},
+					MaxRetries:             &maxRetries,
+					NodeTerminationReasons: nodeTerminationReasons,
 				},
 			},
 			JobConfig: config.JobConfig{
