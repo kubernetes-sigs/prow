@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -59,8 +60,6 @@ import (
 )
 
 const ControllerName = "plank"
-
-const MaxPodRetries = 3
 
 // PodStatus constants
 const (
@@ -464,7 +463,7 @@ func (r *reconciler) syncPendingJob(ctx context.Context, pj *prowv1.ProwJob) (*r
 			pj.Status.PodName = pn
 			r.log.WithFields(pjutil.ProwJobFields(pj)).Info("Pod is missing, starting a new pod")
 		}
-	} else if transientFailure := getTransientFailure(pod); transientFailure != PodTransientFailureNone {
+	} else if transientFailure := getTransientFailure(pod, r.config().Plank.NodeTerminationReasons); transientFailure != PodTransientFailureNone {
 		switch {
 		case transientFailure == PodTransientFailureEvicted && pj.Spec.ErrorOnEviction:
 			// ErrorOnEviction is enabled, complete the PJ and mark it as errored.
@@ -478,12 +477,12 @@ func (r *reconciler) syncPendingJob(ctx context.Context, pj *prowv1.ProwJob) (*r
 			pj.SetComplete()
 			pj.Status.State = prowv1.ErrorState
 			pj.Status.Description = "Job pod's node was terminated."
-		case pj.Status.RetryCount >= MaxPodRetries:
+		case pj.Status.RetryCount >= *r.config().Plank.MaxRetries:
 			// MaxPodRetries is reached, complete the PJ and mark it as errored.
 			r.log.WithField("transient-failure", transientFailure).WithFields(pjutil.ProwJobFields(pj)).Info("Pod Node reached max retries, fail job.")
 			pj.SetComplete()
 			pj.Status.State = prowv1.ErrorState
-			pj.Status.Description = fmt.Sprintf("Job pod reached max retries (%d) for transient failure %s", MaxPodRetries, transientFailure)
+			pj.Status.Description = fmt.Sprintf("Job pod reached max retries (%d) for transient failure %s", pj.Status.RetryCount, transientFailure)
 		default:
 			// Update the retry count and delete the pod so it gets recreated in the next resync.
 			pj.Status.RetryCount++
@@ -666,7 +665,7 @@ const (
 	PodTransientFailureUnreachable PodTransientFailure = "unreachable"
 )
 
-func getTransientFailure(pod *corev1.Pod) PodTransientFailure {
+func getTransientFailure(pod *corev1.Pod, nodeTerminationReasons []string) PodTransientFailure {
 	if pod.Status.Reason == Evicted {
 		return PodTransientFailureEvicted
 	}
@@ -679,17 +678,7 @@ func getTransientFailure(pod *corev1.Pod) PodTransientFailure {
 	}
 
 	for _, condition := range pod.Status.Conditions {
-		// If the node does no longer exist and the pod gets garbage collected,
-		// this condition will be set:
-		// https://kubernetes.io/docs/concepts/workloads/pods/disruptions/#pod-disruption-conditions
-		if condition.Reason == "DeletionByPodGC" {
-			return PodTransientFailureTerminated
-		}
-
-		// On GCP, before a new spot instance is started, the old pods are garbage
-		// collected (if they have not been already by the Kubernetes PodGC):
-		// https://github.com/kubernetes/cloud-provider-gcp/blob/25e5dcc715781316bc5e39f8b17c0d5b313453f7/cmd/gcp-controller-manager/node_csr_approver.go#L1035-L1058
-		if condition.Reason == "DeletionByGCPControllerManager" {
+		if slices.Contains(nodeTerminationReasons, condition.Reason) {
 			return PodTransientFailureTerminated
 		}
 	}
