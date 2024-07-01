@@ -182,6 +182,11 @@ type ProwJobSpec struct {
 	// If this field is unspecified or false, a new pod will be created to replace
 	// the evicted one.
 	ErrorOnEviction bool `json:"error_on_eviction,omitempty"`
+	// ErrorOnTermination indicates that the ProwJob should be completed and given
+	// the ErrorState status if the pod that is executing the job is terminated.
+	// If this field is unspecified or false, a new pod will be created to replace
+	// the terminated one.
+	ErrorOnTermination bool `json:"error_on_termination,omitempty"`
 
 	// PodSpec provides the basis for running the test under
 	// a Kubernetes agent
@@ -1048,6 +1053,8 @@ type ProwJobStatus struct {
 	PendingTime *metav1.Time `json:"pendingTime,omitempty"`
 	// CompletionTime is the timestamp for when the job goes to a final state
 	CompletionTime *metav1.Time `json:"completionTime,omitempty"`
+	// Amount of times the Pod was retried.
+	RetryCount int `json:"retryCount,omitempty"`
 	// +kubebuilder:validation:Enum=scheduling;triggered;pending;success;failure;aborted;error
 	// +kubebuilder:validation:Required
 	State       ProwJobState `json:"state,omitempty"`
