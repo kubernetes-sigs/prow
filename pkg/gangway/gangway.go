@@ -41,7 +41,7 @@ import (
 const (
 	HEADER_API_CONSUMER_TYPE = "x-endpoint-api-consumer-type"
 	HEADER_API_CONSUMER_ID   = "x-endpoint-api-consumer-number"
-	MAX_JOBS_IN_REQ_COUNT    = 10
+	MAX_JOBS_IN_RESPONSE     = 10
 )
 
 type Gangway struct {
@@ -201,6 +201,7 @@ func (gw *Gangway) BulkJobStatusChange(ctx context.Context, request *BulkJobStat
 	}
 
 	var errs []error
+	var pjs []prowcrd.ProwJob
 	jobExecutions := []*JobExecution{}
 	for _, pj := range pjList.Items {
 		if !isMatchingCondition(pj, request) {
@@ -214,16 +215,20 @@ func (gw *Gangway) BulkJobStatusChange(ctx context.Context, request *BulkJobStat
 				continue
 			}
 		}
+		pjs = append(pjs, pj)
+	}
 
-		pj.Status.State = prowcrd.ProwJobState(strings.ToLower(request.GetJobStatusChange().GetDesired().String()))
-		updatedPj, err := gw.ProwJobClient.Update(ctx, &pj, metav1.UpdateOptions{})
-		if err != nil {
-			logrus.WithError(err).Errorf("failed to update ProwJob status")
-			errs = append(errs, fmt.Errorf("%s, failed to update ProwJob status: %s", err, pj.Name))
-			continue
-		}
-		logrus.WithField("name", pj.Name).Infof("ProwJob status updated to: %s", updatedPj.Status.State)
+	todo := []prowcrd.ProwJob{} // Jobs that are not returned in the response
+	// If more than 10 jobs were affected, we only return the first 10 jobs
+	// because we don't want to return a huge list of jobs and wait for a long time
+	if len(pjs) > MAX_JOBS_IN_RESPONSE {
+		pjs = pjs[:MAX_JOBS_IN_RESPONSE]
+		todo = pjs[MAX_JOBS_IN_RESPONSE:]
+	}
 
+	for _, pj := range pjs {
+		updatedPj, err := updatePJstate(gw.ProwJobClient, ctx, pj, strings.ToLower(request.GetJobStatusChange().GetDesired().String()))
+		errs = append(errs, err)
 		jobExec := &JobExecution{
 			Id:        updatedPj.Name,
 			JobName:   updatedPj.Spec.Job,
@@ -232,18 +237,31 @@ func (gw *Gangway) BulkJobStatusChange(ctx context.Context, request *BulkJobStat
 		}
 		jobExecutions = append(jobExecutions, jobExec)
 	}
-
-	// If more than 10 jobs were affected, we only return the first 10 jobs
-	// because we don't want to return a huge list of jobs and wait for a long time
-	jobLen := len(jobExecutions)
-	if jobLen > MAX_JOBS_IN_REQ_COUNT {
-		jobExecutions = jobExecutions[:MAX_JOBS_IN_REQ_COUNT]
+	if len(todo) > 0 {
+		go func() {
+			for _, pj := range todo {
+				// We don't care abour the about the result of the update, we return the first 10 jobs and the rest are updated in the background and their results are logged
+				_, err := updatePJstate(gw.ProwJobClient, ctx, pj, strings.ToLower(request.GetJobStatusChange().GetDesired().String()))
+				errs = append(errs, err)
+			}
+		}()
 	}
+
 	jobsAffected := &JobsAffected{
-		Count:         int32(jobLen),
+		Count:         int32(len(pjs) + len(todo)),
 		JobExecutions: jobExecutions,
 	}
 	return jobsAffected, utilerrors.NewAggregate(errs)
+}
+
+func updatePJstate(client ProwJobClient, ctx context.Context, pj prowcrd.ProwJob, pjState string) (*prowcrd.ProwJob, error) {
+	pj.Status.State = prowcrd.ProwJobState(pjState)
+	updatedPj, err := client.Update(ctx, &pj, metav1.UpdateOptions{})
+	if err != nil {
+		err = fmt.Errorf("%s, failed to update ProwJob status: %s", err, pj.Name)
+	}
+	logrus.WithField("name", pj.Name).Infof("ProwJob status updated to: %s", updatedPj.Status.State)
+	return updatedPj, err
 }
 
 func isMatchingCondition(pj prowcrd.ProwJob, request *BulkJobStatusChangeRequest) bool {
