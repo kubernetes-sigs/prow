@@ -96,7 +96,7 @@ func (c *fakeClient) CreateComment(owner, repo string, number int, comment strin
 }
 
 func (c *fakeClient) ListTeamMembersBySlug(org, teamSlug, role string) ([]github.TeamMember, error) {
-	if teamSlug == "kubernetes/sig-testing-misc" {
+	if org == "kubernetes" && teamSlug == "sig-testing-misc" {
 		return []github.TeamMember{
 			{Login: "cjwagner"},
 			{Login: "merlin"},
