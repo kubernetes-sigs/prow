@@ -136,7 +136,11 @@ func handle(h *handler) error {
 		} else {
 			for _, login := range parseLogins(re[2]) {
 				if isTeamLogin(login) {
-					teamMembers, err := h.gc.ListTeamMembersBySlug(org, login, "all")
+					org, teamSlug := strings.Split(login, "/")[0], strings.Split(login, "/")[1]
+					if org == "" || teamSlug == "" {
+						return fmt.Errorf("invalid team login: %s", login)
+					}
+					teamMembers, err := h.gc.ListTeamMembersBySlug(org, teamSlug, "all")
 					if err != nil {
 						return fmt.Errorf("failed to list team members: %w", err)
 					}
