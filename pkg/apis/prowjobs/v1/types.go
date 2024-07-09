@@ -193,6 +193,10 @@ type ProwJobSpec struct {
 	// PipelineRunSpec provides the basis for running the test as
 	// a pipeline-crd resource
 	// https://github.com/tektoncd/pipeline
+	// +kubebuilder:validation:Type=object
+	// +kubebuilder:validation:XPreserveUnknownFields
+	// +kubebuilder:pruning:PreserveUnknownFields
+	// +kubebuilder:validation:Schemaless
 	PipelineRunSpec *pipelinev1beta1.PipelineRunSpec `json:"pipeline_run_spec,omitempty"`
 
 	// TektonPipelineRunSpec provides the basis for running the test as
@@ -1207,6 +1211,10 @@ type JenkinsSpec struct {
 
 // TektonPipelineRunSpec is optional parameters for Tekton pipeline jobs.
 type TektonPipelineRunSpec struct {
+	// +kubebuilder:validation:Type=object
+	// +kubebuilder:validation:XPreserveUnknownFields
+	// +kubebuilder:pruning:PreserveUnknownFields
+	// +kubebuilder:validation:Schemaless
 	V1Beta1 *pipelinev1beta1.PipelineRunSpec `json:"v1beta1,omitempty"`
 }
 
