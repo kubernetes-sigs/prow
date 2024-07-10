@@ -22,14 +22,16 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	codes "google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	status "google.golang.org/grpc/status"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	utilerrors "k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/validation"
 	prowcrd "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 	"sigs.k8s.io/prow/pkg/config"
@@ -41,7 +43,8 @@ import (
 const (
 	HEADER_API_CONSUMER_TYPE = "x-endpoint-api-consumer-type"
 	HEADER_API_CONSUMER_ID   = "x-endpoint-api-consumer-number"
-	MAX_JOBS_IN_REQ_COUNT    = 10
+	CONTEXT_TIMEOUT          = 10 * time.Minute
+	LIST_TIMEOUT             = 60
 )
 
 type Gangway struct {
@@ -170,87 +173,97 @@ func TranslateProwJobType(prowJobType prowcrd.ProwJobType) JobExecutionType {
 	return jobExecutionType
 }
 
-func (gw *Gangway) BulkJobStatusChange(ctx context.Context, request *BulkJobStatusChangeRequest) (*JobsAffected, error) {
+func (gw *Gangway) BulkJobStatusChange(ctx context.Context, request *BulkJobStatusChangeRequest) (*emptypb.Empty, error) {
 
 	err, md := getHttpRequestHeaders(ctx)
 	if err != nil {
 		logrus.WithError(err).Debug("could not find request HTTP headers")
-		return nil, status.Error(codes.InvalidArgument, err.Error())
+		return &emptypb.Empty{}, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	if err := request.Validate(); err != nil {
 		logrus.WithError(err).Debug("could not validate request fields")
-		return nil, status.Error(codes.InvalidArgument, err.Error())
+		return &emptypb.Empty{}, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	mainConfig := gw.ConfigAgent.Config()
 	allowedApiClient, err := mainConfig.IdentifyAllowedClient(md)
 	if err != nil {
 		logrus.WithError(err).Debug("could not find client in allowlist")
-		return nil, status.Error(codes.InvalidArgument, err.Error())
+		return &emptypb.Empty{}, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	// TODO:
-	// All ProwJob need to be listed, because FieldSelectors are not supported by CRDs yet.
-	// Once FieldSelectors are supported (Kubernetes 1.30 maybe), we can filter the ProwJob list by the desired fields.
-	// Issue link: https://github.com/kubernetes/kubernetes/issues/53459
-	pjList, err := gw.ProwJobClient.List(ctx, metav1.ListOptions{})
-	if err != nil {
-		logrus.WithError(err).Errorf("failed to list ProwJobs")
-		return nil, err
-	}
-
-	var errs []error
-	jobExecutions := []*JobExecution{}
-	for _, pj := range pjList.Items {
-		if !isMatchingCondition(pj, request) {
-			continue
+	go func() {
+		labelMap, err := metav1.LabelSelectorAsMap(getRequestLabelSelector(request))
+		if err != nil {
+			logrus.WithError(err).Debug("could not convert label selector to map")
 		}
-		if allowedApiClient != nil {
-			authorized := ClientAuthorized(allowedApiClient, pj)
-			if !authorized {
-				logrus.Error("client is not authorized to modify the given job")
-				errs = append(errs, status.Errorf(codes.PermissionDenied, "client is not authorized to modify the given job: %s", pj.Name))
+		timeoutSeconds := int64(LIST_TIMEOUT) // increasing the timeout for large clusters
+		options := metav1.ListOptions{
+			LabelSelector:  labels.SelectorFromSet(labelMap).String(),
+			TimeoutSeconds: &timeoutSeconds,
+		}
+		// TODO(Prucek):
+		// All ProwJob need to be listed, because FieldSelectors are not supported by CRDs yet.
+		// Once FieldSelectors are supported (Kubernetes 1.30 maybe), we can filter the ProwJob list by the desired fields.
+		// Issue link: https://github.com/kubernetes/kubernetes/issues/53459
+
+		// creating a context that does not get cancelled and finish the task in the background
+		context, cancel := context.WithTimeout(context.WithoutCancel(ctx), CONTEXT_TIMEOUT)
+		// For now we only use label selector, for fields that are also labels.
+		pjList, err := gw.ProwJobClient.List(context, options)
+		if err != nil {
+			logrus.WithError(err).Errorf("failed to list ProwJobs")
+		}
+		for _, pj := range pjList.Items {
+			if !isMatchingCondition(pj, request) {
 				continue
 			}
+			if allowedApiClient != nil {
+				authorized := ClientAuthorized(allowedApiClient, pj)
+				if !authorized {
+					logrus.Error("client is not authorized to modify the given job")
+					continue
+				}
+			}
+			pj.Status.State = prowcrd.ProwJobState(strings.ToLower(request.GetJobStatusChange().GetDesired().String()))
+			updatedPj, err := gw.ProwJobClient.Update(context, &pj, metav1.UpdateOptions{})
+			if err != nil {
+				logrus.WithError(err).Errorf("failed to update ProwJob status")
+				continue
+			}
+			logrus.WithField("name", pj.Name).Infof("ProwJob status updated to: %s", updatedPj.Status.State)
 		}
+		cancel()
+	}()
 
-		pj.Status.State = prowcrd.ProwJobState(strings.ToLower(request.GetJobStatusChange().GetDesired().String()))
-		updatedPj, err := gw.ProwJobClient.Update(ctx, &pj, metav1.UpdateOptions{})
-		if err != nil {
-			logrus.WithError(err).Errorf("failed to update ProwJob status")
-			errs = append(errs, fmt.Errorf("%s, failed to update ProwJob status: %s", err, pj.Name))
-			continue
+	return &emptypb.Empty{}, nil
+}
+
+func getRequestLabelSelector(request *BulkJobStatusChangeRequest) *metav1.LabelSelector {
+	labelSelector := &metav1.LabelSelector{MatchLabels: make(map[string]string)}
+	switch request.JobType {
+	case JobExecutionType_PRESUBMIT:
+		labelSelector.MatchLabels["prow.k8s.io/type"] = string(prowcrd.PresubmitJob)
+	case JobExecutionType_POSTSUBMIT:
+		labelSelector.MatchLabels["prow.k8s.io/type"] = string(prowcrd.PostsubmitJob)
+	case JobExecutionType_PERIODIC:
+		labelSelector.MatchLabels["prow.k8s.io/type"] = string(prowcrd.PeriodicJob)
+	}
+	if request.Refs != nil {
+		if org := request.Refs.GetOrg(); org != "" {
+			labelSelector.MatchLabels["prow.k8s.io/refs.org"] = org
 		}
-		logrus.WithField("name", pj.Name).Infof("ProwJob status updated to: %s", updatedPj.Status.State)
-
-		jobExec := &JobExecution{
-			Id:        updatedPj.Name,
-			JobName:   updatedPj.Spec.Job,
-			JobType:   JobExecutionType(TranslateProwJobType(updatedPj.Spec.Type)),
-			JobStatus: TranslateProwJobStatus(&updatedPj.Status),
+		if repo := request.Refs.GetRepo(); repo != "" {
+			labelSelector.MatchLabels["prow.k8s.io/refs.repo"] = repo
 		}
-		jobExecutions = append(jobExecutions, jobExec)
 	}
-
-	// If more than 10 jobs were affected, we only return the first 10 jobs
-	// because we don't want to return a huge list of jobs and wait for a long time
-	jobLen := len(jobExecutions)
-	if jobLen > MAX_JOBS_IN_REQ_COUNT {
-		jobExecutions = jobExecutions[:MAX_JOBS_IN_REQ_COUNT]
-	}
-	jobsAffected := &JobsAffected{
-		Count:         int32(jobLen),
-		JobExecutions: jobExecutions,
-	}
-	return jobsAffected, utilerrors.NewAggregate(errs)
+	return labelSelector
 }
 
 func isMatchingCondition(pj prowcrd.ProwJob, request *BulkJobStatusChangeRequest) bool {
 	pjStateString := strings.ToLower(request.GetJobStatusChange().GetCurrent().String())
 	pjCluster := request.GetCluster()
-	pjTypeString := request.GetJobType().String()
-	pjRefs := request.GetRefs()
 	startedBefore := request.GetStartedBefore()
 	startedAfter := request.GetStartedAfter()
 
@@ -262,11 +275,6 @@ func isMatchingCondition(pj prowcrd.ProwJob, request *BulkJobStatusChangeRequest
 			return false
 		}
 	}
-	if pjTypeString != "JOB_EXECUTION_TYPE_UNSPECIFIED" {
-		if pj.Spec.Type != prowcrd.ProwJobType(pjTypeString) {
-			return false
-		}
-	}
 	if startedBefore != nil {
 		if pj.Status.StartTime.Time.After(startedBefore.AsTime()) {
 			return false
@@ -275,24 +283,6 @@ func isMatchingCondition(pj prowcrd.ProwJob, request *BulkJobStatusChangeRequest
 	if startedAfter != nil {
 		if pj.Status.StartTime.Time.Before(startedAfter.AsTime()) {
 			return false
-		}
-	}
-	if pjRefs != nil {
-		if pjRefs.GetOrg() != "" {
-			if pj.Spec.Refs == nil || pj.Spec.Refs.Org == "" {
-				return false
-			}
-			if pjRefs.GetOrg() != pj.Spec.Refs.Org {
-				return false
-			}
-		}
-		if pjRefs.GetRepo() != "" {
-			if pj.Spec.Refs == nil || pj.Spec.Refs.Repo == "" {
-				return false
-			}
-			if pjRefs.GetRepo() != pj.Spec.Refs.Repo {
-				return false
-			}
 		}
 	}
 	return true

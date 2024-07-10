@@ -492,13 +492,14 @@ func TestGangwayBulkJobStatusChange(t *testing.T) {
 			ctx := context.Background()
 			ctx = c.EmbedProjectNumber(ctx)
 			cleanup(t, ctx)
+			jobExecutions := []*gangway.JobExecution{}
 			for i := 0; i < tt.count; i++ {
 				jobExecution, err := c.GRPC.CreateJobExecution(ctx, tt.creationMsg)
 				if err != nil {
 					t.Fatalf("Failed to create job execution: %v", err)
 				}
 				fmt.Println(jobExecution)
-
+				jobExecutions = append(jobExecutions, jobExecution)
 				// We expect the job to be pending.
 				timeout := 120 * time.Second
 				pollInterval := 500 * time.Millisecond
@@ -515,24 +516,22 @@ func TestGangwayBulkJobStatusChange(t *testing.T) {
 			}
 			t.Logf("Created %d jobs", len(pjs.Items))
 
-			jobsAffected, err := c.GRPC.BulkJobStatusChange(ctx, tt.bulkMsg)
+			_, err = c.GRPC.BulkJobStatusChange(ctx, tt.bulkMsg)
 			if tt.expectedErr != nil {
 				if !errors.Is(err, tt.expectedErr) {
 					t.Fatalf("Expected error %v, got %v", tt.expectedErr, err)
 				}
 			} else {
-				if jobsAffected.Count != int32(tt.expectedCount) {
-					t.Fatalf("Expected %d jobs to be affected, got %d", tt.expectedCount, jobsAffected.Count)
-				}
-				for _, job := range jobsAffected.JobExecutions {
-					if job.JobStatus != gangway.JobExecutionStatus_ABORTED {
-						t.Fatalf("Expected job status to be %q, got %q", gangway.JobExecutionStatus_ABORTED, job.JobStatus)
+				for _, jobExecution := range jobExecutions {
+					timeout := 120 * time.Second
+					pollInterval := 500 * time.Millisecond
+					expectedStatus := gangway.JobExecutionStatus_ABORTED
+					if tt.expectedCount == 0 {
+						expectedStatus = gangway.JobExecutionStatus_PENDING
 					}
-					if job.JobType != tt.creationMsg.JobExecutionType {
-						t.Fatalf("Expected job type to be %q, got %q", tt.creationMsg.JobExecutionType, job.JobType)
-					}
-					if job.JobName != tt.creationMsg.JobName {
-						t.Fatalf("Expected job name to be %q, got %q", tt.creationMsg.JobName, job.JobName)
+
+					if err := c.WaitForJobExecutionStatus(ctx, jobExecution.Id, pollInterval, timeout, expectedStatus); err != nil {
+						t.Fatal(err)
 					}
 				}
 			}
