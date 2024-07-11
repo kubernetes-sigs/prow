@@ -71,8 +71,6 @@ type githubClient interface {
 	UnrequestReview(org, repo string, number int, logins []string) error
 
 	CreateComment(owner, repo string, number int, comment string) error
-
-	ListTeamMembersBySlug(org, teamSlug, role string) ([]github.TeamMember, error)
 }
 
 func handleGenericComment(pc plugins.Agent, e github.GenericCommentEvent) error {
@@ -84,14 +82,6 @@ func handleGenericComment(pc plugins.Agent, e github.GenericCommentEvent) error 
 		err = combineErrors(err, handle(newReviewHandler(e, pc.GitHubClient, pc.Logger)))
 	}
 	return err
-}
-
-func isTeamLogin(login string) bool {
-	match, err := regexp.MatchString(`^[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*/[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*$`, login)
-	if err != nil {
-		return false
-	}
-	return match
 }
 
 func parseLogins(text string) []string {
@@ -135,17 +125,7 @@ func handle(h *handler) error {
 			users[e.User.Login] = add
 		} else {
 			for _, login := range parseLogins(re[2]) {
-				if isTeamLogin(login) {
-					teamMembers, err := h.gc.ListTeamMembersBySlug(org, login, "all")
-					if err != nil {
-						return fmt.Errorf("failed to list team members: %w", err)
-					}
-					for _, member := range teamMembers {
-						users[member.Login] = add
-					}
-				} else {
-					users[login] = add
-				}
+				users[login] = add
 			}
 		}
 	}

@@ -95,16 +95,6 @@ func (c *fakeClient) CreateComment(owner, repo string, number int, comment strin
 	return nil
 }
 
-func (c *fakeClient) ListTeamMembersBySlug(org, teamSlug, role string) ([]github.TeamMember, error) {
-	if teamSlug == "kubernetes/sig-testing-misc" {
-		return []github.TeamMember{
-			{Login: "cjwagner"},
-			{Login: "merlin"},
-		}, nil
-	}
-	return []github.TeamMember{}, nil
-}
-
 func newFakeClient(contribs []string) *fakeClient {
 	c := &fakeClient{
 		contributors: make(map[string]bool),
@@ -388,13 +378,13 @@ func TestAssignAndReview(t *testing.T) {
 			name:      "request team review",
 			body:      "/cc @kubernetes/sig-testing-misc",
 			commenter: "rando",
-			requested: []string{"cjwagner", "merlin"},
+			requested: []string{"kubernetes/sig-testing-misc"},
 		},
 		{
 			name:        "unrequest team review",
 			body:        "/uncc @kubernetes/sig-testing-misc",
 			commenter:   "rando",
-			unrequested: []string{"cjwagner", "merlin"},
+			unrequested: []string{"kubernetes/sig-testing-misc"},
 		},
 	}
 	for _, tc := range testcases {
