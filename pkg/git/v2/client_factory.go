@@ -152,6 +152,9 @@ type RepoOpts struct {
 	// branch name and SHA pairs will be fed into RetargetBranch in the git v2
 	// client, to update the current HEAD of each branch.
 	BranchesToRetarget map[string]string
+	// CopyTo specifies the target directory to put the copy of the repository.
+	// If not set, the client will create and use a temporary directory.
+	CopyTo string
 }
 
 // Apply allows to use a ClientFactoryOpts as Opt
@@ -377,10 +380,18 @@ func (c *clientFactory) ClientForWithRepoOpts(org, repo string, repoOpts RepoOpt
 		return nil, err
 	}
 
-	// Put copies of the repo in temp dir.
-	repoDir, err := os.MkdirTemp(*defaultTempDir(), "gitrepo")
-	if err != nil {
-		return nil, err
+	var repoDir string
+	if repoOpts.CopyTo != "" {
+		if err := os.MkdirAll(repoOpts.CopyTo, 0700); err != nil {
+			return nil, fmt.Errorf("failed to create directory %s: %w", repoOpts.CopyTo, err)
+		}
+		repoDir = repoOpts.CopyTo
+	} else {
+		// Put copies of the repo in temp dir.
+		repoDir, err = os.MkdirTemp(*defaultTempDir(), "gitrepo")
+		if err != nil {
+			return nil, err
+		}
 	}
 	_, repoClientCloner, repoClient, err := c.bootstrapClients(org, repo, repoDir)
 	if err != nil {
