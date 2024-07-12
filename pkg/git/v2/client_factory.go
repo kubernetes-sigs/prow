@@ -152,6 +152,9 @@ type RepoOpts struct {
 	// branch name and SHA pairs will be fed into RetargetBranch in the git v2
 	// client, to update the current HEAD of each branch.
 	BranchesToRetarget map[string]string
+	// ToSubDir supports customizing the repository copy into the corresponding
+	// subdirectory.
+	ToSubDir string
 }
 
 // Apply allows to use a ClientFactoryOpts as Opt
@@ -382,6 +385,13 @@ func (c *clientFactory) ClientForWithRepoOpts(org, repo string, repoOpts RepoOpt
 	if err != nil {
 		return nil, err
 	}
+	if repoOpts.ToSubDir != "" {
+		repoDir = path.Join(repoDir, repoOpts.ToSubDir)
+		if err := os.MkdirAll(repoDir, os.ModePerm); err != nil {
+			return nil, err
+		}
+	}
+
 	_, repoClientCloner, repoClient, err := c.bootstrapClients(org, repo, repoDir)
 	if err != nil {
 		return nil, err
