@@ -152,8 +152,8 @@ type RepoOpts struct {
 	// branch name and SHA pairs will be fed into RetargetBranch in the git v2
 	// client, to update the current HEAD of each branch.
 	BranchesToRetarget map[string]string
-	// CopyTo is the directory to copy the repo to.
-	// It's the caller's responsibility to ensure that the directory exists.
+	// CopyTo specifies the target directory to put the copy of the repository.
+	// If not set, the client will create and use a temporary directory.
 	CopyTo string
 }
 
@@ -382,6 +382,9 @@ func (c *clientFactory) ClientForWithRepoOpts(org, repo string, repoOpts RepoOpt
 
 	var repoDir string
 	if repoOpts.CopyTo != "" {
+		if err := os.MkdirAll(repoOpts.CopyTo, 0700); err != nil {
+			return nil, fmt.Errorf("failed to create directory %s: %w", repoOpts.CopyTo, err)
+		}
 		repoDir = repoOpts.CopyTo
 	} else {
 		// Put copies of the repo in temp dir.
