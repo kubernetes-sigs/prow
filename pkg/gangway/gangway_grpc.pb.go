@@ -11,6 +11,7 @@ import (
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -37,7 +38,7 @@ type ProwClient interface {
 	CreateJobExecution(ctx context.Context, in *CreateJobExecutionRequest, opts ...grpc.CallOption) (*JobExecution, error)
 	GetJobExecution(ctx context.Context, in *GetJobExecutionRequest, opts ...grpc.CallOption) (*JobExecution, error)
 	ListJobExecutions(ctx context.Context, in *ListJobExecutionsRequest, opts ...grpc.CallOption) (*JobExecutions, error)
-	BulkJobStatusChange(ctx context.Context, in *BulkJobStatusChangeRequest, opts ...grpc.CallOption) (*JobsAffected, error)
+	BulkJobStatusChange(ctx context.Context, in *BulkJobStatusChangeRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
 type prowClient struct {
@@ -75,8 +76,8 @@ func (c *prowClient) ListJobExecutions(ctx context.Context, in *ListJobExecution
 	return out, nil
 }
 
-func (c *prowClient) BulkJobStatusChange(ctx context.Context, in *BulkJobStatusChangeRequest, opts ...grpc.CallOption) (*JobsAffected, error) {
-	out := new(JobsAffected)
+func (c *prowClient) BulkJobStatusChange(ctx context.Context, in *BulkJobStatusChangeRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, Prow_BulkJobStatusChange_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -96,7 +97,7 @@ type ProwServer interface {
 	CreateJobExecution(context.Context, *CreateJobExecutionRequest) (*JobExecution, error)
 	GetJobExecution(context.Context, *GetJobExecutionRequest) (*JobExecution, error)
 	ListJobExecutions(context.Context, *ListJobExecutionsRequest) (*JobExecutions, error)
-	BulkJobStatusChange(context.Context, *BulkJobStatusChangeRequest) (*JobsAffected, error)
+	BulkJobStatusChange(context.Context, *BulkJobStatusChangeRequest) (*emptypb.Empty, error)
 	mustEmbedUnimplementedProwServer()
 }
 
@@ -113,7 +114,7 @@ func (UnimplementedProwServer) GetJobExecution(context.Context, *GetJobExecution
 func (UnimplementedProwServer) ListJobExecutions(context.Context, *ListJobExecutionsRequest) (*JobExecutions, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListJobExecutions not implemented")
 }
-func (UnimplementedProwServer) BulkJobStatusChange(context.Context, *BulkJobStatusChangeRequest) (*JobsAffected, error) {
+func (UnimplementedProwServer) BulkJobStatusChange(context.Context, *BulkJobStatusChangeRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method BulkJobStatusChange not implemented")
 }
 func (UnimplementedProwServer) mustEmbedUnimplementedProwServer() {}
