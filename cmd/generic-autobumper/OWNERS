@@ -1,10 +1,8 @@
 # See the OWNERS docs at https://go.k8s.io/owners
 
-reviewers:
-- mpherman2
-approvers:
-- mpherman2
+# this falls to to repo owners now
 emeritus_approvers:
 - chaodaiG
+- mpherman2
 labels:
  - area/prow/hook
