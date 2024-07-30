@@ -1,6 +1,5 @@
 # See the OWNERS docs at https://go.k8s.io/owners
 
-reviewers:
-- clarketm
-approvers:
+# this falls to to repo owners now
+emeritus_approvers:
 - clarketm
