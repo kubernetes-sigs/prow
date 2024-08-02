@@ -106,22 +106,22 @@ PROW_IMAGE ?=
 
 .PHONY: push-images
 push-images:
-	hack/make-rules/go-run/arbitrary.sh run ./hack/prowimagebuilder --ko-docker-repo="${REGISTRY}" --push=true
+	hack/make-rules/go-run/arbitrary.sh run ./hack/prowimagebuilder --prow-images-file=./.prow-images.yaml --ko-docker-repo="${REGISTRY}" --push=true
 
 .PHONY: build-images
 build-images:
-	hack/make-rules/go-run/arbitrary.sh run ./hack/prowimagebuilder --ko-docker-repo="ko.local" --push=false
+	hack/make-rules/go-run/arbitrary.sh run ./hack/prowimagebuilder --prow-images-file=./.prow-images.yaml --ko-docker-repo="ko.local" --push=false
 
 .PHONY: push-single-image
 push-single-image:
-	hack/make-rules/go-run/arbitrary.sh run ./hack/prowimagebuilder --ko-docker-repo="${REGISTRY}" --push=true --image=${PROW_IMAGE}
+	hack/make-rules/go-run/arbitrary.sh run ./hack/prowimagebuilder --prow-images-file=./.prow-images.yaml --ko-docker-repo="${REGISTRY}" --push=true --image=${PROW_IMAGE}
 
 .PHONY: build-single-image
 build-single-image:
-	hack/make-rules/go-run/arbitrary.sh run ./hack/prowimagebuilder --ko-docker-repo="ko.local" --push=false --image=${PROW_IMAGE}
+	hack/make-rules/go-run/arbitrary.sh run ./hack/prowimagebuilder --prow-images-file=./.prow-images.yaml --ko-docker-repo="ko.local" --push=false --image=${PROW_IMAGE}
 
 .PHONY: build-tarball
 build-tarball:
 # use --ko-docker-repo="something.not.exist" as ko skips writing `.tar` file if
 # it's `ko.local.
-	hack/make-rules/go-run/arbitrary.sh run ./hack/prowimagebuilder --ko-docker-repo="something.not.exist" --push=false --image=${PROW_IMAGE}
+	hack/make-rules/go-run/arbitrary.sh run ./hack/prowimagebuilder --prow-images-file=./.prow-images.yaml --ko-docker-repo="something.not.exist" --push=false --image=${PROW_IMAGE}
