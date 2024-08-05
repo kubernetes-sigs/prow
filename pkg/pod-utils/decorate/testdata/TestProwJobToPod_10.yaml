@@ -64,6 +64,7 @@ spec:
       value: pull-sha
     - name: PULL_REFS
       value: base-ref:base-sha,1:pull-sha
+    - name: PULL_TITLE
     - name: REPO_NAME
       value: repo-name
     - name: REPO_OWNER
