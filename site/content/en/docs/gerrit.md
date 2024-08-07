@@ -40,9 +40,6 @@ c.Start(cookiefilePath)
 
 The client will try to refetch token from the path every 10 minutes.
 
-You should also utilize [`grandmatriarch`](/docs/components/undocumented/grandmatriarch/) to generate a token from a
-passed-in service account credential.
-
 If you need extra features, feel free to introduce new gerrit API functions to the client package.
 
 #### Adapter
