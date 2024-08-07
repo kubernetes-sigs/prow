@@ -23,6 +23,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+
 	"sigs.k8s.io/prow/pkg/github"
 	"sigs.k8s.io/prow/pkg/labels"
 	"sigs.k8s.io/prow/pkg/plugins"
@@ -102,6 +103,33 @@ func TestHandle(t *testing.T) {
 				)
 				mock.AddLabelReturns(errTest)
 				mock.RemoveLabelReturns(errTest)
+			},
+			assert: func(mock *cherrypickapprovedfakes.FakeImpl, err error) {
+				assert.NoError(t, err)
+				assert.EqualValues(t, 1, mock.AddLabelCallCount())
+				assert.EqualValues(t, 1, mock.RemoveLabelCallCount())
+			},
+		},
+		{
+			name: "success apply cherry-pick-approved label on PR without lgtm+approved",
+			config: []plugins.CherryPickApproved{
+				{
+					Org:                       testOrgRepo,
+					Repo:                      testOrgRepo,
+					BranchRe:                  regexp.MustCompile("^release-*"),
+					Approvers:                 []string{"user"},
+					AllowMissingApprovedLabel: true,
+					AllowMissingLGTMLabel:     true,
+				},
+			},
+			prepare: func(mock *cherrypickapprovedfakes.FakeImpl) {
+				mock.GetCombinedStatusReturns(&github.CombinedStatus{}, nil)
+				mock.GetIssueLabelsReturns(
+					[]github.Label{
+						{Name: labels.CpUnapproved},
+					},
+					nil,
+				)
 			},
 			assert: func(mock *cherrypickapprovedfakes.FakeImpl, err error) {
 				assert.NoError(t, err)
