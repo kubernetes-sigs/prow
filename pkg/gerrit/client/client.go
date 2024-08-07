@@ -462,7 +462,7 @@ func (c *Client) ChangeExist(instance, id string) (bool, error) {
 	_, resp, err := h.changeService.GetChange(id, nil)
 
 	if err != nil {
-		if resp.StatusCode == http.StatusNotFound {
+		if resp != nil && resp.StatusCode == http.StatusNotFound {
 			return false, nil
 		}
 		return false, fmt.Errorf("error getting current change: %w", responseBodyError(err, resp))
