@@ -726,6 +726,10 @@ type CherryPickApproved struct {
 	BranchRe     *regexp.Regexp `json:"-"`
 	// Approvers is the list of GitHub logins allowed to approve a cherry-pick.
 	Approvers []string `json:"approvers,omitempty"`
+	// AllowMissingApprovedLabel allows approving cherry-pick without the approved label.
+	AllowMissingApprovedLabel bool `json:"allow_missing_approved_label,omitempty"`
+	// AllowMissingLGTMLabel allows approving cherry-pick without the lgtm label.
+	AllowMissingLGTMLabel bool `json:"allow_missing_lgtm_label,omitempty"`
 }
 
 // CherryPickUnapproved is the config for the cherrypick-unapproved plugin.
