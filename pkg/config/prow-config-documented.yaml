@@ -1269,6 +1269,16 @@ plank:
     # JobURLPrefixDisableAppendStorageProvider disables that the storageProvider is
     # automatically appended to the JobURLPrefix.
     jobURLPrefixDisableAppendStorageProvider: true
+    # MaxRetries is the maximum number of times a prowjob will be retried before
+    # being marked as failed. Defaults to 3. A value of 0 means no retries.
+    max_retries: 0
+    # NodeTerminationReasons is a set of reasons on which the controller will
+    # match to determine if a node is being terminated. If a node is being terminated
+    # the controller will restart the prowjob, unless the ErrorOnTermination option is set
+    # on the prowjob or the MaxRetries option is reached.
+    # Defaults to ["DeletionByPodGC", "DeletionByGCPControllerManager"].
+    node_termination_reasons:
+        - ""
     # PodPendingTimeout defines how long the controller will wait to perform a garbage
     # collection on pending pods. Defaults to 10 minutes.
     pod_pending_timeout: 0s
