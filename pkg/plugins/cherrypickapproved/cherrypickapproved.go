@@ -128,8 +128,10 @@ func (h *handler) handle(log *logrus.Entry, gc plugins.PluginGitHubClient, e git
 	}()
 
 	var (
-		approvers []string
-		branchRe  *regexp.Regexp
+		approvers                 []string
+		branchRe                  *regexp.Regexp
+		allowMissingApprovedLabel bool
+		allowMissingLGTMLabel     bool
 	)
 
 	// Filter configurations
@@ -139,6 +141,8 @@ func (h *handler) handle(log *logrus.Entry, gc plugins.PluginGitHubClient, e git
 			foundRepoOrg = true
 			approvers = cfg.Approvers
 			branchRe = cfg.BranchRe
+			allowMissingApprovedLabel = cfg.AllowMissingApprovedLabel
+			allowMissingLGTMLabel = cfg.AllowMissingLGTMLabel
 		}
 	}
 
@@ -219,7 +223,7 @@ func (h *handler) handle(log *logrus.Entry, gc plugins.PluginGitHubClient, e git
 		return nil
 	}
 
-	if hasLGTMLabel && hasApprovedLabel && !hasInvalidLabels {
+	if (hasLGTMLabel || allowMissingLGTMLabel) && (hasApprovedLabel || allowMissingApprovedLabel) && !hasInvalidLabels {
 		if !hasCherryPickApprovedLabel {
 			if err := h.AddLabel(gc, org, repo, prNumber, labels.CpApproved); err != nil {
 				log.WithError(err).Errorf("failed to add the label: %s", labels.CpApproved)
