@@ -165,7 +165,7 @@ func (f *FakeClient) CreateIssue(issue *jira.Issue) (*jira.Issue, error) {
 	highestID := 0
 	// find highest ID for issues in the same project to make new key one higher
 	highestKeyID := 0
-	keyPrefix := issue.Fields.Project.Name + "-"
+	keyPrefix := issue.Fields.Project.Key + "-"
 	for _, issue := range f.Issues {
 		// all IDs are ints, but represented as strings...
 		intID, _ := strconv.Atoi(issue.ID)
