@@ -1348,6 +1348,15 @@ push_gateway:
 # It has to be explicitly enabled.
 scheduler:
     enabled: true
+    external:
+        # Cache is the cache configuration for the external scheduling strategy
+        cache:
+            # CacheCleanupInterval is the interval to clean up the cache
+            cleanup_interval: 0s
+            # EntryTimeoutInterval is the interval to consider an entry in the cache
+            entry_timeout_interval: 0s
+        # URL is the URL of the REST API to query for the cluster assigned to prowjob
+        url: ' '
     # Scheduling strategies
     failover:
         # ClusterMappings maps a cluster to another one. It is used when we

@@ -40,6 +40,9 @@ func Get(cfg *config.Config) Interface {
 	if cfg.Scheduler.Failover != nil {
 		return NewFailover(*cfg.Scheduler.Failover)
 	}
+	if cfg.Scheduler.External != nil {
+		return NewExternal(*cfg.Scheduler.External)
+	}
 	return &Passthrough{}
 }
 
