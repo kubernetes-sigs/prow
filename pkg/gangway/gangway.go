@@ -173,6 +173,47 @@ func TranslateProwJobType(prowJobType prowcrd.ProwJobType) JobExecutionType {
 	return jobExecutionType
 }
 
+// ListJobExecutions returns a list of Prow job execution. It currently does
+// this by looking at all of the existing Prow Job CR (custom resource) objects
+// to find matching entries, and then does a translation from the CR into our
+// JobExecution type.
+// In the future this function will also perform a lookup in GCS or some other
+// more permanent location as a fallback.
+func (gw *Gangway) ListJobExecutions(ctx context.Context, ljer *ListJobExecutionsRequest) (*JobExecutions, error) {
+	options := getListOptions(getListRequestLabelSelector(ljer))
+	prowJobCRs, err := gw.ProwJobClient.List(context.TODO(), options)
+	if err != nil {
+		logrus.WithError(err).Errorf("failed to list ProwJobs")
+	}
+
+	var jobList []*JobExecution
+	for _, pj := range prowJobCRs.Items {
+		if ljer.Status != JobExecutionStatus_JOB_EXECUTION_STATUS_UNSPECIFIED && TranslateProwJobStatus(&pj.Status) != ljer.Status {
+			continue
+		}
+		jobList = append(jobList, &JobExecution{
+			Id:        pj.Name,
+			JobName:   pj.Spec.Job,
+			JobStatus: TranslateProwJobStatus(&pj.Status),
+			JobType:   TranslateProwJobType(pj.Spec.Type),
+		})
+
+	}
+
+	jobExecs := &JobExecutions{
+		JobExecution: jobList,
+	}
+	return jobExecs, nil
+}
+
+func getListRequestLabelSelector(request *ListJobExecutionsRequest) *metav1.LabelSelector {
+	labelSelector := &metav1.LabelSelector{MatchLabels: make(map[string]string)}
+	if request.JobName != "" {
+		labelSelector.MatchLabels["prow.k8s.io/job"] = request.JobName
+	}
+	return labelSelector
+}
+
 func (gw *Gangway) BulkJobStatusChange(ctx context.Context, request *BulkJobStatusChangeRequest) (*emptypb.Empty, error) {
 
 	err, md := getHttpRequestHeaders(ctx)
@@ -194,15 +235,7 @@ func (gw *Gangway) BulkJobStatusChange(ctx context.Context, request *BulkJobStat
 	}
 
 	go func() {
-		labelMap, err := metav1.LabelSelectorAsMap(getRequestLabelSelector(request))
-		if err != nil {
-			logrus.WithError(err).Debug("could not convert label selector to map")
-		}
-		timeoutSeconds := int64(LIST_TIMEOUT) // increasing the timeout for large clusters
-		options := metav1.ListOptions{
-			LabelSelector:  labels.SelectorFromSet(labelMap).String(),
-			TimeoutSeconds: &timeoutSeconds,
-		}
+		options := getListOptions(getRequestLabelSelector(request))
 		// TODO(Prucek):
 		// All ProwJob need to be listed, because FieldSelectors are not supported by CRDs yet.
 		// Once FieldSelectors are supported (Kubernetes 1.30 maybe), we can filter the ProwJob list by the desired fields.
@@ -259,6 +292,21 @@ func getRequestLabelSelector(request *BulkJobStatusChangeRequest) *metav1.LabelS
 		}
 	}
 	return labelSelector
+}
+
+func getListOptions(selector *metav1.LabelSelector) metav1.ListOptions {
+	labelMap, err := metav1.LabelSelectorAsMap(selector)
+	if err != nil {
+		logrus.WithError(err).Debug("could not convert label selector to map")
+		// Use empty selector if we get an error on conversion
+		labelMap = map[string]string{}
+	}
+	timeoutSeconds := int64(LIST_TIMEOUT) // increasing the timeout for large clusters
+	options := metav1.ListOptions{
+		LabelSelector:  labels.SelectorFromSet(labelMap).String(),
+		TimeoutSeconds: &timeoutSeconds,
+	}
+	return options
 }
 
 func isMatchingCondition(pj prowcrd.ProwJob, request *BulkJobStatusChangeRequest) bool {
