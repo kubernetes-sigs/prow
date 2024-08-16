@@ -135,10 +135,18 @@ func (h *handler) handle(log *logrus.Entry, gc plugins.PluginGitHubClient, e git
 	)
 
 	// Filter configurations
-	foundRepoOrg := false
+	foundConfig := false
 	for _, cfg := range cfgs {
 		if cfg.Org == org && cfg.Repo == repo {
-			foundRepoOrg = true
+			foundConfig = true
+			approvers = cfg.Approvers
+			branchRe = cfg.BranchRe
+			allowMissingApprovedLabel = cfg.AllowMissingApprovedLabel
+			allowMissingLGTMLabel = cfg.AllowMissingLGTMLabel
+
+			break
+		} else if cfg.Org == org && cfg.Repo == "" {
+			foundConfig = true
 			approvers = cfg.Approvers
 			branchRe = cfg.BranchRe
 			allowMissingApprovedLabel = cfg.AllowMissingApprovedLabel
@@ -146,7 +154,8 @@ func (h *handler) handle(log *logrus.Entry, gc plugins.PluginGitHubClient, e git
 		}
 	}
 
-	if !foundRepoOrg {
+	// If we didn't found config at this point, fail, otherwise parse it
+	if !foundConfig {
 		log.Debugf("Skipping because repo %s/%s is not part of plugin configuration", org, repo)
 		return nil
 	}

@@ -89,6 +89,56 @@ func TestHandle(t *testing.T) {
 			},
 		},
 		{
+			name: "success apply cherry-pick-approved label with org-level config",
+			config: []plugins.CherryPickApproved{
+				{
+					Org:       testOrgRepo,
+					BranchRe:  regexp.MustCompile("^release-*"),
+					Approvers: []string{"user"},
+				},
+			},
+			prepare: func(mock *cherrypickapprovedfakes.FakeImpl) {
+				mock.GetCombinedStatusReturns(&github.CombinedStatus{}, nil)
+				mock.GetIssueLabelsReturns(
+					[]github.Label{
+						{Name: labels.LGTM},
+						{Name: labels.Approved},
+						{Name: labels.CpUnapproved},
+					},
+					nil,
+				)
+			},
+			assert: func(mock *cherrypickapprovedfakes.FakeImpl, err error) {
+				assert.NoError(t, err)
+				assert.EqualValues(t, 1, mock.AddLabelCallCount())
+				assert.EqualValues(t, 1, mock.RemoveLabelCallCount())
+			},
+		},
+		{
+			name: "success apply cherry-pick-approved label with both repo and org-level config",
+			config: append(testConfig, plugins.CherryPickApproved{
+				Org:       testOrgRepo,
+				BranchRe:  regexp.MustCompile("^test-*"),
+				Approvers: []string{"user"},
+			}),
+			prepare: func(mock *cherrypickapprovedfakes.FakeImpl) {
+				mock.GetCombinedStatusReturns(&github.CombinedStatus{}, nil)
+				mock.GetIssueLabelsReturns(
+					[]github.Label{
+						{Name: labels.LGTM},
+						{Name: labels.Approved},
+						{Name: labels.CpUnapproved},
+					},
+					nil,
+				)
+			},
+			assert: func(mock *cherrypickapprovedfakes.FakeImpl, err error) {
+				assert.NoError(t, err)
+				assert.EqualValues(t, 1, mock.AddLabelCallCount())
+				assert.EqualValues(t, 1, mock.RemoveLabelCallCount())
+			},
+		},
+		{
 			name:   "success but failed to apply/remove labels",
 			config: testConfig,
 			prepare: func(mock *cherrypickapprovedfakes.FakeImpl) {
