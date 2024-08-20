@@ -52,6 +52,12 @@ func resultForJob(pjclient prowv1.ProwJobInterface, selector string) (*pjapi.Pro
 
 // TriggerAndWatchProwJob would trigger the job provided by the prowjob parameter
 func TriggerAndWatchProwJob(o prowflagutil.KubernetesOptions, prowjob *pjapi.ProwJob, config *prowconfig.Config, envVars map[string]string, dryRun bool) (succeeded bool, err error) {
+	return TriggerAndWatchProwJobState(o, prowjob, config, envVars, pjapi.SuccessState, dryRun)
+}
+
+// TriggerAndWatchProwJobState triggers the job provided by the prowjob parameter
+// and waits for the provided state
+func TriggerAndWatchProwJobState(o prowflagutil.KubernetesOptions, prowjob *pjapi.ProwJob, config *prowconfig.Config, envVars map[string]string, state pjapi.ProwJobState, dryRun bool) (stateReached bool, err error) {
 	logrus.Info("getting cluster config")
 	pjclient, err := o.ProwJobClient(config.ProwJobNamespace, dryRun)
 	if err != nil {
@@ -81,10 +87,10 @@ func TriggerAndWatchProwJob(o prowflagutil.KubernetesOptions, prowjob *pjapi.Pro
 		}
 	}
 
-	if result.State != pjapi.SuccessState {
+	if result.State != state {
 		logrus.Error("job failed")
 	} else {
-		succeeded = true
+		stateReached = true
 	}
 
 	b, err := yaml.Marshal(result)
@@ -93,5 +99,5 @@ func TriggerAndWatchProwJob(o prowflagutil.KubernetesOptions, prowjob *pjapi.Pro
 	}
 
 	fmt.Println(string(b))
-	return succeeded, nil
+	return stateReached, nil
 }
