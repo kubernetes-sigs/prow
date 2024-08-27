@@ -466,7 +466,9 @@ func TestReconcile(t *testing.T) {
 					Agent:   prowjobv1.TektonAgent,
 					Cluster: "target-cluster",
 					PipelineRunSpec: &pipelinev1.PipelineRunSpec{
-						ServiceAccountName: "robot",
+						TaskRunTemplate: pipelinev1.PipelineTaskRunTemplate{
+							ServiceAccountName: "robot",
+						},
 					},
 				},
 				Status: prowjobv1.ProwJobStatus{
@@ -497,7 +499,9 @@ func TestReconcile(t *testing.T) {
 					Agent:   prowjobv1.TektonAgent,
 					Cluster: "target-cluster",
 					PipelineRunSpec: &pipelinev1.PipelineRunSpec{
-						ServiceAccountName: "robot",
+						TaskRunTemplate: pipelinev1.PipelineTaskRunTemplate{
+							ServiceAccountName: "robot",
+						},
 					},
 				},
 				Status: prowjobv1.ProwJobStatus{
@@ -528,7 +532,9 @@ func TestReconcile(t *testing.T) {
 				Spec: prowjobv1.ProwJobSpec{
 					Agent: prowjobv1.TektonAgent,
 					PipelineRunSpec: &pipelinev1.PipelineRunSpec{
-						ServiceAccountName: "robot",
+						TaskRunTemplate: pipelinev1.PipelineTaskRunTemplate{
+							ServiceAccountName: "robot",
+						},
 					},
 				},
 				Status: prowjobv1.ProwJobStatus{
@@ -542,7 +548,9 @@ func TestReconcile(t *testing.T) {
 				pj.Spec.Type = prowjobv1.PeriodicJob
 				pj.Spec.Agent = prowjobv1.TektonAgent
 				pj.Spec.PipelineRunSpec = &pipelinev1.PipelineRunSpec{
-					ServiceAccountName: "robot",
+					TaskRunTemplate: pipelinev1.PipelineTaskRunTemplate{
+						ServiceAccountName: "robot",
+					},
 				}
 				pj.Status.BuildID = pipelineID
 				p, err := makePipelineRun(pj)
