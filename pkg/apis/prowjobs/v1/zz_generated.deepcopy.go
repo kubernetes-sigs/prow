@@ -24,7 +24,7 @@ package v1
 import (
 	url "net/url"
 
-	v1beta1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
+	pipelinev1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
@@ -439,7 +439,7 @@ func (in *ProwJobSpec) DeepCopyInto(out *ProwJobSpec) {
 	}
 	if in.PipelineRunSpec != nil {
 		in, out := &in.PipelineRunSpec, &out.PipelineRunSpec
-		*out = new(v1beta1.PipelineRunSpec)
+		*out = new(pipelinev1.PipelineRunSpec)
 		(*in).DeepCopyInto(*out)
 	}
 	if in.TektonPipelineRunSpec != nil {
@@ -743,7 +743,7 @@ func (in *TektonPipelineRunSpec) DeepCopyInto(out *TektonPipelineRunSpec) {
 	*out = *in
 	if in.V1Beta1 != nil {
 		in, out := &in.V1Beta1, &out.V1Beta1
-		*out = new(v1beta1.PipelineRunSpec)
+		*out = new(pipelinev1.PipelineRunSpec)
 		(*in).DeepCopyInto(*out)
 	}
 	return
