@@ -93,7 +93,7 @@ func New(addr string, keyBytes []byte, audience, clientPem, apiKey string) (*Cli
 
 	c.addr = addr
 
-	conn, err := grpc.Dial(c.addr, grpc.WithTransportCredentials(creds))
+	conn, err := grpc.NewClient(c.addr, grpc.WithTransportCredentials(creds))
 	if err != nil {
 		return nil, fmt.Errorf("could not connect to %q: %v", c.addr, err)
 	}
@@ -178,7 +178,7 @@ func NewInsecure(addr, projectNumber string) (*ClientInsecure, error) {
 	c.projectNumber = projectNumber
 
 	// Set up a connection to gangway.
-	conn, err := grpc.Dial(c.addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(c.addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, fmt.Errorf("could not connect to %q: %v", c.addr, err)
 	}
