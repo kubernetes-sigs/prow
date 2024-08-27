@@ -25,7 +25,7 @@ import (
 	"strings"
 	"time"
 
-	pipelinev1beta1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
+	pipelinev1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -197,7 +197,7 @@ type ProwJobSpec struct {
 	// +kubebuilder:validation:XPreserveUnknownFields
 	// +kubebuilder:pruning:PreserveUnknownFields
 	// +kubebuilder:validation:Schemaless
-	PipelineRunSpec *pipelinev1beta1.PipelineRunSpec `json:"pipeline_run_spec,omitempty"`
+	PipelineRunSpec *pipelinev1.PipelineRunSpec `json:"pipeline_run_spec,omitempty"`
 
 	// TektonPipelineRunSpec provides the basis for running the test as
 	// a pipeline-crd resource
@@ -245,8 +245,8 @@ func (pjs ProwJobSpec) HasPipelineRunSpec() bool {
 	return false
 }
 
-func (pjs ProwJobSpec) GetPipelineRunSpec() (*pipelinev1beta1.PipelineRunSpec, error) {
-	var found *pipelinev1beta1.PipelineRunSpec
+func (pjs ProwJobSpec) GetPipelineRunSpec() (*pipelinev1.PipelineRunSpec, error) {
+	var found *pipelinev1.PipelineRunSpec
 	if pjs.TektonPipelineRunSpec != nil {
 		found = pjs.TektonPipelineRunSpec.V1Beta1
 	}
@@ -1261,7 +1261,7 @@ type TektonPipelineRunSpec struct {
 	// +kubebuilder:validation:XPreserveUnknownFields
 	// +kubebuilder:pruning:PreserveUnknownFields
 	// +kubebuilder:validation:Schemaless
-	V1Beta1 *pipelinev1beta1.PipelineRunSpec `json:"v1beta1,omitempty"`
+	V1Beta1 *pipelinev1.PipelineRunSpec `json:"v1beta1,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
