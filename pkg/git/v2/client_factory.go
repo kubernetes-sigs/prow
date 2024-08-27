@@ -28,7 +28,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/sets"
-	utilpointer "k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 var gitMetrics = struct {
@@ -191,9 +191,9 @@ func (cfo *ClientFactoryOpts) Apply(target *ClientFactoryOpts) {
 func defaultTempDir() *string {
 	switch runtime.GOOS {
 	case "linux":
-		return utilpointer.String("/var/tmp")
+		return ptr.To("/var/tmp")
 	default:
-		return utilpointer.String("")
+		return ptr.To("")
 	}
 }
 

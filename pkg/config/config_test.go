@@ -41,7 +41,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/diff"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
-	utilpointer "k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/yaml"
 
 	prowapi "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
@@ -7520,7 +7520,7 @@ func TestInRepoConfigEnabled(t *testing.T) {
 				ProwConfig: ProwConfig{
 					InRepoConfig: InRepoConfig{
 						Enabled: map[string]*bool{
-							"org/repo": utilpointer.Bool(true),
+							"org/repo": ptr.To(true),
 						},
 					},
 				},
@@ -7534,7 +7534,7 @@ func TestInRepoConfigEnabled(t *testing.T) {
 				ProwConfig: ProwConfig{
 					InRepoConfig: InRepoConfig{
 						Enabled: map[string]*bool{
-							"org": utilpointer.Bool(true),
+							"org": ptr.To(true),
 						},
 					},
 				},
@@ -7548,7 +7548,7 @@ func TestInRepoConfigEnabled(t *testing.T) {
 				ProwConfig: ProwConfig{
 					InRepoConfig: InRepoConfig{
 						Enabled: map[string]*bool{
-							"*": utilpointer.Bool(true),
+							"*": ptr.To(true),
 						},
 					},
 				},
@@ -7567,7 +7567,7 @@ func TestInRepoConfigEnabled(t *testing.T) {
 				ProwConfig: ProwConfig{
 					InRepoConfig: InRepoConfig{
 						Enabled: map[string]*bool{
-							"host-name": utilpointer.Bool(true),
+							"host-name": ptr.To(true),
 						},
 					},
 				},
@@ -7581,7 +7581,7 @@ func TestInRepoConfigEnabled(t *testing.T) {
 				ProwConfig: ProwConfig{
 					InRepoConfig: InRepoConfig{
 						Enabled: map[string]*bool{
-							"host-name": utilpointer.Bool(true),
+							"host-name": ptr.To(true),
 						},
 					},
 				},
@@ -7595,7 +7595,7 @@ func TestInRepoConfigEnabled(t *testing.T) {
 				ProwConfig: ProwConfig{
 					InRepoConfig: InRepoConfig{
 						Enabled: map[string]*bool{
-							"host-name": utilpointer.Bool(true),
+							"host-name": ptr.To(true),
 						},
 					},
 				},
@@ -7609,7 +7609,7 @@ func TestInRepoConfigEnabled(t *testing.T) {
 				ProwConfig: ProwConfig{
 					InRepoConfig: InRepoConfig{
 						Enabled: map[string]*bool{
-							"host-name": utilpointer.Bool(true),
+							"host-name": ptr.To(true),
 						},
 					},
 				},
@@ -7623,7 +7623,7 @@ func TestInRepoConfigEnabled(t *testing.T) {
 				ProwConfig: ProwConfig{
 					InRepoConfig: InRepoConfig{
 						Enabled: map[string]*bool{
-							"host-name/repo/name": utilpointer.Bool(true),
+							"host-name/repo/name": ptr.To(true),
 						},
 					},
 				},
@@ -7637,7 +7637,7 @@ func TestInRepoConfigEnabled(t *testing.T) {
 				ProwConfig: ProwConfig{
 					InRepoConfig: InRepoConfig{
 						Enabled: map[string]*bool{
-							"host-name/repo/name": utilpointer.Bool(true),
+							"host-name/repo/name": ptr.To(true),
 						},
 					},
 				},
@@ -7690,7 +7690,7 @@ func TestGetPresubmitsReturnsStaticAndInrepoconfigPresubmits(t *testing.T) {
 	org, repo := "org", "repo"
 	c := &Config{
 		ProwConfig: ProwConfig{
-			InRepoConfig: InRepoConfig{Enabled: map[string]*bool{"*": utilpointer.Bool(true)}},
+			InRepoConfig: InRepoConfig{Enabled: map[string]*bool{"*": ptr.To(true)}},
 		},
 		JobConfig: JobConfig{
 			PresubmitsStatic: map[string][]Presubmit{
@@ -7728,7 +7728,7 @@ func TestGetPostsubmitsReturnsStaticAndInrepoconfigPostsubmits(t *testing.T) {
 	org, repo := "org", "repo"
 	c := &Config{
 		ProwConfig: ProwConfig{
-			InRepoConfig: InRepoConfig{Enabled: map[string]*bool{"*": utilpointer.Bool(true)}},
+			InRepoConfig: InRepoConfig{Enabled: map[string]*bool{"*": ptr.To(true)}},
 		},
 		JobConfig: JobConfig{
 			PostsubmitsStatic: map[string][]Postsubmit{
