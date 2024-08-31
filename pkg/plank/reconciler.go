@@ -142,8 +142,9 @@ func add(
 			"host":         buildCluster.GetConfig().Host,
 		}).Debug("creating client")
 		blder = blder.WatchesRawSource(
-			source.Kind(buildCluster.GetCache(), &corev1.Pod{}),
-			podEventRequestMapper(cfg().ProwJobNamespace))
+			source.Kind[ctrlruntimeclient.Object](buildCluster.GetCache(), &corev1.Pod{},
+				podEventRequestMapper(cfg().ProwJobNamespace),
+			))
 		bc := buildClient{
 			Client: buildCluster.GetClient()}
 		if restConfig, ok := knownClusters[buildClusterName]; ok {
