@@ -20,7 +20,7 @@ import (
 	"mime"
 	"strings"
 
-	utilpointer "k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/prow/pkg/io"
 )
 
@@ -42,7 +42,7 @@ func WriterOptionsFromFileName(filename string) (string, io.WriterOptions) {
 	// https://www.iana.org/assignments/http-parameters/http-parameters.xhtml#content-coding
 	switch segment {
 	case "gz", "gzip":
-		attrs.ContentEncoding = utilpointer.String("gzip")
+		attrs.ContentEncoding = ptr.To("gzip")
 	}
 
 	if attrs.ContentEncoding != nil {
@@ -58,12 +58,12 @@ func WriterOptionsFromFileName(filename string) (string, io.WriterOptions) {
 	if segment != "" {
 		mediaType := mime.TypeByExtension("." + segment)
 		if mediaType != "" {
-			attrs.ContentType = utilpointer.String(mediaType)
+			attrs.ContentType = ptr.To(mediaType)
 		}
 	}
 
 	if attrs.ContentType == nil && attrs.ContentEncoding != nil && *attrs.ContentEncoding == "gzip" {
-		attrs.ContentType = utilpointer.String("application/gzip")
+		attrs.ContentType = ptr.To("application/gzip")
 		attrs.ContentEncoding = nil
 	}
 

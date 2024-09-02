@@ -189,7 +189,7 @@ gen-client() {
     --go-header-file hack/boilerplate/boilerplate.generated.go.txt \
     --clientset-name versioned \
     --input-base "" \
-    --input github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1 \
+    --input github.com/tektoncd/pipeline/pkg/apis/pipeline/v1 \
     --output-package sigs.k8s.io/prow/pkg/pipeline/clientset
   copyfiles "./pkg/pipeline/clientset" "*.go"
 }
@@ -207,7 +207,7 @@ gen-lister() {
   echo "Generating lister for pipeline..." >&2
   "$listergen" \
     --go-header-file hack/boilerplate/boilerplate.generated.go.txt \
-    --input-dirs github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1 \
+    --input-dirs github.com/tektoncd/pipeline/pkg/apis/pipeline/v1 \
     --output-package sigs.k8s.io/prow/pkg/pipeline/listers
   copyfiles "./pkg/pipeline/listers" "*.go"
 }
@@ -227,7 +227,7 @@ gen-informer() {
   echo "Generating informer for pipeline..." >&2
   "$informergen" \
     --go-header-file hack/boilerplate/boilerplate.generated.go.txt \
-    --input-dirs github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1 \
+    --input-dirs github.com/tektoncd/pipeline/pkg/apis/pipeline/v1 \
     --versioned-clientset-package sigs.k8s.io/prow/pkg/pipeline/clientset/versioned \
     --listers-package sigs.k8s.io/prow/pkg/pipeline/listers \
     --output-package sigs.k8s.io/prow/pkg/pipeline/informers

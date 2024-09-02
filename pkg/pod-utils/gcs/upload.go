@@ -21,7 +21,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"k8s.io/apimachinery/pkg/util/sets"
 	"mime"
 	"net/http"
 	"net/url"
@@ -31,10 +30,12 @@ import (
 	"sync"
 	"time"
 
+	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/utils/ptr"
+
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/semaphore"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
-	utilpointer "k8s.io/utils/pointer"
 
 	pkgio "sigs.k8s.io/prow/pkg/io"
 	"sigs.k8s.io/prow/pkg/io/providers"
@@ -157,7 +158,7 @@ func FileUpload(file string) UploadFunc {
 func FileUploadWithOptions(file string, opts pkgio.WriterOptions) UploadFunc {
 	return func(writer dataWriter) error {
 		if fi, err := os.Stat(file); err == nil {
-			opts.BufferSize = utilpointer.Int64(fi.Size())
+			opts.BufferSize = ptr.To(fi.Size())
 			if *opts.BufferSize > 25*1024*1024 {
 				*opts.BufferSize = 25 * 1024 * 1024
 			}

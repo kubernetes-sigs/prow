@@ -33,7 +33,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	fuzz "github.com/google/gofuzz"
-	pipelinev1beta1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
+	pipelinev1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
 	v1 "k8s.io/api/core/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -41,7 +41,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/diff"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
-	utilpointer "k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/yaml"
 
 	prowapi "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
@@ -1678,7 +1678,7 @@ func TestValidatePipelineRunSpec(t *testing.T) {
 	cases := []struct {
 		name      string
 		jobType   prowapi.ProwJobType
-		spec      func(s *pipelinev1beta1.PipelineRunSpec)
+		spec      func(s *pipelinev1.PipelineRunSpec)
 		extraRefs []prowapi.Refs
 		noSpec    bool
 		pass      bool
@@ -1695,52 +1695,52 @@ func TestValidatePipelineRunSpec(t *testing.T) {
 		{
 			name:    "reject implicit ref for periodic",
 			jobType: prowapi.PeriodicJob,
-			spec: func(s *pipelinev1beta1.PipelineRunSpec) {
-				s.PipelineSpec = &pipelinev1beta1.PipelineSpec{
-					Tasks: []pipelinev1beta1.PipelineTask{{Name: "git ref", TaskRef: &pipelinev1beta1.TaskRef{Name: "PROW_IMPLICIT_GIT_REF"}}}}
+			spec: func(s *pipelinev1.PipelineRunSpec) {
+				s.PipelineSpec = &pipelinev1.PipelineSpec{
+					Tasks: []pipelinev1.PipelineTask{{Name: "git ref", TaskRef: &pipelinev1.TaskRef{Name: "PROW_IMPLICIT_GIT_REF"}}}}
 			},
 			pass: false,
 		},
 		{
 			name:    "allow implicit ref for presubmit",
 			jobType: prowapi.PresubmitJob,
-			spec: func(s *pipelinev1beta1.PipelineRunSpec) {
-				s.PipelineSpec = &pipelinev1beta1.PipelineSpec{
-					Tasks: []pipelinev1beta1.PipelineTask{{Name: "git ref", TaskRef: &pipelinev1beta1.TaskRef{Name: "PROW_IMPLICIT_GIT_REF"}}}}
+			spec: func(s *pipelinev1.PipelineRunSpec) {
+				s.PipelineSpec = &pipelinev1.PipelineSpec{
+					Tasks: []pipelinev1.PipelineTask{{Name: "git ref", TaskRef: &pipelinev1.TaskRef{Name: "PROW_IMPLICIT_GIT_REF"}}}}
 			},
 			pass: true,
 		},
 		{
 			name:    "allow implicit ref for postsubmit",
 			jobType: prowapi.PostsubmitJob,
-			spec: func(s *pipelinev1beta1.PipelineRunSpec) {
-				s.PipelineSpec = &pipelinev1beta1.PipelineSpec{
-					Tasks: []pipelinev1beta1.PipelineTask{{Name: "git ref", TaskRef: &pipelinev1beta1.TaskRef{Name: "PROW_IMPLICIT_GIT_REF"}}}}
+			spec: func(s *pipelinev1.PipelineRunSpec) {
+				s.PipelineSpec = &pipelinev1.PipelineSpec{
+					Tasks: []pipelinev1.PipelineTask{{Name: "git ref", TaskRef: &pipelinev1.TaskRef{Name: "PROW_IMPLICIT_GIT_REF"}}}}
 			},
 			pass: true,
 		},
 		{
 			name: "reject extra refs usage with no extra refs",
-			spec: func(s *pipelinev1beta1.PipelineRunSpec) {
-				s.PipelineSpec = &pipelinev1beta1.PipelineSpec{
-					Tasks: []pipelinev1beta1.PipelineTask{{Name: "git ref", TaskRef: &pipelinev1beta1.TaskRef{Name: "PROW_EXTRA_GIT_REF_0"}}}}
+			spec: func(s *pipelinev1.PipelineRunSpec) {
+				s.PipelineSpec = &pipelinev1.PipelineSpec{
+					Tasks: []pipelinev1.PipelineTask{{Name: "git ref", TaskRef: &pipelinev1.TaskRef{Name: "PROW_EXTRA_GIT_REF_0"}}}}
 			},
 			pass: false,
 		},
 		{
 			name: "allow extra refs usage with extra refs",
-			spec: func(s *pipelinev1beta1.PipelineRunSpec) {
-				s.PipelineSpec = &pipelinev1beta1.PipelineSpec{
-					Tasks: []pipelinev1beta1.PipelineTask{{Name: "git ref", TaskRef: &pipelinev1beta1.TaskRef{Name: "PROW_EXTRA_GIT_REF_0"}}}}
+			spec: func(s *pipelinev1.PipelineRunSpec) {
+				s.PipelineSpec = &pipelinev1.PipelineSpec{
+					Tasks: []pipelinev1.PipelineTask{{Name: "git ref", TaskRef: &pipelinev1.TaskRef{Name: "PROW_EXTRA_GIT_REF_0"}}}}
 			},
 			extraRefs: []prowapi.Refs{{Org: "o", Repo: "r"}},
 			pass:      true,
 		},
 		{
 			name: "reject wrong extra refs index usage",
-			spec: func(s *pipelinev1beta1.PipelineRunSpec) {
-				s.PipelineSpec = &pipelinev1beta1.PipelineSpec{
-					Tasks: []pipelinev1beta1.PipelineTask{{Name: "git ref", TaskRef: &pipelinev1beta1.TaskRef{Name: "PROW_EXTRA_GIT_REF_1"}}}}
+			spec: func(s *pipelinev1.PipelineRunSpec) {
+				s.PipelineSpec = &pipelinev1.PipelineSpec{
+					Tasks: []pipelinev1.PipelineTask{{Name: "git ref", TaskRef: &pipelinev1.TaskRef{Name: "PROW_EXTRA_GIT_REF_1"}}}}
 			},
 			extraRefs: []prowapi.Refs{{Org: "o", Repo: "r"}},
 			pass:      false,
@@ -1752,24 +1752,24 @@ func TestValidatePipelineRunSpec(t *testing.T) {
 		},
 		{
 			name: "allow unrelated resource refs",
-			spec: func(s *pipelinev1beta1.PipelineRunSpec) {
-				s.PipelineSpec = &pipelinev1beta1.PipelineSpec{
-					Tasks: []pipelinev1beta1.PipelineTask{{Name: "git ref", TaskRef: &pipelinev1beta1.TaskRef{Name: "some-other-ref"}}}}
+			spec: func(s *pipelinev1.PipelineRunSpec) {
+				s.PipelineSpec = &pipelinev1.PipelineSpec{
+					Tasks: []pipelinev1.PipelineTask{{Name: "git ref", TaskRef: &pipelinev1.TaskRef{Name: "some-other-ref"}}}}
 			},
 			pass: true,
 		},
 		{
 			name: "reject leading zeros when extra ref usage is otherwise valid",
-			spec: func(s *pipelinev1beta1.PipelineRunSpec) {
-				s.PipelineSpec = &pipelinev1beta1.PipelineSpec{
-					Tasks: []pipelinev1beta1.PipelineTask{{Name: "git ref", TaskRef: &pipelinev1beta1.TaskRef{Name: "PROW_EXTRA_GIT_REF_000"}}}}
+			spec: func(s *pipelinev1.PipelineRunSpec) {
+				s.PipelineSpec = &pipelinev1.PipelineSpec{
+					Tasks: []pipelinev1.PipelineTask{{Name: "git ref", TaskRef: &pipelinev1.TaskRef{Name: "PROW_EXTRA_GIT_REF_000"}}}}
 			},
 			extraRefs: []prowapi.Refs{{Org: "o", Repo: "r"}},
 			pass:      false,
 		},
 	}
 
-	spec := pipelinev1beta1.PipelineRunSpec{}
+	spec := pipelinev1.PipelineRunSpec{}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -7520,7 +7520,7 @@ func TestInRepoConfigEnabled(t *testing.T) {
 				ProwConfig: ProwConfig{
 					InRepoConfig: InRepoConfig{
 						Enabled: map[string]*bool{
-							"org/repo": utilpointer.Bool(true),
+							"org/repo": ptr.To(true),
 						},
 					},
 				},
@@ -7534,7 +7534,7 @@ func TestInRepoConfigEnabled(t *testing.T) {
 				ProwConfig: ProwConfig{
 					InRepoConfig: InRepoConfig{
 						Enabled: map[string]*bool{
-							"org": utilpointer.Bool(true),
+							"org": ptr.To(true),
 						},
 					},
 				},
@@ -7548,7 +7548,7 @@ func TestInRepoConfigEnabled(t *testing.T) {
 				ProwConfig: ProwConfig{
 					InRepoConfig: InRepoConfig{
 						Enabled: map[string]*bool{
-							"*": utilpointer.Bool(true),
+							"*": ptr.To(true),
 						},
 					},
 				},
@@ -7567,7 +7567,7 @@ func TestInRepoConfigEnabled(t *testing.T) {
 				ProwConfig: ProwConfig{
 					InRepoConfig: InRepoConfig{
 						Enabled: map[string]*bool{
-							"host-name": utilpointer.Bool(true),
+							"host-name": ptr.To(true),
 						},
 					},
 				},
@@ -7581,7 +7581,7 @@ func TestInRepoConfigEnabled(t *testing.T) {
 				ProwConfig: ProwConfig{
 					InRepoConfig: InRepoConfig{
 						Enabled: map[string]*bool{
-							"host-name": utilpointer.Bool(true),
+							"host-name": ptr.To(true),
 						},
 					},
 				},
@@ -7595,7 +7595,7 @@ func TestInRepoConfigEnabled(t *testing.T) {
 				ProwConfig: ProwConfig{
 					InRepoConfig: InRepoConfig{
 						Enabled: map[string]*bool{
-							"host-name": utilpointer.Bool(true),
+							"host-name": ptr.To(true),
 						},
 					},
 				},
@@ -7609,7 +7609,7 @@ func TestInRepoConfigEnabled(t *testing.T) {
 				ProwConfig: ProwConfig{
 					InRepoConfig: InRepoConfig{
 						Enabled: map[string]*bool{
-							"host-name": utilpointer.Bool(true),
+							"host-name": ptr.To(true),
 						},
 					},
 				},
@@ -7623,7 +7623,7 @@ func TestInRepoConfigEnabled(t *testing.T) {
 				ProwConfig: ProwConfig{
 					InRepoConfig: InRepoConfig{
 						Enabled: map[string]*bool{
-							"host-name/repo/name": utilpointer.Bool(true),
+							"host-name/repo/name": ptr.To(true),
 						},
 					},
 				},
@@ -7637,7 +7637,7 @@ func TestInRepoConfigEnabled(t *testing.T) {
 				ProwConfig: ProwConfig{
 					InRepoConfig: InRepoConfig{
 						Enabled: map[string]*bool{
-							"host-name/repo/name": utilpointer.Bool(true),
+							"host-name/repo/name": ptr.To(true),
 						},
 					},
 				},
@@ -7690,7 +7690,7 @@ func TestGetPresubmitsReturnsStaticAndInrepoconfigPresubmits(t *testing.T) {
 	org, repo := "org", "repo"
 	c := &Config{
 		ProwConfig: ProwConfig{
-			InRepoConfig: InRepoConfig{Enabled: map[string]*bool{"*": utilpointer.Bool(true)}},
+			InRepoConfig: InRepoConfig{Enabled: map[string]*bool{"*": ptr.To(true)}},
 		},
 		JobConfig: JobConfig{
 			PresubmitsStatic: map[string][]Presubmit{
@@ -7728,7 +7728,7 @@ func TestGetPostsubmitsReturnsStaticAndInrepoconfigPostsubmits(t *testing.T) {
 	org, repo := "org", "repo"
 	c := &Config{
 		ProwConfig: ProwConfig{
-			InRepoConfig: InRepoConfig{Enabled: map[string]*bool{"*": utilpointer.Bool(true)}},
+			InRepoConfig: InRepoConfig{Enabled: map[string]*bool{"*": ptr.To(true)}},
 		},
 		JobConfig: JobConfig{
 			PostsubmitsStatic: map[string][]Postsubmit{

@@ -21,8 +21,7 @@ import (
 	"reflect"
 	"testing"
 
-	utilpointer "k8s.io/utils/pointer"
-
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/prow/pkg/io"
 )
 
@@ -40,7 +39,7 @@ func TestWriterOptionsFromFileName(t *testing.T) {
 			filename:         "build-log.txt",
 			expectedFileName: "build-log.txt",
 			expectedAttrs: io.WriterOptions{
-				ContentType: utilpointer.String("text/plain; charset=utf-8"),
+				ContentType: ptr.To("text/plain; charset=utf-8"),
 			},
 		},
 		{
@@ -48,8 +47,8 @@ func TestWriterOptionsFromFileName(t *testing.T) {
 			filename:         "build-log.txt.gz",
 			expectedFileName: "build-log.txt",
 			expectedAttrs: io.WriterOptions{
-				ContentEncoding: utilpointer.String("gzip"),
-				ContentType:     utilpointer.String("text/plain; charset=utf-8"),
+				ContentEncoding: ptr.To("gzip"),
+				ContentType:     ptr.To("text/plain; charset=utf-8"),
 			},
 		},
 		{
@@ -57,8 +56,8 @@ func TestWriterOptionsFromFileName(t *testing.T) {
 			filename:         "build-log.txt.gzip",
 			expectedFileName: "build-log.txt",
 			expectedAttrs: io.WriterOptions{
-				ContentEncoding: utilpointer.String("gzip"),
-				ContentType:     utilpointer.String("text/plain; charset=utf-8"),
+				ContentEncoding: ptr.To("gzip"),
+				ContentType:     ptr.To("text/plain; charset=utf-8"),
 			},
 		},
 		{
@@ -66,7 +65,7 @@ func TestWriterOptionsFromFileName(t *testing.T) {
 			filename:         "gz",
 			expectedFileName: "gz",
 			expectedAttrs: io.WriterOptions{
-				ContentType: utilpointer.String("application/gzip"),
+				ContentType: ptr.To("application/gzip"),
 			},
 		},
 		{
@@ -74,7 +73,7 @@ func TestWriterOptionsFromFileName(t *testing.T) {
 			filename:         "build-log.gz",
 			expectedFileName: "build-log",
 			expectedAttrs: io.WriterOptions{
-				ContentType: utilpointer.String("application/gzip"),
+				ContentType: ptr.To("application/gzip"),
 			},
 		},
 		{
@@ -82,7 +81,7 @@ func TestWriterOptionsFromFileName(t *testing.T) {
 			filename:         "build-log.gzip",
 			expectedFileName: "build-log",
 			expectedAttrs: io.WriterOptions{
-				ContentType: utilpointer.String("application/gzip"),
+				ContentType: ptr.To("application/gzip"),
 			},
 		},
 		{
@@ -90,7 +89,7 @@ func TestWriterOptionsFromFileName(t *testing.T) {
 			filename:         "events.json",
 			expectedFileName: "events.json",
 			expectedAttrs: io.WriterOptions{
-				ContentType: utilpointer.String("application/json"),
+				ContentType: ptr.To("application/json"),
 			},
 		},
 		{
@@ -98,8 +97,8 @@ func TestWriterOptionsFromFileName(t *testing.T) {
 			filename:         "events.json.gz",
 			expectedFileName: "events.json",
 			expectedAttrs: io.WriterOptions{
-				ContentEncoding: utilpointer.String("gzip"),
-				ContentType:     utilpointer.String("application/json"),
+				ContentEncoding: ptr.To("gzip"),
+				ContentType:     ptr.To("application/json"),
 			},
 		},
 		{
@@ -107,7 +106,7 @@ func TestWriterOptionsFromFileName(t *testing.T) {
 			filename:         "journal.log",
 			expectedFileName: "journal.log",
 			expectedAttrs: io.WriterOptions{
-				ContentType: utilpointer.String("text/plain; charset=utf-8"),
+				ContentType: ptr.To("text/plain; charset=utf-8"),
 			},
 		},
 		{

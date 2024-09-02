@@ -801,6 +801,10 @@ plank:
                                             - ""
                                     matchLabels:
                                         "": ""
+                                matchLabelKeys:
+                                    - ""
+                                mismatchLabelKeys:
+                                    - ""
                                 namespaceSelector:
                                     matchExpressions:
                                         - key: ' '
@@ -822,6 +826,10 @@ plank:
                                         - ""
                                 matchLabels:
                                     "": ""
+                              matchLabelKeys:
+                                - ""
+                              mismatchLabelKeys:
+                                - ""
                               namespaceSelector:
                                 matchExpressions:
                                     - key: ' '
@@ -844,6 +852,10 @@ plank:
                                             - ""
                                     matchLabels:
                                         "": ""
+                                matchLabelKeys:
+                                    - ""
+                                mismatchLabelKeys:
+                                    - ""
                                 namespaceSelector:
                                     matchExpressions:
                                         - key: ' '
@@ -865,6 +877,10 @@ plank:
                                         - ""
                                 matchLabels:
                                     "": ""
+                              matchLabelKeys:
+                                - ""
+                              mismatchLabelKeys:
+                                - ""
                               namespaceSelector:
                                 matchExpressions:
                                     - key: ' '
@@ -1138,6 +1154,10 @@ plank:
                                             - ""
                                     matchLabels:
                                         "": ""
+                                matchLabelKeys:
+                                    - ""
+                                mismatchLabelKeys:
+                                    - ""
                                 namespaceSelector:
                                     matchExpressions:
                                         - key: ' '
@@ -1159,6 +1179,10 @@ plank:
                                         - ""
                                 matchLabels:
                                     "": ""
+                              matchLabelKeys:
+                                - ""
+                              mismatchLabelKeys:
+                                - ""
                               namespaceSelector:
                                 matchExpressions:
                                     - key: ' '
@@ -1181,6 +1205,10 @@ plank:
                                             - ""
                                     matchLabels:
                                         "": ""
+                                matchLabelKeys:
+                                    - ""
+                                mismatchLabelKeys:
+                                    - ""
                                 namespaceSelector:
                                     matchExpressions:
                                         - key: ' '
@@ -1202,6 +1230,10 @@ plank:
                                         - ""
                                 matchLabels:
                                     "": ""
+                              matchLabelKeys:
+                                - ""
+                              mismatchLabelKeys:
+                                - ""
                               namespaceSelector:
                                 matchExpressions:
                                     - key: ' '

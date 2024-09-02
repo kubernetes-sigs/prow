@@ -24,7 +24,7 @@ import (
 	"strings"
 	"time"
 
-	pipelinev1beta1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
+	pipelinev1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -114,7 +114,7 @@ type JobBase struct {
 	// Spec is the Kubernetes pod spec used if Agent is kubernetes.
 	Spec *v1.PodSpec `json:"spec,omitempty"`
 	// PipelineRunSpec is the tekton pipeline spec used if Agent is tekton-pipeline.
-	PipelineRunSpec *pipelinev1beta1.PipelineRunSpec `json:"pipeline_run_spec,omitempty"`
+	PipelineRunSpec *pipelinev1.PipelineRunSpec `json:"pipeline_run_spec,omitempty"`
 	// TektonPipelineRunSpec is the versioned tekton pipeline spec used if Agent is tekton-pipeline.
 	TektonPipelineRunSpec *prowapi.TektonPipelineRunSpec `json:"tekton_pipeline_run_spec,omitempty"`
 	// Annotations are unused by prow itself, but provide a space to configure other automation.
@@ -161,8 +161,8 @@ func (jb JobBase) HasPipelineRunSpec() bool {
 	return false
 }
 
-func (jb JobBase) GetPipelineRunSpec() (*pipelinev1beta1.PipelineRunSpec, error) {
-	var found *pipelinev1beta1.PipelineRunSpec
+func (jb JobBase) GetPipelineRunSpec() (*pipelinev1.PipelineRunSpec, error) {
+	var found *pipelinev1.PipelineRunSpec
 	if jb.TektonPipelineRunSpec != nil {
 		found = jb.TektonPipelineRunSpec.V1Beta1
 	}

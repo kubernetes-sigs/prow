@@ -27,7 +27,7 @@ import (
 
 	"github.com/GoogleCloudPlatform/testgrid/metadata/junit"
 	"github.com/google/go-cmp/cmp"
-	utilpointer "k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	"sigs.k8s.io/prow/pkg/spyglass/api"
 	"sigs.k8s.io/prow/pkg/spyglass/lenses"
@@ -869,8 +869,8 @@ func TestTemplate(t *testing.T) {
 			input: JVD{NumTests: 1, Failed: []TestResult{{
 				Junit: []JunitResult{{
 					Result: junit.Result{
-						Output: utilpointer.String("output"),
-						Error:  utilpointer.String("error"),
+						Output: ptr.To("output"),
+						Error:  ptr.To("error"),
 					},
 				}},
 			}}},
@@ -887,14 +887,14 @@ func TestTemplate(t *testing.T) {
 				Junit: []JunitResult{
 					{
 						Result: junit.Result{
-							Output: utilpointer.String("output"),
-							Error:  utilpointer.String("error"),
+							Output: ptr.To("output"),
+							Error:  ptr.To("error"),
 						},
 					},
 					{
 						Result: junit.Result{
-							Output: utilpointer.String("output"),
-							Error:  utilpointer.String("error"),
+							Output: ptr.To("output"),
+							Error:  ptr.To("error"),
 						},
 					},
 				},
@@ -913,8 +913,8 @@ func TestTemplate(t *testing.T) {
 			input: JVD{NumTests: 1, Flaky: []TestResult{{
 				Junit: []JunitResult{{
 					Result: junit.Result{
-						Output: utilpointer.String("output"),
-						Error:  utilpointer.String("error"),
+						Output: ptr.To("output"),
+						Error:  ptr.To("error"),
 					},
 				}},
 			}}},
