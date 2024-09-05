@@ -289,6 +289,7 @@ func (a Approval) String() string {
 type Approvers struct {
 	owners          Owners
 	approvers       map[string]Approval // The keys of this map are normalized to lowercase.
+	changeRequested map[string]bool     // CHANGE_REQUESTED from any reviewer prevents submission
 	assignees       sets.Set[string]
 	AssociatedIssue int
 	RequireIssue    bool
@@ -316,9 +317,10 @@ func CaseInsensitiveIntersection(one, other sets.Set[string]) sets.Set[string] {
 // NewApprovers create a new "Approvers" with no approval.
 func NewApprovers(owners Owners) Approvers {
 	return Approvers{
-		owners:    owners,
-		approvers: map[string]Approval{},
-		assignees: sets.New[string](),
+		owners:          owners,
+		approvers:       map[string]Approval{},
+		changeRequested: map[string]bool{},
+		assignees:       sets.New[string](),
 
 		ManuallyApproved: func() bool {
 			return false
@@ -364,6 +366,11 @@ func (ap *Approvers) AddApprover(login, reference string, noIssue bool) {
 	}
 }
 
+// AddChangeRequested adds a new changeRequested
+func (ap *Approvers) AddChangeRequested(login string) {
+	ap.changeRequested[strings.ToLower(login)] = true
+}
+
 // AddAuthorSelfApprover adds the author self approval
 func (ap *Approvers) AddAuthorSelfApprover(login, reference string, noIssue bool) {
 	if ap.shouldNotOverrideApproval(login, noIssue) {
@@ -380,6 +387,11 @@ func (ap *Approvers) AddAuthorSelfApprover(login, reference string, noIssue bool
 // RemoveApprover removes an approver from the list.
 func (ap *Approvers) RemoveApprover(login string) {
 	delete(ap.approvers, strings.ToLower(login))
+}
+
+// RemoveChangeRequested removes a changeRequested from the map.
+func (ap *Approvers) RemoveChangeRequested(login string) {
+	delete(ap.changeRequested, strings.ToLower(login))
 }
 
 // AddAssignees adds assignees to the list
@@ -542,6 +554,12 @@ func (ap Approvers) GetCCs() []string {
 	return sets.List(suggested.Union(keepAssignees))
 }
 
+// AreChangesRequested returns a bool indicating whether changes are requested on the PR.
+// A PR cannot be submitted if there is an outstanding CHANGES_REQUESTED state.
+func (ap Approvers) AreChangesRequested() bool {
+	return len(ap.changeRequested) > 0
+}
+
 // AreFilesApproved returns a bool indicating whether or not OWNERS files associated with
 // the PR are approved.  A PR with no OWNERS files is not considered approved. If this
 // returns true, the PR may still not be fully approved depending on the associated issue
@@ -557,7 +575,7 @@ func (ap Approvers) AreFilesApproved() bool {
 //   - that there is an associated issue with the PR
 //   - an OWNER has indicated that the PR is trivial enough that an issue need not be associated with the PR
 func (ap Approvers) RequirementsMet() bool {
-	return ap.AreFilesApproved() && (!ap.RequireIssue || ap.AssociatedIssue != 0 || len(ap.NoIssueApprovers()) != 0)
+	return !ap.AreChangesRequested() && ap.AreFilesApproved() && (!ap.RequireIssue || ap.AssociatedIssue != 0 || len(ap.NoIssueApprovers()) != 0)
 }
 
 // IsApproved returns a bool indicating whether the PR is fully approved.

@@ -590,15 +590,21 @@ func addApprovers(approversHandler *approvers.Approvers, approveComments []*comm
 			continue
 		}
 
-		if reviewActsAsApprove && c.ReviewState == github.ReviewStateApproved {
-			approversHandler.AddApprover(
-				c.Author,
-				c.HTMLURL,
-				false,
-			)
+		if c.ReviewState == github.ReviewStateApproved {
+			approversHandler.RemoveChangeRequested(c.Author)
+			if reviewActsAsApprove {
+				approversHandler.AddApprover(
+					c.Author,
+					c.HTMLURL,
+					false,
+				)
+			}
 		}
-		if reviewActsAsApprove && c.ReviewState == github.ReviewStateChangesRequested {
-			approversHandler.RemoveApprover(c.Author)
+		if c.ReviewState == github.ReviewStateChangesRequested {
+			approversHandler.AddChangeRequested(c.Author)
+			if reviewActsAsApprove {
+				approversHandler.RemoveApprover(c.Author)
+			}
 		}
 
 		for _, match := range commandRegex.FindAllStringSubmatch(c.Body, -1) {

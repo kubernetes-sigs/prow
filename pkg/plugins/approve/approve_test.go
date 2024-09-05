@@ -1054,11 +1054,14 @@ Approvers can cancel approval by writing ` + "`/approve cancel`" + ` in a commen
 <!-- META={"approvers":["alice","cjwagner"]} -->`,
 		},
 		{
-			name:                "approve command supersedes simultaneous changes requested review",
-			hasLabel:            false,
-			files:               []string{"a/a.go"},
-			comments:            []github.IssueComment{},
-			reviews:             []github.Review{newTestReview("Alice", "/approve", github.ReviewStateChangesRequested)},
+			name:     "approve command supersedes prior changes requested review",
+			hasLabel: false,
+			files:    []string{"a/a.go"},
+			comments: []github.IssueComment{},
+			reviews: []github.Review{
+				newTestReview("Alice", "/approve", github.ReviewStateChangesRequested),
+				newTestReview("Alice", "/approve", github.ReviewStateApproved),
+			},
 			selfApprove:         false,
 			needsIssue:          false,
 			lgtmActsAsApprove:   false,
@@ -1069,6 +1072,41 @@ Approvers can cancel approval by writing ` + "`/approve cancel`" + ` in a commen
 			expectToggle:  true,
 			expectComment: true,
 			expectedComment: `[APPROVALNOTIFIER] This PR is **APPROVED**
+
+This pull-request has been approved by: *<a href="" title="Approved">Alice</a>*
+
+The full list of commands accepted by this bot can be found [here](https://go.k8s.io/bot-commands?repo=org%2Frepo).
+
+The pull request process is described [here](https://git.k8s.io/community/contributors/guide/owners.md#the-code-review-process)
+
+<details >
+Needs approval from an approver in each of these files:
+
+- ~~[a/OWNERS](https://github.com/org/repo/blob/master/a/OWNERS)~~ [Alice]
+
+Approvers can indicate their approval by writing ` + "`/approve`" + ` in a comment
+Approvers can cancel approval by writing ` + "`/approve cancel`" + ` in a comment
+</details>
+<!-- META={"approvers":[]} -->`,
+		},
+		{
+			name:     "changes requested supersedes approve command",
+			hasLabel: false,
+			files:    []string{"a/a.go"},
+			comments: []github.IssueComment{},
+			reviews: []github.Review{
+				newTestReview("Alice", "/approve", github.ReviewStateChangesRequested),
+			},
+			selfApprove:         false,
+			needsIssue:          false,
+			lgtmActsAsApprove:   false,
+			reviewActsAsApprove: true,
+			githubLinkURL:       &url.URL{Scheme: "https", Host: "github.com"},
+
+			expectDelete:  false,
+			expectToggle:  false,
+			expectComment: true,
+			expectedComment: `[APPROVALNOTIFIER] This PR is **NOT APPROVED**
 
 This pull-request has been approved by: *<a href="" title="Approved">Alice</a>*
 
