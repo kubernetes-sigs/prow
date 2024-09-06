@@ -141,9 +141,13 @@ func add(
 			"buildCluster": buildClusterName,
 			"host":         buildCluster.GetConfig().Host,
 		}).Debug("creating client")
-		blder = blder.WatchesRawSource(
-			source.Kind(buildCluster.GetCache(), &corev1.Pod{}),
-			podEventRequestMapper(cfg().ProwJobNamespace))
+
+		blder.WatchesRawSource(source.Kind(
+			buildCluster.GetCache(),
+			&corev1.Pod{},
+			podEventRequestMapper(cfg().ProwJobNamespace),
+		))
+
 		bc := buildClient{
 			Client: buildCluster.GetClient()}
 		if restConfig, ok := knownClusters[buildClusterName]; ok {
@@ -980,11 +984,11 @@ func predicates(additionalSelector string, callback func(bool)) (predicate.Predi
 	}), nil
 }
 
-func podEventRequestMapper(prowJobNamespace string) handler.EventHandler {
-	return handler.EnqueueRequestsFromMapFunc(func(_ context.Context, o ctrlruntimeclient.Object) []reconcile.Request {
+func podEventRequestMapper(prowJobNamespace string) handler.TypedEventHandler[*corev1.Pod] {
+	return handler.TypedEnqueueRequestsFromMapFunc(func(_ context.Context, pod *corev1.Pod) []reconcile.Request {
 		return []reconcile.Request{{NamespacedName: ctrlruntimeclient.ObjectKey{
 			Namespace: prowJobNamespace,
-			Name:      o.GetName(),
+			Name:      pod.GetName(),
 		}}}
 	})
 }
