@@ -26,6 +26,17 @@ import (
 	"sigs.k8s.io/prow/pkg/jira"
 )
 
+// jiraFlagParams struct is used indirectly by users of this package to customize
+// the common Jira flags behavior, such as providing their own default values or
+// suppressing the presence of certain flags
+type jiraFlagParams struct {
+	defaults         JiraOptions
+	disableBasicAuth bool
+}
+
+// JiraFlagParameter is a functional option type for configuring Jira flags
+type JiraFlagParameter func(*jiraFlagParams)
+
 type JiraOptions struct {
 	endpoint        string
 	username        string
@@ -33,12 +44,55 @@ type JiraOptions struct {
 	bearerTokenFile string
 }
 
-func (o *JiraOptions) AddFlags(fs *flag.FlagSet) {
-	fs.StringVar(&o.endpoint, "jira-endpoint", "", "The Jira endpoint to use")
-	fs.StringVar(&o.username, "jira-username", "", "The username to use for Jira basic auth")
-	fs.StringVar(&o.passwordFile, "jira-password-file", "", "Location to a file containing the Jira basic auth password")
-	fs.StringVar(&o.bearerTokenFile, "jira-bearer-token-file", "", "Location to a file containing the Jira bearer authorization token")
+// JiraNoBasicAuth disables the presence of the basic auth flags
+func JiraNoBasicAuth() JiraFlagParameter {
+	return func(params *jiraFlagParams) {
+		params.disableBasicAuth = true
+	}
+}
 
+// JiraDefaultEndpoint sets the default Jira endpoint
+func JiraDefaultEndpoint(endpoint string) JiraFlagParameter {
+	return func(params *jiraFlagParams) {
+		params.defaults.endpoint = endpoint
+	}
+}
+
+// JiraDefaultBearerTokenFile sets the default Jira bearer token file
+func JiraDefaultBearerTokenFile(bearerTokenFile string) JiraFlagParameter {
+	return func(params *jiraFlagParams) {
+		params.defaults.bearerTokenFile = bearerTokenFile
+	}
+}
+
+// AddCustomizedFlags injects Jira options into the given FlagSet. Behavior can be customized
+// via functional options.
+func (o *JiraOptions) AddCustomizedFlags(fs *flag.FlagSet, params ...JiraFlagParameter) {
+	o.addFlags(fs, params...)
+}
+
+// AddFlags injects Jira options into the given FlagSet
+func (o *JiraOptions) AddFlags(fs *flag.FlagSet) {
+	o.addFlags(fs)
+}
+
+func (o *JiraOptions) addFlags(fs *flag.FlagSet, paramFuncs ...JiraFlagParameter) {
+	params := jiraFlagParams{
+		defaults:         JiraOptions{},
+		disableBasicAuth: false,
+	}
+
+	for _, parametrize := range paramFuncs {
+		parametrize(&params)
+	}
+
+	fs.StringVar(&o.endpoint, "jira-endpoint", params.defaults.endpoint, "The Jira endpoint to use")
+	fs.StringVar(&o.bearerTokenFile, "jira-bearer-token-file", params.defaults.bearerTokenFile, "Location to a file containing the Jira bearer authorization token")
+
+	if !params.disableBasicAuth {
+		fs.StringVar(&o.username, "jira-username", params.defaults.username, "The username to use for Jira basic auth")
+		fs.StringVar(&o.passwordFile, "jira-password-file", params.defaults.passwordFile, "Location to a file containing the Jira basic auth password")
+	}
 }
 
 func (o *JiraOptions) Validate(_ bool) error {
