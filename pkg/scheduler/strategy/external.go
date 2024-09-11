@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	prowv1 "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 	"sigs.k8s.io/prow/pkg/config"
 )
@@ -49,13 +50,15 @@ type External struct {
 	cfg       config.ExternalScheduling
 	cache     map[string]*cacheEntry
 	timestamp time.Time
+	log       *logrus.Entry
 }
 
 // NewExternal creates a new External instance with caching
-func NewExternal(cfg config.ExternalScheduling) *External {
+func NewExternal(cfg config.ExternalScheduling, log *logrus.Entry) *External {
 	e := &External{
 		cfg:   cfg,
 		cache: make(map[string]*cacheEntry),
+		log:   log,
 	}
 	return e
 }
@@ -99,7 +102,8 @@ func (e *External) Schedule(_ context.Context, pj *prowv1.ProwJob) (Result, erro
 
 	resp, err := query(e.cfg.URL, SchedulingRequest{Job: pj.Spec.Job})
 	if err != nil {
-		return Result{}, fmt.Errorf("error querying URL: %w", err)
+		e.log.WithField("job", pj.Spec.Job).WithField("cluster", pj.Spec.Cluster).Warn("scheduling failed, using Spec.Cluster entry")
+		return Result{Cluster: pj.Spec.Cluster}, nil
 	}
 
 	e.cache[pj.Spec.Job] = &cacheEntry{
