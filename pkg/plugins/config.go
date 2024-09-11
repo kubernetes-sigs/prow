@@ -1183,8 +1183,8 @@ func validateExternalPlugins(pluginMap map[string][]ExternalPlugin) error {
 }
 
 func validateBlunderbuss(b *Blunderbuss) error {
-	if b.ReviewerCount != nil && *b.ReviewerCount < 1 {
-		return fmt.Errorf("invalid request_count: %v (needs to be positive)", *b.ReviewerCount)
+	if b.ReviewerCount != nil && *b.ReviewerCount < 0 {
+		return fmt.Errorf("invalid request_count: %v (cannot be negative)", *b.ReviewerCount)
 	}
 	return nil
 }

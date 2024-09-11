@@ -637,6 +637,13 @@ func TestHandlePullRequest(t *testing.T) {
 			filesChanged:  []string{"a.go"},
 			ignoreAuthors: []string{"author"},
 		},
+		{
+			name:          "PR opened, but request_count set to 0",
+			action:        github.PullRequestActionOpened,
+			body:          "/auto-cc",
+			filesChanged:  []string{"a.go"},
+			reviewerCount: 0,
+		},
 	}
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -733,6 +740,15 @@ func TestHandleGenericComment(t *testing.T) {
 			isPR:          false,
 			body:          "/auto-cc",
 			reviewerCount: 1,
+		},
+		{
+			name:          "comment with a valid command, but request_count set to 0 doesn't trigger auto-assignment",
+			action:        github.GenericCommentActionCreated,
+			issueState:    "open",
+			isPR:          true,
+			body:          "/auto-cc",
+			filesChanged:  []string{"a.go"},
+			reviewerCount: 0,
 		},
 	}
 	for _, tc := range testcases {

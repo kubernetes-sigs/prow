@@ -148,6 +148,9 @@ func handlePullRequest(ghc githubClient, roc repoownersClient, log *logrus.Entry
 	if !(action == github.PullRequestActionOpened || action == github.PullRequestActionReadyForReview) || assign.CCRegexp.MatchString(pr.Body) {
 		return nil
 	}
+	if config.ReviewerCount != nil && *config.ReviewerCount == 0 {
+		return nil
+	}
 	if pr.Draft && config.IgnoreDrafts {
 		// ignore Draft PR when IgnoreDrafts is true
 		return nil
@@ -188,6 +191,10 @@ func handleGenericCommentEvent(pc plugins.Agent, ce github.GenericCommentEvent) 
 
 func handleGenericComment(ghc githubClient, roc repoownersClient, log *logrus.Entry, config plugins.Blunderbuss, action github.GenericCommentEventAction, isPR bool, prNumber int, issueState string, repo *github.Repo, body string) error {
 	if action != github.GenericCommentActionCreated || !isPR || issueState == "closed" {
+		return nil
+	}
+
+	if config.ReviewerCount != nil && *config.ReviewerCount == 0 {
 		return nil
 	}
 
