@@ -53,7 +53,7 @@ func Add(mgr controllerruntime.Manager, cfg config.Getter, numWorkers int) error
 	return nil
 }
 
-type StrategyGetter func(cfg *config.Config) strategy.Interface
+type StrategyGetter func(cfg *config.Config, log *logrus.Entry) strategy.Interface
 
 type Reconciler struct {
 	pjClient    client.Client
@@ -82,7 +82,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, request reconcile.Request) (
 	// if we're reconciling a job having a different agent (or no agent at all) applying
 	// the passthrough strategy may be the safest approach.
 	if pj.Spec.Agent == prowv1.KubernetesAgent || pj.Spec.Agent == prowv1.TektonAgent {
-		result, err = r.strategy(r.cfg()).Schedule(ctx, pj)
+		result, err = r.strategy(r.cfg(), log).Schedule(ctx, pj)
 	} else {
 		result, err = r.passthrough.Schedule(ctx, pj)
 	}

@@ -19,6 +19,7 @@ package strategy
 import (
 	"context"
 
+	"github.com/sirupsen/logrus"
 	prowv1 "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 	"sigs.k8s.io/prow/pkg/config"
 )
@@ -36,12 +37,12 @@ type Interface interface {
 
 // Get gets a scheduling strategy in accordance to configuration. It defaults
 // to Passthrough strategy if none has been configured.
-func Get(cfg *config.Config) Interface {
+func Get(cfg *config.Config, log *logrus.Entry) Interface {
 	if cfg.Scheduler.Failover != nil {
 		return NewFailover(*cfg.Scheduler.Failover)
 	}
 	if cfg.Scheduler.External != nil {
-		return NewExternal(*cfg.Scheduler.External)
+		return NewExternal(*cfg.Scheduler.External, log)
 	}
 	return &Passthrough{}
 }

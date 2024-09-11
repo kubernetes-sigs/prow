@@ -25,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	prowv1 "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 	"sigs.k8s.io/prow/pkg/config"
@@ -96,15 +97,15 @@ func TestExternalSchedule(t *testing.T) {
 			mockCleanup: true,
 		},
 		{
-			name: "REST API error",
+			name: "allback to configured Spec.Cluster entry",
 			pj: &prowv1.ProwJob{
-				Spec: prowv1.ProwJobSpec{Job: "test-job-4"},
+				Spec: prowv1.ProwJobSpec{Job: "test-job-4", Cluster: "cluster-99"},
 			},
 			cache:       map[string]*cacheEntry{},
 			response:    SchedulingResponse{},
 			statusCode:  http.StatusInternalServerError,
-			want:        Result{},
-			wantErr:     true,
+			want:        Result{Cluster: "cluster-99"},
+			wantErr:     false,
 			mockCleanup: true,
 		},
 	}
@@ -124,6 +125,7 @@ func TestExternalSchedule(t *testing.T) {
 				},
 				cache:     tt.cache,
 				timestamp: time.Now().Add(-3 * time.Hour), // To trigger cache cleanup if mockCleanup is true
+				log:       logrus.NewEntry(logrus.New()),
 			}
 
 			got, err := rbj.Schedule(context.Background(), tt.pj)
