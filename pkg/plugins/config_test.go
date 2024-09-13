@@ -2356,3 +2356,63 @@ func TestMergeFrom(t *testing.T) {
 		}
 	}
 }
+
+func TestValidatePluginsDupes(t *testing.T) {
+	testCases := []struct {
+		name           string
+		plugins        Plugins
+		expectedErrMsg string
+	}{
+		{
+			name: "no dupes",
+			plugins: Plugins{
+				"org": OrgPlugins{
+					Plugins: []string{"approve", "lgtm"},
+				},
+				"org/repo": OrgPlugins{
+					Plugins: []string{"woof"},
+				},
+				"org/another-repo": OrgPlugins{
+					Plugins: []string{"assign"},
+				},
+				"another-org": OrgPlugins{
+					Plugins: []string{"approve", "assign", "woof"},
+				},
+			},
+		},
+		{
+			name: "dupes found",
+			plugins: Plugins{
+				"org": OrgPlugins{
+					Plugins: []string{"approve", "lgtm"},
+				},
+				"org/repo": OrgPlugins{
+					Plugins: []string{"approve", "woof"},
+				},
+			},
+			expectedErrMsg: "plugins [approve] are duplicated for repo and org",
+		},
+		{
+			name: "no dupes due to excluded repo",
+			plugins: Plugins{
+				"org": OrgPlugins{
+					Plugins:       []string{"approve", "lgtm"},
+					ExcludedRepos: []string{"repo"},
+				},
+				"org/repo": OrgPlugins{
+					Plugins: []string{"approve", "woof"},
+				},
+			},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validatePluginsDupes(tc.plugins)
+			if err != nil {
+				if diff := cmp.Diff(tc.expectedErrMsg, err.Error()); diff != "" {
+					t.Fatalf("expected error differs from result: %s", diff)
+				}
+			}
+		})
+	}
+}
