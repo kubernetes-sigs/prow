@@ -2055,8 +2055,9 @@ func (c *client) GetFailedActionRunsByHeadBranch(org, repo, branchName, headSHA 
 	}
 	query := u.Query()
 	query.Add("status", "failure")
-	// setting the OR condition to get both PR and PR target workflows
-	query.Add("event", "pull_request OR pull_request_target")
+	// setting the OR condition to get both PR and PR target workflows, as well
+	// as workflows called via another workflow using workflow_call (matrix workflows)
+	query.Add("event", "pull_request OR pull_request_target OR workflow_call")
 	query.Add("branch", branchName)
 	u.RawQuery = query.Encode()
 
