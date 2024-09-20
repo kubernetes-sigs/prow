@@ -45,7 +45,7 @@ func (s *simplifier) Simplify(path string) string {
 	splitPath := strings.Split(path, "/")
 	resolvedPath, matches := resolve(s.tree, splitPath)
 	if !matches {
-		logrus.WithField("path", path).Debug("Path not handled. This is a bug, please open an issue against the kubernetes/test-infra repository with this error message.")
+		logrus.WithField("path", path).Debug("Path not handled. This is a bug, please open an issue against the kubernetes-sigs/prow repository with this error message.")
 		return unmatchedPath
 	}
 	return resolvedPath
