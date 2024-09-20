@@ -176,7 +176,7 @@ func cacheResponseMode(headers http.Header) CacheResponseMode {
 	if strings.Contains(headers.Get("Cache-Control"), "no-store") {
 		return ModeNoStore
 	}
-	if strings.Contains(headers.Get("Status"), "304 Not Modified") {
+	if strings.Contains(headers.Get(httpcache.XFromCache), "1") {
 		return ModeRevalidated
 	}
 	if headers.Get("X-Conditional-Request") != "" {
