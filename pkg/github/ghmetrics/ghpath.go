@@ -86,6 +86,10 @@ func repositoryTree() []simplifypath.Node {
 		l("teams"),
 		l("tags"),
 		l("transfer"),
+		l("pages"),
+		l("private-vulnerability-reporting"),
+		l("properties", l("value")),
+		l("code-scanning", l("default-setup")),
 	}
 }
 

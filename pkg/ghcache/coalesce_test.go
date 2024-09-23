@@ -28,6 +28,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cjwagner/httpcache"
+
 	"sigs.k8s.io/prow/pkg/github/ghmetrics"
 
 	"k8s.io/apimachinery/pkg/util/diff"
@@ -173,6 +175,7 @@ func TestCacheModeHeader(t *testing.T) {
 	// This should return ModeRevalidated.
 	header := http.Header{}
 	header.Set("Status", "304 Not Modified")
+	header.Set(httpcache.XFromCache, "1")
 	fre.responseHeader = header
 	if resp, err := runRequest(coalescer, "/resource1", true); err != nil {
 		t.Errorf("Failed to run request: %v.", err)
