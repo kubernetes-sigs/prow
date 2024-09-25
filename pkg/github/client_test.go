@@ -3419,6 +3419,7 @@ func TestThrottlerRespectsContexts(t *testing.T) {
 
 func TestCreateCheckRun(t *testing.T) {
 	checkRun := CheckRun{
+		ID:      2,
 		Name:    "foo",
 		HeadSHA: "someref",
 	}
@@ -3439,11 +3440,51 @@ func TestCreateCheckRun(t *testing.T) {
 		} else if !reflect.DeepEqual(checkRun, cr) {
 			t.Errorf("expected checkrun differs from actual: %s", cmp.Diff(checkRun, cr))
 		}
-		http.Error(w, "201 Created", http.StatusCreated)
+		w.WriteHeader(201)
+		if _, err = w.Write(b); err != nil {
+			t.Errorf("couldn't write response: %v", err)
+		}
 	}))
 	defer ts.Close()
 	c := getClient(ts.URL)
-	if err := c.CreateCheckRun("k8s", "kuber", checkRun); err != nil {
+	if _, err := c.CreateCheckRun("k8s", "kuber", checkRun); err != nil {
+		t.Errorf("Didn't expect error: %v", err)
+	}
+}
+
+func TestUpdateCheckRun(t *testing.T) {
+	checkRun := CheckRun{
+		Output: CheckRunOutput{
+			Title:   "title",
+			Summary: "summary",
+			Text:    "text",
+		},
+	}
+	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPatch {
+			t.Errorf("Bad method: %s", r.Method)
+		}
+		if r.URL.Path != "/repos/k8s/kuber/check-runs/123" {
+			t.Errorf("Bad request path: %s", r.URL.Path)
+		}
+		b, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("Could not read request body: %v", err)
+		}
+		var cr CheckRun
+		if err := json.Unmarshal(b, &cr); err != nil {
+			t.Errorf("Could not unmarshal request: %v", err)
+		} else if !reflect.DeepEqual(checkRun, cr) {
+			t.Errorf("expected checkrun differs from actual: %s", cmp.Diff(checkRun, cr))
+		}
+		w.WriteHeader(200)
+		if _, err = w.Write(b); err != nil {
+			t.Errorf("couldn't write response: %v", err)
+		}
+	}))
+	defer ts.Close()
+	c := getClient(ts.URL)
+	if err := c.UpdateCheckRun("k8s", "kuber", 123, checkRun); err != nil {
 		t.Errorf("Didn't expect error: %v", err)
 	}
 }
