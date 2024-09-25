@@ -217,7 +217,7 @@ func (c *fakeClient) ListCheckRuns(org, repo, ref string) (*github.CheckRunList,
 	return &github.CheckRunList{}, nil
 }
 
-func (c *fakeClient) CreateCheckRun(org, repo string, checkRun github.CheckRun) error {
+func (c *fakeClient) CreateCheckRun(org, repo string, checkRun github.CheckRun) (int64, error) {
 	for _, checkrun := range c.checkruns.CheckRuns {
 		if checkrun.CompletedAt == "" {
 			continue
@@ -240,7 +240,7 @@ func (c *fakeClient) CreateCheckRun(org, repo string, checkRun github.CheckRun) 
 			c.checkruns.CheckRuns = append(c.checkruns.CheckRuns, prowOverrideCR)
 		}
 	}
-	return nil
+	return checkRun.ID, nil
 }
 
 func (c *fakeClient) GetBranchProtection(org, repo, branch string) (*github.BranchProtection, error) {
