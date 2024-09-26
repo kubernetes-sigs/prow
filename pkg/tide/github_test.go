@@ -640,7 +640,7 @@ func TestOverwriteProwJobContexts(t *testing.T) {
 			client := &GitHubProvider{
 				ghc: ghc,
 			}
-			err := client.overwriteProwJobContexts(tc.pr, tc.pjs, logrus.WithField("test", tc.name))
+			err := client.overwriteProwJobContextsWithStatusSuccess(tc.pr, tc.pjs, logrus.WithField("test", tc.name))
 			if err != nil {
 				t.Fatalf("failed to set status: %v", err)
 			}

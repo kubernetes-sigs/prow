@@ -273,7 +273,7 @@ func (gi *GitHubProvider) mergePRs(sp subpool, prs []CodeReviewCommon, dontUpdat
 		// Overwrite context of pending presubmit prow jobs if enabled
 		if i := len(prowJobsForPRs[pr.Number].pendingPresubmitJobs); i > 0 && ptr.Deref(tideContextPolicy.OverwritePendingContexts, false) {
 			log.Infof("%d Contexts of pending presubmit jobs will be overwritten", i)
-			if err := gi.overwriteProwJobContexts(pr, prowJobsForPRs[pr.Number], log); err != nil {
+			if err := gi.overwriteProwJobContextsWithStatusSuccess(pr, prowJobsForPRs[pr.Number], log); err != nil {
 				log.WithError(err).Error("Unable to set contexts of pending presubmit jobs to SUCCESS.")
 				errs = append(errs, err)
 				failed = append(failed, pr.Number)
@@ -438,7 +438,7 @@ func (gi *GitHubProvider) jobIsRequiredByTide(ps *config.Presubmit, pr *CodeRevi
 	return ps.ContextRequired() || ps.RunBeforeMerge
 }
 
-func (gi *GitHubProvider) overwriteProwJobContexts(pr CodeReviewCommon, pjs prowJobsByContext, log *logrus.Entry) error {
+func (gi *GitHubProvider) overwriteProwJobContextsWithStatusSuccess(pr CodeReviewCommon, pjs prowJobsByContext, log *logrus.Entry) error {
 	for pjContext, pending := range pjs.pendingPresubmitJobs {
 		if !pending {
 			continue
