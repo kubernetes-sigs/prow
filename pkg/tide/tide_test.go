@@ -700,13 +700,14 @@ type fgc struct {
 	err  error
 	lock sync.Mutex
 
-	prs        map[string][]PullRequest
-	refs       map[string]string
-	merged     int
-	setStatus  bool
-	statuses   map[string]github.Status
-	mergeErrs  map[int]error
-	queryCalls int
+	prs           map[string][]PullRequest
+	refs          map[string]string
+	merged        int
+	setStatus     bool
+	statuses      map[string]github.Status
+	mergeErrs     map[int]error
+	queryCalls    int
+	issueComments map[int][]github.IssueComment
 
 	expectedSHA          string
 	skipExpectedShaCheck bool
@@ -769,7 +770,7 @@ func (f *fgc) CreateStatus(org, repo, ref string, s github.Status) error {
 		if f.statuses == nil {
 			f.statuses = map[string]github.Status{}
 		}
-		f.statuses[org+"/"+repo+"/"+ref] = s
+		f.statuses[org+"/"+repo+"/"+ref+"/"+s.Context] = s
 		f.setStatus = true
 		return nil
 	}
@@ -810,6 +811,25 @@ func (f *fgc) GetPullRequestChanges(org, repo string, number int) ([]github.Pull
 			},
 		},
 		nil
+}
+
+func (f *fgc) ListIssueComments(org, repo string, number int) ([]github.IssueComment, error) {
+	return f.issueComments[number], nil
+}
+
+func (f *fgc) BotUserChecker() (func(candidate string) bool, error) {
+	return func(candidate string) bool { return candidate == "foo-bot" }, nil
+}
+
+func (f *fgc) DeleteComment(org, repo string, id int) error {
+	for issue, ics := range f.issueComments {
+		for j := len(ics) - 1; j >= 0; j-- {
+			if ics[j].ID == id {
+				f.issueComments[issue] = append(ics[:j], ics[j+1:]...)
+			}
+		}
+	}
+	return nil
 }
 
 // TestDividePool ensures that subpools returned by dividePool satisfy a few

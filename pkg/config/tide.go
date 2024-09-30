@@ -31,6 +31,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
+
 	"sigs.k8s.io/prow/pkg/git/types"
 	"sigs.k8s.io/prow/pkg/git/v2"
 )
@@ -163,6 +164,9 @@ type TideContextPolicy struct {
 	OptionalContexts          []string `json:"optional-contexts,omitempty"`
 	// Infer required and optional jobs from Branch Protection configuration
 	FromBranchProtection *bool `json:"from-branch-protection,omitempty"`
+	// Overwrite `pending` contexts with `success` when a PR is merged in a batch.
+	// This prevents PRs from being blocked by branch-protection rules if batches contexts are successful but PR context is still pending.
+	OverwritePendingContexts *bool `json:"overwrite-pending-contexts,omitempty"`
 }
 
 // TideOrgContextPolicy overrides the policy for an org, and any repo overrides.
@@ -843,6 +847,7 @@ func mergeTideContextPolicy(a, b TideContextPolicy) TideContextPolicy {
 	c := TideContextPolicy{}
 	c.FromBranchProtection = mergeBool(a.FromBranchProtection, b.FromBranchProtection)
 	c.SkipUnknownContexts = mergeBool(a.SkipUnknownContexts, b.SkipUnknownContexts)
+	c.OverwritePendingContexts = mergeBool(a.OverwritePendingContexts, b.OverwritePendingContexts)
 	required := sets.New[string](a.RequiredContexts...)
 	requiredIfPresent := sets.New[string](a.RequiredIfPresentContexts...)
 	optional := sets.New[string](a.OptionalContexts...)
@@ -918,6 +923,7 @@ func (c Config) GetTideContextPolicy(gitClient git.ClientFactory, org, repo, bra
 		RequiredIfPresentContexts: sets.List(requiredIfPresent),
 		OptionalContexts:          sets.List(optional),
 		SkipUnknownContexts:       options.SkipUnknownContexts,
+		OverwritePendingContexts:  options.OverwritePendingContexts,
 	}
 	if err := t.Validate(); err != nil {
 		return t, err

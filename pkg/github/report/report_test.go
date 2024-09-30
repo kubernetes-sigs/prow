@@ -26,6 +26,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	prowapi "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 	"sigs.k8s.io/prow/pkg/config"
 	"sigs.k8s.io/prow/pkg/github"
@@ -74,7 +75,7 @@ func TestParseIssueComment(t *testing.T) {
 			ics: []github.IssueComment{
 				{
 					User: github.User{Login: "k8s-ci-robot"},
-					Body: "--- | --- | ---\nbla test | something | or other\n\n" + commentTag,
+					Body: "--- | --- | ---\nbla test | something | or other\n\n" + CommentTag,
 					ID:   123,
 				},
 			},
@@ -88,7 +89,7 @@ func TestParseIssueComment(t *testing.T) {
 			ics: []github.IssueComment{
 				{
 					User: github.User{Login: "k8s-ci-robot"},
-					Body: "--- | --- | ---\r\nbla test | something | or other\r\n\r\n" + commentTag,
+					Body: "--- | --- | ---\r\nbla test | something | or other\r\n\r\n" + CommentTag,
 					ID:   123,
 				},
 			},
@@ -103,7 +104,7 @@ func TestParseIssueComment(t *testing.T) {
 			ics: []github.IssueComment{
 				{
 					User: github.User{Login: "k8s-ci-robot"},
-					Body: "--- | --- | ---\nbla test | something | or other\n\n" + commentTag,
+					Body: "--- | --- | ---\nbla test | something | or other\n\n" + CommentTag,
 					ID:   123,
 				},
 			},
@@ -117,7 +118,7 @@ func TestParseIssueComment(t *testing.T) {
 			ics: []github.IssueComment{
 				{
 					User: github.User{Login: "k8s-ci-robot"},
-					Body: "--- | --- | ---\nbla test | something | or other\nfoo test | wow | aye\n\n" + commentTag,
+					Body: "--- | --- | ---\nbla test | something | or other\nfoo test | wow | aye\n\n" + CommentTag,
 					ID:   123,
 				},
 			},
@@ -131,12 +132,12 @@ func TestParseIssueComment(t *testing.T) {
 			ics: []github.IssueComment{
 				{
 					User: github.User{Login: "k8s-ci-robot"},
-					Body: "--- | --- | ---\nbla test | something | or other\nfoo test | wow such\n\n" + commentTag,
+					Body: "--- | --- | ---\nbla test | something | or other\nfoo test | wow such\n\n" + CommentTag,
 					ID:   123,
 				},
 				{
 					User: github.User{Login: "k8s-ci-robot"},
-					Body: "--- | --- | ---\nfoo test | beep | boop\n\n" + commentTag,
+					Body: "--- | --- | ---\nfoo test | beep | boop\n\n" + CommentTag,
 					ID:   124,
 				},
 			},
@@ -150,7 +151,7 @@ func TestParseIssueComment(t *testing.T) {
 			ics: []github.IssueComment{
 				{
 					User: github.User{Login: "k8s-ci-robot"},
-					Body: "--- | --- | ---\nbla test | something | or other\nfoo test | wow | aye\n\n" + commentTag,
+					Body: "--- | --- | ---\nbla test | something | or other\nfoo test | wow | aye\n\n" + CommentTag,
 					ID:   123,
 				},
 			},
