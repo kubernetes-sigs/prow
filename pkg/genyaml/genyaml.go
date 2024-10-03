@@ -71,6 +71,7 @@ import (
 	"go/doc"
 	"go/parser"
 	"go/token"
+	"os"
 	"path/filepath"
 	"reflect"
 	"regexp"
@@ -182,43 +183,42 @@ func jsonToYaml(j []byte) ([]byte, error) {
 // returns the abstract syntax tree (AST) for that file.
 func astFrom(paths []string, rawFiles map[string][]byte) (*doc.Package, error) {
 	fset := token.NewFileSet()
-	m := make(map[string]*ast.File)
+	files := []*ast.File{}
 
-	for _, file := range paths {
-		f, err := parser.ParseFile(fset, file, nil, parser.ParseComments)
-		if err != nil {
-			return nil, fmt.Errorf("unable to parse file to AST from path %s: %w", file, err)
-		}
-		m[file] = f
+	if rawFiles == nil {
+		rawFiles = map[string][]byte{}
 	}
+
+	// doc.NewFromFiles will not accept Go files without a .go extension.
+	// To work around this, we load all files here already and adjust the filenames
+	// afterwards to pretend they're .go files.
+	for _, file := range paths {
+		content, err := os.ReadFile(file)
+		if err != nil {
+			return nil, fmt.Errorf("unable to read from path %s: %w", file, err)
+		}
+
+		rawFiles[file] = content
+	}
+
 	for fn, content := range rawFiles {
+		if !strings.HasSuffix(fn, ".go") {
+			fn += ".go"
+		}
+
 		f, err := parser.ParseFile(fset, fn, content, parser.ParseComments)
 		if err != nil {
 			return nil, fmt.Errorf("unable to parse file to AST from raw content %s: %w", fn, err)
 		}
-		m[fn] = f
+		files = append(files, f)
 	}
 
-	// Copied from the go doc command: https://github.com/golang/go/blob/fc116b69e2004c159d0f2563c6e91ac75a79f872/src/go/doc/doc.go#L203
-	apkg, _ := ast.NewPackage(fset, m, simpleImporter, nil)
-
-	astDoc := doc.New(apkg, "", 0)
-	if astDoc == nil {
-		return nil, fmt.Errorf("unable to parse AST documentation from paths %v: got no doc", paths)
+	astDoc, err := doc.NewFromFiles(fset, files, "")
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse AST documentation from paths %v: %w", paths, err)
 	}
 
 	return astDoc, nil
-}
-
-func simpleImporter(imports map[string]*ast.Object, path string) (*ast.Object, error) {
-	pkg := imports[path]
-	if pkg == nil {
-		// note that strings.LastIndex returns -1 if there is no "/"
-		pkg = ast.NewObj(ast.Pkg, path[strings.LastIndex(path, "/")+1:])
-		pkg.Data = ast.NewScope(nil) // required by ast.NewPackage for dot-import
-		imports[path] = pkg
-	}
-	return pkg, nil
 }
 
 // fmtRawDoc formats/sanitizes a Go doc string removing TODOs, newlines, whitespace, and various other characters from the resultant string.
