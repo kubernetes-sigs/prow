@@ -2461,27 +2461,15 @@ func TestSyncAbortedJob(t *testing.T) {
 	}
 }
 
-func TestPredicates(t *testing.T) {
+func TestProwJobPredicate(t *testing.T) {
 	for _, tc := range []struct {
 		name       string
 		obj        ctrlruntimeclient.Object
-		selector   string
 		wantResult bool
 	}{
 		{
 			name:       "Accept PJ",
 			obj:        &prowapi.ProwJob{Spec: prowapi.ProwJobSpec{Agent: prowapi.KubernetesAgent}},
-			wantResult: true,
-		},
-		{
-			name:       "Accept Pod if created by Prow",
-			obj:        &v1.Pod{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{kube.CreatedByProw: "true"}}},
-			wantResult: true,
-		},
-		{
-			name:       "Accept Pod if matches additional selector",
-			obj:        &v1.Pod{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{kube.CreatedByProw: "true", "foo": "bar"}}},
-			selector:   "foo=bar",
 			wantResult: true,
 		},
 		{
@@ -2504,15 +2492,49 @@ func TestPredicates(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			predicate, err := predicates(tc.selector, nil)
-			if err != nil {
-				t.Fatalf("Unexpected error %s", err)
-			}
+			predicate := prowJobPredicate(nil)
 
 			actualResult := predicate.Create(event.CreateEvent{Object: tc.obj}) &&
 				predicate.Update(event.UpdateEvent{ObjectNew: tc.obj}) &&
 				predicate.Delete(event.DeleteEvent{Object: tc.obj}) &&
 				predicate.Generic(event.GenericEvent{Object: tc.obj})
+
+			if actualResult != tc.wantResult {
+				t.Errorf("Expected %t but got %t", tc.wantResult, actualResult)
+			}
+		})
+	}
+}
+
+func TestPodPredicate(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		obj        *v1.Pod
+		selector   string
+		wantResult bool
+	}{
+		{
+			name:       "Accept Pod if created by Prow",
+			obj:        &v1.Pod{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{kube.CreatedByProw: "true"}}},
+			wantResult: true,
+		},
+		{
+			name:       "Accept Pod if matches additional selector",
+			obj:        &v1.Pod{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{kube.CreatedByProw: "true", "foo": "bar"}}},
+			selector:   "foo=bar",
+			wantResult: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			predicate, err := podPredicate(tc.selector, nil)
+			if err != nil {
+				t.Fatalf("Failed to create pod predicate: %v", err)
+			}
+
+			actualResult := predicate.Create(event.TypedCreateEvent[*corev1.Pod]{Object: tc.obj}) &&
+				predicate.Update(event.TypedUpdateEvent[*corev1.Pod]{ObjectNew: tc.obj}) &&
+				predicate.Delete(event.TypedDeleteEvent[*corev1.Pod]{Object: tc.obj}) &&
+				predicate.Generic(event.TypedGenericEvent[*corev1.Pod]{Object: tc.obj})
 
 			if actualResult != tc.wantResult {
 				t.Errorf("Expected %t but got %t", tc.wantResult, actualResult)
