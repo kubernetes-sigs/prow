@@ -2472,6 +2472,6 @@ func TestReportStability(t *testing.T) {
 	}, 0)
 	actual := ParseReport(expected.String())
 	if !equality.Semantic.DeepEqual(&expected, actual) {
-		t.Errorf(diff.ObjectReflectDiff(&expected, actual))
+		t.Error(diff.ObjectReflectDiff(&expected, actual))
 	}
 }
