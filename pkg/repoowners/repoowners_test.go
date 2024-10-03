@@ -877,12 +877,11 @@ func testLoadRepoOwners(clients localgit.Clients, t *testing.T) {
 		},
 	}
 
-	for i := range tests {
-		test := tests[i]
-		t.Run(test.name, func(t *testing.T) {
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			t.Logf("Running scenario %q", test.name)
-			client, cleanup, err := getTestClient(testFiles, test.mdEnabled, test.skipCollaborators, test.aliasesFileExists, false, nil, nil, test.extraBranchesAndFiles, test.cacheOptions, clients)
+			t.Logf("Running scenario %q", tt.name)
+			client, cleanup, err := getTestClient(testFiles, tt.mdEnabled, tt.skipCollaborators, tt.aliasesFileExists, false, nil, nil, tt.extraBranchesAndFiles, tt.cacheOptions, clients)
 			if err != nil {
 				t.Fatalf("Error creating test client: %v.", err)
 			}
@@ -891,15 +890,15 @@ func testLoadRepoOwners(clients localgit.Clients, t *testing.T) {
 			base := defaultBranch
 			defer cleanup()
 
-			if test.branch != nil {
-				base = *test.branch
+			if tt.branch != nil {
+				base = *tt.branch
 			}
 			r, err := client.LoadRepoOwners("org", "repo", base)
 			if err != nil {
 				t.Fatalf("Unexpected error loading RepoOwners: %v.", err)
 			}
 			ro := r.(*RepoOwners)
-			if test.expectedReusable {
+			if tt.expectedReusable {
 				if ro.baseDir != "cache" {
 					t.Fatalf("expected cache must be reused, but got baseDir %q", ro.baseDir)
 				}
@@ -912,11 +911,11 @@ func testLoadRepoOwners(clients localgit.Clients, t *testing.T) {
 			if ro.baseDir == "" {
 				t.Fatal("Expected 'baseDir' to be populated.")
 			}
-			if (ro.RepoAliases != nil) != test.aliasesFileExists {
-				t.Fatalf("Expected 'RepoAliases' to be poplulated: %t, but got %t.", test.aliasesFileExists, ro.RepoAliases != nil)
+			if (ro.RepoAliases != nil) != tt.aliasesFileExists {
+				t.Fatalf("Expected 'RepoAliases' to be poplulated: %t, but got %t.", tt.aliasesFileExists, ro.RepoAliases != nil)
 			}
-			if ro.enableMDYAML != test.mdEnabled {
-				t.Fatalf("Expected 'enableMdYaml' to be: %t, but got %t.", test.mdEnabled, ro.enableMDYAML)
+			if ro.enableMDYAML != tt.mdEnabled {
+				t.Fatalf("Expected 'enableMdYaml' to be: %t, but got %t.", tt.mdEnabled, ro.enableMDYAML)
 			}
 
 			check := func(field string, expected map[string]map[string]sets.Set[string], got map[string]map[*regexp.Regexp]sets.Set[string]) {
@@ -935,12 +934,12 @@ func testLoadRepoOwners(clients localgit.Clients, t *testing.T) {
 					t.Errorf("Expected %s to be:\n%+v\ngot:\n%+v.", field, expected, converted)
 				}
 			}
-			check("approvers", test.expectedApprovers, ro.approvers)
-			check("reviewers", test.expectedReviewers, ro.reviewers)
-			check("required_reviewers", test.expectedRequiredReviewers, ro.requiredReviewers)
-			check("labels", test.expectedLabels, ro.labels)
-			if !reflect.DeepEqual(test.expectedOptions, ro.options) {
-				t.Errorf("Expected options to be:\n%#v\ngot:\n%#v.", test.expectedOptions, ro.options)
+			check("approvers", tt.expectedApprovers, ro.approvers)
+			check("reviewers", tt.expectedReviewers, ro.reviewers)
+			check("required_reviewers", tt.expectedRequiredReviewers, ro.requiredReviewers)
+			check("labels", tt.expectedLabels, ro.labels)
+			if !reflect.DeepEqual(tt.expectedOptions, ro.options) {
+				t.Errorf("Expected options to be:\n%#v\ngot:\n%#v.", tt.expectedOptions, ro.options)
 			}
 		})
 	}

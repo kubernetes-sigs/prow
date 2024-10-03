@@ -339,7 +339,6 @@ func testMergeAndCheckout(clients localgit.Clients, t *testing.T) {
 	)
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			tc := tc
 			t.Parallel()
 
 			lg, c, err := clients()
@@ -457,7 +456,6 @@ func testMerging(clients localgit.Clients, t *testing.T) {
 	const org, repo = "org", "repo"
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			tc := tc
 			t.Parallel()
 
 			lg, c, err := clients()

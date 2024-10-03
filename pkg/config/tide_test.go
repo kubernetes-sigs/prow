@@ -1092,13 +1092,12 @@ func TestOrgRepoMatchMergeMethod(t *testing.T) {
 			expected: types.MergeSquash,
 		},
 	}
-	for _, test := range testCases {
-		test := test
-		t.Run(test.name, func(t *testing.T) {
-			actual := test.config.OrgRepoBranchMergeMethod(OrgRepo{Org: test.org, Repo: test.repo}, test.branch)
-			if actual != test.expected {
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			actual := tt.config.OrgRepoBranchMergeMethod(OrgRepo{Org: tt.org, Repo: tt.repo}, tt.branch)
+			if actual != tt.expected {
 				t.Errorf("Expected merge method %q but got %q for org: %q, repo: %q, branch: %q",
-					test.expected, actual, test.org, test.repo, test.branch)
+					tt.expected, actual, tt.org, tt.repo, tt.branch)
 			}
 		})
 	}

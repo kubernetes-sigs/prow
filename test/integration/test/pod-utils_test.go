@@ -446,7 +446,6 @@ ls-tree (submodule):
 	fgsClient := fakegitserver.NewClient("http://localhost/fakegitserver", 5*time.Second)
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 

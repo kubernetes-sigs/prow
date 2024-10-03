@@ -500,8 +500,6 @@ func TestCallbacks(t *testing.T) {
 			// concurrency should have no effect on the operation of the
 			// callbacks.
 			for k, v := range tc.cacheInitialState {
-				k := k
-				v := v
 				wg.Add(1)
 				go func() {
 					cache.GetOrAdd(k, goodValConstructor(v))
@@ -510,7 +508,6 @@ func TestCallbacks(t *testing.T) {
 			}
 
 			for _, lookup := range tc.lookups {
-				lookup := lookup
 				wg.Add(1)
 				go func() {
 					cache.GetOrAdd(lookup.key, lookup.valConstructor("(val)"+lookup.key))

@@ -159,7 +159,6 @@ const errorKey = "sidecar-errors"
 func logReadersFuncs(entries []wrapper.Options) map[string]gcs.ReaderFunc {
 	readerFuncs := make(map[string]gcs.ReaderFunc)
 	for _, opt := range entries {
-		opt := opt
 		f := func() (io.ReadCloser, error) {
 			log, err := os.Open(opt.ProcessLog)
 			if err != nil {

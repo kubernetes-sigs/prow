@@ -3206,7 +3206,6 @@ func TestTriggerJobs(t *testing.T) {
 		c: cfg,
 	}
 	for _, tc := range testcases {
-		tc := tc // capture range variable
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -3400,8 +3399,7 @@ func TestDeckLinkForPR(t *testing.T) {
 		},
 	}
 
-	for i := range tcs {
-		tc := tcs[i]
+	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			result, err := deckLinkForPR(tc.deckURL, tc.refs, tc.changeStatus)
 			if err != nil {

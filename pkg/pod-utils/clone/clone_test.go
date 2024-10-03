@@ -1019,7 +1019,6 @@ func TestCloneCommandString(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			want, got := tc.want, tc.cc.String()
 			if diff := cmp.Diff(want, got); diff != "" {

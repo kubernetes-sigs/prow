@@ -632,9 +632,7 @@ func TestCreateWithRetry(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-
 			fakeProwJobClient := fake.NewSimpleClientset()
 			fakeProwJobClient.PrependReactor("*", "*", func(action clienttesting.Action) (handled bool, ret runtime.Object, err error) {
 				if _, ok := action.(clienttesting.CreateActionImpl); ok && tc.numFailedCreate > 0 {

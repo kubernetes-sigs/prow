@@ -3076,7 +3076,6 @@ func getCallForAllClientMethodsThroughReflection(
 	clientValue := reflect.ValueOf(c)
 
 	for i := 0; i < clientType.NumMethod(); i++ {
-		i := i
 		if skip(clientType.Method(i)) {
 			continue
 		}

@@ -2037,7 +2037,6 @@ func testTakeAction(clients localgit.Clients, t *testing.T) {
 					t.Errorf("prowjob %q didn't have expected namespace %q but %q", pj.Name, pjNamespace, pj.Namespace)
 				}
 				if pj.Spec.Type == prowapi.BatchJob {
-					pj := pj
 					batchJobs = append(batchJobs, &pj)
 				}
 			}
@@ -3280,7 +3279,6 @@ func TestPresubmitsByPull(t *testing.T) {
 	}
 
 	for _, tc := range testcases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			if tc.initialChangeCache == nil {
 				tc.initialChangeCache = map[changeCacheKey][]string{}

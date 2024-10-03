@@ -241,7 +241,6 @@ func TestProvider(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			if want, got := tc.expect, provider(tc.provider, tc.tideConfig); want != got {
 				t.Errorf("Wrong provider. Want: %s, got: %s", want, got)

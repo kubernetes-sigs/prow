@@ -160,7 +160,6 @@ func TestApplyGlobalConfigOnce(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			fc := &Client{}
 			fc.applyGlobalConfigOnce(tc.orgRepoConfigGetter, tc.lastSyncTracker, "", "", tc.additionalFunc)
@@ -209,7 +208,6 @@ func TestQueryStringsFromQueryFilter(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			if diff := cmp.Diff(tc.expected, queryStringsFromQueryFilter(tc.filters)); diff != "" {
@@ -260,7 +258,6 @@ func TestChangeExistErrs(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			cl := &Client{
 				handlers: map[string]*gerritInstanceHandler{

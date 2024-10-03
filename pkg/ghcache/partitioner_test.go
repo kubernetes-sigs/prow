@@ -73,7 +73,6 @@ func TestPartitioningRoundTripper(t *testing.T) {
 	wg := &sync.WaitGroup{}
 	for _, request := range requests {
 		wg.Add(1)
-		request := request
 		go func() {
 			defer wg.Done()
 			_, err := partitioningRoundTripper.RoundTrip(request)

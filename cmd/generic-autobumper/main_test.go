@@ -1073,7 +1073,6 @@ Commits | Dates | Images
 		},
 	}
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.testName, func(t *testing.T) {
 			want, got := tc.expected, generateSummary(tc.name, tc.repo, tc.prefix, tc.summarize, tc.images)
 			if diff := cmp.Diff(want, got); diff != "" {

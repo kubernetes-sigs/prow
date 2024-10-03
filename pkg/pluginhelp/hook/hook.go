@@ -321,7 +321,6 @@ func reposForOrgOrUser(ghc githubClient, orgOrUser string) ([]github.Repo, error
 }
 
 func (oa *orgAgent) sync(config *plugins.Configuration) {
-
 	// QUESTION: If we fail to list repos for a single org should we reuse the old orgToRepos or just
 	// log the error and omit the org from orgToRepos as is done now?
 	// I could remove the failed org from 'orgs' to force a resync the next time it is called, but
@@ -333,7 +332,6 @@ func (oa *orgAgent) sync(config *plugins.Configuration) {
 	orgToReposLock := sync.Mutex{}
 	wg := sync.WaitGroup{}
 	for _, org := range sets.List(orgs) {
-		org := org
 		wg.Add(1)
 
 		go func() {

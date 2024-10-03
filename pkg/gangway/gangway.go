@@ -895,7 +895,6 @@ func (prh *presubmitJobHandler) getProwJobSpec(mainConfig prowCfgClient, ircg co
 	}
 	var headSHAGetters []func() (string, error)
 	for _, pull := range refs.Pulls {
-		pull := pull
 		headSHAGetters = append(headSHAGetters, func() (string, error) {
 			return pull.SHA, nil
 		})
@@ -920,7 +919,6 @@ func (prh *presubmitJobHandler) getProwJobSpec(mainConfig prowCfgClient, ircg co
 	}
 
 	for _, job := range presubmits {
-		job := job
 		if !job.CouldRun(branch) { // filter out jobs that are not branch matching
 			continue
 		}
@@ -988,7 +986,6 @@ func (poh *postsubmitJobHandler) getProwJobSpec(mainConfig prowCfgClient, ircg c
 	}
 
 	for _, job := range postsubmits {
-		job := job
 		if !job.CouldRun(branch) { // filter out jobs that are not branch matching
 			continue
 		}

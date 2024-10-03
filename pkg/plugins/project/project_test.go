@@ -306,7 +306,6 @@ func TestProjectCommand(t *testing.T) {
 
 	prevCommentCount := 0
 	for _, tc := range testcases {
-		tc := tc
 		fakeClient.Project = tc.previousProject
 		fakeClient.Column = tc.previousColumn
 		fakeClient.ColumnCardsMap = map[int][]github.ProjectCard{}

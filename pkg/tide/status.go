@@ -647,7 +647,6 @@ func (sc *statusController) search() []CodeReviewCommon {
 	var wg sync.WaitGroup
 
 	for org, query := range queries {
-		org, query := org, query
 		wg.Add(1)
 
 		go func() {
@@ -692,7 +691,6 @@ func (sc *statusController) search() []CodeReviewCommon {
 			defer lock.Unlock()
 
 			for _, pr := range result {
-				pr := pr
 				prs = append(prs, *CodeReviewCommonFromPullRequest(&pr))
 			}
 			errs = append(errs, err)

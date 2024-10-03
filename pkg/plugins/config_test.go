@@ -1652,12 +1652,10 @@ func TestConfigMergingProperties(t *testing.T) {
 	fuzzer := fuzz.NewWithSeed(seed)
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
 			for _, propertyTest := range expectedProperties {
-				propertyTest := propertyTest
 				t.Run(propertyTest.name, func(t *testing.T) {
 					t.Parallel()
 

@@ -93,8 +93,8 @@ func FindAll(ghc githubClient, log *logrus.Entry, label string, orgRepoTokensByO
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
-	for org, query := range queries {
-		org, query := org, strings.Join(sets.List(query), " ")
+	for org, querySet := range queries {
+		query := strings.Join(sets.List(querySet), " ")
 		wg.Add(1)
 
 		go func() {

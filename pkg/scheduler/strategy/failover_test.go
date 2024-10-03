@@ -51,7 +51,6 @@ func TestFailover(t *testing.T) {
 			wantDecision: strategy.Result{Cluster: "a-cluster"},
 		},
 	} {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 

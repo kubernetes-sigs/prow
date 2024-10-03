@@ -105,7 +105,6 @@ func (gi *GitHubProvider) Query() (map[string]CodeReviewCommon, error) {
 	prs := make(map[string]CodeReviewCommon)
 	var errs []error
 	for i, query := range gi.cfg().Tide.Queries {
-
 		// Use org-sharded queries only when GitHub apps auth is in use
 		var queries map[string]string
 		if gi.usesGitHubAppsAuth {
@@ -115,7 +114,6 @@ func (gi *GitHubProvider) Query() (map[string]CodeReviewCommon, error) {
 		}
 
 		for org, q := range queries {
-			org, q, i := org, q, i
 			wg.Add(1)
 			go func() {
 				defer wg.Done()

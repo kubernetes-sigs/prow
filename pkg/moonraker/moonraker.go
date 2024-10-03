@@ -82,7 +82,6 @@ func (mr *Moonraker) ServeGetInrepoconfig(w http.ResponseWriter, r *http.Request
 	}
 	var headSHAGetters []func() (string, error)
 	for _, pull := range payload.Refs.Pulls {
-		pull := pull
 		headSHAGetters = append(headSHAGetters, func() (string, error) {
 			return pull.SHA, nil
 		})

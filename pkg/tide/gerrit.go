@@ -209,7 +209,6 @@ func (p *GerritProvider) Query() (map[string]CodeReviewCommon, error) {
 	}
 	resChan := make(chan changesFromProject)
 	for instance, projs := range p.cfg().Tide.Gerrit.Queries.AllRepos() {
-		instance, projs := instance, projs
 		for projName, projFilter := range projs {
 			wg.Add(1)
 			var optInByDefault bool
@@ -300,7 +299,6 @@ func (p *GerritProvider) headContexts(crc *CodeReviewCommon) ([]Context, error) 
 	// keep track of latest prowjobs only
 	latestPjs := make(map[string]*prowapi.ProwJob)
 	for _, pj := range pjs.Items {
-		pj := pj
 		if exist, ok := latestPjs[pj.Spec.Context]; ok && exist.CreationTimestamp.After(pj.CreationTimestamp.Time) {
 			continue
 		}

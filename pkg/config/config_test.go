@@ -87,7 +87,6 @@ func TestKeysForIdentifier(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			if diff := cmp.Diff(tc.want, keysForIdentifier(tc.identifier)); diff != "" {
 				t.Errorf("Keys mismatch. Want(-), got(+):\n%s", diff)
@@ -3661,7 +3660,6 @@ bar_jobs.yaml`,
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			jobConfigDir := t.TempDir()
 			err := os.Mkdir(filepath.Join(jobConfigDir, "subdir"), 0777)
@@ -5458,8 +5456,7 @@ default_decoration_config_entries:
 		},
 	}
 
-	for i := range tcs {
-		tc := tcs[i]
+	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			p := Plank{}
@@ -9551,7 +9548,6 @@ func TestSplitRepoName(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			gotOrg, gotRepo, err := SplitRepoName(tt.full)
 			if gotOrg != tt.wantOrg {

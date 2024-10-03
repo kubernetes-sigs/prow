@@ -127,7 +127,6 @@ func TestGerritQueryParam(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			if want, got := tc.want, gerritQueryParam(tc.optIn); want != got {
 				t.Errorf("Wrong query param. Want: %s, got: %s", want, got)
@@ -277,7 +276,6 @@ func TestQuery(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := config.Config{
 				ProwConfig: config.ProwConfig{
@@ -342,7 +340,6 @@ func TestIsAllowedToMerge(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			fc := &GerritProvider{}
 			got, gotErr := fc.isAllowedToMerge(&CodeReviewCommon{Mergeable: tc.mergeable})
@@ -565,7 +562,6 @@ func TestGerritHeadContexts(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			builder := fakectrlruntimeclient.NewClientBuilder()
 			for i := range tc.jobs {
@@ -717,7 +713,6 @@ func TestMergePR(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			fgc := newFakeGerritClient()
 			fgc.changes = tc.clientChanges
@@ -811,7 +806,6 @@ func TestGetTideContextPolicy(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := config.Config{JobConfig: config.JobConfig{PresubmitsStatic: tc.presubmits}}
 			fc := &GerritProvider{cfg: func() *config.Config { return &cfg }}
@@ -879,7 +873,6 @@ func TestPrMergeMethod(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			fc := &GerritProvider{}
 
@@ -939,7 +932,6 @@ func TestJobIsRequiredByTide(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			fc := &GerritProvider{}
 			if want, got := tc.want, fc.jobIsRequiredByTide(tc.ps, tc.crc); want != got {

@@ -180,7 +180,6 @@ func newController(opts controllerOptions) (*controller, error) {
 
 	for ctx, cfg := range opts.pipelineConfigs {
 		// Reconcile whenever a pipelinerun changes.
-		ctx := ctx // otherwise it will change
 		cfg.informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
 				c.enqueueKey(ctx, obj)

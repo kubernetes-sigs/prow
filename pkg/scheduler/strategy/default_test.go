@@ -42,7 +42,6 @@ func TestPassthrough(t *testing.T) {
 			wantResult: strategy.Result{},
 		},
 	} {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 

@@ -58,7 +58,6 @@ skip_report: true
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			tmpDir := t.TempDir()
 			in, out := tc.name+".in", tc.name+".out"

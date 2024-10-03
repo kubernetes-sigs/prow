@@ -148,7 +148,6 @@ func TestAdd(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			fakeProwJobInformer := &controllertest.FakeInformer{Synced: true}
@@ -676,8 +675,7 @@ func TestSyncClusterStatus(t *testing.T) {
 	// Whether the authz client runs successfully or not depends on the use of
 	// the plain FakeAuthorizationV1 (always success) or erroringFakeAuthzClient
 	// (always fail).
-	for i := range tcs {
-		tc := tcs[i]
+	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			cfg := func() *config.Config {

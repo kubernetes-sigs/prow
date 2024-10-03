@@ -181,7 +181,6 @@ func TestGeneratePluginHelp(t *testing.T) {
 
 func registerNormalPlugins(t *testing.T, pluginsToEvents map[string][]string, pluginHelp map[string]pluginhelp.PluginHelp, expectedRepos map[string][]string) {
 	for plugin, events := range pluginsToEvents {
-		plugin := plugin
 		helpProvider := func(_ *plugins.Configuration, enabledRepos []prowconfig.OrgRepo) (*pluginhelp.PluginHelp, error) {
 			if got, expected := sets.New[string](prowconfig.OrgReposToStrings(enabledRepos)...), sets.New[string](expectedRepos[plugin]...); !got.Equal(expected) {
 				t.Errorf("Plugin '%s' expected to be enabled on repos %q, but got %q.", plugin, sets.List(expected), sets.List(got))

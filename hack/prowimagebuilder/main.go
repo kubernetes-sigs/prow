@@ -349,7 +349,6 @@ func main() {
 
 	var targetImagesCount int
 	for _, id := range ids {
-		id := id
 		if !o.imageAllowed(id.Dir) {
 			logrus.WithFields(logrus.Fields{"allowed-images": o.images, "image": id.Dir}).Info("Skipped.")
 			continue

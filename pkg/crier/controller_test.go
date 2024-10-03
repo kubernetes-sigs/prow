@@ -265,51 +265,50 @@ func TestReconcile(t *testing.T) {
 		},
 	}
 
-	for _, test := range tests {
-		test := test
-		t.Run(test.name, func(t *testing.T) {
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			rp := fakeReporter{
 				shouldReportFunc: func(*prowv1.ProwJob) bool {
-					return test.shouldReport
+					return tt.shouldReport
 				},
-				res: test.result,
-				err: test.reportErr,
+				res: tt.result,
+				err: tt.reportErr,
 			}
 
 			builder := fakectrlruntimeclient.NewClientBuilder()
-			if test.job != nil {
-				test.job.Name = toReconcile
-				builder.WithRuntimeObjects(test.job)
+			if tt.job != nil {
+				tt.job.Name = toReconcile
+				builder.WithRuntimeObjects(tt.job)
 			}
 			cs := &patchTrackingClient{Client: builder.Build()}
 			r := &reconciler{
 				pjclientset:       cs,
 				reporter:          &rp,
-				enablementChecker: test.enablementChecker,
+				enablementChecker: tt.enablementChecker,
 			}
 
 			result, err := r.Reconcile(context.Background(), ctrlruntime.Request{NamespacedName: types.NamespacedName{Name: toReconcile}})
-			if !reflect.DeepEqual(err, test.expectedError) {
-				t.Fatalf("actual err %v differs from expected err %v", err, test.expectedError)
+			if !reflect.DeepEqual(err, tt.expectedError) {
+				t.Fatalf("actual err %v differs from expected err %v", err, tt.expectedError)
 			}
 			if err != nil {
 				return
 			}
-			if diff := cmp.Diff(result, test.expectResult); diff != "" {
+			if diff := cmp.Diff(result, tt.expectResult); diff != "" {
 				t.Errorf("result differs from expected result: %s", diff)
 			}
 
 			var expectReports []string
-			if test.expectReport {
+			if tt.expectReport {
 				expectReports = []string{toReconcile}
 			}
 			if !reflect.DeepEqual(expectReports, rp.reported) {
 				t.Errorf("mismatch report: wants %v, got %v", expectReports, rp.reported)
 			}
 
-			if (cs.patches != 0) != test.expectPatch {
-				if test.expectPatch {
+			if (cs.patches != 0) != tt.expectPatch {
+				if tt.expectPatch {
 					t.Error("expected patch, but didn't get it")
 				} else {
 					t.Error("got unexpected patch")

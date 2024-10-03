@@ -57,7 +57,6 @@ func TestImageAllowed(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			o := options{
 				images: tc.images,
@@ -113,7 +112,6 @@ func TestRunCmdInDir(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			got, gotErr := runCmdInDir(tc.dir, nil, tc.cmd, tc.args...)
 			if (gotErr != nil && !tc.wantErr) || (gotErr == nil && tc.wantErr) {
@@ -244,7 +242,6 @@ func TestAllTags(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			got, _ := allTags(tc.arch)
 			if diff := cmp.Diff(tc.want, got); diff != "" {
@@ -280,7 +277,6 @@ func TestGitTag(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			oldRunCmdInDirFunc := runCmdInDirFunc
 			runCmdInDirFunc = func(dir string, additionalEnv []string, cmd string, args ...string) (string, error) {
@@ -403,7 +399,6 @@ func TestBuildAndPush(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			var gotPublishArgs []string
 
