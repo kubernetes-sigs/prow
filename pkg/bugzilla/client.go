@@ -445,7 +445,7 @@ func (c *client) GetSubComponentsOnBug(id int) (map[string][]string, error) {
 		return nil, fmt.Errorf("could not unmarshal response body: %w", err)
 	}
 	// if there is no subcomponent, return an empty struct
-	if parsedResponse.Bugs == nil || len(parsedResponse.Bugs) == 0 {
+	if len(parsedResponse.Bugs) == 0 {
 		return map[string][]string{}, nil
 	}
 	// make sure there is only 1 bug
