@@ -67,7 +67,7 @@ type controller struct {
 	pjLister   prowjoblisters.ProwJobLister
 	pjInformer cache.SharedIndexInformer
 
-	workqueue workqueue.RateLimitingInterface
+	workqueue workqueue.TypedRateLimitingInterface[string]
 
 	recorder record.EventRecorder
 
@@ -83,7 +83,7 @@ type controllerOptions struct {
 	pipelineConfigs map[string]pipelineConfig
 	totURL          string
 	prowConfig      config.Getter
-	rl              workqueue.RateLimitingInterface
+	rl              workqueue.TypedRateLimitingInterface[string]
 }
 
 // pjNamespace returns the prow namespace from configuration
@@ -229,7 +229,7 @@ func (c *controller) runWorker() {
 		func() {
 			defer c.workqueue.Done(key)
 
-			if err := reconcile(c, key.(string)); err != nil {
+			if err := reconcile(c, key); err != nil {
 				runtime.HandleError(fmt.Errorf("failed to reconcile %s: %w", key, err))
 				return // Do not forget so we retry later.
 			}

@@ -159,7 +159,7 @@ func (r *fakeReconciler) cancelPipelineRun(context string, pr *pipelinev1.Pipeli
 }
 
 type fakeLimiter struct {
-	workqueue.RateLimitingInterface
+	workqueue.TypedRateLimitingInterface[string]
 	added string
 }
 
@@ -167,24 +167,24 @@ func (fl *fakeLimiter) ShutDown() {}
 func (fl *fakeLimiter) ShuttingDown() bool {
 	return false
 }
-func (fl *fakeLimiter) Get() (interface{}, bool) {
+func (fl *fakeLimiter) Get() (string, bool) {
 	return "not implemented", true
 }
-func (fl *fakeLimiter) Done(interface{})   {}
-func (fl *fakeLimiter) Forget(interface{}) {}
-func (fl *fakeLimiter) AddRateLimited(a interface{}) {
-	fl.added = a.(string)
+func (fl *fakeLimiter) Done(string)   {}
+func (fl *fakeLimiter) Forget(string) {}
+func (fl *fakeLimiter) AddRateLimited(a string) {
+	fl.added = a
 }
-func (fl *fakeLimiter) Add(a interface{}) {
-	fl.added = a.(string)
+func (fl *fakeLimiter) Add(a string) {
+	fl.added = a
 }
-func (fl *fakeLimiter) AddAfter(a interface{}, d time.Duration) {
-	fl.added = a.(string)
+func (fl *fakeLimiter) AddAfter(a string, d time.Duration) {
+	fl.added = a
 }
 func (fl *fakeLimiter) Len() int {
 	return 0
 }
-func (fl *fakeLimiter) NumRequeues(item interface{}) int {
+func (fl *fakeLimiter) NumRequeues(item string) int {
 	return 0
 }
 

@@ -170,7 +170,7 @@ func main() {
 		pipelineConfigs: pipelineConfigs,
 		totURL:          o.totURL,
 		prowConfig:      configAgent.Config,
-		rl:              kube.RateLimiter(controllerName),
+		rl:              kube.RateLimiter[string](controllerName),
 	}
 	controller, err := newController(opts)
 	if err != nil {

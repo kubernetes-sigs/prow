@@ -997,7 +997,7 @@ func podPredicate(additionalSelector string, callback func(bool)) (predicate.Typ
 	}), nil
 }
 
-func podEventRequestMapper(prowJobNamespace string) handler.TypedEventHandler[*corev1.Pod] {
+func podEventRequestMapper(prowJobNamespace string) handler.TypedEventHandler[*corev1.Pod, reconcile.Request] {
 	return handler.TypedEnqueueRequestsFromMapFunc(func(_ context.Context, pod *corev1.Pod) []reconcile.Request {
 		return []reconcile.Request{{NamespacedName: ctrlruntimeclient.ObjectKey{
 			Namespace: prowJobNamespace,
