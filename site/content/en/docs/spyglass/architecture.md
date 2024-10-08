@@ -29,7 +29,7 @@ future they can live elsewhere. Spyglass lenses have the following responsibilit
 - Rendering HTML for human consumption
 
 Lens frontends are run in sandboxed iframes (currently `sandbox="allow-scripts allow-top-navigation
-allow-popups allow-same-origin"`), which ensures that they can only interact with the world via the
+allow-popups allow-same-origin allow-forms"`), which ensures that they can only interact with the world via the
 intended API. In particular, this prevents lenses from interacting with other Deck pseudo-APIs or with
 the core spyglass page.
 
