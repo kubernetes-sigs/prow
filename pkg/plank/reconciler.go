@@ -119,9 +119,11 @@ func add(
 	predicateCallback func(bool),
 	numWorkers int,
 ) error {
-	predicate, err := predicates(additionalSelector, predicateCallback)
+	pjPredicate := prowJobPredicate(predicateCallback)
+
+	podPred, err := podPredicate(additionalSelector, predicateCallback)
 	if err != nil {
-		return fmt.Errorf("failed to construct predicate: %w", err)
+		return fmt.Errorf("failed to construct Pod predicate: %w", err)
 	}
 
 	ctx := context.Background()
@@ -132,7 +134,7 @@ func add(
 	blder := controllerruntime.NewControllerManagedBy(mgr).
 		Named(ControllerName).
 		For(&prowv1.ProwJob{}).
-		WithEventFilter(predicate).
+		WithEventFilter(pjPredicate).
 		WithOptions(controller.Options{MaxConcurrentReconciles: numWorkers})
 
 	r := newReconciler(ctx, mgr.GetClient(), overwriteReconcile, cfg, opener, totURL)
@@ -141,9 +143,14 @@ func add(
 			"buildCluster": buildClusterName,
 			"host":         buildCluster.GetConfig().Host,
 		}).Debug("creating client")
-		blder = blder.WatchesRawSource(
-			source.Kind(buildCluster.GetCache(), &corev1.Pod{}),
-			podEventRequestMapper(cfg().ProwJobNamespace))
+
+		blder.WatchesRawSource(source.Kind(
+			buildCluster.GetCache(),
+			&corev1.Pod{},
+			podEventRequestMapper(cfg().ProwJobNamespace),
+			podPred,
+		))
+
 		bc := buildClient{
 			Client: buildCluster.GetClient()}
 		if restConfig, ok := knownClusters[buildClusterName]; ok {
@@ -948,22 +955,13 @@ func (r *reconciler) canExecuteConcurrentlyPerQueue(ctx context.Context, pj *pro
 	return true, nil
 }
 
-func predicates(additionalSelector string, callback func(bool)) (predicate.Predicate, error) {
-	rawSelector := fmt.Sprintf("%s=true", kube.CreatedByProw)
-	if additionalSelector != "" {
-		rawSelector = fmt.Sprintf("%s,%s", rawSelector, additionalSelector)
-	}
-	selector, err := labels.Parse(rawSelector)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse label selector %s: %w", rawSelector, err)
-	}
-
+func prowJobPredicate(callback func(bool)) predicate.Predicate {
 	return predicate.NewPredicateFuncs(func(o ctrlruntimeclient.Object) bool {
 		result := func() bool {
 			pj, ok := o.(*prowv1.ProwJob)
 			if !ok {
-				// We ignore pods that do not match our selector
-				return selector.Matches(labels.Set(o.GetLabels()))
+				// Should never happen.
+				return false
 			}
 
 			// We can ignore completed prowjobs
@@ -977,14 +975,33 @@ func predicates(additionalSelector string, callback func(bool)) (predicate.Predi
 			callback(result)
 		}
 		return result
+	})
+}
+
+func podPredicate(additionalSelector string, callback func(bool)) (predicate.TypedPredicate[*corev1.Pod], error) {
+	rawSelector := fmt.Sprintf("%s=true", kube.CreatedByProw)
+	if additionalSelector != "" {
+		rawSelector = fmt.Sprintf("%s,%s", rawSelector, additionalSelector)
+	}
+	selector, err := labels.Parse(rawSelector)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse label selector %s: %w", rawSelector, err)
+	}
+
+	return predicate.NewTypedPredicateFuncs(func(pod *corev1.Pod) bool {
+		result := selector.Matches(labels.Set(pod.GetLabels()))
+		if callback != nil {
+			callback(result)
+		}
+		return result
 	}), nil
 }
 
-func podEventRequestMapper(prowJobNamespace string) handler.EventHandler {
-	return handler.EnqueueRequestsFromMapFunc(func(_ context.Context, o ctrlruntimeclient.Object) []reconcile.Request {
+func podEventRequestMapper(prowJobNamespace string) handler.TypedEventHandler[*corev1.Pod] {
+	return handler.TypedEnqueueRequestsFromMapFunc(func(_ context.Context, pod *corev1.Pod) []reconcile.Request {
 		return []reconcile.Request{{NamespacedName: ctrlruntimeclient.ObjectKey{
 			Namespace: prowJobNamespace,
-			Name:      o.GetName(),
+			Name:      pod.GetName(),
 		}}}
 	})
 }

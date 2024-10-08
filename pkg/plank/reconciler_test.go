@@ -143,7 +143,7 @@ func TestAdd(t *testing.T) {
 		{
 			name:               "Invalid additionalSelector causes error",
 			additionalSelector: ",",
-			expectedError:      "failed to construct predicate: failed to parse label selector created-by-prow=true,,: found ',', expected: identifier after ','",
+			expectedError:      "failed to construct Pod predicate: failed to parse label selector created-by-prow=true,,: found ',', expected: identifier after ','",
 		},
 	}
 
