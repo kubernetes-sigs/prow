@@ -61,11 +61,11 @@ func (ft *fakeTracker) Get(gvr schema.GroupVersionResource, ns, name string, opt
 	return ft.ObjectTracker.Get(gvr, ns, name, opts...)
 }
 
-func (ft *fakeTracker) Update(gvr schema.GroupVersionResource, obj runtime.Object, ns string, opts ...metav1.UpdateOptions) error {
-	if err, exists := ft.errors["UPDATE"]; exists {
+func (ft *fakeTracker) Patch(gvr schema.GroupVersionResource, obj runtime.Object, ns string, opts ...metav1.PatchOptions) error {
+	if err, exists := ft.errors["PATCH"]; exists {
 		return err
 	}
-	return ft.ObjectTracker.Update(gvr, obj, ns, opts...)
+	return ft.ObjectTracker.Patch(gvr, obj, ns, opts...)
 }
 
 func TestReconcile(t *testing.T) {
@@ -130,7 +130,7 @@ func TestReconcile(t *testing.T) {
 				Spec:       prowv1.ProwJobSpec{Cluster: "foo"},
 				Status:     prowv1.ProwJobStatus{State: prowv1.TriggeredState},
 			},
-			clientErrors: map[string]error{"UPDATE": errors.New("expected")},
+			clientErrors: map[string]error{"PATCH": errors.New("expected")},
 			wantError:    errors.New("patch prowjob: expected"),
 		},
 		{
