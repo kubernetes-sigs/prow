@@ -228,12 +228,13 @@ func specFromJobBase(jb config.JobBase) prowapi.ProwJobSpec {
 		namespace = *jb.Namespace
 	}
 	return prowapi.ProwJobSpec{
-		Job:             jb.Name,
-		Agent:           prowapi.ProwJobAgent(jb.Agent),
-		Cluster:         jb.Cluster,
-		Namespace:       namespace,
-		MaxConcurrency:  jb.MaxConcurrency,
-		ErrorOnEviction: jb.ErrorOnEviction,
+		Job:                jb.Name,
+		Agent:              prowapi.ProwJobAgent(jb.Agent),
+		Cluster:            jb.Cluster,
+		Namespace:          namespace,
+		MaxConcurrency:     jb.MaxConcurrency,
+		ErrorOnEviction:    jb.ErrorOnEviction,
+		ErrorOnTermination: jb.ErrorOnTermination,
 
 		ExtraRefs:        DecorateExtraRefs(jb.ExtraRefs, jb),
 		DecorationConfig: jb.DecorationConfig,
