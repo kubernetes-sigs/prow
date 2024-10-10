@@ -23,6 +23,10 @@ deck:
           - (FAIL|Failure \[)\b
           - panic\b
           - ^E\d{4} \d\d:\d\d:\d\d\.\d\d\d]
+          iframe_sandbox_permissions:
+          - allow-scripts
+          - allow-popups
+          - allow-popups-to-escape-sandbox
       required_files:
       - build-log.txt
     - lens:
