@@ -41,13 +41,15 @@ const (
 	ProwBuildIDLabel = "prow.k8s.io/build-id"
 	// ProwJobAnnotation is added in resources created by prow and
 	// carries the name of the job that the pod is running. Since
-	// job names can be arbitrarily long, this is added as
-	// an annotation instead of a label.
+	// job names can be arbitrarily long, the full-length value is
+	// added as an annotation, with a potentially truncated value
+	// being added as a label.
 	ProwJobAnnotation = "prow.k8s.io/job"
 	// ContextAnnotation is added in resources created by prow and
 	// carries the context of the job that the pod is running. Since
-	// job names can be arbitrarily long, this is added as
-	// an annotation instead of a label.
+	// job names can be arbitrarily long, the full-length value is
+	// added as an annotation, with a potentially truncated value
+	// being added as a label.
 	ContextAnnotation = "prow.k8s.io/context"
 	// PlankVersionLabel is added in resources created by prow and
 	// carries the version of prow that decorated this job.
