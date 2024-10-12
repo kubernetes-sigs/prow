@@ -21,14 +21,18 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"sync"
 	"testing"
+	"time"
 
+	appsv1 "k8s.io/api/apps/v1"
 	coreapi "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/oidc"
@@ -106,20 +110,55 @@ func getPodLogs(clientset *kubernetes.Clientset, namespace, podName string, opts
 	return str, nil
 }
 
-func refreshProwPods(client ctrlruntimeclient.Client, ctx context.Context, name string) error {
+func rolloutDeployment(t *testing.T, ctx context.Context, client ctrlruntimeclient.Client, name string) error {
 	prowComponentsMux.Lock()
 	defer prowComponentsMux.Unlock()
 
-	var pods coreapi.PodList
-	labels, _ := labels.Parse("app = " + name)
-	if err := client.List(ctx, &pods, &ctrlruntimeclient.ListOptions{LabelSelector: labels}); err != nil {
-		return err
+	var depl appsv1.Deployment
+	if err := client.Get(ctx, types.NamespacedName{Name: name, Namespace: defaultNamespace}, &depl); err != nil {
+		return fmt.Errorf("failed to get Deployment: %w", err)
 	}
-	for _, pod := range pods.Items {
-		if err := client.Delete(ctx, &pod); err != nil {
-			return err
+
+	if replicas := depl.Spec.Replicas; replicas == nil || *replicas < 1 {
+		return errors.New("cannot restart a Deployment with zero replicas.")
+	}
+
+	labels := depl.Spec.Template.Labels
+	if labels == nil {
+		// This should never happen.
+		labels = map[string]string{}
+	}
+	labels["restart"] = RandomString(t)
+
+	t.Logf("Restarting %s...", name)
+	if err := client.Update(ctx, &depl); err != nil {
+		return fmt.Errorf("failed to update Deployment: %w", err)
+	}
+
+	timeout := 30 * time.Second
+	if err := wait.PollUntilContextTimeout(ctx, time.Second, timeout, false, func(ctx context.Context) (bool, error) {
+		var current appsv1.Deployment
+		if err := client.Get(ctx, ctrlruntimeclient.ObjectKeyFromObject(&depl), &current); err != nil {
+			return false, fmt.Errorf("failed to get current Deployment: %w", err)
 		}
+
+		replicas := current.Spec.Replicas
+		if replicas == nil || *replicas < 1 {
+			// This should never happen.
+			return false, errors.New("Deployment has no replicas defined")
+		}
+
+		ready := true &&
+			current.Status.AvailableReplicas == *replicas &&
+			current.Status.ReadyReplicas == *replicas &&
+			current.Status.UpdatedReplicas == *replicas &&
+			current.Status.UnavailableReplicas == 0
+
+		return ready, nil
+	}); err != nil {
+		return fmt.Errorf("Deployment did not fully roll out after %v: %w", timeout, err)
 	}
+
 	return nil
 }
 

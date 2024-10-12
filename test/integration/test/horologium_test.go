@@ -66,10 +66,8 @@ func TestLaunchProwJob(t *testing.T) {
 	// not kubelet, according to
 	// https://github.com/kubernetes/kubernetes/issues/30189 kubelet syncs
 	// configmap updates on existing pods every minute, which is a long wait.
-	// The proposed fix in the issue was updating the deployment, which imo
-	// should be better handled by just refreshing pods.
-	// So here comes forcing restart of horologium pods.
-	if err := refreshProwPods(kubeClient, context.Background(), "horologium"); err != nil {
+	// It's quicker to rollout the affected Deployments.
+	if err := rolloutDeployment(t, context.Background(), kubeClient, "horologium"); err != nil {
 		t.Fatalf("Failed refreshing horologium pods: %v", err)
 	}
 
