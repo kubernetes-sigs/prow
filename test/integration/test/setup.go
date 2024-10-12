@@ -35,6 +35,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/remotecommand"
+	"k8s.io/client-go/util/flowcontrol"
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -59,6 +60,7 @@ func NewClients(configPath, clusterName string) (ctrlruntimeclient.Client, error
 	if err != nil {
 		return nil, err
 	}
+	cfg.RateLimiter = flowcontrol.NewFakeAlwaysRateLimiter()
 	return ctrlruntimeclient.New(cfg, ctrlruntimeclient.Options{})
 }
 
