@@ -19,8 +19,8 @@ limitations under the License.
 package v1
 
 import (
-	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/client-go/listers"
 	"k8s.io/client-go/tools/cache"
 	v1 "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 )
@@ -38,25 +38,17 @@ type ProwJobLister interface {
 
 // prowJobLister implements the ProwJobLister interface.
 type prowJobLister struct {
-	indexer cache.Indexer
+	listers.ResourceIndexer[*v1.ProwJob]
 }
 
 // NewProwJobLister returns a new ProwJobLister.
 func NewProwJobLister(indexer cache.Indexer) ProwJobLister {
-	return &prowJobLister{indexer: indexer}
-}
-
-// List lists all ProwJobs in the indexer.
-func (s *prowJobLister) List(selector labels.Selector) (ret []*v1.ProwJob, err error) {
-	err = cache.ListAll(s.indexer, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1.ProwJob))
-	})
-	return ret, err
+	return &prowJobLister{listers.New[*v1.ProwJob](indexer, v1.Resource("prowjob"))}
 }
 
 // ProwJobs returns an object that can list and get ProwJobs.
 func (s *prowJobLister) ProwJobs(namespace string) ProwJobNamespaceLister {
-	return prowJobNamespaceLister{indexer: s.indexer, namespace: namespace}
+	return prowJobNamespaceLister{listers.NewNamespaced[*v1.ProwJob](s.ResourceIndexer, namespace)}
 }
 
 // ProwJobNamespaceLister helps list and get ProwJobs.
@@ -74,26 +66,5 @@ type ProwJobNamespaceLister interface {
 // prowJobNamespaceLister implements the ProwJobNamespaceLister
 // interface.
 type prowJobNamespaceLister struct {
-	indexer   cache.Indexer
-	namespace string
-}
-
-// List lists all ProwJobs in the indexer for a given namespace.
-func (s prowJobNamespaceLister) List(selector labels.Selector) (ret []*v1.ProwJob, err error) {
-	err = cache.ListAllByNamespace(s.indexer, s.namespace, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1.ProwJob))
-	})
-	return ret, err
-}
-
-// Get retrieves the ProwJob from the indexer for a given namespace and name.
-func (s prowJobNamespaceLister) Get(name string) (*v1.ProwJob, error) {
-	obj, exists, err := s.indexer.GetByKey(s.namespace + "/" + name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewNotFound(v1.Resource("prowjob"), name)
-	}
-	return obj.(*v1.ProwJob), nil
+	listers.ResourceIndexer[*v1.ProwJob]
 }
