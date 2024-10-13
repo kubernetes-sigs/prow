@@ -7,7 +7,6 @@ go 1.22.3
 // packages: https://github.com/golang/go/issues/44840#issuecomment-1651863470
 
 require (
-	github.com/bazelbuild/buildtools v0.0.0-20211007154642-8dd79e56e98e
 	github.com/client9/misspell v0.3.4
 	github.com/go-bindata/go-bindata/v3 v3.1.3
 	github.com/golang/protobuf v1.5.4
