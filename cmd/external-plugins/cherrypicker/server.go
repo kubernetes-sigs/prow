@@ -132,12 +132,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, "Event received. Have a nice day.")
 
 	if err := s.handleEvent(eventType, eventGUID, payload); err != nil {
-		logrus.WithError(err).Error("Error parsing event.")
+		s.log.WithError(err).Error("Error parsing event.")
 	}
 }
 
 func (s *Server) handleEvent(eventType, eventGUID string, payload []byte) error {
-	l := logrus.WithFields(logrus.Fields{
+	l := s.log.WithFields(logrus.Fields{
 		"event-type":     eventType,
 		github.EventGUID: eventGUID,
 	})
@@ -149,7 +149,7 @@ func (s *Server) handleEvent(eventType, eventGUID string, payload []byte) error 
 		}
 		go func() {
 			if err := s.handleIssueComment(l, ic); err != nil {
-				s.log.WithError(err).WithFields(l.Data).Info("Cherry-pick failed.")
+				l.WithError(err).Info("Cherry-pick failed.")
 			}
 		}()
 	case "pull_request":
@@ -159,11 +159,11 @@ func (s *Server) handleEvent(eventType, eventGUID string, payload []byte) error 
 		}
 		go func() {
 			if err := s.handlePullRequest(l, pr); err != nil {
-				s.log.WithError(err).WithFields(l.Data).Info("Cherry-pick failed.")
+				l.WithError(err).Info("Cherry-pick failed.")
 			}
 		}()
 	default:
-		logrus.Debugf("skipping event of type %q", eventType)
+		l.Debugf("skipping event of type %q", eventType)
 	}
 	return nil
 }
