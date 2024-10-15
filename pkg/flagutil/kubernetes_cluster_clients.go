@@ -360,18 +360,23 @@ func (o *KubernetesOptions) BuildClusters(dryRun bool, requiredTestPodVerbs []st
 		return nil, err
 	}
 
-	options := cluster.Options{
-		Client: ctrlruntimeclient.Options{
-			DryRun: &o.dryRun,
-		},
-		Cache: cache.Options{
-			DefaultNamespaces: map[string]cache.Config{
-				namespace: {},
+	// This is a callback so that each cluster gets its very own copy of the
+	// config, otherwise the cache setup logic could race to setup the DefaultNamespaces.
+	overrideOptions := func(o *cluster.Options) {
+		newOptions := cluster.Options{
+			Client: ctrlruntimeclient.Options{
+				DryRun: &dryRun,
 			},
-		},
-	}
-	for _, opt := range opts {
-		opt(&options)
+			Cache: cache.Options{
+				DefaultNamespaces: map[string]cache.Config{
+					namespace: {},
+				},
+			},
+		}
+		for _, opt := range opts {
+			opt(&newOptions)
+		}
+		*o = newOptions
 	}
 
 	res := map[string]cluster.Cluster{}
@@ -386,9 +391,7 @@ func (o *KubernetesOptions) BuildClusters(dryRun bool, requiredTestPodVerbs []st
 			// due to missing or expired kubeconfig secrets, or if some other
 			// auth-related executable (e.g., gke-gcloud-auth-plugin) is missing
 			// from the base image.
-			mgr, err := cluster.New(&config, func(opts *cluster.Options) {
-				*opts = options
-			})
+			mgr, err := cluster.New(&config, overrideOptions)
 			if err != nil {
 				clientCreationFailures.WithLabelValues(name).Add(1)
 				lock.Lock()
@@ -438,9 +441,7 @@ func (o *KubernetesOptions) BuildClusters(dryRun bool, requiredTestPodVerbs []st
 
 					// If there are any errors with this (still troublesome)
 					// build cluster, keep checking.
-					if _, err := cluster.New(&buildClusterConfig, func(o *cluster.Options) {
-						*o = options
-					}); err != nil {
+					if _, err := cluster.New(&buildClusterConfig, overrideOptions); err != nil {
 						logrus.WithField("build-cluster", buildClusterName).Tracef("failed to construct build cluster manager: %s", err)
 						continue
 					}
