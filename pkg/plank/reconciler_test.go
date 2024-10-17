@@ -40,11 +40,13 @@ import (
 	"k8s.io/client-go/rest"
 	k8sTesting "k8s.io/client-go/testing"
 	toolscache "k8s.io/client-go/tools/cache"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/cache/informertest"
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	fakectrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/cluster"
+	ctrlruntimeconfig "sigs.k8s.io/controller-runtime/pkg/config"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllertest"
 	ctrlruntimelog "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
@@ -264,6 +266,9 @@ func mgrFromFakeInformer(gvk schema.GroupVersionKind, fi *controllertest.FakeInf
 		},
 		Metrics: server.Options{
 			BindAddress: "0",
+		},
+		Controller: ctrlruntimeconfig.Controller{
+			SkipNameValidation: ptr.To(true),
 		},
 	}
 	return manager.New(&rest.Config{}, opts)

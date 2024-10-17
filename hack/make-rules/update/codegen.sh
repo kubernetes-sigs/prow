@@ -46,11 +46,11 @@ listergen=${REPO_ROOT}/_bin/lister-gen
 go build -o "${listergen}" k8s.io/code-generator/cmd/lister-gen
 go_bindata=${REPO_ROOT}/_bin/go-bindata
 go build -o "${go_bindata}" github.com/go-bindata/go-bindata/v3/go-bindata
-controller_gen=${REPO_ROOT}/_bin/controller-gen
-go build -o "${controller_gen}" sigs.k8s.io/controller-tools/cmd/controller-gen
+controllergen=${REPO_ROOT}/_bin/controller-gen
+go build -o "${controllergen}" sigs.k8s.io/controller-tools/cmd/controller-gen
 protoc_gen_go="${REPO_ROOT}/_bin/protoc-gen-go" # golang protobuf plugin
-GOBIN="${REPO_ROOT}/_bin" go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.32.0
-GOBIN="${REPO_ROOT}/_bin" go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.3.0
+GOBIN="${REPO_ROOT}/_bin" go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.35.1
+GOBIN="${REPO_ROOT}/_bin" go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1
 
 cd "${REPO_ROOT}"
 ensure-protoc-deps(){
@@ -67,7 +67,7 @@ ensure-protoc-deps(){
     fi
     # See https://developers.google.com/protocol-buffers/docs/news/2022-05-06 for
     # a note on the versioning scheme change.
-    PROTOC_VERSION=25.2
+    PROTOC_VERSION=28.2
     PROTOC_ZIP="protoc-${PROTOC_VERSION}-${OS}-${ARCH}.zip"
     curl -OL "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/${PROTOC_ZIP}"
     unzip -o $PROTOC_ZIP -d _bin/protoc bin/protoc
@@ -155,21 +155,13 @@ clean() {
 
 gen-deepcopy() {
   clean pkg/apis 'zz_generated.deepcopy.go'
-  clean pkg/config 'zz_generated.deepcopy.non_k8s.go'
   echo "Generating DeepCopy() methods..." >&2
-  "$deepcopygen" \
+  "$deepcopygen" ./... \
     --go-header-file hack/boilerplate/boilerplate.generated.go.txt \
-    --input-dirs sigs.k8s.io/prow/pkg/apis/prowjobs/v1 \
-    --output-file-base zz_generated.deepcopy \
-    --bounding-dirs sigs.k8s.io/prow/pkg/apis
+    --output-file zz_generated.deepcopy.go \
+    --bounding-dirs sigs.k8s.io/prow/pkg/apis,sigs.k8s.io/prow/pkg/config
   copyfiles "pkg/apis" "zz_generated.deepcopy.go"
-
-  "$deepcopygen" \
-    --go-header-file hack/boilerplate/boilerplate.generated.go.txt \
-    --input-dirs sigs.k8s.io/prow/pkg/config \
-    --output-file-base zz_generated.deepcopy
   copyfiles "pkg/config" "zz_generated.deepcopy.go"
-
 }
 
 gen-client() {
@@ -180,7 +172,8 @@ gen-client() {
     --clientset-name versioned \
     --input-base "" \
     --input sigs.k8s.io/prow/pkg/apis/prowjobs/v1 \
-    --output-package sigs.k8s.io/prow/pkg/client/clientset
+    --output-dir pkg/client/clientset \
+    --output-pkg sigs.k8s.io/prow/pkg/client/clientset
   copyfiles "./pkg/client/clientset" "*.go"
 
   clean pkg/pipeline/clientset '*.go'
@@ -190,51 +183,52 @@ gen-client() {
     --clientset-name versioned \
     --input-base "" \
     --input github.com/tektoncd/pipeline/pkg/apis/pipeline/v1 \
-    --output-package sigs.k8s.io/prow/pkg/pipeline/clientset
+    --output-dir pkg/pipeline/clientset \
+    --output-pkg sigs.k8s.io/prow/pkg/pipeline/clientset
   copyfiles "./pkg/pipeline/clientset" "*.go"
 }
 
 gen-lister() {
   clean pkg/client/listers '*.go'
   echo "Generating lister..." >&2
-  "$listergen" \
+  "$listergen" sigs.k8s.io/prow/pkg/apis/prowjobs/v1 \
     --go-header-file hack/boilerplate/boilerplate.generated.go.txt \
-    --input-dirs sigs.k8s.io/prow/pkg/apis/prowjobs/v1 \
-    --output-package sigs.k8s.io/prow/pkg/client/listers
+    --output-dir pkg/client/listers \
+    --output-pkg sigs.k8s.io/prow/pkg/client/listers
   copyfiles "./pkg/client/listers" "*.go"
 
   clean pkg/pipeline/listers '*.go'
   echo "Generating lister for pipeline..." >&2
-  "$listergen" \
+  "$listergen" github.com/tektoncd/pipeline/pkg/apis/pipeline/v1 \
     --go-header-file hack/boilerplate/boilerplate.generated.go.txt \
-    --input-dirs github.com/tektoncd/pipeline/pkg/apis/pipeline/v1 \
-    --output-package sigs.k8s.io/prow/pkg/pipeline/listers
+    --output-dir pkg/pipeline/listers \
+    --output-pkg sigs.k8s.io/prow/pkg/pipeline/listers
   copyfiles "./pkg/pipeline/listers" "*.go"
 }
 
 gen-informer() {
   clean pkg/client/informers '*.go'
   echo "Generating informer..." >&2
-  "$informergen" \
+  "$informergen" sigs.k8s.io/prow/pkg/apis/prowjobs/v1 \
     --go-header-file hack/boilerplate/boilerplate.generated.go.txt \
-    --input-dirs sigs.k8s.io/prow/pkg/apis/prowjobs/v1 \
     --versioned-clientset-package sigs.k8s.io/prow/pkg/client/clientset/versioned \
     --listers-package sigs.k8s.io/prow/pkg/client/listers \
-    --output-package sigs.k8s.io/prow/pkg/client/informers
+    --output-dir pkg/client/informers \
+    --output-pkg sigs.k8s.io/prow/pkg/client/informers
   copyfiles "./pkg/client/informers" "*.go"
 
   clean pkg/pipeline/informers '*.go'
   echo "Generating informer for pipeline..." >&2
-  "$informergen" \
+  "$informergen" github.com/tektoncd/pipeline/pkg/apis/pipeline/v1 \
     --go-header-file hack/boilerplate/boilerplate.generated.go.txt \
-    --input-dirs github.com/tektoncd/pipeline/pkg/apis/pipeline/v1 \
     --versioned-clientset-package sigs.k8s.io/prow/pkg/pipeline/clientset/versioned \
     --listers-package sigs.k8s.io/prow/pkg/pipeline/listers \
-    --output-package sigs.k8s.io/prow/pkg/pipeline/informers
+    --output-dir pkg/pipeline/informers \
+    --output-pkg sigs.k8s.io/prow/pkg/pipeline/informers
   copyfiles "./pkg/pipeline/informers" "*.go"
 }
 
-gen-spyglass-bindata(){
+gen-spyglass-bindata() {
   cd pkg/spyglass/lenses/common/
   echo "Generating spyglass bindata..." >&2
   $go_bindata -pkg=common static/
@@ -242,11 +236,11 @@ gen-spyglass-bindata(){
   cd - >/dev/null
 }
 
-gen-prowjob-crd(){
+gen-prowjob-crd() {
   clean "./config/prow/cluster" "prowjob_customresourcedefinition.yaml"
   echo "Generating prowjob crd..." >&2
   if [[ -z ${HOME:-} ]]; then export HOME=$PWD; fi
-  $controller_gen crd:preserveUnknownFields=false,crdVersions=v1 paths=./pkg/apis/prowjobs/v1 output:stdout \
+  "$controllergen" crd:crdVersions=v1 paths=./pkg/apis/prowjobs/v1 output:stdout \
     | $SED '/^$/d' \
     | $SED '/^spec:.*/a  \  preserveUnknownFields: false' \
     | $SED '/^  annotations.*/a  \    api-approved.kubernetes.io: https://github.com/kubernetes/test-infra/pull/8669' \
@@ -268,7 +262,7 @@ EOF
 }
 
 # Generate gRPC stubs for a given protobuf file.
-gen-proto-stubs(){
+gen-proto-stubs() {
   local dir
   dir="$(dirname "$1")"
 
@@ -285,7 +279,7 @@ gen-proto-stubs(){
     "$1"
 }
 
-gen-all-proto-stubs(){
+gen-all-proto-stubs() {
   echo >&2 "Generating proto stubs"
 
   # Expose the golang protobuf plugin binaries (protoc-gen-go,
@@ -303,7 +297,7 @@ gen-all-proto-stubs(){
     -print0 | sort -z)
 }
 
-gen-gangway-apidescriptorpb-for-cloud-endpoints(){
+gen-gangway-apidescriptorpb-for-cloud-endpoints() {
   echo >&2 "Generating self-describing proto stub (gangway_api_descriptor.pb) for gangway.proto"
 
   "${REPO_ROOT}/_bin/protoc/bin/protoc" \
@@ -327,7 +321,6 @@ export GO111MODULE=on
 export GOPROXY=https://proxy.golang.org
 export GOSUMDB=sum.golang.org
 go mod vendor
-export GO111MODULE=off
 export GOCACHE=$old
 gen-deepcopy
 gen-client
