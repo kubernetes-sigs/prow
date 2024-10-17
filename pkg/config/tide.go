@@ -840,7 +840,7 @@ func (cp *TideContextPolicy) Validate() error {
 	for _, contextRegex := range cp.OptionalRegexContexts {
 		re, err := regexp.Compile(contextRegex)
 		if err != nil {
-			return fmt.Errorf("optional context regex %q doesn't comipile: %w", contextRegex, err)
+			return fmt.Errorf("optional context regex %q doesn't compile: %w", contextRegex, err)
 		}
 		for _, context := range cp.RequiredContexts {
 			if re.MatchString(context) {
