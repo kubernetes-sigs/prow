@@ -162,6 +162,8 @@ type TideContextPolicy struct {
 	RequiredContexts          []string `json:"required-contexts,omitempty"`
 	RequiredIfPresentContexts []string `json:"required-if-present-contexts,omitempty"`
 	OptionalContexts          []string `json:"optional-contexts,omitempty"`
+	// Contexts that match any of the regex values in OptionalRegexContexts will be optional
+	OptionalRegexContexts []string `json:"optional-regex-contexts,omitempty"`
 	// Infer required and optional jobs from Branch Protection configuration
 	FromBranchProtection *bool `json:"from-branch-protection,omitempty"`
 	// Overwrite `pending` contexts with `success` when a PR is merged in a batch.
@@ -823,7 +825,8 @@ func (tq *TideQuery) Validate() error {
 	return nil
 }
 
-// Validate returns an error if any contexts are listed more than once in the config.
+// Validate returns an error if any contexts are listed more than once in the config
+// or if the optional regex contexts don't compile properly
 func (cp *TideContextPolicy) Validate() error {
 	if inter := sets.New[string](cp.RequiredContexts...).Intersection(sets.New[string](cp.OptionalContexts...)); inter.Len() > 0 {
 		return fmt.Errorf("contexts %s are defined as required and optional", strings.Join(sets.List(inter), ", "))
@@ -833,6 +836,22 @@ func (cp *TideContextPolicy) Validate() error {
 	}
 	if inter := sets.New[string](cp.OptionalContexts...).Intersection(sets.New[string](cp.RequiredIfPresentContexts...)); inter.Len() > 0 {
 		return fmt.Errorf("contexts %s are defined as optional and required if present", strings.Join(sets.List(inter), ", "))
+	}
+	for _, contextRegex := range cp.OptionalRegexContexts {
+		re, err := regexp.Compile(contextRegex)
+		if err != nil {
+			return fmt.Errorf("optional context regex %q doesn't compile: %w", contextRegex, err)
+		}
+		for _, context := range cp.RequiredContexts {
+			if re.MatchString(context) {
+				return fmt.Errorf("optional context regex %q matches required context %s", contextRegex, context)
+			}
+		}
+		for _, context := range cp.RequiredIfPresentContexts {
+			if re.MatchString(context) {
+				return fmt.Errorf("optional context regex %q matches required if present context %s", contextRegex, context)
+			}
+		}
 	}
 	return nil
 }
@@ -939,6 +958,12 @@ func (c Config) GetTideContextPolicy(gitClient git.ClientFactory, org, repo, bra
 func (cp *TideContextPolicy) IsOptional(c string) bool {
 	if sets.New[string](cp.OptionalContexts...).Has(c) {
 		return true
+	}
+	for _, regexContext := range cp.OptionalRegexContexts {
+		re := regexp.MustCompile(regexContext)
+		if re.MatchString(c) {
+			return true
+		}
 	}
 	if sets.New[string](cp.RequiredContexts...).Has(c) {
 		return false

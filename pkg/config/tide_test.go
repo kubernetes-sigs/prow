@@ -1876,8 +1876,9 @@ func TestTideContextPolicy_Validate(t *testing.T) {
 		{
 			name: "good policy",
 			t: TideContextPolicy{
-				OptionalContexts: []string{"o1"},
-				RequiredContexts: []string{"r1"},
+				OptionalContexts:      []string{"o1"},
+				RequiredContexts:      []string{"r1"},
+				OptionalRegexContexts: []string{"orc*"},
 			},
 		},
 		{
@@ -1896,6 +1897,29 @@ func TestTideContextPolicy_Validate(t *testing.T) {
 			},
 			failed: true,
 		},
+		{
+			name: "optional regex context found in required",
+			t: TideContextPolicy{
+				OptionalRegexContexts: []string{"c."},
+				RequiredContexts:      []string{"c1", "a4"},
+			},
+			failed: true,
+		},
+		{
+			name: "optional regex context found in required if present",
+			t: TideContextPolicy{
+				OptionalRegexContexts:     []string{"c."},
+				RequiredIfPresentContexts: []string{"c1", "a4"},
+			},
+			failed: true,
+		},
+		{
+			name: "optional regex context doesn't compile",
+			t: TideContextPolicy{
+				OptionalRegexContexts: []string{"c\\"},
+			},
+			failed: true,
+		},
 	}
 	for _, tc := range testCases {
 		err := tc.t.Validate()
@@ -1908,11 +1932,11 @@ func TestTideContextPolicy_Validate(t *testing.T) {
 
 func TestTideContextPolicy_IsOptional(t *testing.T) {
 	testCases := []struct {
-		name                string
-		skipUnknownContexts bool
-		required, optional  []string
-		contexts            []string
-		results             []bool
+		name                              string
+		skipUnknownContexts               bool
+		required, optional, optionalRegex []string
+		contexts                          []string
+		results                           []bool
 	}{
 		{
 			name:     "only optional contexts registered - skipUnknownContexts false",
@@ -1966,13 +1990,36 @@ func TestTideContextPolicy_IsOptional(t *testing.T) {
 			skipUnknownContexts: true,
 			results:             []bool{true, true, false, false, false, true},
 		},
+		{
+			name:                "only optional regex contexts registered - skipUnknownContexts true",
+			contexts:            []string{"c1", "o1", "o2"},
+			optionalRegex:       []string{"o."},
+			skipUnknownContexts: true,
+			results:             []bool{true, true, true},
+		},
+		{
+			name:                "only optional regex contexts registered - skipUnknownContexts false",
+			contexts:            []string{"c1", "o1", "o2"},
+			optionalRegex:       []string{"o."},
+			skipUnknownContexts: false,
+			results:             []bool{false, true, true},
+		},
+		{
+			name:                "optional regex and required contexts registered - skipUnknownContexts false",
+			optionalRegex:       []string{"o."},
+			required:            []string{"c1", "c2", "c3"},
+			contexts:            []string{"o1", "o2", "c1", "c2", "c3", "t1"},
+			skipUnknownContexts: false,
+			results:             []bool{true, true, false, false, false, false},
+		},
 	}
 
 	for _, tc := range testCases {
 		cp := TideContextPolicy{
-			SkipUnknownContexts: &tc.skipUnknownContexts,
-			RequiredContexts:    tc.required,
-			OptionalContexts:    tc.optional,
+			SkipUnknownContexts:   &tc.skipUnknownContexts,
+			RequiredContexts:      tc.required,
+			OptionalContexts:      tc.optional,
+			OptionalRegexContexts: tc.optionalRegex,
 		}
 		for i, c := range tc.contexts {
 			if cp.IsOptional(c) != tc.results[i] {
