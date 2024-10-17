@@ -1448,12 +1448,18 @@ tide:
         from-branch-protection: false
         optional-contexts:
             - ""
+        # Contexts that match any of the regex values in OptionalRegexContexts will be optional
+        optional-regex-contexts:
+            - ""
         # GitHub Orgs
         orgs:
             "":
                 # Infer required and optional jobs from Branch Protection configuration
                 from-branch-protection: false
                 optional-contexts:
+                    - ""
+                # Contexts that match any of the regex values in OptionalRegexContexts will be optional
+                optional-regex-contexts:
                     - ""
                 # Overwrite `pending` contexts with `success` when a PR is merged in a batch.
                 # This prevents PRs from being blocked by branch-protection rules if batches contexts are successful but PR context is still pending.
@@ -1465,6 +1471,9 @@ tide:
                                 # Infer required and optional jobs from Branch Protection configuration
                                 from-branch-protection: false
                                 optional-contexts:
+                                    - ""
+                                # Contexts that match any of the regex values in OptionalRegexContexts will be optional
+                                optional-regex-contexts:
                                     - ""
                                 # Overwrite `pending` contexts with `success` when a PR is merged in a batch.
                                 # This prevents PRs from being blocked by branch-protection rules if batches contexts are successful but PR context is still pending.
@@ -1478,6 +1487,9 @@ tide:
                         # Infer required and optional jobs from Branch Protection configuration
                         from-branch-protection: false
                         optional-contexts:
+                            - ""
+                        # Contexts that match any of the regex values in OptionalRegexContexts will be optional
+                        optional-regex-contexts:
                             - ""
                         # Overwrite `pending` contexts with `success` when a PR is merged in a batch.
                         # This prevents PRs from being blocked by branch-protection rules if batches contexts are successful but PR context is still pending.
