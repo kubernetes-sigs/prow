@@ -1471,6 +1471,7 @@ func TestConfigGetTideContextPolicy(t *testing.T) {
 									RequiredContexts:          []string{"r1"},
 									RequiredIfPresentContexts: []string{},
 									OptionalContexts:          []string{"o1"},
+									OptionalRegexContexts:     []string{"b.*"},
 									SkipUnknownContexts:       &yes,
 								},
 							},
@@ -1482,6 +1483,8 @@ func TestConfigGetTideContextPolicy(t *testing.T) {
 				RequiredContexts:          []string{"r1"},
 				RequiredIfPresentContexts: []string{},
 				OptionalContexts:          []string{"o1"},
+				OptionalRegexContexts:     []string{"b.*"},
+				OptionalContextRe:         []*regexp.Regexp{regexp.MustCompile("b.*")},
 				SkipUnknownContexts:       &yes,
 			},
 		},
@@ -1605,6 +1608,7 @@ func TestMergeTideContextPolicyConfig(t *testing.T) {
 				OverwritePendingContexts: &no,
 				RequiredContexts:         []string{"r1"},
 				OptionalContexts:         []string{"o1"},
+				OptionalRegexContexts:    []string{"or.*"},
 			},
 			c: TideContextPolicy{
 				SkipUnknownContexts:      &yes,
@@ -1612,6 +1616,7 @@ func TestMergeTideContextPolicyConfig(t *testing.T) {
 				OverwritePendingContexts: &no,
 				RequiredContexts:         []string{"r1"},
 				OptionalContexts:         []string{"o1"},
+				OptionalRegexContexts:    []string{"or.*"},
 			},
 		},
 		{
@@ -1622,6 +1627,7 @@ func TestMergeTideContextPolicyConfig(t *testing.T) {
 				OverwritePendingContexts: &no,
 				RequiredContexts:         []string{"r1"},
 				OptionalContexts:         []string{"o1"},
+				OptionalRegexContexts:    []string{"or.*"},
 			},
 			c: TideContextPolicy{
 				SkipUnknownContexts:      &yes,
@@ -1629,6 +1635,7 @@ func TestMergeTideContextPolicyConfig(t *testing.T) {
 				OverwritePendingContexts: &no,
 				RequiredContexts:         []string{"r1"},
 				OptionalContexts:         []string{"o1"},
+				OptionalRegexContexts:    []string{"or.*"},
 			},
 		},
 		{
@@ -1638,11 +1645,13 @@ func TestMergeTideContextPolicyConfig(t *testing.T) {
 				OverwritePendingContexts: &no,
 				RequiredContexts:         []string{"r1"},
 				OptionalContexts:         []string{"o1"},
+				OptionalRegexContexts:    []string{"or.*"},
 			},
 			b: TideContextPolicy{
-				SkipUnknownContexts: &yes,
-				RequiredContexts:    []string{"r2"},
-				OptionalContexts:    []string{"o2"},
+				SkipUnknownContexts:   &yes,
+				RequiredContexts:      []string{"r2"},
+				OptionalContexts:      []string{"o2"},
+				OptionalRegexContexts: []string{"ore.*"},
 			},
 			c: TideContextPolicy{
 				SkipUnknownContexts:      &yes,
@@ -1650,6 +1659,7 @@ func TestMergeTideContextPolicyConfig(t *testing.T) {
 				OverwritePendingContexts: &no,
 				RequiredContexts:         []string{"r1", "r2"},
 				OptionalContexts:         []string{"o1", "o2"},
+				OptionalRegexContexts:    []string{"or.*", "ore.*"},
 			},
 		},
 		{
@@ -1665,6 +1675,7 @@ func TestMergeTideContextPolicyConfig(t *testing.T) {
 				OverwritePendingContexts: &yes,
 				RequiredContexts:         []string{"r1"},
 				OptionalContexts:         []string{"o1"},
+				OptionalRegexContexts:    []string{"or.*"},
 			},
 			c: TideContextPolicy{
 				FromBranchProtection:     &yes,
@@ -1672,6 +1683,7 @@ func TestMergeTideContextPolicyConfig(t *testing.T) {
 				OverwritePendingContexts: &yes,
 				RequiredContexts:         []string{"r1"},
 				OptionalContexts:         []string{"o1"},
+				OptionalRegexContexts:    []string{"or.*"},
 			},
 		},
 		{
@@ -1682,6 +1694,7 @@ func TestMergeTideContextPolicyConfig(t *testing.T) {
 				OverwritePendingContexts: &yes,
 				RequiredContexts:         []string{"r1"},
 				OptionalContexts:         []string{"o1"},
+				OptionalRegexContexts:    []string{"or.*"},
 			},
 			b: TideContextPolicy{
 				FromBranchProtection:     &no,
@@ -1694,6 +1707,7 @@ func TestMergeTideContextPolicyConfig(t *testing.T) {
 				OverwritePendingContexts: &no,
 				RequiredContexts:         []string{"r1"},
 				OptionalContexts:         []string{"o1"},
+				OptionalRegexContexts:    []string{"or.*"},
 			},
 		},
 	}
@@ -1932,11 +1946,12 @@ func TestTideContextPolicy_Validate(t *testing.T) {
 
 func TestTideContextPolicy_IsOptional(t *testing.T) {
 	testCases := []struct {
-		name                              string
-		skipUnknownContexts               bool
-		required, optional, optionalRegex []string
-		contexts                          []string
-		results                           []bool
+		name                string
+		skipUnknownContexts bool
+		required, optional  []string
+		optionalRegex       []*regexp.Regexp
+		contexts            []string
+		results             []bool
 	}{
 		{
 			name:     "only optional contexts registered - skipUnknownContexts false",
@@ -1993,20 +2008,20 @@ func TestTideContextPolicy_IsOptional(t *testing.T) {
 		{
 			name:                "only optional regex contexts registered - skipUnknownContexts true",
 			contexts:            []string{"c1", "o1", "o2"},
-			optionalRegex:       []string{"o."},
+			optionalRegex:       []*regexp.Regexp{regexp.MustCompile("o.*")},
 			skipUnknownContexts: true,
 			results:             []bool{true, true, true},
 		},
 		{
 			name:                "only optional regex contexts registered - skipUnknownContexts false",
 			contexts:            []string{"c1", "o1", "o2"},
-			optionalRegex:       []string{"o."},
+			optionalRegex:       []*regexp.Regexp{regexp.MustCompile("o.*")},
 			skipUnknownContexts: false,
 			results:             []bool{false, true, true},
 		},
 		{
 			name:                "optional regex and required contexts registered - skipUnknownContexts false",
-			optionalRegex:       []string{"o."},
+			optionalRegex:       []*regexp.Regexp{regexp.MustCompile("o.*")},
 			required:            []string{"c1", "c2", "c3"},
 			contexts:            []string{"o1", "o2", "c1", "c2", "c3", "t1"},
 			skipUnknownContexts: false,
@@ -2016,10 +2031,10 @@ func TestTideContextPolicy_IsOptional(t *testing.T) {
 
 	for _, tc := range testCases {
 		cp := TideContextPolicy{
-			SkipUnknownContexts:   &tc.skipUnknownContexts,
-			RequiredContexts:      tc.required,
-			OptionalContexts:      tc.optional,
-			OptionalRegexContexts: tc.optionalRegex,
+			SkipUnknownContexts: &tc.skipUnknownContexts,
+			RequiredContexts:    tc.required,
+			OptionalContexts:    tc.optional,
+			OptionalContextRe:   tc.optionalRegex,
 		}
 		for i, c := range tc.contexts {
 			if cp.IsOptional(c) != tc.results[i] {
