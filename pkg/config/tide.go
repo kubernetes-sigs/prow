@@ -164,6 +164,8 @@ type TideContextPolicy struct {
 	OptionalContexts          []string `json:"optional-contexts,omitempty"`
 	// Contexts that match any of the regex values in OptionalRegexContexts will be optional
 	OptionalRegexContexts []string `json:"optional-regex-contexts,omitempty"`
+	// Compiled Re from OptionalRegexContexts will be stored in OptionalContextRe on load
+	OptionalContextRe []*regexp.Regexp `json:"-"`
 	// Infer required and optional jobs from Branch Protection configuration
 	FromBranchProtection *bool `json:"from-branch-protection,omitempty"`
 	// Overwrite `pending` contexts with `success` when a PR is merged in a batch.
@@ -870,9 +872,11 @@ func mergeTideContextPolicy(a, b TideContextPolicy) TideContextPolicy {
 	required := sets.New[string](a.RequiredContexts...)
 	requiredIfPresent := sets.New[string](a.RequiredIfPresentContexts...)
 	optional := sets.New[string](a.OptionalContexts...)
+	optionalRegex := sets.New[string](a.OptionalRegexContexts...)
 	required.Insert(b.RequiredContexts...)
 	requiredIfPresent.Insert(b.RequiredIfPresentContexts...)
 	optional.Insert(b.OptionalContexts...)
+	optionalRegex.Insert(b.OptionalRegexContexts...)
 	if required.Len() > 0 {
 		c.RequiredContexts = sets.List(required)
 	}
@@ -881,6 +885,9 @@ func mergeTideContextPolicy(a, b TideContextPolicy) TideContextPolicy {
 	}
 	if optional.Len() > 0 {
 		c.OptionalContexts = sets.List(optional)
+	}
+	if optionalRegex.Len() > 0 {
+		c.OptionalRegexContexts = sets.List(optionalRegex)
 	}
 	return c
 }
@@ -941,12 +948,17 @@ func (c Config) GetTideContextPolicy(gitClient git.ClientFactory, org, repo, bra
 		RequiredContexts:          sets.List(required),
 		RequiredIfPresentContexts: sets.List(requiredIfPresent),
 		OptionalContexts:          sets.List(optional),
+		OptionalRegexContexts:     options.OptionalRegexContexts,
 		SkipUnknownContexts:       options.SkipUnknownContexts,
 		OverwritePendingContexts:  options.OverwritePendingContexts,
 	}
 	if err := t.Validate(); err != nil {
 		return t, err
 	}
+	for _, re := range t.OptionalRegexContexts {
+		t.OptionalContextRe = append(t.OptionalContextRe, regexp.MustCompile(re))
+	}
+
 	return t, nil
 }
 
@@ -959,9 +971,8 @@ func (cp *TideContextPolicy) IsOptional(c string) bool {
 	if sets.New[string](cp.OptionalContexts...).Has(c) {
 		return true
 	}
-	for _, regexContext := range cp.OptionalRegexContexts {
-		re := regexp.MustCompile(regexContext)
-		if re.MatchString(c) {
+	for _, regexContext := range cp.OptionalContextRe {
+		if regexContext.MatchString(c) {
 			return true
 		}
 	}
