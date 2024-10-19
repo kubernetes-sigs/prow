@@ -23,11 +23,14 @@ import (
 
 	"github.com/sirupsen/logrus"
 
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"sigs.k8s.io/prow/pkg/config"
 )
 
 var TestAllRe = regexp.MustCompile(`(?m)^/test all,?($|\s.*)`)
+
+var TestByLabelsRe = regexp.MustCompile(`(?m)^/test-by-label (.+)$`)
 
 // RetestRe provides the regex for `/retest`
 var RetestRe = regexp.MustCompile(`(?m)^/retest\s*$`)
@@ -147,6 +150,51 @@ func (tf *TestAllFilter) ShouldRun(p config.Presubmit) (bool, bool, bool) {
 
 func (tf *TestAllFilter) Name() string {
 	return "test-all-filter"
+}
+
+// TestByLabelFilter builds a filter for the automatic behavior of
+// `/testlabel selector`. This filter works the same way as TestAllFilter, but
+// additionally filters jobs down to match the given label selector.
+type TestByLabelFilter struct {
+	base      *TestAllFilter
+	selectors []labels.Selector
+}
+
+func NewTestByLabelFilter(command string) (*TestByLabelFilter, error) {
+	matches := TestByLabelsRe.FindAllStringSubmatch(command, -1)
+
+	var selectors []labels.Selector
+	for _, match := range matches {
+		selector, err := labels.Parse(match[1])
+		if err != nil {
+			return nil, fmt.Errorf("invalid selector %q: %w", match[1], err)
+		}
+		selectors = append(selectors, selector)
+	}
+
+	return &TestByLabelFilter{
+		base:      NewTestAllFilter(),
+		selectors: selectors,
+	}, nil
+}
+
+func (tf *TestByLabelFilter) ShouldRun(p config.Presubmit) (bool, bool, bool) {
+	shouldRun, forced, def := tf.base.ShouldRun(p)
+	if !shouldRun {
+		return shouldRun, forced, def
+	}
+
+	for _, selector := range tf.selectors {
+		if selector.Matches(labels.Set(p.Labels)) {
+			return true, false, false
+		}
+	}
+
+	return false, false, false
+}
+
+func (tf *TestByLabelFilter) Name() string {
+	return "test-by-label-filter"
 }
 
 // AggregateFilter builds a filter that evaluates the child filters in order
@@ -291,6 +339,14 @@ func PresubmitFilter(honorOkToTest bool, contextGetter contextGetter, body strin
 	if (honorOkToTest && OkToTestRe.MatchString(body)) || TestAllRe.MatchString(body) {
 		logger.Debug("Using test-all filter.")
 		filters = append(filters, NewTestAllFilter())
+	}
+	if TestByLabelsRe.MatchString(body) {
+		logger.Debug("Using test-by-label filter.")
+		filter, err := NewTestByLabelFilter(body)
+		if err != nil {
+			return nil, fmt.Errorf("cannot build test-label filter: %w", err)
+		}
+		filters = append(filters, filter)
 	}
 	return NewAggregateFilter(filters), nil
 }
