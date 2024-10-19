@@ -17,13 +17,12 @@ limitations under the License.
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -401,13 +400,9 @@ func (s *Server) handlePullRequest(log logrus.FieldLogger, pre github.PullReques
 			return log, err
 		}
 		for requester := range requesterToComments {
-			isMember := false
-			for _, m := range members {
-				if requester == m.Login {
-					isMember = true
-					break
-				}
-			}
+			isMember := slices.ContainsFunc(members, func(member github.TeamMember) bool {
+				return requester == member.Login
+			})
 			if !isMember {
 				delete(requesterToComments, requester)
 			}
@@ -673,20 +668,17 @@ func (s *Server) getPatch(org, repo, targetBranch string, num int) (string, erro
 	if err != nil {
 		return "", err
 	}
+
 	localPath := fmt.Sprintf("/tmp/%s_%s_%d_%s.patch", org, repo, num, normalize(targetBranch))
-	out, err := os.Create(localPath)
-	if err != nil {
+	if err := os.WriteFile(localPath, patch, 0644); err != nil {
 		return "", err
 	}
-	defer out.Close()
-	if _, err := io.Copy(out, bytes.NewBuffer(patch)); err != nil {
-		return "", err
-	}
+
 	return localPath, nil
 }
 
 func normalize(input string) string {
-	return strings.Replace(input, "/", "-", -1)
+	return strings.ReplaceAll(input, "/", "-")
 }
 
 // releaseNoteNoteFromParentPR gets the release note from the
