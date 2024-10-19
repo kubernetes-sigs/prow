@@ -94,7 +94,7 @@ type Server struct {
 	// Used for unit testing
 	push func(forkName, newBranch string, force bool) error
 	ghc  githubClient
-	log  *logrus.Entry
+	log  logrus.FieldLogger
 
 	// Labels to apply to the cherrypicked PR.
 	labels []string
@@ -168,7 +168,7 @@ func (s *Server) handleEvent(eventType, eventGUID string, payload []byte) error 
 	return nil
 }
 
-func (s *Server) handleIssueComment(l *logrus.Entry, ic github.IssueCommentEvent) error {
+func (s *Server) handleIssueComment(l logrus.FieldLogger, ic github.IssueCommentEvent) error {
 	// Only consider new comments in PRs.
 	if !ic.Issue.IsPullRequest() || ic.Action != github.IssueCommentActionCreated {
 		return nil
@@ -180,7 +180,7 @@ func (s *Server) handleIssueComment(l *logrus.Entry, ic github.IssueCommentEvent
 	commentAuthor := ic.Comment.User.Login
 
 	// Do not create a new logger, its fields are re-used by the caller in case of errors
-	*l = *l.WithFields(logrus.Fields{
+	l = l.WithFields(logrus.Fields{
 		github.OrgLogField:  org,
 		github.RepoLogField: repo,
 		github.PrLogField:   num,
@@ -281,12 +281,15 @@ func (s *Server) handleIssueComment(l *logrus.Entry, ic github.IssueCommentEvent
 
 	// Handle all other, valid immediate branches.
 	for _, targetBranch := range sets.List(sets.KeySet(commands)) {
-		*l = *l.WithFields(logrus.Fields{
+		branchLog := l.WithFields(logrus.Fields{
 			"requester":     ic.Comment.User.Login,
 			"target_branch": targetBranch,
 		})
-		l.Debug("Cherrypick request.")
-		return s.handle(l, ic.Comment.User.Login, &ic.Comment, org, repo, targetBranch, baseBranch, commands[targetBranch], title, body, num)
+		branchLog.Debug("Cherrypick request.")
+
+		if err := s.handle(branchLog, ic.Comment.User.Login, &ic.Comment, org, repo, targetBranch, baseBranch, commands[targetBranch], title, body, num); err != nil {
+			return fmt.Errorf("failed to handle cherrypick for %s: %w", targetBranch, err)
+		}
 	}
 
 	return nil
@@ -307,7 +310,7 @@ func parseComent(comment github.IssueComment) cherrypickCommands {
 	return cmds
 }
 
-func (s *Server) handlePullRequest(l *logrus.Entry, pre github.PullRequestEvent) error {
+func (s *Server) handlePullRequest(l logrus.FieldLogger, pre github.PullRequestEvent) error {
 	// Only consider newly merged PRs
 	if pre.Action != github.PullRequestActionClosed && pre.Action != github.PullRequestActionLabeled && pre.Action != github.PullRequestActionOpened {
 		return nil
@@ -326,7 +329,8 @@ func (s *Server) handlePullRequest(l *logrus.Entry, pre github.PullRequestEvent)
 	body := pr.Body
 
 	// Do not create a new logger, its fields are re-used by the caller in case of errors
-	*l = *l.WithFields(logrus.Fields{
+	// TODO: Does this still work as expected?
+	l = l.WithFields(logrus.Fields{
 		github.OrgLogField:  org,
 		github.RepoLogField: repo,
 		github.PrLogField:   num,
@@ -448,7 +452,7 @@ func (s *Server) handlePullRequest(l *logrus.Entry, pre github.PullRequestEvent)
 
 var cherryPickBranchFmt = "cherry-pick-%d-to-%s"
 
-func (s *Server) handle(logger *logrus.Entry, requester string, comment *github.IssueComment, org, repo, targetBranch, baseBranch string, chainBranches []string, title, body string, num int) error {
+func (s *Server) handle(logger logrus.FieldLogger, requester string, comment *github.IssueComment, org, repo, targetBranch, baseBranch string, chainBranches []string, title, body string, num int) error {
 	var lock *sync.Mutex
 	func() {
 		s.mapLock.Lock()
@@ -579,7 +583,7 @@ func (s *Server) handle(logger *logrus.Entry, requester string, comment *github.
 		resp := fmt.Sprintf("new pull request could not be created: %v", err)
 		return utilerrors.NewAggregate([]error{err, s.createComment(logger, org, repo, num, comment, resp)})
 	}
-	*logger = *logger.WithField("new_pull_request_number", createdNum)
+	logger = logger.WithField("new_pull_request_number", createdNum)
 	resp := fmt.Sprintf("new pull request created: #%d", createdNum)
 	logger.Info("new pull request created")
 	if err := s.createComment(logger, org, repo, num, comment, resp); err != nil {
@@ -624,7 +628,7 @@ func omitBaseBranchFromTitle(title, baseBranch string) string {
 	return strings.Replace(title, fmt.Sprintf(titleTargetBranchIndicatorTemplate, baseBranch), "", 1)
 }
 
-func (s *Server) createComment(l *logrus.Entry, org, repo string, num int, comment *github.IssueComment, resp string) error {
+func (s *Server) createComment(l logrus.FieldLogger, org, repo string, num int, comment *github.IssueComment, resp string) error {
 	if err := func() error {
 		if comment != nil {
 			return s.ghc.CreateComment(org, repo, num, plugins.FormatICResponse(*comment, resp))
@@ -639,7 +643,7 @@ func (s *Server) createComment(l *logrus.Entry, org, repo string, num int, comme
 }
 
 // createIssue creates an issue on GitHub.
-func (s *Server) createIssue(l *logrus.Entry, org, repo, title, body string, num int, comment *github.IssueComment, labels, assignees []string) error {
+func (s *Server) createIssue(l logrus.FieldLogger, org, repo, title, body string, num int, comment *github.IssueComment, labels, assignees []string) error {
 	issueNum, err := s.ghc.CreateIssue(org, repo, title, body, 0, labels, assignees)
 	if err != nil {
 		return s.createComment(l, org, repo, num, comment, fmt.Sprintf("new issue could not be created for failed cherrypick: %v", err))
