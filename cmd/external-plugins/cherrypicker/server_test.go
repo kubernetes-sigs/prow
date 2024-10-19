@@ -349,7 +349,7 @@ func testCherryPickIC(clients localgit.Clients, t *testing.T) {
 		prowAssignments: true,
 	}
 
-	if err := s.handleIssueComment(logrus.NewEntry(logrus.StandardLogger()), ic); err != nil {
+	if _, err := s.handleIssueComment(logrus.NewEntry(logrus.StandardLogger()), ic); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	got := prToString(ghc.prs[0])
@@ -491,7 +491,7 @@ func testCherryPickPR(clients localgit.Clients, t *testing.T) {
 		prowAssignments: false,
 	}
 
-	if err := s.handlePullRequest(logrus.NewEntry(logrus.StandardLogger()), pr); err != nil {
+	if _, err := s.handlePullRequest(logrus.NewEntry(logrus.StandardLogger()), pr); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -626,7 +626,7 @@ func testCherryPickPRAfterMerge(clients localgit.Clients, t *testing.T) {
 		prowAssignments: false,
 	}
 
-	if err := s.handleIssueComment(logger, ic); err != nil {
+	if _, err := s.handleIssueComment(logger, ic); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -719,7 +719,7 @@ func testCherryPickOfCherryPickPR(clients localgit.Clients, t *testing.T) {
 	}
 
 	// Cherry pick master -> release-1.8
-	if err := s.handlePullRequest(logrus.NewEntry(logrus.StandardLogger()), pr); err != nil {
+	if _, err := s.handlePullRequest(logrus.NewEntry(logrus.StandardLogger()), pr); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -727,7 +727,7 @@ func testCherryPickOfCherryPickPR(clients localgit.Clients, t *testing.T) {
 	pr.PullRequest.Base.Ref = "release-1.8"
 	pr.PullRequest.Title = "[release-1.8] This is a fix for Y"
 	ghc.prComments[0].Body = "/cherrypick release-1.6"
-	if err := s.handlePullRequest(logrus.NewEntry(logrus.StandardLogger()), pr); err != nil {
+	if _, err := s.handlePullRequest(logrus.NewEntry(logrus.StandardLogger()), pr); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -735,7 +735,7 @@ func testCherryPickOfCherryPickPR(clients localgit.Clients, t *testing.T) {
 	pr.PullRequest.Base.Ref = "release-1.6"
 	pr.PullRequest.Title = "[release-1.6] This is a fix for Y"
 	ghc.prComments[0].Body = "/cherrypick release-1.5"
-	if err := s.handlePullRequest(logrus.NewEntry(logrus.StandardLogger()), pr); err != nil {
+	if _, err := s.handlePullRequest(logrus.NewEntry(logrus.StandardLogger()), pr); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -907,7 +907,7 @@ func testCherryPickPRWithLabels(clients localgit.Clients, t *testing.T) {
 						labelPrefix:     tc.labelPrefix,
 					}
 
-					if err := s.handlePullRequest(logrus.NewEntry(logrus.StandardLogger()), pr(evt)); err != nil {
+					if _, err := s.handlePullRequest(logrus.NewEntry(logrus.StandardLogger()), pr(evt)); err != nil {
 						t.Fatalf("unexpected error: %v", err)
 					}
 
@@ -1113,7 +1113,7 @@ func testCherryPickPRAssignments(clients localgit.Clients, t *testing.T) {
 			prowAssignments: prowAssignments,
 		}
 
-		if err := s.handleIssueComment(logrus.NewEntry(logrus.StandardLogger()), ic); err != nil {
+		if _, err := s.handleIssueComment(logrus.NewEntry(logrus.StandardLogger()), ic); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
