@@ -296,6 +296,9 @@ func fieldType(field *ast.Field, recurse bool) (string, bool) {
 		case *ast.SelectorExpr:
 			// SelectorExpr are not object types yet reference one, thus continue with DFS.
 			isSelect = true
+		case *ast.StarExpr:
+			// Encountered a pointer--overwrite typeName with ast.Expr
+			typeName = fmt.Sprint(x.X)
 		}
 
 		return recurse || isSelect
