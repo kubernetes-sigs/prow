@@ -18,7 +18,6 @@ package trigger
 
 import (
 	"fmt"
-	"log"
 	"reflect"
 	"strings"
 	"testing"
@@ -1323,7 +1322,7 @@ func TestHandleGenericComment(t *testing.T) {
 				}
 			}
 			if err := c.Config.SetPresubmits(presubmits); err != nil {
-				t.Fatalf("%s: failed to set presubmits: %v", tc.name, err)
+				t.Fatalf("failed to set presubmits: %v", err)
 			}
 
 			event := github.GenericCommentEvent{
@@ -1345,16 +1344,15 @@ func TestHandleGenericComment(t *testing.T) {
 			}
 			trigger.SetDefaults()
 
-			log.Printf("running case %s", tc.name)
 			// In some cases handleGenericComment can be called twice for the same event.
 			// For instance on Issue/PR creation and modification.
 			// Let's call it twice to ensure idempotency.
 			if err := handleGenericComment(c, trigger, event); err != nil {
-				t.Fatalf("%s: didn't expect error: %s", tc.name, err)
+				t.Fatalf("didn't expect error: %v", err)
 			}
 			validate(t, fakeProwJobClient.Fake.Actions(), g, tc)
 			if err := handleGenericComment(c, trigger, event); err != nil {
-				t.Fatalf("%s: didn't expect error: %s", tc.name, err)
+				t.Fatalf("didn't expect error: %v", err)
 			}
 			validate(t, fakeProwJobClient.Fake.Actions(), g, tc)
 		})
@@ -1362,6 +1360,8 @@ func TestHandleGenericComment(t *testing.T) {
 }
 
 func validate(t *testing.T, actions []clienttesting.Action, g *fakegithub.FakeClient, tc testcase) {
+	t.Helper()
+
 	startedContexts := sets.New[string]()
 	for _, action := range actions {
 		switch action := action.(type) {
@@ -1459,23 +1459,23 @@ func TestRetestFilter(t *testing.T) {
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			if len(testCase.presubmits) != len(testCase.expected) {
-				t.Fatalf("%s: have %d presubmits but only %d expected filter outputs", testCase.name, len(testCase.presubmits), len(testCase.expected))
+				t.Fatalf("have %d presubmits but only %d expected filter outputs", len(testCase.presubmits), len(testCase.expected))
 			}
 			if err := config.SetPresubmitRegexes(testCase.presubmits); err != nil {
-				t.Fatalf("%s: could not set presubmit regexes: %v", testCase.name, err)
+				t.Fatalf("could not set presubmit regexes: %v", err)
 			}
 			filter := pjutil.NewRetestFilter(testCase.failedContexts, testCase.allContexts)
 			for i, presubmit := range testCase.presubmits {
 				actualFiltered, actualForced, actualDefault := filter.ShouldRun(presubmit)
 				expectedFiltered, expectedForced, expectedDefault := testCase.expected[i][0], testCase.expected[i][1], testCase.expected[i][2]
 				if actualFiltered != expectedFiltered {
-					t.Errorf("%s: filter did not evaluate correctly, expected %v but got %v for %v", testCase.name, expectedFiltered, actualFiltered, presubmit.Name)
+					t.Errorf("filter did not evaluate correctly, expected %v but got %v for %v", expectedFiltered, actualFiltered, presubmit.Name)
 				}
 				if actualForced != expectedForced {
-					t.Errorf("%s: filter did not determine forced correctly, expected %v but got %v for %v", testCase.name, expectedForced, actualForced, presubmit.Name)
+					t.Errorf("filter did not determine forced correctly, expected %v but got %v for %v", expectedForced, actualForced, presubmit.Name)
 				}
 				if actualDefault != expectedDefault {
-					t.Errorf("%s: filter did not determine default correctly, expected %v but got %v for %v", testCase.name, expectedDefault, actualDefault, presubmit.Name)
+					t.Errorf("filter did not determine default correctly, expected %v but got %v for %v", expectedDefault, actualDefault, presubmit.Name)
 				}
 			}
 		})
