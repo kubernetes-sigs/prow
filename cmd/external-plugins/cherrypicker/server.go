@@ -195,7 +195,7 @@ func (s *Server) handleIssueComment(log logrus.FieldLogger, ic github.IssueComme
 
 	// Collect all branches for which a PR should be created as an immediate response
 	// to it. This excludes all subsequent branches in chained cherrypicks.
-	commands := parseComent(ic.Comment)
+	commands := parseComment(ic.Comment)
 
 	// Due to the regular expression, this should never happen.
 	if len(commands) == 0 {
@@ -295,7 +295,7 @@ func (s *Server) handleIssueComment(log logrus.FieldLogger, ic github.IssueComme
 
 type cherrypickCommands map[string][]string
 
-func parseComent(comment github.IssueComment) cherrypickCommands {
+func parseComment(comment github.IssueComment) cherrypickCommands {
 	cmds := cherrypickCommands{}
 
 	for _, match := range cherryPickRe.FindAllStringSubmatch(comment.Body, -1) {
@@ -350,7 +350,7 @@ func (s *Server) handlePullRequest(log logrus.FieldLogger, pre github.PullReques
 
 	// first look for our special comments
 	for _, comment := range comments {
-		commands := parseComent(comment)
+		commands := parseComment(comment)
 
 		for targetBranch, chainedBranches := range commands {
 			if requesterToComments[comment.User.Login] == nil {
