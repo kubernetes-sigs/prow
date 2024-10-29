@@ -31,7 +31,8 @@ import (
 
 // SchedulingRequest represents the incoming request structure
 type SchedulingRequest struct {
-	Job string `json:"job"`
+	Job    string            `json:"job"`
+	Labels map[string]string `json:"labels"`
 }
 
 // SchedulingResponse represents the response structure
@@ -100,7 +101,12 @@ func (e *External) Schedule(_ context.Context, pj *prowv1.ProwJob) (Result, erro
 		return Result(entry.r), nil
 	}
 
-	resp, err := query(e.cfg.URL, SchedulingRequest{Job: pj.Spec.Job})
+	req := SchedulingRequest{Job: pj.Spec.Job}
+	if pj.Labels != nil {
+		req.Labels = pj.Labels
+	}
+
+	resp, err := query(e.cfg.URL, req)
 	if err != nil {
 		e.log.WithField("job", pj.Spec.Job).WithField("cluster", pj.Spec.Cluster).Warn("scheduling failed, using Spec.Cluster entry")
 		return Result{Cluster: pj.Spec.Cluster}, nil

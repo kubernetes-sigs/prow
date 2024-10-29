@@ -53,6 +53,26 @@ func TestExternalSchedule(t *testing.T) {
 		{
 			name: "cache hit, valid entry",
 			pj: &prowv1.ProwJob{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{"test-label": "test-value"},
+				},
+				Spec: prowv1.ProwJobSpec{Job: "test-job"},
+			},
+			cache: map[string]*cacheEntry{
+				"test-job": {
+					r:         SchedulingResponse{Cluster: "cluster-1"},
+					timestamp: time.Now(),
+				},
+			},
+			response:    SchedulingResponse{Cluster: "cluster-1"},
+			statusCode:  http.StatusOK,
+			want:        Result{Cluster: "cluster-1"},
+			wantErr:     false,
+			mockCleanup: false,
+		},
+		{
+			name: "cache hit, valid entry, no labels",
+			pj: &prowv1.ProwJob{
 				Spec: prowv1.ProwJobSpec{Job: "test-job"},
 			},
 			cache: map[string]*cacheEntry{
@@ -70,6 +90,9 @@ func TestExternalSchedule(t *testing.T) {
 		{
 			name: "cache miss, fetch from REST API",
 			pj: &prowv1.ProwJob{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{"test-label": "test-value"},
+				},
 				Spec: prowv1.ProwJobSpec{Job: "test-job-2"},
 			},
 			cache:       map[string]*cacheEntry{},
@@ -99,6 +122,9 @@ func TestExternalSchedule(t *testing.T) {
 		{
 			name: "allback to configured Spec.Cluster entry",
 			pj: &prowv1.ProwJob{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{"test-label": "test-value"},
+				},
 				Spec: prowv1.ProwJobSpec{Job: "test-job-4", Cluster: "cluster-99"},
 			},
 			cache:       map[string]*cacheEntry{},
