@@ -186,7 +186,7 @@ func gatherOptions(fs *flag.FlagSet, args ...string) options {
 	fs.BoolVar(&o.allowInsecure, "allow-insecure", false, "Allows insecure requests for CSRF and GitHub oauth.")
 	fs.BoolVar(&o.dryRun, "dry-run", false, "Whether or not to make mutating API calls to GitHub.")
 	fs.Var(&o.tenantIDs, "tenant-id", "The tenantID(s) used by the ProwJobs that should be displayed by this instance of Deck. This flag can be repeated.")
-	o.config.AddFlags(fs)
+	o.config.AddFlags(fs) //TODO: this arg already exists, so we can use it to obtain the jobs
 	o.instrumentation.AddFlags(fs)
 	o.controllerManager.TimeoutListingProwJobsDefault = 30 * time.Second
 	o.controllerManager.AddFlags(fs)
@@ -223,6 +223,9 @@ var simplifier = simplifypath.NewSimplifier(l("", // shadow element mimicking th
 	l("badge.svg"),
 	l("command-help"),
 	l("config"),
+	l("configured-jobs",
+		v("org"),
+		v("repo")),
 	l("data.js"),
 	l("favicon.ico"),
 	l("github-login",
@@ -320,6 +323,7 @@ func main() {
 	mux.Handle("/tide", gziphandler.GzipHandler(handleSimpleTemplate(o, cfg, "tide.html", nil)))
 	mux.Handle("/tide-history", gziphandler.GzipHandler(handleSimpleTemplate(o, cfg, "tide-history.html", nil)))
 	mux.Handle("/plugins", gziphandler.GzipHandler(handleSimpleTemplate(o, cfg, "plugins.html", nil)))
+	mux.Handle("/configured-jobs/", gziphandler.GzipHandler(handleConfiguredJobs(o, cfg, logrus.WithField("handler", "/configured-jobs"))))
 
 	runLocal := o.pregeneratedData != ""
 
@@ -656,6 +660,8 @@ func prodOnlyMain(cfg config.Getter, pluginAgent *plugins.ConfigAgent, authCfgGe
 	mux.Handle("/rerun", gziphandler.GzipHandler(handleRerun(cfg, prowJobClient, o.rerunCreatesJob, authCfgGetter, goa, githuboauth.NewAuthenticatedUserIdentifier(&o.github), githubClient, pluginAgent, logrus.WithField("handler", "/rerun"))))
 	mux.Handle("/abort", gziphandler.GzipHandler(handleAbort(prowJobClient, authCfgGetter, goa, githuboauth.NewAuthenticatedUserIdentifier(&o.github), githubClient, pluginAgent, logrus.WithField("handler", "/abort"))))
 
+	//TODO: do I need to add new handler here as well?
+
 	// optionally inject http->https redirect handler when behind loadbalancer
 	if o.redirectHTTPTo != "" {
 		redirectMux := http.NewServeMux()
@@ -820,6 +826,34 @@ func handleProwJobs(ja *jobs.JobAgent, log *logrus.Entry) http.HandlerFunc {
 			jd = []byte("{}")
 		}
 		writeJSONResponse(w, r, jd)
+	}
+}
+
+func handleConfiguredJobs(o options, cfg config.Getter, log *logrus.Entry) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		jobConfig := cfg().JobConfig
+		setHeadersNoCaching(w)
+		p := r.URL.Path
+		log.Infof("path is %s", p)                    //TODO: remove
+		if strings.HasSuffix(p, "configured-jobs/") { // If there is no further path, fetch the index page
+			index := GetIndex(jobConfig)
+			handleSimpleTemplate(o, cfg, "configured-jobs-index.html", index)(w, r)
+		} else {
+			var org, repo string
+			orgRepoPath := strings.Split(p, "configured-jobs/")[1]
+			orgRepoSplit := strings.Split(orgRepoPath, "/")
+			org = orgRepoSplit[0]
+			if len(orgRepoSplit) > 1 {
+				repo = orgRepoSplit[1]
+			}
+			configuredJobs, err := GetConfiguredJobs(jobConfig, org, repo)
+			if err != nil {
+				log.WithError(err).Error("Error getting configured jobs")
+				//TODO error response
+			}
+			handleSimpleTemplate(o, cfg, "configured-jobs.html", configuredJobs)(w, r)
+		}
+
 	}
 }
 

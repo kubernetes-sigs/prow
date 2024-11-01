@@ -1,0 +1,51 @@
+{{define "title"}}Configured Jobs{{end}}
+{{define "scripts"}}
+<!--TODO: do I need the following sheet???-->
+<link rel="stylesheet" href="/static/dialog-polyfill.css?v={{deckVersion}}">
+<!--TODO: move the following sheet somewhere common-->
+<link rel="stylesheet" href="static/plugin-help/prettify.css?v={{deckVersion}}">
+{{end}}
+{{define "content"}}
+<ul>
+    {{ range .Repos }}
+        <li>
+            <h3><a href="/configured-jobs/{{.Org}}">{{.Org}}</a>/{{.Name}}</h3>
+            {{ if .Presubmits }}
+                <h4>Presubmits</h4>
+                <ul>
+                    {{ range .Presubmits }}
+                        <li>
+                            <h4>{{.Name}}</h4>
+                            <pre class="prettyprint"><code class="language-yaml">{{.YAMLDefinition}}</code></pre>
+                        </li>
+                    {{ end }}
+                </ul>
+            {{ end }}
+            {{ if .Postsubmits }}
+            <h4>Postsubmits</h4>
+            <ul>
+                {{ range .Postsubmits }}
+                <li>
+                    <h4>{{.Name}}</h4>
+                    <pre class="prettyprint"><code class="language-yaml">{{.YAMLDefinition}}</code></pre>
+                </li>
+                {{ end }}
+            </ul>
+            {{ end }}
+            {{ if .Periodics }}
+            <h4>Periodics</h4>
+            <ul>
+                {{ range .Periodics }}
+                <li>
+                    <h4>{{.Name}}</h4>
+                    <pre class="prettyprint"><code class="language-yaml">{{.YAMLDefinition}}</code></pre>
+                </li>
+                {{ end }}
+            </ul>
+            {{ end }}
+        </li>
+    {{ end }}
+</ul>
+{{end}}
+
+{{template "page" (settings mobileUnfriendly lightMode "configured-jobs" .)}}
