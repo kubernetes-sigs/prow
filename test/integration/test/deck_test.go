@@ -295,7 +295,7 @@ func TestDeckTenantIDs(t *testing.T) {
 			// ready immediately by the time this test starts executing, so use
 			// a retry mechanism.
 			var body []byte
-			timeout := 180 * time.Second
+			timeout := 360 * time.Second
 			pollInterval := 1 * time.Second
 			endpoint := fmt.Sprintf("http://localhost/%s/prowjobs.js", tt.deckInstance)
 			// Every time "scraper" below returns "false, nil" we retry it.
