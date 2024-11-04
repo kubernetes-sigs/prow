@@ -281,7 +281,7 @@ function wait_for_readiness() {
   component="${1}"
 
   echo >&2 "Waiting for ${component}"
-  for _ in $(seq 1 180); do
+  for _ in $(seq 1 1000); do
     if  >/dev/null 2>&1 do_kubectl wait pod \
       --for=condition=ready \
       --selector=app="${component}" \
