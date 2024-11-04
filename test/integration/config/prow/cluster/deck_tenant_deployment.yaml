@@ -51,7 +51,6 @@ spec:
         - --job-config-path=/etc/job-config
         - --spyglass=true
         - --tenant-id=tester
-        - --rerun-creates-job
         - --github-token-path=/etc/github/oauth
         - --github-endpoint=http://fakeghserver
         - --github-oauth-config-file=/etc/githuboauth/secret
