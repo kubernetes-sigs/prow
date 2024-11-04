@@ -460,6 +460,9 @@ func main() {
 		mux = prodOnlyMain(cfg, pluginAgent, authCfgGetter, githubClient, o, mux)
 	}
 
+	// signal to the world that we're ready
+	health.ServeReady()
+
 	// cookie secret will be used for CSRF protection and should be exactly 32 bytes
 	// we sometimes accept different lengths to stay backwards compatible
 	var csrfToken []byte
@@ -504,8 +507,6 @@ func main() {
 	}
 	// setup done, actually start the server
 	server := &http.Server{Addr: ":8080", Handler: traceHandler(mux)}
-	// signal to the world that we're ready
-	health.ServeReady()
 	interrupts.ListenAndServe(server, 5*time.Second)
 }
 
