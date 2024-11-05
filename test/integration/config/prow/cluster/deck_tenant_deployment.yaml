@@ -46,6 +46,7 @@ spec:
         args:
         - --tide-url=http://tide/
         - --hook-url=http://hook:8888/plugin-help
+        - --oauth-url=/github-login
         - --config-path=/etc/config/config.yaml
         - --job-config-path=/etc/job-config
         - --spyglass=true
@@ -54,7 +55,7 @@ spec:
         - --github-token-path=/etc/github/oauth
         - --github-endpoint=http://fakeghserver
         - --github-oauth-config-file=/etc/githuboauth/secret
-        - --allow-insecure
+        - --cookie-secret=/etc/cookie/secret
         - --plugin-config=/etc/plugins/plugins.yaml
         env:
         # Use KUBECONFIG envvar rather than --kubeconfig flag in order to provide multiple configs to merge.
@@ -63,6 +64,9 @@ spec:
         volumeMounts:
         - name: oauth-config
           mountPath: /etc/githuboauth
+          readOnly: true
+        - name: cookie-secret
+          mountPath: /etc/cookie
           readOnly: true
         - mountPath: /etc/kubeconfig
           name: kubeconfig
@@ -99,6 +103,9 @@ spec:
       - name: oauth-token
         secret:
           secretName: oauth-token
+      - name: cookie-secret
+        secret:
+          secretName: cookie
       - name: kubeconfig
         secret:
           defaultMode: 420
