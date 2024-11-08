@@ -41,9 +41,6 @@ import (
 	// test runner
 	_ "gotest.tools/gotestsum"
 
-	// bazel-related tools
-	_ "github.com/bazelbuild/buildtools/buildozer"
-
 	_ "github.com/client9/misspell/cmd/misspell"
 
 	// image builder
