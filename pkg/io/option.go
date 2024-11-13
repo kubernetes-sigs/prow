@@ -18,9 +18,10 @@ package io
 
 import (
 	"cloud.google.com/go/storage"
-	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"gocloud.dev/blob"
 	"google.golang.org/api/googleapi"
+
+	"sigs.k8s.io/prow/pkg/io/providers"
 )
 
 // WriterOptions are options for the opener Writer method
@@ -84,8 +85,8 @@ func (wo WriterOptions) apply(writer *storage.Writer, o *blob.WriterOptions) {
 	if wo.BufferSize != nil {
 		// aws sdk throws an error if the BufferSize is smaller
 		// than the MinUploadPartSize
-		if *wo.BufferSize < s3manager.MinUploadPartSize {
-			o.BufferSize = int(s3manager.MinUploadPartSize)
+		if *wo.BufferSize < providers.S3MinUploadPartSize {
+			o.BufferSize = int(providers.S3MinUploadPartSize)
 		} else {
 			o.BufferSize = int(*wo.BufferSize)
 		}
