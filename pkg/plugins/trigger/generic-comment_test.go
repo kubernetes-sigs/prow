@@ -65,8 +65,8 @@ type testcase struct {
 }
 
 func TestHandleGenericComment(t *testing.T) {
-	helpComment := "The following commands are available to trigger required jobs:\n* `/test jib`\n* `/test job`\n\n"
-	helpTestAllWithJobsComment := fmt.Sprintf("Use `/test all` to run the following jobs that were automatically triggered:%s\n\n", "\n* `job`")
+	helpComment := "The following commands are available to trigger required jobs:\n```\n/test jib\n```\n```\n/test job\n```\n\n"
+	helpTestAllWithJobsComment := fmt.Sprintf("Use `/test all` to run the following jobs that were automatically triggered:%s\n\n", "\n```\njob\n```")
 	var testcases = []testcase{
 		{
 			name: "Not a PR.",
@@ -1039,7 +1039,7 @@ func TestHandleGenericComment(t *testing.T) {
 				},
 			},
 			AddedComment: "@trusted-member: The following commands are available to trigger required jobs:\n" +
-				"* `/command_foo`\n* `/rerun_command`\n\n" +
+				"```\n/command_foo\n```\n```\n/rerun_command\n```\n\n" +
 				"Use `/test all` to run all jobs.",
 		},
 		{
@@ -1243,7 +1243,7 @@ func TestHandleGenericComment(t *testing.T) {
 				},
 			},
 			AddedComment: helpComment +
-				"The following commands are available to trigger optional jobs:\n* `/test jub`\n\n" +
+				"The following commands are available to trigger optional jobs:\n```\n/test jub\n```\n\n" +
 				"Use `/test all` to run all jobs.",
 		},
 	}

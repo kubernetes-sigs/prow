@@ -72,7 +72,7 @@ func HelpMessage(org, repo, branch, note string, testAllNames, optionalTestComma
 	listBuilder := func(names sets.Set[string]) string {
 		var list strings.Builder
 		for _, name := range sets.List(names) {
-			list.WriteString(fmt.Sprintf("\n* `%s`", name))
+			list.WriteString(fmt.Sprintf("\n```\n%s\n```", name))
 		}
 		return list.String()
 	}
