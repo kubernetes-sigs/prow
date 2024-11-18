@@ -18,9 +18,12 @@ package providers
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"net/http"
 
+	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -57,9 +60,24 @@ func getS3Bucket(ctx context.Context, creds []byte, bucketName string) (*blob.Bu
 		return nil, fmt.Errorf("error loading AWS SDK config: %w", err)
 	}
 
-	client := s3.NewFromConfig(cfg, func(o *s3.Options) {
-		o.UsePathStyle = s3Creds.S3ForcePathStyle
-	})
+	s3Opts := []func(o *s3.Options){
+		func(o *s3.Options) {
+			o.UsePathStyle = s3Creds.S3ForcePathStyle
+			o.HTTPClient = awshttp.NewBuildableClient().WithTransportOptions(func(t *http.Transport) {
+				if t.TLSClientConfig == nil {
+					t.TLSClientConfig = &tls.Config{}
+				}
+				t.TLSClientConfig.InsecureSkipVerify = s3Creds.Insecure
+			})
+		},
+	}
+	if s3Creds.Endpoint != "" {
+		s3Opts = append(s3Opts, func(o *s3.Options) {
+			o.BaseEndpoint = &s3Creds.Endpoint
+		})
+	}
+
+	client := s3.NewFromConfig(cfg, s3Opts...)
 
 	bkt, err := s3blob.OpenBucketV2(ctx, client, bucketName, nil)
 	if err != nil {
