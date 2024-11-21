@@ -40,19 +40,30 @@ func getS3Bucket(ctx context.Context, creds []byte, bucketName string) (*blob.Bu
 	if err := json.Unmarshal(creds, s3Creds); err != nil {
 		return nil, fmt.Errorf("error getting S3 credentials from JSON: %w", err)
 	}
+	client, err := newS3Client(ctx, s3Creds)
+	if err != nil {
+		return nil, fmt.Errorf("error creating s3 client: %w", err)
+	}
+	bkt, err := s3blob.OpenBucketV2(ctx, client, bucketName, nil)
+	if err != nil {
+		return nil, fmt.Errorf("error opening S3 bucket: %w", err)
+	}
+	return bkt, nil
+}
 
+func newS3Client(ctx context.Context, creds *s3Credentials) (*s3.Client, error) {
 	var opts []func(*config.LoadOptions) error
 
 	// Use the default credential chain if no credentials are specified
-	if s3Creds.AccessKey != "" && s3Creds.SecretKey != "" {
+	if creds.AccessKey != "" && creds.SecretKey != "" {
 		opts = append(opts, config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(
-			s3Creds.AccessKey,
-			s3Creds.SecretKey,
+			creds.AccessKey,
+			creds.SecretKey,
 			"",
 		)))
 	}
 	opts = append(opts,
-		config.WithRegion(s3Creds.Region),
+		config.WithRegion(creds.Region),
 	)
 
 	cfg, err := config.LoadDefaultConfig(ctx, opts...)
@@ -62,26 +73,20 @@ func getS3Bucket(ctx context.Context, creds []byte, bucketName string) (*blob.Bu
 
 	s3Opts := []func(o *s3.Options){
 		func(o *s3.Options) {
-			o.UsePathStyle = s3Creds.S3ForcePathStyle
+			o.UsePathStyle = creds.S3ForcePathStyle
 			o.HTTPClient = awshttp.NewBuildableClient().WithTransportOptions(func(t *http.Transport) {
 				if t.TLSClientConfig == nil {
 					t.TLSClientConfig = &tls.Config{}
 				}
-				t.TLSClientConfig.InsecureSkipVerify = s3Creds.Insecure
+				t.TLSClientConfig.InsecureSkipVerify = creds.Insecure
 			})
 		},
 	}
-	if s3Creds.Endpoint != "" {
+	if creds.Endpoint != "" {
 		s3Opts = append(s3Opts, func(o *s3.Options) {
-			o.BaseEndpoint = &s3Creds.Endpoint
+			o.BaseEndpoint = &creds.Endpoint
 		})
 	}
 
-	client := s3.NewFromConfig(cfg, s3Opts...)
-
-	bkt, err := s3blob.OpenBucketV2(ctx, client, bucketName, nil)
-	if err != nil {
-		return nil, fmt.Errorf("error opening S3 bucket: %w", err)
-	}
-	return bkt, nil
+	return s3.NewFromConfig(cfg, s3Opts...), nil
 }
