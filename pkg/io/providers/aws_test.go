@@ -20,13 +20,17 @@ import (
 	"context"
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/google/go-cmp/cmp"
 )
 
 func Test_newS3Client(t *testing.T) {
 	tests := []struct {
 		name  string
 		creds s3Credentials
+		want  s3Credentials
 	}{
 		{
 			name: "only accesskey and secretkey set",
@@ -34,6 +38,7 @@ func Test_newS3Client(t *testing.T) {
 				AccessKey: "foo",
 				SecretKey: "bar",
 			},
+			want: s3Credentials{},
 		},
 		{
 			name: "all options set ",
@@ -45,27 +50,32 @@ func Test_newS3Client(t *testing.T) {
 				Insecure:         true,
 				S3ForcePathStyle: true,
 			},
+			want: s3Credentials{
+				Endpoint:         "https://foobar.com",
+				Region:           "eu01",
+				Insecure:         true,
+				S3ForcePathStyle: true,
+			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
-			got, err := newS3Client(ctx, &tt.creds)
+			client, err := newS3Client(ctx, &tt.creds)
 			if err != nil {
 				t.Errorf("newS3Client() error = %v,", err)
 				return
 			}
-			s3opts := got.Options()
-			awsCreds, err := s3opts.Credentials.Retrieve(ctx)
-			if err != nil {
-				t.Errorf("get aws credentials error = %v,", err)
-				return
-			}
-			if awsCreds.AccessKeyID != tt.creds.AccessKey {
-				t.Errorf("want AccessKey %s, got %s", tt.creds.AccessKey, awsCreds.AccessKeyID)
-			}
-			if awsCreds.SecretAccessKey != tt.creds.SecretKey {
-				t.Errorf("want SecretKey %s, got %s", tt.creds.SecretKey, awsCreds.SecretAccessKey)
+			s3opts := client.Options()
+			if tt.creds.AccessKey != "" && tt.creds.SecretKey != "" {
+				cache, ok := s3opts.Credentials.(*aws.CredentialsCache)
+				if !ok {
+					t.Errorf("credentials should be Cache, got %T,", s3opts.Credentials)
+					return
+				}
+				if !cache.IsCredentialsProvider(credentials.StaticCredentialsProvider{}) {
+					t.Errorf("credentialsprovider is not StaticCredentialsProvider")
+				}
 			}
 
 			httpClient, ok := s3opts.HTTPClient.(*awshttp.BuildableClient)
@@ -78,24 +88,28 @@ func Test_newS3Client(t *testing.T) {
 				t.Error("tlsConfig of s3 httpClient transport is nil")
 				return
 			}
-			if tlsConfig.InsecureSkipVerify != tt.creds.Insecure {
-				t.Errorf("want tlsConfig.InsecureSkipVerify %v, got %v", tt.creds.Insecure, tlsConfig.InsecureSkipVerify)
+			var endpoint string
+			if s3opts.BaseEndpoint == nil {
+				endpoint = ""
+			} else {
+				endpoint = *s3opts.BaseEndpoint
+			}
+			got := s3Credentials{
+				Region:           s3opts.Region,
+				Endpoint:         endpoint,
+				S3ForcePathStyle: s3opts.UsePathStyle,
+				Insecure:         tlsConfig.InsecureSkipVerify,
 			}
 
-			if s3opts.Region != tt.creds.Region {
-				t.Errorf("want Region in s3 options %v, got %v", tt.creds.Region, s3opts.Region)
-			}
-			if s3opts.UsePathStyle != tt.creds.S3ForcePathStyle {
-				t.Errorf("want UsePathStyle in s3 options %v, got %v", tt.creds.S3ForcePathStyle, s3opts.UsePathStyle)
-			}
-			if tt.creds.Endpoint != "" {
-				if s3opts.BaseEndpoint == nil {
-					t.Error("BaseEndpoint in s3 options should be set, got nil")
-					return
+			filterSecretsCmpOption := cmp.FilterPath(func(p cmp.Path) bool {
+				if p.String() == "AccessKey" || p.String() == "SecretKey" {
+					return true
 				}
-				if *s3opts.BaseEndpoint != tt.creds.Endpoint {
-					t.Errorf("want BaseEndpoint in s3 options %s, got %s", tt.creds.Endpoint, *s3opts.BaseEndpoint)
-				}
+				return false
+			}, cmp.Ignore())
+
+			if diff := cmp.Diff(got, tt.want, filterSecretsCmpOption); diff != "" {
+				t.Errorf("newS3Client() mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}
