@@ -72,13 +72,13 @@ func DisplayName(provider string) string {
 //     "access_key": "access_key",
 //     "secret_key": "secret_key"
 //     }
-func GetBucket(ctx context.Context, s3Credentials []byte, path string) (*blob.Bucket, error) {
+func GetBucket(ctx context.Context, S3Credentials []byte, path string) (*blob.Bucket, error) {
 	storageProvider, bucket, _, err := ParseStoragePath(path)
 	if err != nil {
 		return nil, err
 	}
-	if storageProvider == S3 && len(s3Credentials) > 0 {
-		return getS3Bucket(ctx, s3Credentials, bucket)
+	if storageProvider == S3 && len(S3Credentials) > 0 {
+		return getS3Bucket(ctx, S3Credentials, bucket)
 	}
 
 	bkt, err := blob.OpenBucket(ctx, fmt.Sprintf("%s://%s", storageProvider, bucket))
@@ -88,10 +88,10 @@ func GetBucket(ctx context.Context, s3Credentials []byte, path string) (*blob.Bu
 	return bkt, nil
 }
 
-// s3Credentials are credentials used to access S3 or an S3-compatible storage service
+// S3Credentials are credentials used to access S3 or an S3-compatible storage service
 // Endpoint is an optional property. Default is the AWS S3 endpoint. If set, the specified
 // endpoint will be used instead.
-type s3Credentials struct {
+type S3Credentials struct {
 	Region           string `json:"region"`
 	Endpoint         string `json:"endpoint"`
 	Insecure         bool   `json:"insecure"`
