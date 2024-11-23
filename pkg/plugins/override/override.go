@@ -61,7 +61,7 @@ type githubClient interface {
 	ListTeams(org string) ([]github.Team, error)
 	ListTeamMembersBySlug(org, teamSlug, role string) ([]github.TeamMember, error)
 	ListCheckRuns(org, repo, ref string) (*github.CheckRunList, error)
-	CreateCheckRun(org, repo string, checkRun github.CheckRun) error
+	CreateCheckRun(org, repo string, checkRun github.CheckRun) (int64, error)
 	UsesAppAuth() bool
 }
 
@@ -121,7 +121,7 @@ func (c client) ListCheckRuns(org, teamSlug, role string) (*github.CheckRunList,
 	return c.ghc.ListCheckRuns(org, teamSlug, role)
 }
 
-func (c client) CreateCheckRun(org, repo string, checkRun github.CheckRun) error {
+func (c client) CreateCheckRun(org, repo string, checkRun github.CheckRun) (int64, error) {
 	return c.ghc.CreateCheckRun(org, repo, checkRun)
 }
 
@@ -527,7 +527,7 @@ If you are trying to override a checkrun that has a space in it, you must put a 
 		done.Insert(status.Context)
 	}
 
-	// We want to interate over the checkrunContexts, create a new checkrun with the same name as the context and mark it as successful.
+	// We want to iterate over the checkrunContexts, create a new checkrun with the same name as the context and mark it as successful.
 	// Tide has logic to pick the best checkrun result
 	// Checkruns have been converted to contexts and deduped
 	if oc.UsesAppAuth() {
@@ -543,7 +543,7 @@ If you are trying to override a checkrun that has a space in it, you must put a 
 						Summary: fmt.Sprintf("Prow has received override command for the %s checkrun.", checkrun.Context),
 					},
 				}
-				if err := oc.CreateCheckRun(org, repo, prowOverrideCR); err != nil {
+				if _, err := oc.CreateCheckRun(org, repo, prowOverrideCR); err != nil {
 					resp := fmt.Sprintf("cannot create prow-override CheckRun %v", prowOverrideCR)
 					log.WithError(err).Warn(resp)
 					return oc.CreateComment(org, repo, number, plugins.FormatResponseRaw(e.Body, e.HTMLURL, user, resp))

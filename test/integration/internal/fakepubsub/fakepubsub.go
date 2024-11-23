@@ -61,9 +61,9 @@ func NewClient(projectID, pubsubEmulatorHost string) (*Client, error) {
 // because this makes the code thread-safe (we no longer rely on a global
 // environment variable).
 func newClientForEmulator(projectID, pubsubEmulatorHost string) (*pubsub.Client, error) {
-	conn, err := grpc.Dial(pubsubEmulatorHost, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(pubsubEmulatorHost, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		return nil, fmt.Errorf("grpc.Dial: %v", err)
+		return nil, fmt.Errorf("failed to create grpc client: %w", err)
 	}
 	o := []option.ClientOption{option.WithGRPCConn(conn)}
 	o = append(o, option.WithTelemetryDisabled())

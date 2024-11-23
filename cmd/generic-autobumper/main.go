@@ -115,7 +115,7 @@ func generatePRBody(images map[string]string, prefixes []prefix) (body string) {
 // options is the options for autobumper operations.
 type options struct {
 	// The URL where upstream image references are located. Only required if Target Version is "upstream" or "upstreamStaging". Use "https://raw.githubusercontent.com/{ORG}/{REPO}"
-	// Images will be bumped based off images located at the address using this URL and the refConfigFile or stagingRefConigFile for each Prefix.
+	// Images will be bumped based off images located at the address using this URL and the refConfigFile or stagingRefConfigFile for each Prefix.
 	UpstreamURLBase string `yaml:"upstreamURLBase"`
 	// The config paths to be included in this bump, in which only .yaml files will be considered. By default all files are included.
 	IncludedConfigPaths []string `yaml:"includedConfigPaths"`

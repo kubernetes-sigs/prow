@@ -42,7 +42,7 @@ func Connect(ctx context.Context) (*grpc.ClientConn, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create oauth: %w", err)
 	}
-	conn, err := grpc.Dial(
+	conn, err := grpc.NewClient(
 		ResultStoreAddress,
 		grpc.WithTransportCredentials(creds),
 		grpc.WithPerRPCCredentials(perRPC),

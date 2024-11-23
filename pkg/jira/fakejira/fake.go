@@ -65,7 +65,7 @@ func (f *FakeClient) GetIssue(id string) (*jira.Issue, error) {
 func (f *FakeClient) GetRemoteLinks(id string) ([]jira.RemoteLink, error) {
 	issue, err := f.GetIssue(id)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to get issue when chekcing from remote links: %+v", err)
+		return nil, fmt.Errorf("Failed to get issue when checking from remote links: %+v", err)
 	}
 	return append(f.ExistingLinks[issue.ID], f.ExistingLinks[issue.Key]...), nil
 }
@@ -165,7 +165,7 @@ func (f *FakeClient) CreateIssue(issue *jira.Issue) (*jira.Issue, error) {
 	highestID := 0
 	// find highest ID for issues in the same project to make new key one higher
 	highestKeyID := 0
-	keyPrefix := issue.Fields.Project.Name + "-"
+	keyPrefix := issue.Fields.Project.Key + "-"
 	for _, issue := range f.Issues {
 		// all IDs are ints, but represented as strings...
 		intID, _ := strconv.Atoi(issue.ID)

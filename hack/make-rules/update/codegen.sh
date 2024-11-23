@@ -46,14 +46,14 @@ listergen=${REPO_ROOT}/_bin/lister-gen
 go build -o "${listergen}" k8s.io/code-generator/cmd/lister-gen
 go_bindata=${REPO_ROOT}/_bin/go-bindata
 go build -o "${go_bindata}" github.com/go-bindata/go-bindata/v3/go-bindata
-controller_gen=${REPO_ROOT}/_bin/controller-gen
-go build -o "${controller_gen}" sigs.k8s.io/controller-tools/cmd/controller-gen
+controllergen=${REPO_ROOT}/_bin/controller-gen
+go build -o "${controllergen}" sigs.k8s.io/controller-tools/cmd/controller-gen
 protoc_gen_go="${REPO_ROOT}/_bin/protoc-gen-go" # golang protobuf plugin
 GOBIN="${REPO_ROOT}/_bin" go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.32.0
 GOBIN="${REPO_ROOT}/_bin" go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.3.0
 
 cd "${REPO_ROOT}"
-ensure-protoc-deps(){
+ensure-protoc-deps() {
   # Install protoc
   if [[ ! -f "_bin/protoc/bin/protoc" ]]; then
     mkdir -p _bin/protoc
@@ -90,151 +90,72 @@ ensure-protoc-deps(){
 ensure-protoc-deps
 
 echo "Finished installations."
-do_clean=${1:-}
-
-# FAKE_GOPATH is for mimicking GOPATH layout.
-# K8s code-generator tools all assume the structure of ${GOPATH}/src/k8s.io/...,
-# faking GOPATH so that the output are dropped correctly.
-# All the clean/copy functions below are for transferring output to this repo.
-FAKE_GOPATH=""
-
-cleanup() {
-  if [[ -n ${FAKE_GOPATH:-} ]]; then chmod -R u+rwx $FAKE_GOPATH && rm -rf $FAKE_GOPATH; fi
-  if [[ -n ${TEMP_GOCACHE:-} ]]; then rm -rf $TEMP_GOCACHE; fi
-}
-trap cleanup EXIT
-
-ensure-in-gopath() {
-  FAKE_GOPATH=$(mktemp -d -t codegen.gopath.XXXX)
-
-  fake_repopath=$FAKE_GOPATH/src/sigs.k8s.io/prow
-  mkdir -p "$(dirname "$fake_repopath")"
-  if [[ -n "$do_clean" ]]; then
-    cp -LR "${REPO_ROOT}/" "$fake_repopath"
-  else
-    cp -R "${REPO_ROOT}/" "$fake_repopath"
-  fi
-
-  export GOPATH=$FAKE_GOPATH
-  cd "$fake_repopath"
-}
 
 gen-prow-config-documented() {
   go run ./hack/gen-prow-documented
 }
 
-# copyfiles will copy all files in 'path' in the fake gopath over to the
-# workspace directory as the code generators output directly into GOPATH,
-# meaning without this function the generated files are left in /tmp
-copyfiles() {
-  path=$1
-  name=$2
-  if [[ ! -d "$path" ]]; then
-    return 0
-  fi
-  (
-    cd "$GOPATH/src/sigs.k8s.io/prow/$path"
-    find "." -name "$name" -exec cp {} "$REPO_ROOT/$path/{}" \;
-  )
-}
-
-# clean will delete files matching name in path.
-#
-# When inside bazel test the files are read-only.
-# Any attempts to write a file that already exists will fail.
-# So resolve by deleting the files before generating them.
-clean() {
-  path=$1
-  name=$2
-  if [[ ! -d "$path" || -z "$do_clean" ]]; then
-    return 0
-  fi
-  find "$path" -name "$name" -delete
-  find "${REPO_ROOT}"/"$path" -name "$name" -delete
-}
-
 gen-deepcopy() {
-  clean pkg/apis 'zz_generated.deepcopy.go'
-  clean pkg/config 'zz_generated.deepcopy.non_k8s.go'
   echo "Generating DeepCopy() methods..." >&2
-  "$deepcopygen" \
+  "$deepcopygen" ./... \
     --go-header-file hack/boilerplate/boilerplate.generated.go.txt \
-    --input-dirs sigs.k8s.io/prow/pkg/apis/prowjobs/v1 \
-    --output-file-base zz_generated.deepcopy \
-    --bounding-dirs sigs.k8s.io/prow/pkg/apis
-  copyfiles "pkg/apis" "zz_generated.deepcopy.go"
-
-  "$deepcopygen" \
-    --go-header-file hack/boilerplate/boilerplate.generated.go.txt \
-    --input-dirs sigs.k8s.io/prow/pkg/config \
-    --output-file-base zz_generated.deepcopy
-  copyfiles "pkg/config" "zz_generated.deepcopy.go"
-
+    --output-file zz_generated.deepcopy.go \
+    --bounding-dirs sigs.k8s.io/prow/pkg/apis,sigs.k8s.io/prow/pkg/config
 }
 
 gen-client() {
-  clean pkg/client/clientset '*.go'
   echo "Generating client..." >&2
   "$clientgen" \
     --go-header-file hack/boilerplate/boilerplate.generated.go.txt \
     --clientset-name versioned \
     --input-base "" \
     --input sigs.k8s.io/prow/pkg/apis/prowjobs/v1 \
-    --output-package sigs.k8s.io/prow/pkg/client/clientset
-  copyfiles "./pkg/client/clientset" "*.go"
+    --output-dir pkg/client/clientset \
+    --output-pkg sigs.k8s.io/prow/pkg/client/clientset
 
-  clean pkg/pipeline/clientset '*.go'
   echo "Generating client for pipeline..." >&2
   "$clientgen" \
     --go-header-file hack/boilerplate/boilerplate.generated.go.txt \
     --clientset-name versioned \
     --input-base "" \
-    --input github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1 \
-    --output-package sigs.k8s.io/prow/pkg/pipeline/clientset
-  copyfiles "./pkg/pipeline/clientset" "*.go"
+    --input github.com/tektoncd/pipeline/pkg/apis/pipeline/v1 \
+    --output-dir pkg/pipeline/clientset \
+    --output-pkg sigs.k8s.io/prow/pkg/pipeline/clientset
 }
 
 gen-lister() {
-  clean pkg/client/listers '*.go'
   echo "Generating lister..." >&2
-  "$listergen" \
+  "$listergen" sigs.k8s.io/prow/pkg/apis/prowjobs/v1 \
     --go-header-file hack/boilerplate/boilerplate.generated.go.txt \
-    --input-dirs sigs.k8s.io/prow/pkg/apis/prowjobs/v1 \
-    --output-package sigs.k8s.io/prow/pkg/client/listers
-  copyfiles "./pkg/client/listers" "*.go"
+    --output-dir pkg/client/listers \
+    --output-pkg sigs.k8s.io/prow/pkg/client/listers
 
-  clean pkg/pipeline/listers '*.go'
   echo "Generating lister for pipeline..." >&2
-  "$listergen" \
+  "$listergen" github.com/tektoncd/pipeline/pkg/apis/pipeline/v1 \
     --go-header-file hack/boilerplate/boilerplate.generated.go.txt \
-    --input-dirs github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1 \
-    --output-package sigs.k8s.io/prow/pkg/pipeline/listers
-  copyfiles "./pkg/pipeline/listers" "*.go"
+    --output-dir pkg/pipeline/listers \
+    --output-pkg sigs.k8s.io/prow/pkg/pipeline/listers
 }
 
 gen-informer() {
-  clean pkg/client/informers '*.go'
   echo "Generating informer..." >&2
-  "$informergen" \
+  "$informergen" sigs.k8s.io/prow/pkg/apis/prowjobs/v1 \
     --go-header-file hack/boilerplate/boilerplate.generated.go.txt \
-    --input-dirs sigs.k8s.io/prow/pkg/apis/prowjobs/v1 \
     --versioned-clientset-package sigs.k8s.io/prow/pkg/client/clientset/versioned \
     --listers-package sigs.k8s.io/prow/pkg/client/listers \
-    --output-package sigs.k8s.io/prow/pkg/client/informers
-  copyfiles "./pkg/client/informers" "*.go"
+    --output-dir pkg/client/informers \
+    --output-pkg sigs.k8s.io/prow/pkg/client/informers
 
-  clean pkg/pipeline/informers '*.go'
   echo "Generating informer for pipeline..." >&2
-  "$informergen" \
+  "$informergen" github.com/tektoncd/pipeline/pkg/apis/pipeline/v1 \
     --go-header-file hack/boilerplate/boilerplate.generated.go.txt \
-    --input-dirs github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1 \
     --versioned-clientset-package sigs.k8s.io/prow/pkg/pipeline/clientset/versioned \
     --listers-package sigs.k8s.io/prow/pkg/pipeline/listers \
-    --output-package sigs.k8s.io/prow/pkg/pipeline/informers
-  copyfiles "./pkg/pipeline/informers" "*.go"
+    --output-dir pkg/pipeline/informers \
+    --output-pkg sigs.k8s.io/prow/pkg/pipeline/informers
 }
 
-gen-spyglass-bindata(){
+gen-spyglass-bindata() {
   cd pkg/spyglass/lenses/common/
   echo "Generating spyglass bindata..." >&2
   $go_bindata -pkg=common static/
@@ -242,11 +163,9 @@ gen-spyglass-bindata(){
   cd - >/dev/null
 }
 
-gen-prowjob-crd(){
-  clean "./config/prow/cluster" "prowjob_customresourcedefinition.yaml"
+gen-prowjob-crd() {
   echo "Generating prowjob crd..." >&2
-  if [[ -z ${HOME:-} ]]; then export HOME=$PWD; fi
-  $controller_gen crd:preserveUnknownFields=false,crdVersions=v1 paths=./pkg/apis/prowjobs/v1 output:stdout \
+  "$controllergen" crd:crdVersions=v1 paths=./pkg/apis/prowjobs/v1 output:stdout \
     | $SED '/^$/d' \
     | $SED '/^spec:.*/a  \  preserveUnknownFields: false' \
     | $SED '/^  annotations.*/a  \    api-approved.kubernetes.io: https://github.com/kubernetes/test-infra/pull/8669' \
@@ -263,12 +182,10 @@ gen-prowjob-crd(){
               - completionTime
 EOF
     ) > ./config/prow/cluster/prowjob-crd/prowjob_customresourcedefinition.yaml
-  copyfiles "./config/prow/cluster/prowjob-crd" "prowjob_customresourcedefinition.yaml"
-  unset HOME
 }
 
 # Generate gRPC stubs for a given protobuf file.
-gen-proto-stubs(){
+gen-proto-stubs() {
   local dir
   dir="$(dirname "$1")"
 
@@ -285,7 +202,7 @@ gen-proto-stubs(){
     "$1"
 }
 
-gen-all-proto-stubs(){
+gen-all-proto-stubs() {
   echo >&2 "Generating proto stubs"
 
   # Expose the golang protobuf plugin binaries (protoc-gen-go,
@@ -303,7 +220,7 @@ gen-all-proto-stubs(){
     -print0 | sort -z)
 }
 
-gen-gangway-apidescriptorpb-for-cloud-endpoints(){
+gen-gangway-apidescriptorpb-for-cloud-endpoints() {
   echo >&2 "Generating self-describing proto stub (gangway_api_descriptor.pb) for gangway.proto"
 
   "${REPO_ROOT}/_bin/protoc/bin/protoc" \
@@ -318,24 +235,15 @@ gen-gangway-apidescriptorpb-for-cloud-endpoints(){
 
 gen-prow-config-documented
 
-export GO111MODULE=off
-ensure-in-gopath
-old=${GOCACHE:-}
-export TEMP_GOCACHE=$(mktemp -d -t codegen.gocache.XXXX)
-export GOCACHE=$TEMP_GOCACHE
 export GO111MODULE=on
 export GOPROXY=https://proxy.golang.org
 export GOSUMDB=sum.golang.org
-go mod vendor
-export GO111MODULE=off
-export GOCACHE=$old
+
 gen-deepcopy
 gen-client
 gen-lister
 gen-informer
 gen-spyglass-bindata
 gen-prowjob-crd
-export GO111MODULE=on
-
 gen-all-proto-stubs
 gen-gangway-apidescriptorpb-for-cloud-endpoints

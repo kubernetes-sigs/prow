@@ -38,7 +38,7 @@ func NewSimplePull(org, repo string, number int) *SimplePull {
 
 // ShardedLock contains sharding information based on PRs
 type ShardedLock struct {
-	// semaphore is chosed over mutex, as Acquire from semaphore respects
+	// semaphore is chosen over mutex, as Acquire from semaphore respects
 	// context timeout while mutex doesn't
 	mapLock *semaphore.Weighted
 	locks   map[SimplePull]*semaphore.Weighted
@@ -52,7 +52,7 @@ func NewShardedLock() *ShardedLock {
 	}
 }
 
-// GetLock aquires the lock for a PR
+// GetLock acquires the lock for a PR
 func (s *ShardedLock) GetLock(ctx context.Context, key SimplePull) (*semaphore.Weighted, error) {
 	if err := s.mapLock.Acquire(ctx, 1); err != nil {
 		return nil, err

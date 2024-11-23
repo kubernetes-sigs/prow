@@ -26,7 +26,7 @@ import (
 	"github.com/GoogleCloudPlatform/testgrid/metadata"
 	"github.com/sirupsen/logrus"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
-	utilpointer "k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	prowv1 "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
@@ -154,7 +154,7 @@ func (gr *gcsReporter) reportStartedJob(ctx context.Context, log *logrus.Entry, 
 	// something new.
 	// Add a new var for better readability.
 	overwrite := existing
-	overwriteOpt := io.WriterOptions{PreconditionDoesNotExist: utilpointer.Bool(!overwrite)}
+	overwriteOpt := io.WriterOptions{PreconditionDoesNotExist: ptr.To(!overwrite)}
 	return io.WriteContent(ctx, log, gr.opener, startedFilePath, output, overwriteOpt)
 }
 
@@ -175,7 +175,7 @@ func (gr *gcsReporter) reportFinishedJob(ctx context.Context, log *logrus.Entry,
 		return nil
 	}
 	//PreconditionDoesNotExist:true means create only when file not exist.
-	overwriteOpt := io.WriterOptions{PreconditionDoesNotExist: utilpointer.Bool(true)}
+	overwriteOpt := io.WriterOptions{PreconditionDoesNotExist: ptr.To(true)}
 	finishedFilePath, err := providers.StoragePath(bucketName, path.Join(dir, prowv1.FinishedStatusFile))
 	if err != nil {
 		return fmt.Errorf("failed to resolve finished.json path: %v", err)
@@ -199,7 +199,7 @@ func (gr *gcsReporter) reportProwjob(ctx context.Context, log *logrus.Entry, pj 
 		log.WithFields(logrus.Fields{"bucketName": bucketName, "dir": dir}).Debug("Would upload pod info")
 		return nil
 	}
-	overWriteOpts := io.WriterOptions{PreconditionDoesNotExist: utilpointer.Bool(false)}
+	overWriteOpts := io.WriterOptions{PreconditionDoesNotExist: ptr.To(false)}
 	prowJobFilePath, err := providers.StoragePath(bucketName, path.Join(dir, prowv1.ProwJobFile))
 	if err != nil {
 		return fmt.Errorf("failed to resolve prowjob.json path: %v", err)

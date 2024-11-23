@@ -18,6 +18,8 @@ package client
 
 import (
 	"context"
+	"errors"
+	"net/http"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -136,7 +138,7 @@ func TestApplyGlobalConfigOnce(t *testing.T) {
 			},
 		},
 		{
-			name: "empty-addtionalfunc",
+			name: "empty-additionalfunc",
 			orgRepoConfigGetter: func() *config.GerritOrgRepoConfigs {
 				return cfg.Gerrit.OrgReposConfig
 			},
@@ -146,7 +148,7 @@ func TestApplyGlobalConfigOnce(t *testing.T) {
 			},
 		},
 		{
-			name: "nil-addtionalfunc",
+			name: "nil-additionalfunc",
 			orgRepoConfigGetter: func() *config.GerritOrgRepoConfigs {
 				return cfg.Gerrit.OrgReposConfig
 			},
@@ -215,6 +217,82 @@ func TestQueryStringsFromQueryFilter(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestChangeExistErrs(t *testing.T) {
+	tests := []struct {
+		name        string
+		resp        *gerrit.Response
+		err         error
+		wantChanged bool
+		wantErr     bool
+	}{
+		{
+			name:        "with err only",
+			err:         errors.New("error"),
+			wantChanged: false,
+			wantErr:     true,
+		},
+		{
+			name: "with err and response not found",
+			resp: &gerrit.Response{
+				Response: &http.Response{
+					StatusCode: http.StatusNotFound,
+					Body:       http.NoBody,
+				},
+			},
+			err:         errors.New("error"),
+			wantChanged: false,
+			wantErr:     false,
+		},
+		{
+			name: "with err and other response",
+			resp: &gerrit.Response{
+				Response: &http.Response{
+					StatusCode: http.StatusInternalServerError,
+					Body:       http.NoBody,
+				},
+			},
+			err:         errors.New("error"),
+			wantChanged: false,
+			wantErr:     true,
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			cl := &Client{
+				handlers: map[string]*gerritInstanceHandler{
+					"instance": {
+						changeService: &fgcWithErr{
+							resp: tc.resp,
+							err:  tc.err,
+						},
+					},
+				},
+			}
+			gotChanged, err := cl.ChangeExist("instance", "id")
+			gotErr := err != nil
+			if gotErr != tc.wantErr {
+				t.Errorf("%s: ChangeExist() err = %v; wantErr = %t", tc.name, gotErr, tc.wantErr)
+			}
+			if gotChanged != tc.wantChanged {
+				t.Errorf("%s: ChangeExist() changed = %v; wantChanged = %t", tc.name, gotChanged, tc.wantChanged)
+			}
+
+		})
+	}
+}
+
+type fgcWithErr struct {
+	resp *gerrit.Response
+	err  error
+	gerritChange
+}
+
+func (f *fgcWithErr) GetChange(changeId string, opt *gerrit.ChangeOptions) (*ChangeInfo, *gerrit.Response, error) {
+	return nil, f.resp, f.err
 }
 
 func (f *fgc) QueryChanges(opt *gerrit.QueryChangeOptions) (*[]gerrit.ChangeInfo, *gerrit.Response, error) {

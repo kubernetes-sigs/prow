@@ -2,7 +2,7 @@
 title: "Spyglass Architecture"
 weight: 10
 description: >
-  
+
 ---
 
 Spyglass is split into two major parts: the Spyglass core, and a set of independent lenses.
@@ -18,7 +18,7 @@ the following responsibilities:
 - Looking up artifacts for a given job and mapping those to lenses
 - Generating a page that loads the required lenses
 - Framing lenses with their boilerplate
-- Faciliating communication between the lens frontends and backends
+- Facilitating communication between the lens frontends and backends
 
 ## Spyglass Lenses
 

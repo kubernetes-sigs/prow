@@ -28,8 +28,8 @@ import (
 )
 
 func TestEnsureEmbed(t *testing.T) {
-	if len(embededConfigGoFileContent) == 0 {
-		t.Error("EmbededConfigGoFileContent is empty.")
+	if len(embeddedConfigGoFileContent) == 0 {
+		t.Error("EmbeddedConfigGoFileContent is empty.")
 	}
 }
 

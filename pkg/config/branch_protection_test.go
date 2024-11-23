@@ -23,7 +23,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"k8s.io/apimachinery/pkg/util/diff"
-	utilpointer "k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 var (
@@ -679,7 +679,7 @@ func TestConfig_GetBranchProtection(t *testing.T) {
 			config: Config{
 				ProwConfig: ProwConfig{
 					BranchProtection: BranchProtection{
-						AllowDisabledPolicies: utilpointer.Bool(true),
+						AllowDisabledPolicies: ptr.To(true),
 						Policy: Policy{
 							Protect: yes,
 							Restrictions: &Restrictions{
@@ -747,7 +747,7 @@ func TestConfig_GetBranchProtection(t *testing.T) {
 			config: Config{
 				ProwConfig: ProwConfig{
 					BranchProtection: BranchProtection{
-						ProtectTested: utilpointer.Bool(true),
+						ProtectTested: ptr.To(true),
 						Orgs: map[string]Org{
 							"org": {},
 						},
@@ -812,7 +812,7 @@ func TestConfig_GetBranchProtection(t *testing.T) {
 			config: Config{
 				ProwConfig: ProwConfig{
 					BranchProtection: BranchProtection{
-						ProtectTested: utilpointer.Bool(true),
+						ProtectTested: ptr.To(true),
 						Orgs: map[string]Org{
 							"org": {},
 						},
@@ -841,8 +841,8 @@ func TestConfig_GetBranchProtection(t *testing.T) {
 			config: Config{
 				ProwConfig: ProwConfig{
 					BranchProtection: BranchProtection{
-						ProtectTested:                utilpointer.Bool(true),
-						ProtectReposWithOptionalJobs: utilpointer.Bool(true),
+						ProtectTested:                ptr.To(true),
+						ProtectReposWithOptionalJobs: ptr.To(true),
 						Orgs: map[string]Org{
 							"org": {},
 						},
@@ -875,7 +875,7 @@ func TestConfig_GetBranchProtection(t *testing.T) {
 			config: Config{
 				ProwConfig: ProwConfig{
 					BranchProtection: BranchProtection{
-						ProtectTested: utilpointer.Bool(true),
+						ProtectTested: ptr.To(true),
 						Orgs: map[string]Org{
 							"org": {
 								Policy: Policy{
@@ -909,8 +909,8 @@ func TestConfig_GetBranchProtection(t *testing.T) {
 			config: Config{
 				ProwConfig: ProwConfig{
 					BranchProtection: BranchProtection{
-						AllowDisabledJobPolicies: utilpointer.Bool(true),
-						ProtectTested:            utilpointer.Bool(true),
+						AllowDisabledJobPolicies: ptr.To(true),
+						ProtectTested:            ptr.To(true),
 						Orgs: map[string]Org{
 							"org": {
 								Repos: map[string]Repo{
@@ -982,7 +982,7 @@ func TestReposWithDisabledPolicy(t *testing.T) {
 								Contexts: []string{"hello", "world"},
 							},
 						},
-						AllowDisabledPolicies: utilpointer.Bool(true),
+						AllowDisabledPolicies: ptr.To(true),
 						Orgs: map[string]Org{
 							"org1": {
 								Repos: map[string]Repo{
@@ -1089,7 +1089,7 @@ func TestUnprotectedBranches(t *testing.T) {
 								Contexts: []string{"hello", "world"},
 							},
 						},
-						AllowDisabledPolicies: utilpointer.Bool(true),
+						AllowDisabledPolicies: ptr.To(true),
 						Orgs: map[string]Org{
 							"org1": {
 								Repos: map[string]Repo{
@@ -1129,7 +1129,7 @@ func TestUnprotectedBranches(t *testing.T) {
 								Contexts: []string{"hello", "world"},
 							},
 						},
-						AllowDisabledPolicies: utilpointer.Bool(true),
+						AllowDisabledPolicies: ptr.To(true),
 						Orgs: map[string]Org{
 							"org1": {
 								Repos: map[string]Repo{
@@ -1225,7 +1225,7 @@ func TestUnprotectedBranches(t *testing.T) {
 			config: Config{
 				ProwConfig: ProwConfig{
 					BranchProtection: BranchProtection{
-						AllowDisabledJobPolicies: utilpointer.Bool(true),
+						AllowDisabledJobPolicies: ptr.To(true),
 						Orgs: map[string]Org{
 							"org1": {
 								Repos: map[string]Repo{
@@ -1261,7 +1261,7 @@ func TestUnprotectedBranches(t *testing.T) {
 			config: Config{
 				ProwConfig: ProwConfig{
 					BranchProtection: BranchProtection{
-						AllowDisabledJobPolicies: utilpointer.Bool(true),
+						AllowDisabledJobPolicies: ptr.To(true),
 						Orgs: map[string]Org{
 							"org1": {
 								Repos: map[string]Repo{

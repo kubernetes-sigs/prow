@@ -49,7 +49,7 @@ func updateReportState(ctx context.Context, pj *prowv1.ProwJob, log *logrus.Entr
 	// that also does reporting dont trigger another report because our lister doesn't yet contain
 	// the updated Status
 	name := types.NamespacedName{Namespace: pj.Namespace, Name: pj.Name}
-	if err := wait.Poll(100*time.Millisecond, 10*time.Second, func() (bool, error) {
+	if err := wait.PollUntilContextTimeout(ctx, 100*time.Millisecond, 10*time.Second, true, func(ctx context.Context) (bool, error) {
 		if err := pjclientset.Get(ctx, name, pj); err != nil {
 			return false, err
 		}

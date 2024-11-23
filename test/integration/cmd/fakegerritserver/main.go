@@ -154,7 +154,7 @@ func addChangeHandler(fgc *fakegerrit.FakeGerrit) func(*http.Request) (interface
 		project := vars["project"]
 		change := gerrit.ChangeInfo{}
 		if err := unmarshal(r, &change); err != nil {
-			logrus.Infof("Error unmarshaling: %v", err)
+			logrus.Infof("Error unmarshalling: %v", err)
 			return "", http.StatusInternalServerError, err
 		}
 		fgc.AddChange(project, &change)
@@ -167,7 +167,7 @@ func addAccountHandler(fgc *fakegerrit.FakeGerrit) func(*http.Request) (interfac
 	return func(r *http.Request) (interface{}, int, error) {
 		account := gerrit.AccountInfo{}
 		if err := unmarshal(r, &account); err != nil {
-			logrus.Infof("Error unmarshaling: %v", err)
+			logrus.Infof("Error unmarshalling: %v", err)
 			return "", http.StatusInternalServerError, err
 		}
 		fgc.AddAccount(&account)
@@ -196,7 +196,7 @@ func addBranchHandler(fgc *fakegerrit.FakeGerrit) func(*http.Request) (interface
 		project := vars["project"]
 		branch := gerrit.BranchInfo{}
 		if err := unmarshal(r, &branch); err != nil {
-			logrus.Infof("Error unmarshaling: %v", err)
+			logrus.Infof("Error unmarshalling: %v", err)
 			return "", http.StatusInternalServerError, err
 		}
 		fgc.AddBranch(project, branchName, &branch)

@@ -63,11 +63,11 @@ The container images in [`images`](https://github.com/kubernetes/test-infra/tree
 ## TODO: undocumented
 
 * `admission` ([doc](/docs/components/undocumented/admission/), [code](https://github.com/kubernetes-sigs/prow/tree/main/cmd/admission))
-* `grandmatriarch` ([doc](/docs/components/undocumented/grandmatriarch/), [code](https://github.com/kubernetes-sigs/prow/tree/main/cmd/grandmatriarch))
 * `pipeline` ([doc](/docs/components/undocumented/pipeline/), [code](https://github.com/kubernetes-sigs/prow/tree/main/cmd/pipeline))
-* `tackle` ([doc](/docs/components/undocumented/tackle/), [code](https://github.com/kubernetes-sigs/prow/tree/main/cmd/tackle))
 
 ## Deprecated
 
 * `cm2kc` ([doc](/docs/components/deprecated/cm2kc/), [code](https://github.com/kubernetes-sigs/prow/tree/main/cmd/cm2kc)) is a CLI tool used to convert a [clustermap file](/docs/getting-started-deploy/#run-test-pods-in-different-clusters) to a [kubeconfig file](https://kubernetes.io/docs/tasks/access-application-cluster/configure-access-multiple-clusters/). Deprecated because we have moved away from clustermaps; you should use [`gencred`](https://github.com/kubernetes/test-infra/tree/master/gencred) to generate a [kubeconfig file](https://kubernetes.io/docs/tasks/access-application-cluster/configure-access-multiple-clusters/) directly.
+* `grandmatriarch`
 * `phaino` ([doc](/docs/components/deprecated/phaino/)) runs an approximation of a ProwJob on your local workstation
+* `tackle` ([doc](/docs/components/deprecated/tackle/), [code](https://github.com/kubernetes-sigs/prow/tree/main/cmd/tackle))

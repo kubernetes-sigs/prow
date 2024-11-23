@@ -7,7 +7,8 @@ reviewers:
 # workflow. See link:
 # http://git.k8s.io/community/sig-contributor-experience/charter.md#cross-cutting-and-externally-facing-processes
 required_reviewers:
-- sig-contributor-experience-technical-leads
+- MadhavJivrajani
+- Priyankasaggu11929
 approvers:
 - cjwagner
 labels:

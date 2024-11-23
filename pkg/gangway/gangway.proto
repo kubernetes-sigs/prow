@@ -2,6 +2,7 @@ syntax = "proto3";
 
 import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
 
 option go_package = "sigs.k8s.io/prow/pkg/gangway";
 
@@ -34,6 +35,16 @@ service Prow {
     //   http://DOMAIN_NAME/v1/executions?job_name=my-prow-job&status=SUCCESS
     option (google.api.http) = {
       get: "/v1/executions"
+    };
+  }
+  rpc BulkJobStatusChange(BulkJobStatusChangeRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      custom: {
+        kind: "POST",
+        path: "/v1/bulk-job-status-update",
+      }
+      body: "*"  // See
+                 // https://cloud.google.com/endpoints/docs/grpc/transcoding#use_wildcard_in_body
     };
   }
 }
@@ -131,4 +142,18 @@ message Pull {
   string link = 6;
   string commit_link = 7;
   string author_link = 8;
+}
+
+message BulkJobStatusChangeRequest {
+  JobStatusChange job_status_change = 1;
+  string cluster = 2;
+  google.protobuf.Timestamp started_before = 3;
+  google.protobuf.Timestamp started_after = 4;
+  JobExecutionType job_type = 5;
+  Refs refs = 6;
+}
+
+message JobStatusChange {
+  JobExecutionStatus current = 1;
+  JobExecutionStatus desired = 2;
 }

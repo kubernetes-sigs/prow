@@ -78,7 +78,7 @@ Options:
         comma-separated string. Also results in only redeploying certain entries
         in PROW_COMPONENTS, by way of PROW_IMAGES_TO_COMPONENTS in lib.sh.
 
-        The value "ALL" for this falg is an alias for all images (PROW_IMAGES in
+        The value "ALL" for this flag is an alias for all images (PROW_IMAGES in
         lib.sh).
 
         By default, "-build=ALL" is assumed, so that users do not have to

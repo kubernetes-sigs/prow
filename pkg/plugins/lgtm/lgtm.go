@@ -219,7 +219,7 @@ func handlePullRequestReview(gc githubClient, config *plugins.Configuration, own
 		htmlURL:     e.Review.HTMLURL,
 	}
 
-	// Only react to reviews that are being submitted (not editted or dismissed).
+	// Only react to reviews that are being submitted (not edited or dismissed).
 	if e.Action != github.ReviewActionSubmitted {
 		return nil
 	}

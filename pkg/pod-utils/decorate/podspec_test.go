@@ -30,7 +30,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/diff"
-	utilpointer "k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/yaml"
 
 	prowapi "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
@@ -1135,6 +1135,93 @@ func TestProwJobToPod(t *testing.T) {
 				},
 			},
 		},
+		{
+			podName: "pod",
+			buildID: "blabla",
+			labels:  map[string]string{"needstobe": "inherited"},
+			pjSpec: prowapi.ProwJobSpec{
+				Type:    prowapi.PresubmitJob,
+				Job:     "job-name",
+				Context: "job-context",
+				DecorationConfig: &prowapi.DecorationConfig{
+					Timeout:     &prowapi.Duration{Duration: 120 * time.Minute},
+					GracePeriod: &prowapi.Duration{Duration: 10 * time.Second},
+					UtilityImages: &prowapi.UtilityImages{
+						CloneRefs:  "clonerefs:tag",
+						InitUpload: "initupload:tag",
+						Entrypoint: "entrypoint:tag",
+						Sidecar:    "sidecar:tag",
+					},
+					GCSConfiguration: &prowapi.GCSConfiguration{
+						Bucket:       "my-bucket",
+						PathStrategy: "legacy",
+						DefaultOrg:   "kubernetes",
+						DefaultRepo:  "kubernetes",
+						MediaTypes:   map[string]string{"log": "text/plain"},
+					},
+					// Specify K8s SA rather than cloud storage secret key.
+					DefaultServiceAccountName: pStr("default-SA"),
+					CookiefileSecret:          pStr("yummy/.gitcookies"),
+					RunAsGroup:                pInt64(1000),
+					RunAsUser:                 pInt64(1000),
+					FsGroup:                   pInt64(2000),
+					SchedulingOptions: &prowapi.SchedulingOptions{
+						Tolerations: []coreapi.Toleration{
+							{
+								Key:      "prow.k8s.io/schedulable",
+								Effect:   coreapi.TaintEffectNoSchedule,
+								Operator: coreapi.TolerationOpExists,
+							},
+						},
+						Affinity: &coreapi.Affinity{
+							NodeAffinity: &coreapi.NodeAffinity{
+								PreferredDuringSchedulingIgnoredDuringExecution: []coreapi.PreferredSchedulingTerm{
+									{
+										Weight: 10,
+										Preference: coreapi.NodeSelectorTerm{
+											MatchExpressions: []coreapi.NodeSelectorRequirement{
+												{
+													Key:      "node-type",
+													Values:   []string{"prowjobs"},
+													Operator: coreapi.NodeSelectorOpIn,
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				Agent: prowapi.KubernetesAgent,
+				Refs: &prowapi.Refs{
+					Org:     "org-name",
+					Repo:    "repo-name",
+					BaseRef: "base-ref",
+					BaseSHA: "base-sha",
+					Pulls: []prowapi.Pull{{
+						Number:  1,
+						Author:  "author-name",
+						SHA:     "pull-sha",
+						HeadRef: "orig-branch-name",
+					}},
+					PathAlias: "somewhere/else",
+				},
+				ExtraRefs: []prowapi.Refs{},
+				PodSpec: &coreapi.PodSpec{
+					Containers: []coreapi.Container{
+						{
+							Image:   "tester",
+							Command: []string{"/bin/thing"},
+							Args:    []string{"some", "args"},
+							Env: []coreapi.EnvVar{
+								{Name: "MY_ENV", Value: "rocks"},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	findContainer := func(name string, pod coreapi.Pod) *coreapi.Container {
@@ -1252,7 +1339,7 @@ func TestProwJobToPod_setsTerminationGracePeriodSeconds(t *testing.T) {
 			name: "Existing GracePeriodSeconds is not overwritten",
 			prowjob: &prowapi.ProwJob{
 				Spec: prowapi.ProwJobSpec{
-					PodSpec: &coreapi.PodSpec{TerminationGracePeriodSeconds: utilpointer.Int64(60), Containers: []coreapi.Container{{}}},
+					PodSpec: &coreapi.PodSpec{TerminationGracePeriodSeconds: ptr.To(int64(60)), Containers: []coreapi.Container{{}}},
 					DecorationConfig: &prowapi.DecorationConfig{
 						UtilityImages: &prowapi.UtilityImages{},
 						Timeout:       &prowapi.Duration{Duration: 10 * time.Second},
@@ -1455,7 +1542,7 @@ func TestDecorate(t *testing.T) {
 						},
 						GCSCredentialsSecret:        &gCSCredentialsSecret,
 						DefaultServiceAccountName:   &defaultServiceAccountName,
-						SetLimitEqualsMemoryRequest: utilpointer.Bool(true),
+						SetLimitEqualsMemoryRequest: ptr.To(true),
 					},
 					Refs: &prowapi.Refs{
 						Org: "org", Repo: "repo", BaseRef: "main", BaseSHA: "abcd1234",
@@ -1516,7 +1603,7 @@ func TestDecorate(t *testing.T) {
 						},
 						GCSCredentialsSecret:        &gCSCredentialsSecret,
 						DefaultServiceAccountName:   &defaultServiceAccountName,
-						SetLimitEqualsMemoryRequest: utilpointer.Bool(true),
+						SetLimitEqualsMemoryRequest: ptr.To(true),
 						DefaultMemoryRequest:        resourcePtr("4Gi"),
 					},
 					Refs: &prowapi.Refs{

@@ -23,6 +23,7 @@ import (
 	"path"
 	"reflect"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -418,7 +419,7 @@ func (l Label) RestrictedLabelsFor(org, repo string) map[string]RestrictedLabel 
 	return result
 }
 
-func (l Label) IsRestrictedLabelInAdditionalLables(restricted string) bool {
+func (l Label) IsRestrictedLabelInAdditionalLabels(restricted string) bool {
 	for _, additional := range l.AdditionalLabels {
 		if restricted == additional {
 			return true
@@ -726,6 +727,10 @@ type CherryPickApproved struct {
 	BranchRe     *regexp.Regexp `json:"-"`
 	// Approvers is the list of GitHub logins allowed to approve a cherry-pick.
 	Approvers []string `json:"approvers,omitempty"`
+	// AllowMissingApprovedLabel allows approving cherry-pick without the approved label.
+	AllowMissingApprovedLabel bool `json:"allow_missing_approved_label,omitempty"`
+	// AllowMissingLGTMLabel allows approving cherry-pick without the lgtm label.
+	AllowMissingLGTMLabel bool `json:"allow_missing_lgtm_label,omitempty"`
 }
 
 // CherryPickUnapproved is the config for the cherrypick-unapproved plugin.
@@ -1102,15 +1107,20 @@ func (c *Configuration) setDefaults() {
 }
 
 // validatePluginsDupes will return an error if there are duplicated plugins.
+// ExcludedRepos will be ignored for dupe checking.
 // It is sometimes a sign of misconfiguration and is always useless for a
 // plugin to be specified at both the org and repo levels.
 func validatePluginsDupes(plugins Plugins) error {
 	var errors []error
-	for repo, repoConfig := range plugins {
-		if strings.Contains(repo, "/") {
-			org := strings.Split(repo, "/")[0]
-			if dupes := findDuplicatedPluginConfig(repoConfig.Plugins, plugins[org].Plugins); len(dupes) > 0 {
-				errors = append(errors, fmt.Errorf("plugins %v are duplicated for %s and %s", dupes, repo, org))
+	for orgRepo, repoConfig := range plugins {
+		if strings.Contains(orgRepo, "/") {
+			split := strings.Split(orgRepo, "/")
+			org, repo := split[0], split[1]
+			orgConfig := plugins[org]
+			if !slices.Contains(orgConfig.ExcludedRepos, repo) {
+				if dupes := findDuplicatedPluginConfig(repoConfig.Plugins, orgConfig.Plugins); len(dupes) > 0 {
+					errors = append(errors, fmt.Errorf("plugins %v are duplicated for %s and %s", dupes, repo, org))
+				}
 			}
 		}
 	}

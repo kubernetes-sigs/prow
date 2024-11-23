@@ -43,7 +43,7 @@ const (
 	fakeRepo    = "fake-repo"
 	fakePR      = 33
 	fakeSHA     = "deadbeef"
-	faseBaseRef = "fake-branch"
+	fakeBaseRef = "fake-branch"
 	fakeBaseSHA = "fffffff"
 	adminUser   = "admin-user"
 )
@@ -187,7 +187,7 @@ func (c *fakeClient) GetPullRequest(org, repo string, number int) (*github.PullR
 	}
 	var pr github.PullRequest
 	pr.Head.SHA = fakeSHA
-	pr.Base.Ref = faseBaseRef
+	pr.Base.Ref = fakeBaseRef
 	return &pr, nil
 }
 
@@ -217,7 +217,7 @@ func (c *fakeClient) ListCheckRuns(org, repo, ref string) (*github.CheckRunList,
 	return &github.CheckRunList{}, nil
 }
 
-func (c *fakeClient) CreateCheckRun(org, repo string, checkRun github.CheckRun) error {
+func (c *fakeClient) CreateCheckRun(org, repo string, checkRun github.CheckRun) (int64, error) {
 	for _, checkrun := range c.checkruns.CheckRuns {
 		if checkrun.CompletedAt == "" {
 			continue
@@ -240,7 +240,7 @@ func (c *fakeClient) CreateCheckRun(org, repo string, checkRun github.CheckRun) 
 			c.checkruns.CheckRuns = append(c.checkruns.CheckRuns, prowOverrideCR)
 		}
 	}
-	return nil
+	return checkRun.ID, nil
 }
 
 func (c *fakeClient) GetBranchProtection(org, repo, branch string) (*github.BranchProtection, error) {
@@ -249,7 +249,7 @@ func (c *fakeClient) GetBranchProtection(org, repo, branch string) (*github.Bran
 		return nil, fmt.Errorf("bad org: %s", org)
 	case repo != fakeRepo:
 		return nil, fmt.Errorf("bad repo: %s", repo)
-	case branch != faseBaseRef:
+	case branch != fakeBaseRef:
 		return nil, fmt.Errorf("bad branch: %s", branch)
 	}
 
@@ -523,7 +523,7 @@ func TestHandle(t *testing.T) {
 			usesAppsAuth: false,
 		},
 		{
-			name:    "override nonexistant checkrun",
+			name:    "override nonexistent checkrun",
 			comment: "/override foobar",
 			checkruns: &github.CheckRunList{
 				CheckRuns: []github.CheckRun{

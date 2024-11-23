@@ -22,13 +22,16 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	codes "google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	status "google.golang.org/grpc/status"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/validation"
 	prowcrd "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 	"sigs.k8s.io/prow/pkg/config"
@@ -40,6 +43,8 @@ import (
 const (
 	HEADER_API_CONSUMER_TYPE = "x-endpoint-api-consumer-type"
 	HEADER_API_CONSUMER_ID   = "x-endpoint-api-consumer-number"
+	CONTEXT_TIMEOUT          = 10 * time.Minute
+	LIST_TIMEOUT             = 60
 )
 
 type Gangway struct {
@@ -50,10 +55,12 @@ type Gangway struct {
 }
 
 // ProwJobClient describes a Kubernetes client for the Prow Job CR. Unlike a
-// general-purpose client, it only expects 2 methods, Create() and Get().
+// general-purpose client, it only expects 4 methods, Create(), Get(), List() and Update().
 type ProwJobClient interface {
 	Create(context.Context, *prowcrd.ProwJob, metav1.CreateOptions) (*prowcrd.ProwJob, error)
 	Get(context.Context, string, metav1.GetOptions) (*prowcrd.ProwJob, error)
+	List(context.Context, metav1.ListOptions) (*prowcrd.ProwJobList, error)
+	Update(context.Context, *prowcrd.ProwJob, metav1.UpdateOptions) (*prowcrd.ProwJob, error)
 }
 
 // CreateJobExecution triggers a new Prow job.
@@ -115,10 +122,19 @@ func (gw *Gangway) GetJobExecution(ctx context.Context, gjer *GetJobExecutionReq
 		return nil, err
 	}
 
+	jobExec := &JobExecution{
+		Id:        prowJobCR.Name,
+		JobStatus: TranslateProwJobStatus(&prowJobCR.Status),
+	}
+
+	return jobExec, nil
+}
+
+// Translate ProwJobStatus.State in the Prow Job CR into a JobExecutionStatus.
+func TranslateProwJobStatus(prowJobStatus *prowcrd.ProwJobStatus) JobExecutionStatus {
 	var jobStatus JobExecutionStatus
 
-	// Translate ProwJobStatus.State in the Prow Job CR into a JobExecutionStatus.
-	switch prowJobCR.Status.State {
+	switch prowJobStatus.State {
 	case prowcrd.TriggeredState:
 		jobStatus = JobExecutionStatus_TRIGGERED
 	case prowcrd.PendingState:
@@ -135,13 +151,189 @@ func (gw *Gangway) GetJobExecution(ctx context.Context, gjer *GetJobExecutionReq
 		jobStatus = JobExecutionStatus_JOB_EXECUTION_STATUS_UNSPECIFIED
 
 	}
+	return jobStatus
+}
 
-	jobExec := &JobExecution{
-		Id:        prowJobCR.Name,
-		JobStatus: jobStatus,
+// Translate ProwjobType into JobExecutionType
+func TranslateProwJobType(prowJobType prowcrd.ProwJobType) JobExecutionType {
+	var jobExecutionType JobExecutionType
+
+	switch prowJobType {
+	case prowcrd.PeriodicJob:
+		jobExecutionType = JobExecutionType_PERIODIC
+	case prowcrd.PostsubmitJob:
+		jobExecutionType = JobExecutionType_POSTSUBMIT
+	case prowcrd.PresubmitJob:
+		jobExecutionType = JobExecutionType_PRESUBMIT
+	case prowcrd.BatchJob:
+		jobExecutionType = JobExecutionType_BATCH
+	default:
+		jobExecutionType = JobExecutionType_JOB_EXECUTION_TYPE_UNSPECIFIED
+	}
+	return jobExecutionType
+}
+
+// ListJobExecutions returns a list of Prow job execution. It currently does
+// this by looking at all of the existing Prow Job CR (custom resource) objects
+// to find matching entries, and then does a translation from the CR into our
+// JobExecution type.
+// In the future this function will also perform a lookup in GCS or some other
+// more permanent location as a fallback.
+func (gw *Gangway) ListJobExecutions(ctx context.Context, ljer *ListJobExecutionsRequest) (*JobExecutions, error) {
+	options := getListOptions(getListRequestLabelSelector(ljer))
+	prowJobCRs, err := gw.ProwJobClient.List(context.TODO(), options)
+	if err != nil {
+		logrus.WithError(err).Errorf("failed to list ProwJobs")
 	}
 
-	return jobExec, nil
+	var jobList []*JobExecution
+	for _, pj := range prowJobCRs.Items {
+		if ljer.Status != JobExecutionStatus_JOB_EXECUTION_STATUS_UNSPECIFIED && TranslateProwJobStatus(&pj.Status) != ljer.Status {
+			continue
+		}
+		jobList = append(jobList, &JobExecution{
+			Id:        pj.Name,
+			JobName:   pj.Spec.Job,
+			JobStatus: TranslateProwJobStatus(&pj.Status),
+			JobType:   TranslateProwJobType(pj.Spec.Type),
+		})
+
+	}
+
+	jobExecs := &JobExecutions{
+		JobExecution: jobList,
+	}
+	return jobExecs, nil
+}
+
+func getListRequestLabelSelector(request *ListJobExecutionsRequest) *metav1.LabelSelector {
+	labelSelector := &metav1.LabelSelector{MatchLabels: make(map[string]string)}
+	if request.JobName != "" {
+		labelSelector.MatchLabels["prow.k8s.io/job"] = request.JobName
+	}
+	return labelSelector
+}
+
+func (gw *Gangway) BulkJobStatusChange(ctx context.Context, request *BulkJobStatusChangeRequest) (*emptypb.Empty, error) {
+
+	err, md := getHttpRequestHeaders(ctx)
+	if err != nil {
+		logrus.WithError(err).Debug("could not find request HTTP headers")
+		return &emptypb.Empty{}, status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	if err := request.Validate(); err != nil {
+		logrus.WithError(err).Debug("could not validate request fields")
+		return &emptypb.Empty{}, status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	mainConfig := gw.ConfigAgent.Config()
+	allowedApiClient, err := mainConfig.IdentifyAllowedClient(md)
+	if err != nil {
+		logrus.WithError(err).Debug("could not find client in allowlist")
+		return &emptypb.Empty{}, status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	go func() {
+		options := getListOptions(getRequestLabelSelector(request))
+		// TODO(Prucek):
+		// All ProwJob need to be listed, because FieldSelectors are not supported by CRDs yet.
+		// Once FieldSelectors are supported (Kubernetes 1.30 maybe), we can filter the ProwJob list by the desired fields.
+		// Issue link: https://github.com/kubernetes/kubernetes/issues/53459
+
+		// creating a context that does not get cancelled and finish the task in the background
+		context, cancel := context.WithTimeout(context.WithoutCancel(ctx), CONTEXT_TIMEOUT)
+		// For now we only use label selector, for fields that are also labels.
+		pjList, err := gw.ProwJobClient.List(context, options)
+		if err != nil {
+			logrus.WithError(err).Errorf("failed to list ProwJobs")
+		}
+		for _, pj := range pjList.Items {
+			if !isMatchingCondition(pj, request) {
+				continue
+			}
+			if allowedApiClient != nil {
+				authorized := ClientAuthorized(allowedApiClient, pj)
+				if !authorized {
+					logrus.Error("client is not authorized to modify the given job")
+					continue
+				}
+			}
+			pj.Status.State = prowcrd.ProwJobState(strings.ToLower(request.GetJobStatusChange().GetDesired().String()))
+			updatedPj, err := gw.ProwJobClient.Update(context, &pj, metav1.UpdateOptions{})
+			if err != nil {
+				logrus.WithError(err).Errorf("failed to update ProwJob status")
+				continue
+			}
+			logrus.WithField("name", pj.Name).Infof("ProwJob status updated to: %s", updatedPj.Status.State)
+		}
+		cancel()
+	}()
+
+	return &emptypb.Empty{}, nil
+}
+
+func getRequestLabelSelector(request *BulkJobStatusChangeRequest) *metav1.LabelSelector {
+	labelSelector := &metav1.LabelSelector{MatchLabels: make(map[string]string)}
+	switch request.JobType {
+	case JobExecutionType_PRESUBMIT:
+		labelSelector.MatchLabels["prow.k8s.io/type"] = string(prowcrd.PresubmitJob)
+	case JobExecutionType_POSTSUBMIT:
+		labelSelector.MatchLabels["prow.k8s.io/type"] = string(prowcrd.PostsubmitJob)
+	case JobExecutionType_PERIODIC:
+		labelSelector.MatchLabels["prow.k8s.io/type"] = string(prowcrd.PeriodicJob)
+	}
+	if request.Refs != nil {
+		if org := request.Refs.GetOrg(); org != "" {
+			labelSelector.MatchLabels["prow.k8s.io/refs.org"] = org
+		}
+		if repo := request.Refs.GetRepo(); repo != "" {
+			labelSelector.MatchLabels["prow.k8s.io/refs.repo"] = repo
+		}
+	}
+	return labelSelector
+}
+
+func getListOptions(selector *metav1.LabelSelector) metav1.ListOptions {
+	labelMap, err := metav1.LabelSelectorAsMap(selector)
+	if err != nil {
+		logrus.WithError(err).Debug("could not convert label selector to map")
+		// Use empty selector if we get an error on conversion
+		labelMap = map[string]string{}
+	}
+	timeoutSeconds := int64(LIST_TIMEOUT) // increasing the timeout for large clusters
+	options := metav1.ListOptions{
+		LabelSelector:  labels.SelectorFromSet(labelMap).String(),
+		TimeoutSeconds: &timeoutSeconds,
+	}
+	return options
+}
+
+func isMatchingCondition(pj prowcrd.ProwJob, request *BulkJobStatusChangeRequest) bool {
+	pjStateString := strings.ToLower(request.GetJobStatusChange().GetCurrent().String())
+	pjCluster := request.GetCluster()
+	startedBefore := request.GetStartedBefore()
+	startedAfter := request.GetStartedAfter()
+
+	if pj.Status.State != prowcrd.ProwJobState(pjStateString) {
+		return false
+	}
+	if pjCluster != "" {
+		if pj.Spec.Cluster != pjCluster {
+			return false
+		}
+	}
+	if startedBefore != nil {
+		if pj.Status.StartTime.Time.After(startedBefore.AsTime()) {
+			return false
+		}
+	}
+	if startedAfter != nil {
+		if pj.Status.StartTime.Time.Before(startedAfter.AsTime()) {
+			return false
+		}
+	}
+	return true
 }
 
 // ClientAuthorized checks whether or not a client can run a Prow job based on
@@ -346,6 +538,27 @@ func (cjer *CreateJobExecutionRequest) Validate() error {
 		}
 	}
 
+	return nil
+}
+
+func (bjscr *BulkJobStatusChangeRequest) Validate() error {
+
+	if bjscr.GetJobStatusChange().GetCurrent() == JobExecutionStatus_JOB_EXECUTION_STATUS_UNSPECIFIED {
+		return errors.New("current status is unspecified")
+	}
+	if bjscr.GetJobStatusChange().GetDesired() == JobExecutionStatus_JOB_EXECUTION_STATUS_UNSPECIFIED {
+		return errors.New("desired status is unspecified")
+	}
+	if bjscr.GetStartedAfter() != nil {
+		if err := bjscr.GetStartedAfter().CheckValid(); err != nil {
+			return errors.New("started_after field is invalid")
+		}
+	}
+	if bjscr.GetStartedBefore() != nil {
+		if err := bjscr.GetStartedBefore().CheckValid(); err != nil {
+			return errors.New("started_before field is invalid")
+		}
+	}
 	return nil
 }
 

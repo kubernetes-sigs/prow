@@ -51,8 +51,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	pkgFlagutil "sigs.k8s.io/prow/pkg/flagutil"
 	"sigs.k8s.io/prow/pkg/pjutil/pprof"
 	"sigs.k8s.io/yaml"
@@ -216,7 +218,7 @@ func init() {
 	prometheus.MustRegister(httpResponseSize)
 }
 
-var simplifier = simplifypath.NewSimplifier(l("", // shadow element mimicing the root
+var simplifier = simplifypath.NewSimplifier(l("", // shadow element mimicking the root
 	l(""),
 	l("badge.svg"),
 	l("command-help"),
@@ -350,10 +352,16 @@ func main() {
 			logrus.WithError(err).Fatal("Error getting infrastructure cluster config.")
 		}
 		mgr, err := manager.New(restCfg, manager.Options{
-			Namespace:          cfg().ProwJobNamespace,
-			MetricsBindAddress: "0",
-			LeaderElection:     false},
-		)
+			Cache: cache.Options{
+				DefaultNamespaces: map[string]cache.Config{
+					cfg().ProwJobNamespace: {},
+				},
+			},
+			Metrics: metricsserver.Options{
+				BindAddress: "0",
+			},
+			LeaderElection: false,
+		})
 		if err != nil {
 			logrus.WithError(err).Fatal("Error getting manager.")
 		}
@@ -452,9 +460,6 @@ func main() {
 		mux = prodOnlyMain(cfg, pluginAgent, authCfgGetter, githubClient, o, mux)
 	}
 
-	// signal to the world that we're ready
-	health.ServeReady()
-
 	// cookie secret will be used for CSRF protection and should be exactly 32 bytes
 	// we sometimes accept different lengths to stay backwards compatible
 	var csrfToken []byte
@@ -492,13 +497,15 @@ func main() {
 		return
 	}
 
+	var server *http.Server
 	if csrfToken != nil {
 		CSRF := csrf.Protect(csrfToken, csrf.Path("/"), csrf.Secure(!o.allowInsecure))
-		logrus.WithError(http.ListenAndServe(":8080", CSRF(traceHandler(mux)))).Fatal("ListenAndServe returned.")
-		return
+		server = &http.Server{Addr: ":8080", Handler: CSRF(traceHandler(mux))}
+	} else {
+		server = &http.Server{Addr: ":8080", Handler: traceHandler(mux)}
 	}
-	// setup done, actually start the server
-	server := &http.Server{Addr: ":8080", Handler: traceHandler(mux)}
+
+	health.ServeReady()
 	interrupts.ListenAndServe(server, 5*time.Second)
 }
 
@@ -1601,8 +1608,8 @@ func defaultLensRemoteConfig(lfc *config.LensFileConfig) error {
 	}
 
 	if lfc.RemoteConfig.Endpoint == "" {
-		// Must not have a slash in between, DyanmicPathForLens already returns a slash-prefixed path
-		lfc.RemoteConfig.Endpoint = fmt.Sprintf("http://%s%s", spyglassLocalLensListenerAddr, common.DyanmicPathForLens(lfc.Lens.Name))
+		// Must not have a slash in between, DynamicPathForLens already returns a slash-prefixed path
+		lfc.RemoteConfig.Endpoint = fmt.Sprintf("http://%s%s", spyglassLocalLensListenerAddr, common.DynamicPathForLens(lfc.Lens.Name))
 	}
 
 	if lfc.RemoteConfig.Title == "" {

@@ -53,8 +53,8 @@ func TestNewInRepoConfigCache(t *testing.T) {
 			t.Fatal("Expected non-nil error, got nil")
 		}
 
-		if err.Error() != "Must provide a positive size" {
-			t.Errorf("Expected error 'Must provide a positive size', got '%v'", err.Error())
+		if err.Error() != "must provide a positive size" {
+			t.Errorf("Expected error 'must provide a positive size', got '%v'", err.Error())
 		}
 
 		if cache != nil {
@@ -212,7 +212,7 @@ func TestGetProwYAMLCached(t *testing.T) {
 			// If the InRepoConfig is disabled for this repo, then the returned
 			// value should be an empty &ProwYAML{}. Also, the cache miss should
 			// not result in adding this entry into the cache (because the value
-			// will be a meaninless empty &ProwYAML{}).
+			// will be a meaningless empty &ProwYAML{}).
 			name:                "CacheMiss/InRepoConfigDisabled",
 			valConstructor:      goodValConstructor,
 			cacheInitialState:   nil,
@@ -685,7 +685,7 @@ func TestGetProwYAMLCachedAndDefaulted(t *testing.T) {
 				postsubmits: []Postsubmit{postsubmitBefore},
 			},
 			// For this test case, we do not change the
-			// DefualtDecorationConfigEntry at all, so we don't expect any
+			// DefaultDecorationConfigEntry at all, so we don't expect any
 			// changes.
 			configAfter: makeConfig(envBefore, []*DefaultDecorationConfigEntry{
 				{

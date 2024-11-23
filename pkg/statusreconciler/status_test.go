@@ -223,7 +223,7 @@ func TestSave(t *testing.T) {
 
 				var got config.Config
 				if err := yaml.Unmarshal(buf, &got); err != nil {
-					t.Fatalf("%s: unexpected error unmarshaling status file contents %v", tc.name, err)
+					t.Fatalf("%s: unexpected error unmarshalling status file contents %v", tc.name, err)
 				}
 				verify(t, tc.name, got, tc.expectedNamespace, tc.expectedPresubmits)
 			}

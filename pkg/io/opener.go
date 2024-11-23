@@ -92,7 +92,7 @@ type Opener interface {
 	Attributes(ctx context.Context, path string) (Attributes, error)
 	SignedURL(ctx context.Context, path string, opts SignedURLOptions) (string, error)
 	Iterator(ctx context.Context, prefix, delimiter string) (ObjectIterator, error)
-	UpdateAtributes(context.Context, string, ObjectAttrsToUpdate) (*Attributes, error)
+	UpdateAttributes(context.Context, string, ObjectAttrsToUpdate) (*Attributes, error)
 }
 
 type opener struct {
@@ -365,7 +365,7 @@ func (o *opener) Attributes(ctx context.Context, path string) (Attributes, error
 	}, nil
 }
 
-func (o *opener) UpdateAtributes(ctx context.Context, path string, attrs ObjectAttrsToUpdate) (*Attributes, error) {
+func (o *opener) UpdateAttributes(ctx context.Context, path string, attrs ObjectAttrsToUpdate) (*Attributes, error) {
 	if !strings.HasPrefix(path, providers.GS+"://") {
 		return nil, fmt.Errorf("unsupported provider: %q", path)
 	}

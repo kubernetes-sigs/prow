@@ -11,6 +11,7 @@ import (
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -19,9 +20,10 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	Prow_CreateJobExecution_FullMethodName = "/Prow/CreateJobExecution"
-	Prow_GetJobExecution_FullMethodName    = "/Prow/GetJobExecution"
-	Prow_ListJobExecutions_FullMethodName  = "/Prow/ListJobExecutions"
+	Prow_CreateJobExecution_FullMethodName  = "/Prow/CreateJobExecution"
+	Prow_GetJobExecution_FullMethodName     = "/Prow/GetJobExecution"
+	Prow_ListJobExecutions_FullMethodName   = "/Prow/ListJobExecutions"
+	Prow_BulkJobStatusChange_FullMethodName = "/Prow/BulkJobStatusChange"
 )
 
 // ProwClient is the client API for Prow service.
@@ -36,6 +38,7 @@ type ProwClient interface {
 	CreateJobExecution(ctx context.Context, in *CreateJobExecutionRequest, opts ...grpc.CallOption) (*JobExecution, error)
 	GetJobExecution(ctx context.Context, in *GetJobExecutionRequest, opts ...grpc.CallOption) (*JobExecution, error)
 	ListJobExecutions(ctx context.Context, in *ListJobExecutionsRequest, opts ...grpc.CallOption) (*JobExecutions, error)
+	BulkJobStatusChange(ctx context.Context, in *BulkJobStatusChangeRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
 type prowClient struct {
@@ -73,6 +76,15 @@ func (c *prowClient) ListJobExecutions(ctx context.Context, in *ListJobExecution
 	return out, nil
 }
 
+func (c *prowClient) BulkJobStatusChange(ctx context.Context, in *BulkJobStatusChangeRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, Prow_BulkJobStatusChange_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ProwServer is the server API for Prow service.
 // All implementations must embed UnimplementedProwServer
 // for forward compatibility
@@ -85,6 +97,7 @@ type ProwServer interface {
 	CreateJobExecution(context.Context, *CreateJobExecutionRequest) (*JobExecution, error)
 	GetJobExecution(context.Context, *GetJobExecutionRequest) (*JobExecution, error)
 	ListJobExecutions(context.Context, *ListJobExecutionsRequest) (*JobExecutions, error)
+	BulkJobStatusChange(context.Context, *BulkJobStatusChangeRequest) (*emptypb.Empty, error)
 	mustEmbedUnimplementedProwServer()
 }
 
@@ -100,6 +113,9 @@ func (UnimplementedProwServer) GetJobExecution(context.Context, *GetJobExecution
 }
 func (UnimplementedProwServer) ListJobExecutions(context.Context, *ListJobExecutionsRequest) (*JobExecutions, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListJobExecutions not implemented")
+}
+func (UnimplementedProwServer) BulkJobStatusChange(context.Context, *BulkJobStatusChangeRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BulkJobStatusChange not implemented")
 }
 func (UnimplementedProwServer) mustEmbedUnimplementedProwServer() {}
 
@@ -168,6 +184,24 @@ func _Prow_ListJobExecutions_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Prow_BulkJobStatusChange_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BulkJobStatusChangeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProwServer).BulkJobStatusChange(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Prow_BulkJobStatusChange_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProwServer).BulkJobStatusChange(ctx, req.(*BulkJobStatusChangeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Prow_ServiceDesc is the grpc.ServiceDesc for Prow service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -186,6 +220,10 @@ var Prow_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListJobExecutions",
 			Handler:    _Prow_ListJobExecutions_Handler,
+		},
+		{
+			MethodName: "BulkJobStatusChange",
+			Handler:    _Prow_BulkJobStatusChange_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

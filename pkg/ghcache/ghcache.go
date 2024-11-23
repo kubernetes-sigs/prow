@@ -149,26 +149,34 @@ var pendingOutboundConnectionsGauge = prometheus.NewGauge(prometheus.GaugeOpts{
 	Help: "How many pending requests are waiting to be sent to GitHub servers.",
 })
 
-var cachePartitionsCounter = prometheus.NewCounterVec(
+var deprecatedCachePartitionsCounter = prometheus.NewCounterVec(
 	prometheus.CounterOpts{
 		Name: "ghcache_cache_parititions",
+		Help: "Which cache partitions exist (deprecated: use ghcache_cache_partitions instead).",
+	},
+	[]string{"token_hash"},
+)
+
+var cachePartitionsCounter = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "ghcache_cache_partitions",
 		Help: "Which cache partitions exist.",
 	},
 	[]string{"token_hash"},
 )
 
 func init() {
-
 	prometheus.MustRegister(outboundConcurrencyGauge)
 	prometheus.MustRegister(pendingOutboundConnectionsGauge)
 	prometheus.MustRegister(cachePartitionsCounter)
+	prometheus.MustRegister(deprecatedCachePartitionsCounter)
 }
 
 func cacheResponseMode(headers http.Header) CacheResponseMode {
 	if strings.Contains(headers.Get("Cache-Control"), "no-store") {
 		return ModeNoStore
 	}
-	if strings.Contains(headers.Get("Status"), "304 Not Modified") {
+	if strings.Contains(headers.Get(httpcache.XFromCache), "1") {
 		return ModeRevalidated
 	}
 	if headers.Get("X-Conditional-Request") != "" {
@@ -456,10 +464,10 @@ func Prune(baseDir string, now func() time.Time) {
 			if metadata.ExpiresAt.After(now()) {
 				continue
 			}
-			paritionPath := filepath.Dir(metadataPath)
-			logrus.WithField("path", paritionPath).WithField("expiresAt", metadata.ExpiresAt.String()).Info("Cleaning up expired cache parition")
-			if err := os.RemoveAll(paritionPath); err != nil {
-				logrus.WithError(err).WithField("path", paritionPath).Error("failed to delete expired cache parition")
+			partitionPath := filepath.Dir(metadataPath)
+			logrus.WithField("path", partitionPath).WithField("expiresAt", metadata.ExpiresAt.String()).Info("Cleaning up expired cache partition")
+			if err := os.RemoveAll(partitionPath); err != nil {
+				logrus.WithError(err).WithField("path", partitionPath).Error("failed to delete expired cache partition")
 			}
 		}
 	}

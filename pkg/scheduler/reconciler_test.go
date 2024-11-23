@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/sirupsen/logrus"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -173,7 +174,7 @@ func TestReconcile(t *testing.T) {
 
 			r := scheduler.NewReconciler(pjClient,
 				func() *config.Config { return nil },
-				func(_ *config.Config) strategy.Interface {
+				func(_ *config.Config, _ *logrus.Entry) strategy.Interface {
 					return &fakeStrategy{cluster: tc.cluster, err: tc.schedulingError}
 				})
 			_, err := r.Reconcile(context.TODO(), tc.request)

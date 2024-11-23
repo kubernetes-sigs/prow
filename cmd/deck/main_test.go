@@ -350,7 +350,7 @@ func TestHandleProwJobs(t *testing.T) {
 	}
 	var res prowjobItems
 	if err := json.Unmarshal(body, &res); err != nil {
-		t.Fatalf("Error unmarshaling: %v", err)
+		t.Fatalf("Error unmarshalling: %v", err)
 	}
 	if res.Items[0].Annotations != nil {
 		t.Errorf("Failed to omit annotations correctly, expected: nil, got %v", res.Items[0].Annotations)
@@ -416,7 +416,7 @@ func TestProwJob(t *testing.T) {
 	}
 	var res prowapi.ProwJob
 	if err := yaml.Unmarshal(body, &res); err != nil {
-		t.Fatalf("Error unmarshaling: %v", err)
+		t.Fatalf("Error unmarshalling: %v", err)
 	}
 	if res.Spec.Job != "whoa" {
 		t.Errorf("Wrong job, expected \"whoa\", got \"%s\"", res.Spec.Job)
@@ -494,7 +494,7 @@ func TestTide(t *testing.T) {
 	}
 	res := tidePools{}
 	if err := json.Unmarshal(body, &res); err != nil {
-		t.Fatalf("Error unmarshaling: %v", err)
+		t.Fatalf("Error unmarshalling: %v", err)
 	}
 	if len(res.Pools) != 1 {
 		t.Fatalf("Wrong number of pools. Got %d, expected 1 in %v", len(res.Pools), res.Pools)
@@ -557,7 +557,7 @@ func TestTideHistory(t *testing.T) {
 	}
 	var res tideHistory
 	if err := json.Unmarshal(body, &res); err != nil {
-		t.Fatalf("Error unmarshaling: %v", err)
+		t.Fatalf("Error unmarshalling: %v", err)
 	}
 	if !reflect.DeepEqual(res.History, testHist) {
 		t.Fatalf("Expected /tide-history.js:\n%#v\n,but got:\n%#v\n", testHist, res.History)
@@ -603,7 +603,7 @@ func TestHelp(t *testing.T) {
 		}
 		var res pluginhelp.Help
 		if err := yaml.Unmarshal(body, &res); err != nil {
-			t.Fatalf("Error unmarshaling: %v", err)
+			t.Fatalf("Error unmarshalling: %v", err)
 		}
 		if !reflect.DeepEqual(help, res) {
 			t.Errorf("Invalid plugin help. Got %v, expected %v", res, help)
@@ -798,7 +798,7 @@ func TestHandleConfig(t *testing.T) {
 	}
 	dataC, err := yaml.Marshal(c)
 	if err != nil {
-		t.Fatalf("Error unmarshaling: %v", err)
+		t.Fatalf("Error unmarshalling: %v", err)
 	}
 
 	testcases := []struct {
@@ -914,7 +914,7 @@ func TestHandlePluginConfig(t *testing.T) {
 	}
 	var res plugins.Configuration
 	if err := yaml.Unmarshal(body, &res); err != nil {
-		t.Fatalf("Error unmarshaling: %v", err)
+		t.Fatalf("Error unmarshalling: %v", err)
 	}
 	if !reflect.DeepEqual(c, res) {
 		t.Errorf("Invalid config. Got %v, expected %v", res, c)
@@ -961,7 +961,7 @@ func verifyCfgHasRemoteForLens(lensName string) func(*config.Config, error) erro
 			if lens.RemoteConfig.ParsedEndpoint == nil {
 				return errors.New("parsedEndpoint was nil")
 			}
-			if expected := common.DyanmicPathForLens(lensName); lens.RemoteConfig.ParsedEndpoint.Path != expected {
+			if expected := common.DynamicPathForLens(lensName); lens.RemoteConfig.ParsedEndpoint.Path != expected {
 				return fmt.Errorf("expected parsedEndpoint.Path to be %q, was %q", expected, lens.RemoteConfig.ParsedEndpoint.Path)
 			}
 			if lens.RemoteConfig.ParsedEndpoint.Scheme != "http" {

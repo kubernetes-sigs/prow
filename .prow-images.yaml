@@ -9,7 +9,6 @@ images:
   - dir: cmd/crier
   - dir: cmd/gangway
   - dir: cmd/generic-autobumper
-  - dir: cmd/grandmatriarch
   - dir: cmd/gcsupload
   - dir: cmd/hook
   - dir: cmd/hmac

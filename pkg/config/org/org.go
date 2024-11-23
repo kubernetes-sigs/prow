@@ -93,7 +93,7 @@ type TeamMetadata struct {
 	Privacy     *Privacy `json:"privacy,omitempty"`
 }
 
-// Team declares metadata as well as its poeple.
+// Team declares metadata as well as its people.
 type Team struct {
 	TeamMetadata
 	Members     []string        `json:"members,omitempty"`

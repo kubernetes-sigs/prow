@@ -157,13 +157,15 @@ type CommitClient interface {
 	GetRef(org, repo, ref string) (string, error)
 	DeleteRef(org, repo, ref string) error
 	ListFileCommits(org, repo, path string) ([]RepositoryCommit, error)
-	CreateCheckRun(org, repo string, checkRun CheckRun) error
+	CreateCheckRun(org, repo string, checkRun CheckRun) (int64, error)
+	UpdateCheckRun(org, repo string, checkRunId int64, checkRun CheckRun) error
 }
 
 // RepositoryClient interface for repository related API actions
 type RepositoryClient interface {
 	GetRepo(owner, name string) (FullRepo, error)
 	GetRepos(org string, isUser bool) ([]Repo, error)
+	ListTags(org, repo string) ([]GitHubTag, error)
 	GetBranches(org, repo string, onlyProtected bool) ([]Branch, error)
 	GetBranchProtection(org, repo, branch string) (*BranchProtection, error)
 	RemoveBranchProtection(org, repo, branch string) error
@@ -2054,8 +2056,9 @@ func (c *client) GetFailedActionRunsByHeadBranch(org, repo, branchName, headSHA 
 	}
 	query := u.Query()
 	query.Add("status", "failure")
-	// setting the OR condition to get both PR and PR target workflows
-	query.Add("event", "pull_request OR pull_request_target")
+	// setting the OR condition to get both PR and PR target workflows, as well
+	// as workflows called via another workflow using workflow_call (matrix workflows)
+	query.Add("event", "pull_request OR pull_request_target OR workflow_call")
 	query.Add("branch", branchName)
 	u.RawQuery = query.Encode()
 
@@ -2070,7 +2073,7 @@ func (c *client) GetFailedActionRunsByHeadBranch(org, repo, branchName, headSHA 
 	prRuns := []WorkflowRun{}
 
 	// keep only the runs matching the current PR headSHA
-	for _, run := range runs.WorflowRuns {
+	for _, run := range runs.WorkflowRuns {
 		if run.HeadSha == headSHA {
 			prRuns = append(prRuns, run)
 		}
@@ -2556,6 +2559,27 @@ func (c *client) GetRepos(org string, isUser bool) ([]Repo, error) {
 		return nil, err
 	}
 	return repos, nil
+}
+
+func (c *client) ListTags(org, repo string) ([]GitHubTag, error) {
+	durationLogger := c.log("GetTags", org, repo)
+	defer durationLogger()
+
+	var tags []GitHubTag
+	if err := c.readPaginatedResults(
+		fmt.Sprintf("/repos/%s/%s/tags", org, repo),
+		"",
+		org,
+		func() interface{} {
+			return &[]GitHubTag{}
+		},
+		func(obj interface{}) {
+			tags = append(tags, *(obj.(*[]GitHubTag))...)
+		},
+	); err != nil {
+		return nil, err
+	}
+	return tags, nil
 }
 
 // GetSingleCommit returns a single commit.
@@ -4488,7 +4512,7 @@ func (c *client) GetColumnProjectCards(org string, columnID int) ([]ProjectCard,
 	var cards []ProjectCard
 	err := c.readPaginatedResults(
 		path,
-		// projects api requies the accept header to be set this way
+		// projects api requires the accept header to be set this way
 		"application/vnd.github.inertia-preview+json",
 		org,
 		func() interface{} {
@@ -4642,17 +4666,37 @@ func (c *client) ListCheckRuns(org, repo, ref string) (*CheckRunList, error) {
 }
 
 // CreateCheckRun Creates a new check run for a specific commit in a repository.
-//
+// returns the ID of the CheckRun
 // See https://docs.github.com/en/rest/checks/runs#create-a-check-run
-func (c *client) CreateCheckRun(org, repo string, checkRun CheckRun) error {
+func (c *client) CreateCheckRun(org, repo string, checkRun CheckRun) (int64, error) {
 	durationLogger := c.log("CreateCheckRun", org, repo, checkRun)
 	defer durationLogger()
+	response := &CheckRun{}
 	_, err := c.request(&request{
 		method:      http.MethodPost,
 		path:        fmt.Sprintf("/repos/%s/%s/check-runs", org, repo),
 		org:         org,
 		requestBody: &checkRun,
 		exitCodes:   []int{201},
+	}, response)
+	if err != nil {
+		return 0, err
+	}
+	return response.ID, nil
+}
+
+// UpdateCheckRun Patches the referenced CheckRun
+//
+// See https://docs.github.com/en/rest/checks/runs#update-a-check-run
+func (c *client) UpdateCheckRun(org, repo string, checkRunId int64, checkRun CheckRun) error {
+	durationLogger := c.log("UpdateCheckRun", org, repo, checkRunId, checkRun)
+	defer durationLogger()
+	_, err := c.request(&request{
+		method:      http.MethodPatch,
+		path:        fmt.Sprintf("/repos/%s/%s/check-runs/%d", org, repo, checkRunId),
+		org:         org,
+		requestBody: &checkRun,
+		exitCodes:   []int{200},
 	}, nil)
 	if err != nil {
 		return err

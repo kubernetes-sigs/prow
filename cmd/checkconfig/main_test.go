@@ -34,7 +34,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/diff"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
-	utilpointer "k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/yaml"
 
 	prowapi "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
@@ -452,7 +452,7 @@ triggers:
 			expectedErr: "repoz",
 		},
 		// Options like DisallowUnknownFields can not be passed when using
-		// a custon json.Unmarshaler like we do here for defaulting:
+		// a custom json.Unmarshaler like we do here for defaulting:
 		// https://github.com/golang/go/issues/41144
 		//		{
 		//			name:     "invalid map entry",
@@ -1667,7 +1667,7 @@ func TestValidateTideContextPolicy(t *testing.T) {
 		{
 			name: "overlapping branch config, inrepoconfig enabled, error",
 			cfg: cfg(func(c *config.Config) {
-				c.InRepoConfig.Enabled = map[string]*bool{"*": utilpointer.Bool(true)}
+				c.InRepoConfig.Enabled = map[string]*bool{"*": ptr.To(true)}
 				c.PresubmitsStatic["a/b"] = []config.Presubmit{
 					{Reporter: config.Reporter{Context: "a"}, Brancher: config.Brancher{Branches: []string{"a"}}},
 					{AlwaysRun: true, Reporter: config.Reporter{Context: "a"}},
@@ -2147,7 +2147,7 @@ func TestValidateUnmanagedBranchprotectionConfigDoesntHaveSubconfig(t *testing.T
 		{
 			name: "Globally disabled, errors for global and org config",
 			config: bpConfigWithSettingsOnAllLayers(func(bp *config.BranchProtection) {
-				bp.Unmanaged = utilpointer.Bool(true)
+				bp.Unmanaged = ptr.To(true)
 			}),
 
 			expectedErrorMsg: `[branch protection is globally set to unmanaged, but has configuration, branch protection config is globally set to unmanaged but has configuration for org my-org without setting the org to unmanaged: false]`,
@@ -2156,7 +2156,7 @@ func TestValidateUnmanagedBranchprotectionConfigDoesntHaveSubconfig(t *testing.T
 			name: "Org-level disabled, errors for org policy and repos",
 			config: bpConfigWithSettingsOnAllLayers(func(bp *config.BranchProtection) {
 				p := bp.Orgs["my-org"]
-				p.Unmanaged = utilpointer.Bool(true)
+				p.Unmanaged = ptr.To(true)
 				bp.Orgs["my-org"] = p
 			}),
 
@@ -2167,7 +2167,7 @@ func TestValidateUnmanagedBranchprotectionConfigDoesntHaveSubconfig(t *testing.T
 			name: "Repo-level disabled, errors for repo policy and branches",
 			config: bpConfigWithSettingsOnAllLayers(func(bp *config.BranchProtection) {
 				p := bp.Orgs["my-org"].Repos["my-repo"]
-				p.Unmanaged = utilpointer.Bool(true)
+				p.Unmanaged = ptr.To(true)
 				bp.Orgs["my-org"].Repos["my-repo"] = p
 			}),
 
@@ -2178,7 +2178,7 @@ func TestValidateUnmanagedBranchprotectionConfigDoesntHaveSubconfig(t *testing.T
 			name: "Branch-level disabled, errors for branch policy",
 			config: bpConfigWithSettingsOnAllLayers(func(bp *config.BranchProtection) {
 				p := bp.Orgs["my-org"].Repos["my-repo"].Branches["my-branch"]
-				p.Unmanaged = utilpointer.Bool(true)
+				p.Unmanaged = ptr.To(true)
 				bp.Orgs["my-org"].Repos["my-repo"].Branches["my-branch"] = p
 			}),
 
@@ -2188,10 +2188,10 @@ func TestValidateUnmanagedBranchprotectionConfigDoesntHaveSubconfig(t *testing.T
 			name: "unmanaged repo level is overridden by branch level, no errors",
 			config: bpConfigWithSettingsOnAllLayers(func(bp *config.BranchProtection) {
 				repoP := bp.Orgs["my-org"].Repos["my-repo"]
-				repoP.Unmanaged = utilpointer.Bool(true)
+				repoP.Unmanaged = ptr.To(true)
 				bp.Orgs["my-org"].Repos["my-repo"] = repoP
 				p := bp.Orgs["my-org"].Repos["my-repo"].Branches["my-branch"]
-				p.Unmanaged = utilpointer.Bool(false)
+				p.Unmanaged = ptr.To(false)
 				bp.Orgs["my-org"].Repos["my-repo"].Branches["my-branch"] = p
 			}),
 		},

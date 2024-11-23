@@ -155,7 +155,7 @@ func TestParseLinkFile(t *testing.T) {
 		},
 		{
 			jobPath:  "artifacts/debugging-links.link.json",
-			content:  []byte(`some unparseable json file contents`),
+			content:  []byte(`some unparsable json file contents`),
 			hasError: true,
 		},
 	}

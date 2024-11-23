@@ -512,7 +512,7 @@ ls-tree (submodule):
 			t.Logf("Finished creating prowjob: %s", podName)
 
 			var lastErr error
-			expectJobSuccess := func() (bool, error) {
+			expectJobSuccess := func(ctx context.Context) (bool, error) {
 				lastErr = nil
 				// Check pod status instead of prowjob, to reduce the dependency
 				// on prow-controller-manager.
@@ -572,7 +572,7 @@ ls-tree (submodule):
 			// on observation from kind logs these could take ~60 seconds.
 			timeout := 90 * time.Second
 			pollInterval := 500 * time.Millisecond
-			if waitErr := wait.Poll(pollInterval, timeout, expectJobSuccess); waitErr != nil {
+			if waitErr := wait.PollUntilContextTimeout(ctx, pollInterval, timeout, true, expectJobSuccess); waitErr != nil {
 				if lastErr != nil {
 					t.Logf("The last wait error is: %v", lastErr)
 				}

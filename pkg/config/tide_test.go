@@ -26,7 +26,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/apimachinery/pkg/util/sets"
-	utilpointer "k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/yaml"
 
 	"sigs.k8s.io/prow/pkg/git/types"
@@ -1471,6 +1471,7 @@ func TestConfigGetTideContextPolicy(t *testing.T) {
 									RequiredContexts:          []string{"r1"},
 									RequiredIfPresentContexts: []string{},
 									OptionalContexts:          []string{"o1"},
+									OptionalRegexContexts:     []string{"b.*"},
 									SkipUnknownContexts:       &yes,
 								},
 							},
@@ -1482,6 +1483,8 @@ func TestConfigGetTideContextPolicy(t *testing.T) {
 				RequiredContexts:          []string{"r1"},
 				RequiredIfPresentContexts: []string{},
 				OptionalContexts:          []string{"o1"},
+				OptionalRegexContexts:     []string{"b.*"},
+				OptionalContextRe:         []*regexp.Regexp{regexp.MustCompile("b.*")},
 				SkipUnknownContexts:       &yes,
 			},
 		},
@@ -1506,7 +1509,7 @@ func TestConfigGetTideContextPolicy(t *testing.T) {
 				},
 				ProwConfig: ProwConfig{
 					InRepoConfig: InRepoConfig{
-						Enabled: map[string]*bool{"*": utilpointer.Bool(true)},
+						Enabled: map[string]*bool{"*": ptr.To(true)},
 					},
 				},
 			},
@@ -1517,7 +1520,7 @@ func TestConfigGetTideContextPolicy(t *testing.T) {
 			},
 		},
 		{
-			name: "both static and inrepoconfig jobs are consired",
+			name: "both static and inrepoconfig jobs are considered",
 			config: Config{
 				JobConfig: JobConfig{
 					PresubmitsStatic: map[string][]Presubmit{
@@ -1554,7 +1557,7 @@ func TestConfigGetTideContextPolicy(t *testing.T) {
 				},
 				ProwConfig: ProwConfig{
 					InRepoConfig: InRepoConfig{
-						Enabled: map[string]*bool{"*": utilpointer.Bool(true)},
+						Enabled: map[string]*bool{"*": ptr.To(true)},
 					},
 				},
 			},
@@ -1600,88 +1603,111 @@ func TestMergeTideContextPolicyConfig(t *testing.T) {
 		{
 			name: "empty a",
 			b: TideContextPolicy{
-				SkipUnknownContexts:  &yes,
-				FromBranchProtection: &no,
-				RequiredContexts:     []string{"r1"},
-				OptionalContexts:     []string{"o1"},
+				SkipUnknownContexts:      &yes,
+				FromBranchProtection:     &no,
+				OverwritePendingContexts: &no,
+				RequiredContexts:         []string{"r1"},
+				OptionalContexts:         []string{"o1"},
+				OptionalRegexContexts:    []string{"or.*"},
 			},
 			c: TideContextPolicy{
-				SkipUnknownContexts:  &yes,
-				FromBranchProtection: &no,
-				RequiredContexts:     []string{"r1"},
-				OptionalContexts:     []string{"o1"},
+				SkipUnknownContexts:      &yes,
+				FromBranchProtection:     &no,
+				OverwritePendingContexts: &no,
+				RequiredContexts:         []string{"r1"},
+				OptionalContexts:         []string{"o1"},
+				OptionalRegexContexts:    []string{"or.*"},
 			},
 		},
 		{
 			name: "empty b",
 			a: TideContextPolicy{
-				SkipUnknownContexts:  &yes,
-				FromBranchProtection: &no,
-				RequiredContexts:     []string{"r1"},
-				OptionalContexts:     []string{"o1"},
+				SkipUnknownContexts:      &yes,
+				FromBranchProtection:     &no,
+				OverwritePendingContexts: &no,
+				RequiredContexts:         []string{"r1"},
+				OptionalContexts:         []string{"o1"},
+				OptionalRegexContexts:    []string{"or.*"},
 			},
 			c: TideContextPolicy{
-				SkipUnknownContexts:  &yes,
-				FromBranchProtection: &no,
-				RequiredContexts:     []string{"r1"},
-				OptionalContexts:     []string{"o1"},
+				SkipUnknownContexts:      &yes,
+				FromBranchProtection:     &no,
+				OverwritePendingContexts: &no,
+				RequiredContexts:         []string{"r1"},
+				OptionalContexts:         []string{"o1"},
+				OptionalRegexContexts:    []string{"or.*"},
 			},
 		},
 		{
 			name: "merging unset boolean",
 			a: TideContextPolicy{
-				FromBranchProtection: &no,
-				RequiredContexts:     []string{"r1"},
-				OptionalContexts:     []string{"o1"},
+				FromBranchProtection:     &no,
+				OverwritePendingContexts: &no,
+				RequiredContexts:         []string{"r1"},
+				OptionalContexts:         []string{"o1"},
+				OptionalRegexContexts:    []string{"or.*"},
 			},
 			b: TideContextPolicy{
-				SkipUnknownContexts: &yes,
-				RequiredContexts:    []string{"r2"},
-				OptionalContexts:    []string{"o2"},
+				SkipUnknownContexts:   &yes,
+				RequiredContexts:      []string{"r2"},
+				OptionalContexts:      []string{"o2"},
+				OptionalRegexContexts: []string{"ore.*"},
 			},
 			c: TideContextPolicy{
-				SkipUnknownContexts:  &yes,
-				FromBranchProtection: &no,
-				RequiredContexts:     []string{"r1", "r2"},
-				OptionalContexts:     []string{"o1", "o2"},
+				SkipUnknownContexts:      &yes,
+				FromBranchProtection:     &no,
+				OverwritePendingContexts: &no,
+				RequiredContexts:         []string{"r1", "r2"},
+				OptionalContexts:         []string{"o1", "o2"},
+				OptionalRegexContexts:    []string{"or.*", "ore.*"},
 			},
 		},
 		{
 			name: "merging unset contexts in a",
 			a: TideContextPolicy{
-				FromBranchProtection: &no,
-				SkipUnknownContexts:  &yes,
+				FromBranchProtection:     &no,
+				SkipUnknownContexts:      &yes,
+				OverwritePendingContexts: &no,
 			},
 			b: TideContextPolicy{
-				FromBranchProtection: &yes,
-				SkipUnknownContexts:  &no,
-				RequiredContexts:     []string{"r1"},
-				OptionalContexts:     []string{"o1"},
+				FromBranchProtection:     &yes,
+				SkipUnknownContexts:      &no,
+				OverwritePendingContexts: &yes,
+				RequiredContexts:         []string{"r1"},
+				OptionalContexts:         []string{"o1"},
+				OptionalRegexContexts:    []string{"or.*"},
 			},
 			c: TideContextPolicy{
-				FromBranchProtection: &yes,
-				SkipUnknownContexts:  &no,
-				RequiredContexts:     []string{"r1"},
-				OptionalContexts:     []string{"o1"},
+				FromBranchProtection:     &yes,
+				SkipUnknownContexts:      &no,
+				OverwritePendingContexts: &yes,
+				RequiredContexts:         []string{"r1"},
+				OptionalContexts:         []string{"o1"},
+				OptionalRegexContexts:    []string{"or.*"},
 			},
 		},
 		{
 			name: "merging unset contexts in b",
 			a: TideContextPolicy{
-				FromBranchProtection: &yes,
-				SkipUnknownContexts:  &no,
-				RequiredContexts:     []string{"r1"},
-				OptionalContexts:     []string{"o1"},
+				FromBranchProtection:     &yes,
+				SkipUnknownContexts:      &no,
+				OverwritePendingContexts: &yes,
+				RequiredContexts:         []string{"r1"},
+				OptionalContexts:         []string{"o1"},
+				OptionalRegexContexts:    []string{"or.*"},
 			},
 			b: TideContextPolicy{
-				FromBranchProtection: &no,
-				SkipUnknownContexts:  &yes,
+				FromBranchProtection:     &no,
+				SkipUnknownContexts:      &yes,
+				OverwritePendingContexts: &no,
 			},
 			c: TideContextPolicy{
-				FromBranchProtection: &no,
-				SkipUnknownContexts:  &yes,
-				RequiredContexts:     []string{"r1"},
-				OptionalContexts:     []string{"o1"},
+				FromBranchProtection:     &no,
+				SkipUnknownContexts:      &yes,
+				OverwritePendingContexts: &no,
+				RequiredContexts:         []string{"r1"},
+				OptionalContexts:         []string{"o1"},
+				OptionalRegexContexts:    []string{"or.*"},
 			},
 		},
 	}
@@ -1864,8 +1890,9 @@ func TestTideContextPolicy_Validate(t *testing.T) {
 		{
 			name: "good policy",
 			t: TideContextPolicy{
-				OptionalContexts: []string{"o1"},
-				RequiredContexts: []string{"r1"},
+				OptionalContexts:      []string{"o1"},
+				RequiredContexts:      []string{"r1"},
+				OptionalRegexContexts: []string{"orc*"},
 			},
 		},
 		{
@@ -1884,6 +1911,29 @@ func TestTideContextPolicy_Validate(t *testing.T) {
 			},
 			failed: true,
 		},
+		{
+			name: "optional regex context found in required",
+			t: TideContextPolicy{
+				OptionalRegexContexts: []string{"c."},
+				RequiredContexts:      []string{"c1", "a4"},
+			},
+			failed: true,
+		},
+		{
+			name: "optional regex context found in required if present",
+			t: TideContextPolicy{
+				OptionalRegexContexts:     []string{"c."},
+				RequiredIfPresentContexts: []string{"c1", "a4"},
+			},
+			failed: true,
+		},
+		{
+			name: "optional regex context doesn't compile",
+			t: TideContextPolicy{
+				OptionalRegexContexts: []string{"c\\"},
+			},
+			failed: true,
+		},
 	}
 	for _, tc := range testCases {
 		err := tc.t.Validate()
@@ -1899,6 +1949,7 @@ func TestTideContextPolicy_IsOptional(t *testing.T) {
 		name                string
 		skipUnknownContexts bool
 		required, optional  []string
+		optionalRegex       []*regexp.Regexp
 		contexts            []string
 		results             []bool
 	}{
@@ -1954,6 +2005,28 @@ func TestTideContextPolicy_IsOptional(t *testing.T) {
 			skipUnknownContexts: true,
 			results:             []bool{true, true, false, false, false, true},
 		},
+		{
+			name:                "only optional regex contexts registered - skipUnknownContexts true",
+			contexts:            []string{"c1", "o1", "o2"},
+			optionalRegex:       []*regexp.Regexp{regexp.MustCompile("o.*")},
+			skipUnknownContexts: true,
+			results:             []bool{true, true, true},
+		},
+		{
+			name:                "only optional regex contexts registered - skipUnknownContexts false",
+			contexts:            []string{"c1", "o1", "o2"},
+			optionalRegex:       []*regexp.Regexp{regexp.MustCompile("o.*")},
+			skipUnknownContexts: false,
+			results:             []bool{false, true, true},
+		},
+		{
+			name:                "optional regex and required contexts registered - skipUnknownContexts false",
+			optionalRegex:       []*regexp.Regexp{regexp.MustCompile("o.*")},
+			required:            []string{"c1", "c2", "c3"},
+			contexts:            []string{"o1", "o2", "c1", "c2", "c3", "t1"},
+			skipUnknownContexts: false,
+			results:             []bool{true, true, false, false, false, false},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -1961,6 +2034,7 @@ func TestTideContextPolicy_IsOptional(t *testing.T) {
 			SkipUnknownContexts: &tc.skipUnknownContexts,
 			RequiredContexts:    tc.required,
 			OptionalContexts:    tc.optional,
+			OptionalContextRe:   tc.optionalRegex,
 		}
 		for i, c := range tc.contexts {
 			if cp.IsOptional(c) != tc.results[i] {

@@ -2,7 +2,7 @@
 title: "Setting up Private Deck"
 weight: 170
 description: >
-  
+
 ---
 
 ## 1) [User] Create a PR to Set up TenantIDs for prowjobs and Repos
@@ -22,7 +22,7 @@ prowjob_default_entries:
       tenant_id: 'private'
 
 ```
-This configuration is used both to apply tenantIDs to prowjobs, but is also used by Deck to filter out Tide information from orgRepos with tenantIDs that do not match. So even if you can lable all your prowjobs using cluster, make sure that all of your repos are given a tenantID as well.
+This configuration is used both to apply tenantIDs to prowjobs, but is also used by Deck to filter out Tide information from orgRepos with tenantIDs that do not match. So even if you can label all your prowjobs using cluster, make sure that all of your repos are given a tenantID as well.
 
 Once the PR is created, Prow operators should review the PR to make sure that no other tenantIDs were affected by the change.
 
@@ -54,16 +54,16 @@ gcloud iam service-accounts add-iam-policy-binding \
 Once the service account is created, grant the service account Viewer access to the GCS bucket where test results are located.
 ## 3) [Operator] (Optional) Create a New OauthApp for Authentication
 
-If you want to make the new Deck instance private, create a new oauth app using the Prowbot github account. 
+If you want to make the new Deck instance private, create a new oauth app using the Prowbot github account.
 
-You can follow this [Documentation](https://docs.github.com/en/developers/apps/building-oauth-apps/creating-an-oauth-app) to create the app: 
+You can follow this [Documentation](https://docs.github.com/en/developers/apps/building-oauth-apps/creating-an-oauth-app) to create the app:
 ### Creating oauth Secrets
 
 You will need to create two secrets populated with information from the oauth app
 
 github-oauth-config:
 ```
-data: 
+data:
   secret: {
     "client_id":"...",
     "client_secret":"...",
@@ -76,7 +76,7 @@ data:
 
 oauth-config
 ```
-data: 
+data:
   clientID: ...
   clientSecret: ...
   cookieSecret: ...
@@ -92,7 +92,7 @@ When creating the new Deck Deployment, make sure to update the following fields:
 - Update TenantID on new Deployment
     - Add `- --tenant-id=NEW_ID` under args in the Deck deployment spec
     - You can add this flag multiple times to allow multiple tenantIDs
-- (Optional) Add a volume mount for the oauth app and update the oauth-config 
+- (Optional) Add a volume mount for the oauth app and update the oauth-config
     - Here is an example of oauth2-proxy being used with github account validation. The oauth and oauth-config secrets are made in step 3.
 
     ```
@@ -145,7 +145,7 @@ When creating the new Deck Deployment, make sure to update the following fields:
         - name: OAUTH2_PROXY_REDIRECT_URL
           value: https://prow.infra.cft.dev/oauth2/callback
     ```
-    
+
     ```
     volumes:
     ...
@@ -171,7 +171,7 @@ In order to use the new Deployment you will need to:
  - [Here](https://github.com/GoogleCloudPlatform/oss-test-infra/blob/e1f836416d1b3cd2cebc81454eb7f5f1febbc468/prow/oss/cluster/cluster.yaml#L128) is an example
 
  ## 6 [User] Update status check links
- 
+
  In the prow config, add the new domain to target_urls and job_url_prefix_config like so:
 
  ```yaml

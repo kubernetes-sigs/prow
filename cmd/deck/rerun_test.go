@@ -302,7 +302,7 @@ func TestRerun(t *testing.T) {
 				}
 				var res prowapi.ProwJob
 				if err := yaml.Unmarshal(body, &res); err != nil {
-					t.Fatalf("Error unmarshaling: %v", err)
+					t.Fatalf("Error unmarshalling: %v", err)
 				}
 				if res.Spec.Job != "whoa" {
 					t.Errorf("Wrong job, expected \"whoa\", got \"%s\"", res.Spec.Job)
@@ -644,7 +644,7 @@ func TestLatestRerun(t *testing.T) {
 				}
 				var res prowapi.ProwJob
 				if err := yaml.Unmarshal(body, &res); err != nil {
-					t.Fatalf("Error unmarshaling: %v", err)
+					t.Fatalf("Error unmarshalling: %v", err)
 				}
 				// These two fields are undeterministic so there are being set to the default
 				res.Status.StartTime = metav1.Time{}

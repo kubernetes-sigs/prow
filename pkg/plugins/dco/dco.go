@@ -154,7 +154,8 @@ func checkCommitMessages(gc gitHubClient, l *logrus.Entry, org, repo string, num
 
 	var commitsMissingDCO []github.RepositoryCommit
 	for _, commit := range allCommits {
-		if !testRe.MatchString(commit.Commit.Message) {
+		isMerge := len(commit.Parents) > 1
+		if !isMerge && !testRe.MatchString(commit.Commit.Message) {
 			commitsMissingDCO = append(commitsMissingDCO, commit)
 		}
 	}

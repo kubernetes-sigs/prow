@@ -384,13 +384,13 @@ func (c *Controller) Sync() {
 	// First time seeing these projects, spin up worker threads for them.
 	staggerPosition := 0
 	for instance, projects := range needsWorker {
-		staggerIncement := c.config().Gerrit.TickInterval.Duration / time.Duration(needsWorkerCount[instance])
+		staggerIncrement := c.config().Gerrit.TickInterval.Duration / time.Duration(needsWorkerCount[instance])
 		for _, project := range projects {
 			c.projectsWithWorker[id(instance, project)] = true
 			logrus.WithFields(logrus.Fields{"instance": instance, "repo": project}).Info("Starting worker for project.")
 			go func(instance, project string, staggerPosition int) {
 				// Stagger new worker threads across the loop period to reduce load on the Gerrit API and Git server.
-				napTime := staggerIncement * time.Duration(staggerPosition)
+				napTime := staggerIncrement * time.Duration(staggerPosition)
 				time.Sleep(napTime)
 
 				// Now start the repo worker thread.

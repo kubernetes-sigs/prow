@@ -393,8 +393,8 @@ type RepoRequest struct {
 }
 
 type WorkflowRuns struct {
-	Count       int           `json:"total_count,omitempty"`
-	WorflowRuns []WorkflowRun `json:"workflow_runs"`
+	Count        int           `json:"total_count,omitempty"`
+	WorkflowRuns []WorkflowRun `json:"workflow_runs"`
 }
 
 // RepoCreateRequest contains metadata used in requests to create a repo.
@@ -1679,6 +1679,19 @@ type PackageVersion struct {
 	Author              User              `json:"author"`
 	InstallationCommand string            `json:"installation_command"`
 	PackageURL          string            `json:"package_url"`
+}
+
+type GitHubTag struct {
+	Name       string    `json:"name"`
+	ZipballURL string    `json:"zipball_url"`
+	TarballURL string    `json:"tarball_url"`
+	Commit     TagCommit `json:"commit"`
+	NodeID     string    `json:"node_id"`
+}
+
+type TagCommit struct {
+	Sha string `json:"sha"`
+	URL string `json:"url"`
 }
 
 type ContainerMetadata struct {

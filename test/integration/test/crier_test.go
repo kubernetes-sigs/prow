@@ -138,7 +138,7 @@ func TestReportGHStatus(t *testing.T) {
 			}
 			t.Logf("Finished creating prowjob: %s", podName)
 
-			if err := wait.Poll(200*time.Millisecond, 5*time.Minute, func() (bool, error) {
+			if err := wait.PollUntilContextTimeout(ctx, 200*time.Millisecond, 5*time.Minute, true, func(ctx context.Context) (bool, error) {
 				ss, err := githubClient.GetCombinedStatus("fake-org", "fake-repo", sha)
 				if err != nil {
 					return false, fmt.Errorf("failed listing statues: %w", err)

@@ -1,8 +1,34 @@
 _bin/
 _output/
 .python_virtual_env
-/yarn.lock
-/node_modules
+*.min.js
+
+pj.yaml
+pod.yaml
+
+# See https://github.com/kubernetes-sigs/prow/pull/101#discussion_r1568605799
+yarn.lock
+node_modules/
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Go vendor directory
+vendor/
+
+# Go workspace file
+go.work
+go.work.sum
+
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
 cmd/branchprotector/branchprotector
 cmd/build/build
 cmd/checkconfig/checkconfig
@@ -38,4 +64,22 @@ pj.yaml
 pod.yaml
 *.min.js
 vendor/
-.idea
+
+
+# Generated files by hugo
+site/public/
+site/resources/_gen/
+site/assets/jsconfig.json
+hugo_stats.json
+
+# Executable may be added to repository
+hugo.exe
+hugo.darwin
+hugo.linux
+
+# Temporary lock file while building
+.hugo_build.lock
+
+# Folders of common IDEs
+.idea/
+.vscode/

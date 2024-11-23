@@ -727,21 +727,29 @@ plank:
             # containers used to decorate a PodSpec.
             resources:
                 clonerefs:
+                    claims:
+                        - name: ' '
                     limits:
                         "": "0"
                     requests:
                         "": "0"
                 initupload:
+                    claims:
+                        - name: ' '
                     limits:
                         "": "0"
                     requests:
                         "": "0"
                 place_entrypoint:
+                    claims:
+                        - name: ' '
                     limits:
                         "": "0"
                     requests:
                         "": "0"
                 sidecar:
+                    claims:
+                        - name: ' '
                     limits:
                         "": "0"
                     requests:
@@ -757,6 +765,150 @@ plank:
             # S3CredentialsSecret is the name of the Kubernetes secret
             # that holds blob storage push credentials.
             s3_credentials_secret: ""
+            # SchedulingOptions define the configuration for fields required for pod scheduling.
+            # These fields directly modify the way how pods can be scheduled giving the operator
+            # ability to run workloads on designated node.
+            # If these fields are already present in the pod definition, they will be ignored.
+            scheduling_options:
+                # Affinity is the Pod Affinity configuration applied to the ProwJob's pod.
+                # Equivalent to PodSpec's Affinity
+                affinity:
+                    nodeAffinity:
+                        preferredDuringSchedulingIgnoredDuringExecution:
+                            - preference:
+                                matchExpressions:
+                                    - key: ' '
+                                      operator: ' '
+                                      values:
+                                        - ""
+                                matchFields:
+                                    - key: ' '
+                                      operator: ' '
+                                      values:
+                                        - ""
+                              weight: 0
+                        requiredDuringSchedulingIgnoredDuringExecution:
+                            nodeSelectorTerms:
+                                - matchExpressions:
+                                    - key: ' '
+                                      operator: ' '
+                                      values:
+                                        - ""
+                                  matchFields:
+                                    - key: ' '
+                                      operator: ' '
+                                      values:
+                                        - ""
+                    podAffinity:
+                        preferredDuringSchedulingIgnoredDuringExecution:
+                            - podAffinityTerm:
+                                labelSelector:
+                                    matchExpressions:
+                                        - key: ' '
+                                          operator: ' '
+                                          values:
+                                            - ""
+                                    matchLabels:
+                                        "": ""
+                                matchLabelKeys:
+                                    - ""
+                                mismatchLabelKeys:
+                                    - ""
+                                namespaceSelector:
+                                    matchExpressions:
+                                        - key: ' '
+                                          operator: ' '
+                                          values:
+                                            - ""
+                                    matchLabels:
+                                        "": ""
+                                namespaces:
+                                    - ""
+                                topologyKey: ' '
+                              weight: 0
+                        requiredDuringSchedulingIgnoredDuringExecution:
+                            - labelSelector:
+                                matchExpressions:
+                                    - key: ' '
+                                      operator: ' '
+                                      values:
+                                        - ""
+                                matchLabels:
+                                    "": ""
+                              matchLabelKeys:
+                                - ""
+                              mismatchLabelKeys:
+                                - ""
+                              namespaceSelector:
+                                matchExpressions:
+                                    - key: ' '
+                                      operator: ' '
+                                      values:
+                                        - ""
+                                matchLabels:
+                                    "": ""
+                              namespaces:
+                                - ""
+                              topologyKey: ' '
+                    podAntiAffinity:
+                        preferredDuringSchedulingIgnoredDuringExecution:
+                            - podAffinityTerm:
+                                labelSelector:
+                                    matchExpressions:
+                                        - key: ' '
+                                          operator: ' '
+                                          values:
+                                            - ""
+                                    matchLabels:
+                                        "": ""
+                                matchLabelKeys:
+                                    - ""
+                                mismatchLabelKeys:
+                                    - ""
+                                namespaceSelector:
+                                    matchExpressions:
+                                        - key: ' '
+                                          operator: ' '
+                                          values:
+                                            - ""
+                                    matchLabels:
+                                        "": ""
+                                namespaces:
+                                    - ""
+                                topologyKey: ' '
+                              weight: 0
+                        requiredDuringSchedulingIgnoredDuringExecution:
+                            - labelSelector:
+                                matchExpressions:
+                                    - key: ' '
+                                      operator: ' '
+                                      values:
+                                        - ""
+                                matchLabels:
+                                    "": ""
+                              matchLabelKeys:
+                                - ""
+                              mismatchLabelKeys:
+                                - ""
+                              namespaceSelector:
+                                matchExpressions:
+                                    - key: ' '
+                                      operator: ' '
+                                      values:
+                                        - ""
+                                matchLabels:
+                                    "": ""
+                              namespaces:
+                                - ""
+                              topologyKey: ' '
+                # Tolerations define list of tolerable taints applied to the ProwJob's pod.
+                # Equivalent to PodSpec's Tolerations
+                tolerations:
+                    - effect: ' '
+                      key: ' '
+                      operator: ' '
+                      tolerationSeconds: 0
+                      value: ' '
             # SetLimitEqualsMemoryRequest sets memory limit equal to request.
             set_limit_equals_memory_request: false
             # SkipCloning determines if we should clone source code in the
@@ -928,21 +1080,29 @@ plank:
             # containers used to decorate a PodSpec.
             resources:
                 clonerefs:
+                    claims:
+                        - name: ' '
                     limits:
                         "": "0"
                     requests:
                         "": "0"
                 initupload:
+                    claims:
+                        - name: ' '
                     limits:
                         "": "0"
                     requests:
                         "": "0"
                 place_entrypoint:
+                    claims:
+                        - name: ' '
                     limits:
                         "": "0"
                     requests:
                         "": "0"
                 sidecar:
+                    claims:
+                        - name: ' '
                     limits:
                         "": "0"
                     requests:
@@ -958,6 +1118,150 @@ plank:
             # S3CredentialsSecret is the name of the Kubernetes secret
             # that holds blob storage push credentials.
             s3_credentials_secret: ""
+            # SchedulingOptions define the configuration for fields required for pod scheduling.
+            # These fields directly modify the way how pods can be scheduled giving the operator
+            # ability to run workloads on designated node.
+            # If these fields are already present in the pod definition, they will be ignored.
+            scheduling_options:
+                # Affinity is the Pod Affinity configuration applied to the ProwJob's pod.
+                # Equivalent to PodSpec's Affinity
+                affinity:
+                    nodeAffinity:
+                        preferredDuringSchedulingIgnoredDuringExecution:
+                            - preference:
+                                matchExpressions:
+                                    - key: ' '
+                                      operator: ' '
+                                      values:
+                                        - ""
+                                matchFields:
+                                    - key: ' '
+                                      operator: ' '
+                                      values:
+                                        - ""
+                              weight: 0
+                        requiredDuringSchedulingIgnoredDuringExecution:
+                            nodeSelectorTerms:
+                                - matchExpressions:
+                                    - key: ' '
+                                      operator: ' '
+                                      values:
+                                        - ""
+                                  matchFields:
+                                    - key: ' '
+                                      operator: ' '
+                                      values:
+                                        - ""
+                    podAffinity:
+                        preferredDuringSchedulingIgnoredDuringExecution:
+                            - podAffinityTerm:
+                                labelSelector:
+                                    matchExpressions:
+                                        - key: ' '
+                                          operator: ' '
+                                          values:
+                                            - ""
+                                    matchLabels:
+                                        "": ""
+                                matchLabelKeys:
+                                    - ""
+                                mismatchLabelKeys:
+                                    - ""
+                                namespaceSelector:
+                                    matchExpressions:
+                                        - key: ' '
+                                          operator: ' '
+                                          values:
+                                            - ""
+                                    matchLabels:
+                                        "": ""
+                                namespaces:
+                                    - ""
+                                topologyKey: ' '
+                              weight: 0
+                        requiredDuringSchedulingIgnoredDuringExecution:
+                            - labelSelector:
+                                matchExpressions:
+                                    - key: ' '
+                                      operator: ' '
+                                      values:
+                                        - ""
+                                matchLabels:
+                                    "": ""
+                              matchLabelKeys:
+                                - ""
+                              mismatchLabelKeys:
+                                - ""
+                              namespaceSelector:
+                                matchExpressions:
+                                    - key: ' '
+                                      operator: ' '
+                                      values:
+                                        - ""
+                                matchLabels:
+                                    "": ""
+                              namespaces:
+                                - ""
+                              topologyKey: ' '
+                    podAntiAffinity:
+                        preferredDuringSchedulingIgnoredDuringExecution:
+                            - podAffinityTerm:
+                                labelSelector:
+                                    matchExpressions:
+                                        - key: ' '
+                                          operator: ' '
+                                          values:
+                                            - ""
+                                    matchLabels:
+                                        "": ""
+                                matchLabelKeys:
+                                    - ""
+                                mismatchLabelKeys:
+                                    - ""
+                                namespaceSelector:
+                                    matchExpressions:
+                                        - key: ' '
+                                          operator: ' '
+                                          values:
+                                            - ""
+                                    matchLabels:
+                                        "": ""
+                                namespaces:
+                                    - ""
+                                topologyKey: ' '
+                              weight: 0
+                        requiredDuringSchedulingIgnoredDuringExecution:
+                            - labelSelector:
+                                matchExpressions:
+                                    - key: ' '
+                                      operator: ' '
+                                      values:
+                                        - ""
+                                matchLabels:
+                                    "": ""
+                              matchLabelKeys:
+                                - ""
+                              mismatchLabelKeys:
+                                - ""
+                              namespaceSelector:
+                                matchExpressions:
+                                    - key: ' '
+                                      operator: ' '
+                                      values:
+                                        - ""
+                                matchLabels:
+                                    "": ""
+                              namespaces:
+                                - ""
+                              topologyKey: ' '
+                # Tolerations define list of tolerable taints applied to the ProwJob's pod.
+                # Equivalent to PodSpec's Tolerations
+                tolerations:
+                    - effect: ' '
+                      key: ' '
+                      operator: ' '
+                      tolerationSeconds: 0
+                      value: ' '
             # SetLimitEqualsMemoryRequest sets memory limit equal to request.
             set_limit_equals_memory_request: false
             # SkipCloning determines if we should clone source code in the
@@ -1030,7 +1334,7 @@ pod_namespace: ' '
 # Each entry in the slice specifies Repo and CLuster regexp filter fields to
 # match against the jobs and a corresponding ProwJobDefault . All entries that
 # match a job are used. Later matching entries override the fields of earlier
-# matching entires.
+# matching entries.
 prowjob_default_entries:
     - # Cluster matches against the cluster alias of the build cluster that the
       # ProwJob is configured to run on. Recall that ProwJobs default to running on
@@ -1085,6 +1389,15 @@ push_gateway:
 # It has to be explicitly enabled.
 scheduler:
     enabled: true
+    external:
+        # Cache is the cache configuration for the external scheduling strategy
+        cache:
+            # CacheCleanupInterval is the interval to clean up the cache
+            cleanup_interval: 0s
+            # EntryTimeoutInterval is the interval to consider an entry in the cache
+            entry_timeout_interval: 0s
+        # URL is the URL of the REST API to query for the cluster assigned to prowjob
+        url: ' '
     # Scheduling strategies
     failover:
         # ClusterMappings maps a cluster to another one. It is used when we
@@ -1144,6 +1457,9 @@ tide:
         from-branch-protection: false
         optional-contexts:
             - ""
+        # Contexts that match any of the regex values in OptionalRegexContexts will be optional
+        optional-regex-contexts:
+            - ""
         # GitHub Orgs
         orgs:
             "":
@@ -1151,6 +1467,12 @@ tide:
                 from-branch-protection: false
                 optional-contexts:
                     - ""
+                # Contexts that match any of the regex values in OptionalRegexContexts will be optional
+                optional-regex-contexts:
+                    - ""
+                # Overwrite `pending` contexts with `success` when a PR is merged in a batch.
+                # This prevents PRs from being blocked by branch-protection rules if batches contexts are successful but PR context is still pending.
+                overwrite-pending-contexts: false
                 repos:
                     "":
                         branches:
@@ -1159,6 +1481,12 @@ tide:
                                 from-branch-protection: false
                                 optional-contexts:
                                     - ""
+                                # Contexts that match any of the regex values in OptionalRegexContexts will be optional
+                                optional-regex-contexts:
+                                    - ""
+                                # Overwrite `pending` contexts with `success` when a PR is merged in a batch.
+                                # This prevents PRs from being blocked by branch-protection rules if batches contexts are successful but PR context is still pending.
+                                overwrite-pending-contexts: false
                                 required-contexts:
                                     - ""
                                 required-if-present-contexts:
@@ -1169,6 +1497,12 @@ tide:
                         from-branch-protection: false
                         optional-contexts:
                             - ""
+                        # Contexts that match any of the regex values in OptionalRegexContexts will be optional
+                        optional-regex-contexts:
+                            - ""
+                        # Overwrite `pending` contexts with `success` when a PR is merged in a batch.
+                        # This prevents PRs from being blocked by branch-protection rules if batches contexts are successful but PR context is still pending.
+                        overwrite-pending-contexts: false
                         required-contexts:
                             - ""
                         required-if-present-contexts:
@@ -1181,6 +1515,9 @@ tide:
                     - ""
                 # whether to consider unknown contexts optional (skip) or required.
                 skip-unknown-contexts: false
+        # Overwrite `pending` contexts with `success` when a PR is merged in a batch.
+        # This prevents PRs from being blocked by branch-protection rules if batches contexts are successful but PR context is still pending.
+        overwrite-pending-contexts: false
         required-contexts:
             - ""
         required-if-present-contexts:
