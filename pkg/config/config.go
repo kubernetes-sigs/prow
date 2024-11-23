@@ -86,8 +86,10 @@ const (
 )
 
 var (
-	DefaultDiffOpts []cmp.Option = []cmp.Option{cmpopts.IgnoreFields(TideBranchMergeType{}, "Regexpr"),
-		cmpopts.IgnoreUnexported(Gerrit{})}
+	DefaultDiffOpts []cmp.Option = []cmp.Option{
+		cmpopts.IgnoreFields(TideBranchMergeType{}, "Regexpr"),
+		cmpopts.IgnoreUnexported(Gerrit{}),
+	}
 )
 
 // Config is a read-only snapshot of the config.
@@ -335,7 +337,11 @@ type refGetterForGitHubPullRequestClient interface {
 }
 
 // NewRefGetterForGitHubPullRequest returns a brand new RefGetterForGitHubPullRequest.
-func NewRefGetterForGitHubPullRequest(ghc refGetterForGitHubPullRequestClient, org, repo string, number int) *RefGetterForGitHubPullRequest {
+func NewRefGetterForGitHubPullRequest(
+	ghc refGetterForGitHubPullRequestClient,
+	org, repo string,
+	number int,
+) *RefGetterForGitHubPullRequest {
 	return &RefGetterForGitHubPullRequest{
 		ghc:    ghc,
 		org:    org,
@@ -414,7 +420,8 @@ func (rg *RefGetterForGitHubPullRequest) BaseSHA() (string, error) {
 // retrieval of a *ProwYAML.
 func GetAndCheckRefs(
 	baseSHAGetter RefGetter,
-	headSHAGetters ...RefGetter) (string, []string, error) {
+	headSHAGetters ...RefGetter,
+) (string, []string, error) {
 
 	// Parse "baseSHAGetter".
 	baseSHA, err := baseSHAGetter()
@@ -443,7 +450,12 @@ func GetAndCheckRefs(
 // does a call to GitHub and who also need the result of that GitHub call just
 // keep a pointer to its result, but must nilcheck that pointer before accessing
 // it.
-func (c *Config) getProwYAMLWithDefaults(gc git.ClientFactory, identifier, baseBranch string, baseSHAGetter RefGetter, headSHAGetters ...RefGetter) (*ProwYAML, error) {
+func (c *Config) getProwYAMLWithDefaults(
+	gc git.ClientFactory,
+	identifier, baseBranch string,
+	baseSHAGetter RefGetter,
+	headSHAGetters ...RefGetter,
+) (*ProwYAML, error) {
 	if identifier == "" {
 		return nil, errors.New("no identifier for repo given")
 	}
@@ -465,7 +477,12 @@ func (c *Config) getProwYAMLWithDefaults(gc git.ClientFactory, identifier, baseB
 }
 
 // getProwYAML is like getProwYAMLWithDefaults, minus the defaulting logic.
-func (c *Config) getProwYAML(gc git.ClientFactory, identifier, baseBranch string, baseSHAGetter RefGetter, headSHAGetters ...RefGetter) (*ProwYAML, error) {
+func (c *Config) getProwYAML(
+	gc git.ClientFactory,
+	identifier, baseBranch string,
+	baseSHAGetter RefGetter,
+	headSHAGetters ...RefGetter,
+) (*ProwYAML, error) {
 	if identifier == "" {
 		return nil, errors.New("no identifier for repo given")
 	}
@@ -492,7 +509,12 @@ func (c *Config) getProwYAML(gc git.ClientFactory, identifier, baseBranch string
 // Consumers that pass in a RefGetter implementation that does a call to GitHub and who
 // also need the result of that GitHub call just keep a pointer to its result, but must
 // nilcheck that pointer before accessing it.
-func (c *Config) GetPresubmits(gc git.ClientFactory, identifier, baseBranch string, baseSHAGetter RefGetter, headSHAGetters ...RefGetter) ([]Presubmit, error) {
+func (c *Config) GetPresubmits(
+	gc git.ClientFactory,
+	identifier, baseBranch string,
+	baseSHAGetter RefGetter,
+	headSHAGetters ...RefGetter,
+) ([]Presubmit, error) {
 	prowYAML, err := c.getProwYAMLWithDefaults(gc, identifier, baseBranch, baseSHAGetter, headSHAGetters...)
 	if err != nil {
 		return nil, err
@@ -522,7 +544,12 @@ func (c *Config) GetPresubmitsStatic(identifier string) []Presubmit {
 // Consumers that pass in a RefGetter implementation that does a call to GitHub and who
 // also need the result of that GitHub call just keep a pointer to its result, but must
 // nilcheck that pointer before accessing it.
-func (c *Config) GetPostsubmits(gc git.ClientFactory, identifier, baseBranch string, baseSHAGetter RefGetter, headSHAGetters ...RefGetter) ([]Postsubmit, error) {
+func (c *Config) GetPostsubmits(
+	gc git.ClientFactory,
+	identifier, baseBranch string,
+	baseSHAGetter RefGetter,
+	headSHAGetters ...RefGetter,
+) ([]Postsubmit, error) {
 	prowYAML, err := c.getProwYAMLWithDefaults(gc, identifier, baseBranch, baseSHAGetter, headSHAGetters...)
 	if err != nil {
 		return nil, err
@@ -796,7 +823,10 @@ func (d *DefaultRerunAuthConfigEntry) matches(repo, cluster string) bool {
 // mergeProwJobDefault finds all matching ProwJobDefaultEntry
 // for a job and merges them sequentially before merging into the job's own
 // PrwoJobDefault. Configs merged later override values from earlier configs.
-func (pc *ProwConfig) mergeProwJobDefault(repo, cluster string, jobDefault *prowapi.ProwJobDefault) *prowapi.ProwJobDefault {
+func (pc *ProwConfig) mergeProwJobDefault(
+	repo, cluster string,
+	jobDefault *prowapi.ProwJobDefault,
+) *prowapi.ProwJobDefault {
 	var merged *prowapi.ProwJobDefault
 	for _, entry := range pc.ProwJobDefaultEntries {
 		if entry.matches(repo, cluster) {
@@ -816,7 +846,10 @@ func (pc *ProwConfig) mergeProwJobDefault(repo, cluster string, jobDefault *prow
 // mergeDefaultDecorationConfig finds all matching DefaultDecorationConfigEntry
 // for a job and merges them sequentially before merging into the job's own
 // DecorationConfig. Configs merged later override values from earlier configs.
-func (p *Plank) mergeDefaultDecorationConfig(repo, cluster string, jobDC *prowapi.DecorationConfig) *prowapi.DecorationConfig {
+func (p *Plank) mergeDefaultDecorationConfig(
+	repo, cluster string,
+	jobDC *prowapi.DecorationConfig,
+) *prowapi.DecorationConfig {
 	var merged *prowapi.DecorationConfig
 	for _, entry := range p.DefaultDecorationConfigs {
 		if entry.matches(repo, cluster) {
@@ -846,7 +879,10 @@ func (p *Plank) GuessDefaultDecorationConfig(repo, cluster string) *prowapi.Deco
 // GuessDefaultDecorationConfig attempts to find the resolved default decoration
 // config for a given repo, cluster and job DecorationConfig. It is primarily used for best effort
 // guesses about GCS configuration for undecorated jobs.
-func (p *Plank) GuessDefaultDecorationConfigWithJobDC(repo, cluster string, jobDC *prowapi.DecorationConfig) *prowapi.DecorationConfig {
+func (p *Plank) GuessDefaultDecorationConfigWithJobDC(
+	repo, cluster string,
+	jobDC *prowapi.DecorationConfig,
+) *prowapi.DecorationConfig {
 	return p.mergeDefaultDecorationConfig(repo, cluster, jobDC)
 }
 
@@ -856,11 +892,13 @@ func (p *Plank) GuessDefaultDecorationConfigWithJobDC(repo, cluster string, jobD
 func defaultDecorationMapToSlice(m map[string]*prowapi.DecorationConfig) []*DefaultDecorationConfigEntry {
 	var entries []*DefaultDecorationConfigEntry
 	add := func(repo string, dc *prowapi.DecorationConfig) {
-		entries = append(entries, &DefaultDecorationConfigEntry{
-			OrgRepo: repo,
-			Cluster: "",
-			Config:  dc,
-		})
+		entries = append(
+			entries, &DefaultDecorationConfigEntry{
+				OrgRepo: repo,
+				Cluster: "",
+				Config:  dc,
+			},
+		)
 	}
 	// Ensure "*" comes first...
 	if dc, ok := m["*"]; ok {
@@ -1271,7 +1309,10 @@ type Deck struct {
 // Validate performs validation and sanitization on the Deck object.
 func (d *Deck) Validate() error {
 	if len(d.AdditionalAllowedBuckets) > 0 && !d.shouldValidateStorageBuckets() {
-		return fmt.Errorf("deck.skip_storage_path_validation is enabled despite deck.additional_allowed_buckets being configured: %v", d.AdditionalAllowedBuckets)
+		return fmt.Errorf(
+			"deck.skip_storage_path_validation is enabled despite deck.additional_allowed_buckets being configured: %v",
+			d.AdditionalAllowedBuckets,
+		)
 	}
 
 	for k, config := range d.DefaultRerunAuthConfigs {
@@ -1288,7 +1329,10 @@ type notAllowedBucketError struct {
 }
 
 func (ne notAllowedBucketError) Error() string {
-	return fmt.Sprintf("bucket not in allowed list; you may allow it by including it in `deck.additional_allowed_buckets`: %s", ne.err.Error())
+	return fmt.Sprintf(
+		"bucket not in allowed list; you may allow it by including it in `deck.additional_allowed_buckets`: %s",
+		ne.err.Error(),
+	)
 }
 
 func (notAllowedBucketError) Is(err error) bool {
@@ -1318,7 +1362,13 @@ func (c *Config) ValidateStorageBucket(bucketName string) error {
 		bucketName = alias
 	}
 	if !c.Deck.AllKnownStorageBuckets.Has(bucketName) {
-		return NotAllowedBucketError(fmt.Errorf("bucket %q not in allowed list (%v)", bucketName, sets.List(c.Deck.AllKnownStorageBuckets)))
+		return NotAllowedBucketError(
+			fmt.Errorf(
+				"bucket %q not in allowed list (%v)",
+				bucketName,
+				sets.List(c.Deck.AllKnownStorageBuckets),
+			),
+		)
 	}
 	return nil
 }
@@ -1449,11 +1499,13 @@ func defaultRerunAuthMapToSlice(m map[string]prowapi.RerunAuthConfig) ([]*Defaul
 	mLength := len(m)
 	var entries []*DefaultRerunAuthConfigEntry
 	add := func(repo string, rac prowapi.RerunAuthConfig) {
-		entries = append(entries, &DefaultRerunAuthConfigEntry{
-			OrgRepo: repo,
-			Cluster: "",
-			Config:  &rac,
-		})
+		entries = append(
+			entries, &DefaultRerunAuthConfigEntry{
+				OrgRepo: repo,
+				Cluster: "",
+				Config:  &rac,
+			},
+		)
 	}
 
 	// Ensure "" comes first...
@@ -1712,24 +1764,60 @@ func (cfg *DingTalkReporter) DefaultAndValidate() error {
 }
 
 // Load loads and parses the config at path.
-func Load(prowConfig, jobConfig string, supplementalProwConfigDirs []string, supplementalProwConfigsFileNameSuffix string, additionals ...func(*Config) error) (c *Config, err error) {
-	return loadWithYamlOpts(nil, prowConfig, jobConfig, supplementalProwConfigDirs, supplementalProwConfigsFileNameSuffix, additionals...)
+func Load(
+	prowConfig, jobConfig string,
+	supplementalProwConfigDirs []string,
+	supplementalProwConfigsFileNameSuffix string,
+	additionals ...func(*Config) error,
+) (c *Config, err error) {
+	return loadWithYamlOpts(
+		nil,
+		prowConfig,
+		jobConfig,
+		supplementalProwConfigDirs,
+		supplementalProwConfigsFileNameSuffix,
+		additionals...,
+	)
 }
 
 // LoadStrict loads and parses the config at path.
 // Unlike Load it unmarshalls yaml with strict parsing.
-func LoadStrict(prowConfig, jobConfig string, supplementalProwConfigDirs []string, supplementalProwConfigsFileNameSuffix string, additionals ...func(*Config) error) (c *Config, err error) {
-	return loadWithYamlOpts([]yaml.JSONOpt{yaml.DisallowUnknownFields}, prowConfig, jobConfig, supplementalProwConfigDirs, supplementalProwConfigsFileNameSuffix, additionals...)
+func LoadStrict(
+	prowConfig, jobConfig string,
+	supplementalProwConfigDirs []string,
+	supplementalProwConfigsFileNameSuffix string,
+	additionals ...func(*Config) error,
+) (c *Config, err error) {
+	return loadWithYamlOpts(
+		[]yaml.JSONOpt{yaml.DisallowUnknownFields},
+		prowConfig,
+		jobConfig,
+		supplementalProwConfigDirs,
+		supplementalProwConfigsFileNameSuffix,
+		additionals...,
+	)
 }
 
-func loadWithYamlOpts(yamlOpts []yaml.JSONOpt, prowConfig, jobConfig string, supplementalProwConfigDirs []string, supplementalProwConfigsFileNameSuffix string, additionals ...func(*Config) error) (c *Config, err error) {
+func loadWithYamlOpts(
+	yamlOpts []yaml.JSONOpt,
+	prowConfig, jobConfig string,
+	supplementalProwConfigDirs []string,
+	supplementalProwConfigsFileNameSuffix string,
+	additionals ...func(*Config) error,
+) (c *Config, err error) {
 	// we never want config loading to take down the prow components.
 	defer func() {
 		if r := recover(); r != nil {
 			c, err = nil, fmt.Errorf("panic loading config: %v\n%s", r, string(debug.Stack()))
 		}
 	}()
-	c, err = loadConfig(prowConfig, jobConfig, supplementalProwConfigDirs, supplementalProwConfigsFileNameSuffix, yamlOpts...)
+	c, err = loadConfig(
+		prowConfig,
+		jobConfig,
+		supplementalProwConfigDirs,
+		supplementalProwConfigsFileNameSuffix,
+		yamlOpts...,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -1779,67 +1867,80 @@ func ReadJobConfig(jobConfig string, yamlOpts ...yaml.JSONOpt) (JobConfig, error
 	allStart := time.Now()
 	jc := JobConfig{}
 	var errs []error
-	err = filepath.Walk(jobConfig, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			logrus.WithError(err).Errorf("walking path %q.", path)
-			// bad file should not stop us from parsing the directory.
-			return nil
-		}
+	err = filepath.Walk(
+		jobConfig, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				logrus.WithError(err).Errorf("walking path %q.", path)
+				// bad file should not stop us from parsing the directory.
+				return nil
+			}
 
-		if strings.HasPrefix(info.Name(), "..") {
-			// kubernetes volumes also include files we
-			// should not look be looking into for keys.
+			if strings.HasPrefix(info.Name(), "..") {
+				// kubernetes volumes also include files we
+				// should not look be looking into for keys.
+				if info.IsDir() {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+			if filepath.Ext(path) != ".yaml" && filepath.Ext(path) != ".yml" {
+				return nil
+			}
+			// Use 'Match' directly because 'Ignore' and 'Include' don't work properly for repositories.
+			match := prowIgnore.Match(path)
+			if match != nil && match.Ignore() {
+				return nil
+			}
+
 			if info.IsDir() {
-				return filepath.SkipDir
+				return nil
+			}
+
+			base := filepath.Base(path)
+			if uniqueBasenames.Has(base) {
+				errs = append(errs, fmt.Errorf("duplicated basename is not allowed: %s", base))
+				return nil
+			}
+			uniqueBasenames.Insert(base)
+
+			fileStart := time.Now()
+			var subConfig JobConfig
+			if err := yamlToConfig(path, &subConfig, yamlOpts...); err != nil {
+				errs = append(errs, err)
+				return nil
+			}
+			jc, err = mergeJobConfigs(jc, subConfig)
+			if err == nil {
+				logrus.WithField("jobConfig", path).WithField(
+					"duration",
+					time.Since(fileStart),
+				).Traceln("config loaded")
+				jobConfigCount++
+			} else {
+				errs = append(errs, err)
 			}
 			return nil
-		}
-		if filepath.Ext(path) != ".yaml" && filepath.Ext(path) != ".yml" {
-			return nil
-		}
-		// Use 'Match' directly because 'Ignore' and 'Include' don't work properly for repositories.
-		match := prowIgnore.Match(path)
-		if match != nil && match.Ignore() {
-			return nil
-		}
-
-		if info.IsDir() {
-			return nil
-		}
-
-		base := filepath.Base(path)
-		if uniqueBasenames.Has(base) {
-			errs = append(errs, fmt.Errorf("duplicated basename is not allowed: %s", base))
-			return nil
-		}
-		uniqueBasenames.Insert(base)
-
-		fileStart := time.Now()
-		var subConfig JobConfig
-		if err := yamlToConfig(path, &subConfig, yamlOpts...); err != nil {
-			errs = append(errs, err)
-			return nil
-		}
-		jc, err = mergeJobConfigs(jc, subConfig)
-		if err == nil {
-			logrus.WithField("jobConfig", path).WithField("duration", time.Since(fileStart)).Traceln("config loaded")
-			jobConfigCount++
-		} else {
-			errs = append(errs, err)
-		}
-		return nil
-	})
+		},
+	)
 	err = utilerrors.NewAggregate(append(errs, err))
 	if err != nil {
 		return JobConfig{}, err
 	}
-	logrus.WithField("count", jobConfigCount).WithField("duration", time.Since(allStart)).Traceln("jobConfigs loaded successfully")
+	logrus.WithField("count", jobConfigCount).WithField(
+		"duration",
+		time.Since(allStart),
+	).Traceln("jobConfigs loaded successfully")
 
 	return jc, nil
 }
 
 // loadConfig loads one or multiple config files and returns a config object.
-func loadConfig(prowConfig, jobConfig string, additionalProwConfigDirs []string, supplementalProwConfigsFileNameSuffix string, yamlOpts ...yaml.JSONOpt) (*Config, error) {
+func loadConfig(
+	prowConfig, jobConfig string,
+	additionalProwConfigDirs []string,
+	supplementalProwConfigsFileNameSuffix string,
+	yamlOpts ...yaml.JSONOpt,
+) (*Config, error) {
 	stat, err := os.Stat(prowConfig)
 	if err != nil {
 		return nil, err
@@ -1858,49 +1959,59 @@ func loadConfig(prowConfig, jobConfig string, additionalProwConfigDirs []string,
 	allStart := time.Now()
 	for _, additionalProwConfigDir := range additionalProwConfigDirs {
 		var errs []error
-		errs = append(errs, filepath.Walk(additionalProwConfigDir, func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				// Finish walking and handle all errors in bulk at the end, otherwise this is annoying as a user.
-				errs = append(errs, err)
-				return nil
-			}
-			// Kubernetes configmap mounts create symlinks for the configmap keys that point to files prefixed with '..'.
-			// This allows it to do  atomic changes by changing the symlink to a new target when the configmap content changes.
-			// This means that we should ignore the '..'-prefixed files, otherwise we might end up reading a half-written file and will
-			// get duplicate data.
-			if strings.HasPrefix(info.Name(), "..") {
-				if info.IsDir() {
-					return filepath.SkipDir
-				}
-				return nil
-			}
+		errs = append(
+			errs, filepath.Walk(
+				additionalProwConfigDir, func(path string, info os.FileInfo, err error) error {
+					if err != nil {
+						// Finish walking and handle all errors in bulk at the end, otherwise this is annoying as a user.
+						errs = append(errs, err)
+						return nil
+					}
+					// Kubernetes configmap mounts create symlinks for the configmap keys that point to files prefixed with '..'.
+					// This allows it to do  atomic changes by changing the symlink to a new target when the configmap content changes.
+					// This means that we should ignore the '..'-prefixed files, otherwise we might end up reading a half-written file and will
+					// get duplicate data.
+					if strings.HasPrefix(info.Name(), "..") {
+						if info.IsDir() {
+							return filepath.SkipDir
+						}
+						return nil
+					}
 
-			if info.IsDir() || !strings.HasSuffix(path, supplementalProwConfigsFileNameSuffix) {
-				return nil
-			}
+					if info.IsDir() || !strings.HasSuffix(path, supplementalProwConfigsFileNameSuffix) {
+						return nil
+					}
 
-			fileStart := time.Now()
-			var cfg ProwConfig
-			if err := yamlToConfig(path, &cfg); err != nil {
-				errs = append(errs, err)
-				return nil
-			}
+					fileStart := time.Now()
+					var cfg ProwConfig
+					if err := yamlToConfig(path, &cfg); err != nil {
+						errs = append(errs, err)
+						return nil
+					}
 
-			if err := nc.ProwConfig.mergeFrom(&cfg); err != nil {
-				errs = append(errs, fmt.Errorf("failed to merge in config from %s: %w", path, err))
-			} else {
-				logrus.WithField("prowConfig", path).WithField("duration", time.Since(fileStart)).Traceln("config loaded")
-				prowConfigCount++
-			}
+					if err := nc.ProwConfig.mergeFrom(&cfg); err != nil {
+						errs = append(errs, fmt.Errorf("failed to merge in config from %s: %w", path, err))
+					} else {
+						logrus.WithField("prowConfig", path).WithField(
+							"duration",
+							time.Since(fileStart),
+						).Traceln("config loaded")
+						prowConfigCount++
+					}
 
-			return nil
-		}))
+					return nil
+				},
+			),
+		)
 
 		if err := utilerrors.NewAggregate(errs); err != nil {
 			return nil, err
 		}
 	}
-	logrus.WithField("count", prowConfigCount).WithField("duration", time.Since(allStart)).Traceln("prowConfigs loaded successfully")
+	logrus.WithField("count", prowConfigCount).WithField(
+		"duration",
+		time.Since(allStart),
+	).Traceln("prowConfigs loaded successfully")
 
 	if err := parseProwConfig(&nc); err != nil {
 		return nil, err
@@ -1948,11 +2059,13 @@ func loadConfig(prowConfig, jobConfig string, additionalProwConfigDirs []string,
 			return nil, errors.New("pubsub_subscriptions and pubsub_triggers are mutually exclusive")
 		}
 		for proj, topics := range nc.PubSubSubscriptions {
-			nc.PubSubTriggers = append(nc.PubSubTriggers, PubSubTrigger{
-				Project:         proj,
-				Topics:          topics,
-				AllowedClusters: []string{"*"},
-			})
+			nc.PubSubTriggers = append(
+				nc.PubSubTriggers, PubSubTrigger{
+					Project:         proj,
+					Topics:          topics,
+					AllowedClusters: []string{"*"},
+				},
+			)
 		}
 	}
 	for i, trigger := range nc.PubSubTriggers {
@@ -2045,12 +2158,14 @@ func ReadFileMaybeGZIP(path string) ([]byte, error) {
 }
 
 func (c *Config) mergeJobConfig(jc JobConfig) error {
-	m, err := mergeJobConfigs(JobConfig{
-		Presets:           c.Presets,
-		PresubmitsStatic:  c.PresubmitsStatic,
-		Periodics:         c.Periodics,
-		PostsubmitsStatic: c.PostsubmitsStatic,
-	}, jc)
+	m, err := mergeJobConfigs(
+		JobConfig{
+			Presets:           c.Presets,
+			PresubmitsStatic:  c.PresubmitsStatic,
+			Periodics:         c.Periodics,
+			PostsubmitsStatic: c.PostsubmitsStatic,
+		}, jc,
+	)
 	if err != nil {
 		return err
 	}
@@ -2253,7 +2368,14 @@ func (c *Config) validateComponentConfig() error {
 	if c.ManagedWebhooks.OrgRepoConfig != nil {
 		for repoName, repoValue := range c.ManagedWebhooks.OrgRepoConfig {
 			if repoValue.TokenCreatedAfter.After(time.Now()) {
-				validationErrs = append(validationErrs, fmt.Errorf("token_created_after %s can be no later than current time for repo/org %s", repoValue.TokenCreatedAfter, repoName))
+				validationErrs = append(
+					validationErrs,
+					fmt.Errorf(
+						"token_created_after %s can be no later than current time for repo/org %s",
+						repoValue.TokenCreatedAfter,
+						repoName,
+					),
+				)
 			}
 		}
 		if len(validationErrs) > 0 {
@@ -2384,7 +2506,15 @@ func (c Config) validatePresubmits(presubmits []Presubmit) error {
 				continue
 			}
 			if otherPS.Context == ps.Context {
-				errs = append(errs, fmt.Errorf("jobs %s and %s report to the same GitHub context %q", otherPS.Name, ps.Name, otherPS.Context))
+				errs = append(
+					errs,
+					fmt.Errorf(
+						"jobs %s and %s report to the same GitHub context %q",
+						otherPS.Name,
+						ps.Name,
+						otherPS.Context,
+					),
+				)
 			}
 		}
 
@@ -2400,7 +2530,13 @@ func (c Config) validatePresubmits(presubmits []Presubmit) error {
 		validPresubmits[ps.Name] = append(validPresubmits[ps.Name], ps)
 	}
 	if duplicatePresubmits.Len() > 0 {
-		errs = append(errs, fmt.Errorf("duplicated presubmit jobs (consider both inrepo and central config): %v", sortStringSlice(duplicatePresubmits.UnsortedList())))
+		errs = append(
+			errs,
+			fmt.Errorf(
+				"duplicated presubmit jobs (consider both inrepo and central config): %v",
+				sortStringSlice(duplicatePresubmits.UnsortedList()),
+			),
+		)
 	}
 
 	return utilerrors.NewAggregate(errs)
@@ -2423,8 +2559,10 @@ func ValidateRefs(repo string, jobBase JobBase) error {
 	}
 
 	if dupes.Len() > 0 {
-		return fmt.Errorf("invalid job %s on repo %s: the following refs specified more than once: %s",
-			jobBase.Name, repo, strings.Join(sets.List(dupes), ","))
+		return fmt.Errorf(
+			"invalid job %s on repo %s: the following refs specified more than once: %s",
+			jobBase.Name, repo, strings.Join(sets.List(dupes), ","),
+		)
 	}
 	return nil
 }
@@ -2447,7 +2585,15 @@ func (c Config) validatePostsubmits(postsubmits []Postsubmit) error {
 				continue
 			}
 			if otherPS.Context == ps.Context {
-				errs = append(errs, fmt.Errorf("jobs %s and %s report to the same GitHub context %q", otherPS.Name, ps.Name, otherPS.Context))
+				errs = append(
+					errs,
+					fmt.Errorf(
+						"jobs %s and %s report to the same GitHub context %q",
+						otherPS.Name,
+						ps.Name,
+						otherPS.Context,
+					),
+				)
 			}
 		}
 
@@ -2463,7 +2609,13 @@ func (c Config) validatePostsubmits(postsubmits []Postsubmit) error {
 		validPostsubmits[ps.Name] = append(validPostsubmits[ps.Name], ps)
 	}
 	if duplicatePostsubmits.Len() > 0 {
-		errs = append(errs, fmt.Errorf("duplicated postsubmit jobs (consider both inrepo and central config): %v", sortStringSlice(duplicatePostsubmits.UnsortedList())))
+		errs = append(
+			errs,
+			fmt.Errorf(
+				"duplicated postsubmit jobs (consider both inrepo and central config): %v",
+				sortStringSlice(duplicatePostsubmits.UnsortedList()),
+			),
+		)
 	}
 
 	return utilerrors.NewAggregate(errs)
@@ -2497,11 +2649,17 @@ func (c Config) validatePeriodics(periodics []Periodic) error {
 			seen += 1
 		}
 		if seen > 1 {
-			errs = append(errs, fmt.Errorf("cron, interval, and minimum_interval are mutually exclusive in periodic %s", p.Name))
+			errs = append(
+				errs,
+				fmt.Errorf("cron, interval, and minimum_interval are mutually exclusive in periodic %s", p.Name),
+			)
 			continue
 		}
 		if seen == 0 {
-			errs = append(errs, fmt.Errorf("at least one of cron, interval, or minimum_interval must be set in periodic %s", p.Name))
+			errs = append(
+				errs,
+				fmt.Errorf("at least one of cron, interval, or minimum_interval must be set in periodic %s", p.Name),
+			)
 			continue
 		}
 
@@ -2592,7 +2750,11 @@ func parseProwConfig(c *Config) error {
 	}
 
 	if len(c.GitHubReporter.JobTypesToReport) == 0 {
-		c.GitHubReporter.JobTypesToReport = append(c.GitHubReporter.JobTypesToReport, prowapi.PresubmitJob, prowapi.PostsubmitJob)
+		c.GitHubReporter.JobTypesToReport = append(
+			c.GitHubReporter.JobTypesToReport,
+			prowapi.PresubmitJob,
+			prowapi.PostsubmitJob,
+		)
 	}
 
 	// validate entries are valid job types.
@@ -2767,7 +2929,10 @@ func parseProwConfig(c *Config) error {
 		c.Tide.MaxGoroutines = 20
 	}
 	if c.Tide.MaxGoroutines <= 0 {
-		return fmt.Errorf("tide has invalid max_goroutines (%d), it needs to be a positive number", c.Tide.MaxGoroutines)
+		return fmt.Errorf(
+			"tide has invalid max_goroutines (%d), it needs to be a positive number",
+			c.Tide.MaxGoroutines,
+		)
 	}
 
 	if len(c.Tide.TargetURLs) > 0 && c.Tide.TargetURL != "" {
@@ -2895,14 +3060,18 @@ func parseTideMergeType(tideMergeTypes map[string]TideOrgMergeType) utilerrors.A
 	for org, orgConfig := range tideMergeTypes {
 		// Validate orgs
 		if orgConfig.MergeType != "" && !isTideMergeTypeValid(orgConfig.MergeType) {
-			mergeTypeErrs = append(mergeTypeErrs,
-				fmt.Errorf("merge type %q for %s is not a valid type", orgConfig.MergeType, org))
+			mergeTypeErrs = append(
+				mergeTypeErrs,
+				fmt.Errorf("merge type %q for %s is not a valid type", orgConfig.MergeType, org),
+			)
 		}
 		for repo, repoConfig := range orgConfig.Repos {
 			// Validate repos
 			if repoConfig.MergeType != "" && !isTideMergeTypeValid(repoConfig.MergeType) {
-				mergeTypeErrs = append(mergeTypeErrs,
-					fmt.Errorf("merge type %q for %s/%s is not a valid type", repoConfig.MergeType, org, repo))
+				mergeTypeErrs = append(
+					mergeTypeErrs,
+					fmt.Errorf("merge type %q for %s/%s is not a valid type", repoConfig.MergeType, org, repo),
+				)
 			}
 			for branch, branchConfig := range repoConfig.Branches {
 				// Validate branches
@@ -2913,9 +3082,13 @@ func parseTideMergeType(tideMergeTypes map[string]TideOrgMergeType) utilerrors.A
 					branchConfig.Regexpr = regexpr
 				}
 				if !isTideMergeTypeValid(branchConfig.MergeType) {
-					mergeTypeErrs = append(mergeTypeErrs,
-						fmt.Errorf("merge type %q for %s/%s@%s is not a valid type",
-							branchConfig.MergeType, org, repo, branch))
+					mergeTypeErrs = append(
+						mergeTypeErrs,
+						fmt.Errorf(
+							"merge type %q for %s/%s@%s is not a valid type",
+							branchConfig.MergeType, org, repo, branch,
+						),
+					)
 				}
 				repoConfig.Branches[branch] = branchConfig
 			}
@@ -3019,7 +3192,11 @@ func resolvePresets(name string, labels map[string]string, spec *v1.PodSpec, pre
 
 var ReProwExtraRef = regexp.MustCompile(`PROW_EXTRA_GIT_REF_(\d+)`)
 
-func ValidatePipelineRunSpec(jobType prowapi.ProwJobType, extraRefs []prowapi.Refs, spec *pipelinev1.PipelineRunSpec) error {
+func ValidatePipelineRunSpec(
+	jobType prowapi.ProwJobType,
+	extraRefs []prowapi.Refs,
+	spec *pipelinev1.PipelineRunSpec,
+) error {
 	if spec == nil {
 		return nil
 	}
@@ -3032,7 +3209,10 @@ func ValidatePipelineRunSpec(jobType prowapi.ProwJobType, extraRefs []prowapi.Re
 		for _, task := range spec.PipelineSpec.Tasks {
 			// Validate that periodic jobs don't request an implicit git ref.
 			if jobType == prowapi.PeriodicJob && task.TaskRef.Name == ProwImplicitGitResource {
-				return fmt.Errorf("periodic jobs do not have an implicit git ref to replace %s", ProwImplicitGitResource)
+				return fmt.Errorf(
+					"periodic jobs do not have an implicit git ref to replace %s",
+					ProwImplicitGitResource,
+				)
 			}
 
 			match := ReProwExtraRef.FindStringSubmatch(task.TaskRef.Name)
@@ -3057,7 +3237,11 @@ func ValidatePipelineRunSpec(jobType prowapi.ProwJobType, extraRefs []prowapi.Re
 		for i := range extraIndexes {
 			strs = append(strs, strconv.Itoa(i))
 		}
-		return fmt.Errorf("%d extra_refs are specified, but the following PROW_EXTRA_GIT_REF_* indexes are used: %s", len(extraRefs), strings.Join(strs, ", "))
+		return fmt.Errorf(
+			"%d extra_refs are specified, but the following PROW_EXTRA_GIT_REF_* indexes are used: %s",
+			len(extraRefs),
+			strings.Join(strs, ", "),
+		)
 	}
 	return nil
 }
@@ -3075,18 +3259,31 @@ func validatePodSpec(jobType prowapi.ProwJobType, spec *v1.PodSpec, decorationCo
 
 	if n := len(spec.Containers); n < 1 {
 		// We must return here to not cause an out of bounds panic in the remaining validation.
-		return utilerrors.NewAggregate(append(errs, fmt.Errorf("pod spec must specify at least 1 container, found: %d", n)))
+		return utilerrors.NewAggregate(
+			append(
+				errs,
+				fmt.Errorf("pod spec must specify at least 1 container, found: %d", n),
+			),
+		)
 	}
 
 	if n := len(spec.Containers); n > 1 && decorationConfig == nil {
-		return utilerrors.NewAggregate(append(errs, fmt.Errorf("pod utility decoration must be enabled to use multiple containers: %d", n)))
+		return utilerrors.NewAggregate(
+			append(
+				errs,
+				fmt.Errorf("pod utility decoration must be enabled to use multiple containers: %d", n),
+			),
+		)
 	}
 
 	if len(spec.Containers) > 1 {
 		containerNames := sets.Set[string]{}
 		for _, container := range spec.Containers {
 			if container.Name == "" {
-				errs = append(errs, fmt.Errorf("container does not have name. all containers must have names when defining multiple containers"))
+				errs = append(
+					errs,
+					fmt.Errorf("container does not have name. all containers must have names when defining multiple containers"),
+				)
 			}
 
 			if containerNames.Has(container.Name) {
@@ -3095,7 +3292,13 @@ func validatePodSpec(jobType prowapi.ProwJobType, spec *v1.PodSpec, decorationCo
 			containerNames.Insert(container.Name)
 
 			if decorate.PodUtilsContainerNames().Has(container.Name) {
-				errs = append(errs, fmt.Errorf("container name %s is a reserved for decoration. please specify a different container name that does not conflict with pod utility container names", container.Name))
+				errs = append(
+					errs,
+					fmt.Errorf(
+						"container name %s is a reserved for decoration. please specify a different container name that does not conflict with pod utility container names",
+						container.Name,
+					),
+				)
 			}
 		}
 	}
@@ -3139,7 +3342,10 @@ func validatePodSpec(jobType prowapi.ProwJobType, spec *v1.PodSpec, decorationCo
 				errs = append(errs, fmt.Errorf("volumeMount name %s is reserved for decoration", mount.Name))
 			}
 			if decorate.VolumeMountPathsOnTestContainer().Has(mount.MountPath) {
-				errs = append(errs, fmt.Errorf("mount %s at %s conflicts with decoration mount", mount.Name, mount.MountPath))
+				errs = append(
+					errs,
+					fmt.Errorf("mount %s at %s conflicts with decoration mount", mount.Name, mount.MountPath),
+				)
 			}
 		}
 	}
@@ -3150,14 +3356,23 @@ func validatePodSpec(jobType prowapi.ProwJobType, spec *v1.PodSpec, decorationCo
 func validateAlwaysRun(job Postsubmit) error {
 	if job.AlwaysRun != nil && *job.AlwaysRun {
 		if job.RunIfChanged != "" {
-			return fmt.Errorf("job %s is set to always run but also declares run_if_changed targets, which are mutually exclusive", job.Name)
+			return fmt.Errorf(
+				"job %s is set to always run but also declares run_if_changed targets, which are mutually exclusive",
+				job.Name,
+			)
 		}
 		if job.SkipIfOnlyChanged != "" {
-			return fmt.Errorf("job %s is set to always run but also declares skip_if_only_changed targets, which are mutually exclusive", job.Name)
+			return fmt.Errorf(
+				"job %s is set to always run but also declares skip_if_only_changed targets, which are mutually exclusive",
+				job.Name,
+			)
 		}
 	}
 	if job.RunIfChanged != "" && job.SkipIfOnlyChanged != "" {
-		return fmt.Errorf("job %s declares run_if_changed and skip_if_only_changed, which are mutually exclusive", job.Name)
+		return fmt.Errorf(
+			"job %s declares run_if_changed and skip_if_only_changed, which are mutually exclusive",
+			job.Name,
+		)
 	}
 	return nil
 }
@@ -3165,18 +3380,30 @@ func validateAlwaysRun(job Postsubmit) error {
 func validateTriggering(job Presubmit) error {
 	if job.AlwaysRun {
 		if job.RunIfChanged != "" {
-			return fmt.Errorf("job %s is set to always run but also declares run_if_changed targets, which are mutually exclusive", job.Name)
+			return fmt.Errorf(
+				"job %s is set to always run but also declares run_if_changed targets, which are mutually exclusive",
+				job.Name,
+			)
 		}
 		if job.SkipIfOnlyChanged != "" {
-			return fmt.Errorf("job %s is set to always run but also declares skip_if_only_changed targets, which are mutually exclusive", job.Name)
+			return fmt.Errorf(
+				"job %s is set to always run but also declares skip_if_only_changed targets, which are mutually exclusive",
+				job.Name,
+			)
 		}
 	}
 	if job.RunIfChanged != "" && job.SkipIfOnlyChanged != "" {
-		return fmt.Errorf("job %s declares run_if_changed and skip_if_only_changed, which are mutually exclusive", job.Name)
+		return fmt.Errorf(
+			"job %s declares run_if_changed and skip_if_only_changed, which are mutually exclusive",
+			job.Name,
+		)
 	}
 
 	if (job.Trigger != "" && job.RerunCommand == "") || (job.Trigger == "" && job.RerunCommand != "") {
-		return fmt.Errorf("either both of job.Trigger and job.RerunCommand must be set, wasnt the case for job %q", job.Name)
+		return fmt.Errorf(
+			"either both of job.Trigger and job.RerunCommand must be set, wasnt the case for job %q",
+			job.Name,
+		)
 	}
 
 	return nil
@@ -3191,7 +3418,10 @@ func validateReporting(j JobBase, r Reporter) error {
 	}
 	for label, value := range j.Labels {
 		if label == kube.GerritReportLabel && value != "" {
-			return fmt.Errorf("gerrit report label %s set to non-empty string but job is configured to skip reporting.", label)
+			return fmt.Errorf(
+				"gerrit report label %s set to non-empty string but job is configured to skip reporting.",
+				label,
+			)
 		}
 	}
 	return nil
@@ -3213,13 +3443,19 @@ func ValidateController(c *Controller, templateFuncMaps ...template.FuncMap) err
 		return err
 	}
 	if c.MaxConcurrency < 0 {
-		return fmt.Errorf("controller has invalid max_concurrency (%d), it needs to be a non-negative number", c.MaxConcurrency)
+		return fmt.Errorf(
+			"controller has invalid max_concurrency (%d), it needs to be a non-negative number",
+			c.MaxConcurrency,
+		)
 	}
 	if c.MaxGoroutines == 0 {
 		c.MaxGoroutines = 20
 	}
 	if c.MaxGoroutines <= 0 {
-		return fmt.Errorf("controller has invalid max_goroutines (%d), it needs to be a positive number", c.MaxGoroutines)
+		return fmt.Errorf(
+			"controller has invalid max_goroutines (%d), it needs to be a positive number",
+			c.MaxGoroutines,
+		)
 	}
 	return nil
 }
@@ -3316,7 +3552,12 @@ func SetPresubmitRegexes(js []Presubmit) error {
 			return fmt.Errorf("could not compile trigger regex for %s: %w", j.Name, err)
 		}
 		if !js[i].re.MatchString(j.RerunCommand) {
-			return fmt.Errorf("for job %s, rerun command \"%s\" does not match trigger \"%s\"", j.Name, j.RerunCommand, j.Trigger)
+			return fmt.Errorf(
+				"for job %s, rerun command \"%s\" does not match trigger \"%s\"",
+				j.Name,
+				j.RerunCommand,
+				j.Trigger,
+			)
 		}
 		b, err := setBrancherRegexes(j.Brancher)
 		if err != nil {
@@ -3432,14 +3673,25 @@ func StringsToOrgRepos(vs []string) []OrgRepo {
 // If you extend this, please also extend HasConfigFor accordingly.
 func (pc *ProwConfig) mergeFrom(additional *ProwConfig) error {
 	emptyReference := &ProwConfig{
-		BranchProtection:     additional.BranchProtection,
-		Tide:                 Tide{TideGitHubConfig: TideGitHubConfig{MergeType: additional.Tide.MergeType, Queries: additional.Tide.Queries}},
+		BranchProtection: additional.BranchProtection,
+		Tide: Tide{
+			TideGitHubConfig: TideGitHubConfig{
+				MergeType: additional.Tide.MergeType,
+				Queries:   additional.Tide.Queries,
+			},
+		},
 		SlackReporterConfigs: additional.SlackReporterConfigs,
 	}
 
 	var errs []error
 	if diff := cmp.Diff(additional, emptyReference, DefaultDiffOpts...); diff != "" {
-		errs = append(errs, fmt.Errorf("only 'branch-protection', 'slack_reporter_configs', 'dingtalk_reporter_configs', 'tide.merge_method' and 'tide.queries' may be set via additional config, all other fields have no merging logic yet. Diff: %s", diff))
+		errs = append(
+			errs,
+			fmt.Errorf(
+				"only 'branch-protection', 'slack_reporter_configs', 'dingtalk_reporter_configs', 'tide.merge_method' and 'tide.queries' may be set via additional config, all other fields have no merging logic yet. Diff: %s",
+				diff,
+			),
+		)
 	}
 	if err := pc.BranchProtection.merge(&additional.BranchProtection); err != nil {
 		errs = append(errs, fmt.Errorf("failed to merge branch protection config: %w", err))
@@ -3452,6 +3704,12 @@ func (pc *ProwConfig) mergeFrom(additional *ProwConfig) error {
 		pc.SlackReporterConfigs = additional.SlackReporterConfigs
 	} else if err := pc.SlackReporterConfigs.mergeFrom(&additional.SlackReporterConfigs); err != nil {
 		errs = append(errs, fmt.Errorf("failed to merge slack-reporter config: %w", err))
+	}
+
+	if pc.DingTalkReporterConfigs == nil {
+		pc.DingTalkReporterConfigs = additional.DingTalkReporterConfigs
+	} else if err := pc.DingTalkReporterConfigs.mergeFrom(&additional.DingTalkReporterConfigs); err != nil {
+		errs = append(errs, fmt.Errorf("failed to merge ding-talk config: %w", err))
 	}
 
 	return utilerrors.NewAggregate(errs)
@@ -3487,7 +3745,10 @@ func BaseSHAFromContextDescription(description string) string {
 	// SHA1s are always 40 digits long.
 	if len(split) != 2 || len(split[1]) != 40 {
 		// Fallback to deprecated one if available.
-		if split = strings.Split(description, contextDescriptionBaseSHADelimiterDeprecated); len(split) == 2 && len(split[1]) == 40 {
+		if split = strings.Split(
+			description,
+			contextDescriptionBaseSHADelimiterDeprecated,
+		); len(split) == 2 && len(split[1]) == 40 {
 			return split[1]
 		}
 		return ""
@@ -3559,8 +3820,13 @@ func (pc *ProwConfig) hasGlobalConfig() bool {
 		return true
 	}
 	emptyReference := &ProwConfig{
-		BranchProtection:     pc.BranchProtection,
-		Tide:                 Tide{TideGitHubConfig: TideGitHubConfig{MergeType: pc.Tide.MergeType, Queries: pc.Tide.Queries}},
+		BranchProtection: pc.BranchProtection,
+		Tide: Tide{
+			TideGitHubConfig: TideGitHubConfig{
+				MergeType: pc.Tide.MergeType,
+				Queries:   pc.Tide.Queries,
+			},
+		},
 		SlackReporterConfigs: pc.SlackReporterConfigs,
 	}
 	return cmp.Diff(pc, emptyReference, DefaultDiffOpts...) != ""
@@ -3579,35 +3845,39 @@ func (tm tideQueryMap) queries() (TideQueries, error) {
 		if err := json.Unmarshal([]byte(k), &queryConfig); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal %q: %w", k, err)
 		}
-		result = append(result, TideQuery{
-			Orgs:                   v.Orgs,
-			Repos:                  v.Repos,
-			ExcludedRepos:          v.ExcludedRepos,
-			Author:                 queryConfig.Author,
-			ExcludedBranches:       queryConfig.ExcludedBranches,
-			IncludedBranches:       queryConfig.IncludedBranches,
-			Labels:                 queryConfig.Labels,
-			MissingLabels:          queryConfig.MissingLabels,
-			Milestone:              queryConfig.Milestone,
-			ReviewApprovedRequired: queryConfig.ReviewApprovedRequired,
-		})
+		result = append(
+			result, TideQuery{
+				Orgs:                   v.Orgs,
+				Repos:                  v.Repos,
+				ExcludedRepos:          v.ExcludedRepos,
+				Author:                 queryConfig.Author,
+				ExcludedBranches:       queryConfig.ExcludedBranches,
+				IncludedBranches:       queryConfig.IncludedBranches,
+				Labels:                 queryConfig.Labels,
+				MissingLabels:          queryConfig.MissingLabels,
+				Milestone:              queryConfig.Milestone,
+				ReviewApprovedRequired: queryConfig.ReviewApprovedRequired,
+			},
+		)
 
 	}
 
 	// Sort the queries here to make sure that the de-duplication results
 	// in a deterministic order.
 	var errs []error
-	sort.SliceStable(result, func(i, j int) bool {
-		iSerialized, err := json.Marshal(result[i])
-		if err != nil {
-			errs = append(errs, fmt.Errorf("failed to marshal %+v: %w", result[i], err))
-		}
-		jSerialized, err := json.Marshal(result[j])
-		if err != nil {
-			errs = append(errs, fmt.Errorf("failed to marshal %+v: %w", result[j], err))
-		}
-		return string(iSerialized) < string(jSerialized)
-	})
+	sort.SliceStable(
+		result, func(i, j int) bool {
+			iSerialized, err := json.Marshal(result[i])
+			if err != nil {
+				errs = append(errs, fmt.Errorf("failed to marshal %+v: %w", result[i], err))
+			}
+			jSerialized, err := json.Marshal(result[j])
+			if err != nil {
+				errs = append(errs, fmt.Errorf("failed to marshal %+v: %w", result[j], err))
+			}
+			return string(iSerialized) < string(jSerialized)
+		},
+	)
 
 	return result, utilerrors.NewAggregate(errs)
 }
