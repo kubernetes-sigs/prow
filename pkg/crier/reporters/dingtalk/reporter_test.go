@@ -1,10 +1,27 @@
+/*
+Copyright 2019 The Kubernetes Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package dingtalk
 
 import (
 	"context"
+	"testing"
+
 	v1 "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 	"sigs.k8s.io/prow/pkg/config"
-	"testing"
 
 	"github.com/sirupsen/logrus"
 )
@@ -282,15 +299,21 @@ func TestShouldReport(t *testing.T) {
 		cfgGetter := func(*v1.Refs) config.DingTalkReporter {
 			return tc.config
 		}
-		t.Run(tc.name, func(t *testing.T) {
-			reporter := &dingTalkReporter{
-				config: cfgGetter,
-			}
+		t.Run(
+			tc.name, func(t *testing.T) {
+				reporter := &dingTalkReporter{
+					config: cfgGetter,
+				}
 
-			if result := reporter.ShouldReport(context.Background(), logrus.NewEntry(logrus.StandardLogger()), tc.pj); result != tc.expected {
-				t.Errorf("expected result to be %t but was %t", tc.expected, result)
-			}
-		})
+				if result := reporter.ShouldReport(
+					context.Background(),
+					logrus.NewEntry(logrus.StandardLogger()),
+					tc.pj,
+				); result != tc.expected {
+					t.Errorf("expected result to be %t but was %t", tc.expected, result)
+				}
+			},
+		)
 	}
 }
 
@@ -313,14 +336,22 @@ func TestReloadsConfig(t *testing.T) {
 		config: cfgGetter,
 	}
 
-	if shouldReport := reporter.ShouldReport(context.Background(), logrus.NewEntry(logrus.StandardLogger()), pj); shouldReport {
+	if shouldReport := reporter.ShouldReport(
+		context.Background(),
+		logrus.NewEntry(logrus.StandardLogger()),
+		pj,
+	); shouldReport {
 		t.Error("Did expect shouldReport to be false")
 	}
 
 	cfg.JobStatesToReport = []v1.ProwJobState{v1.FailureState}
 	cfg.JobTypesToReport = []v1.ProwJobType{v1.PostsubmitJob}
 
-	if shouldReport := reporter.ShouldReport(context.Background(), logrus.NewEntry(logrus.StandardLogger()), pj); !shouldReport {
+	if shouldReport := reporter.ShouldReport(
+		context.Background(),
+		logrus.NewEntry(logrus.StandardLogger()),
+		pj,
+	); !shouldReport {
 		t.Error("Did expect shouldReport to be true after config change")
 	}
 }
@@ -379,7 +410,8 @@ func TestUsesTokenOverrideFromJob(t *testing.T) {
 						Org:  "istio",
 						Repo: "proxy",
 					},
-				}},
+				},
+			},
 			wantToken: "org-repo-config",
 		},
 		{
@@ -409,7 +441,8 @@ func TestUsesTokenOverrideFromJob(t *testing.T) {
 						Org:  "istio",
 						Repo: "proxy",
 					},
-				}},
+				},
+			},
 			wantToken: "org-config",
 		},
 		{
@@ -444,7 +477,8 @@ func TestUsesTokenOverrideFromJob(t *testing.T) {
 						Org:  "istio",
 						Repo: "proxy",
 					},
-				}},
+				},
+			},
 			wantToken: "org-repo-config",
 		},
 		{
@@ -511,7 +545,8 @@ func TestUsesTokenOverrideFromJob(t *testing.T) {
 						Org:  "unknownorg",
 						Repo: "unknownrepo",
 					},
-				}},
+				},
+			},
 			emptyExpected: true,
 		},
 		{
@@ -532,10 +567,12 @@ func TestUsesTokenOverrideFromJob(t *testing.T) {
 			},
 			pj: &v1.ProwJob{
 				Spec: v1.ProwJobSpec{
-					ExtraRefs: []v1.Refs{{
-						Org:  "istio",
-						Repo: "proxy",
-					}},
+					ExtraRefs: []v1.Refs{
+						{
+							Org:  "istio",
+							Repo: "proxy",
+						},
+					},
 				},
 			},
 			wantToken: "org-repo-config",
@@ -543,21 +580,23 @@ func TestUsesTokenOverrideFromJob(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			cfgGetter := func(refs *v1.Refs) config.DingTalkReporter {
-				return tc.config().DingTalkReporterConfigs.GetDingTalkReporter(refs)
-			}
-			sr := dingTalkReporter{
-				config: cfgGetter,
-			}
+		t.Run(
+			tc.name, func(t *testing.T) {
+				cfgGetter := func(refs *v1.Refs) config.DingTalkReporter {
+					return tc.config().DingTalkReporterConfigs.GetDingTalkReporter(refs)
+				}
+				sr := dingTalkReporter{
+					config: cfgGetter,
+				}
 
-			prowSlackCfg, jobDingTalkCfg := sr.getConfig(tc.pj)
-			jobDingTalkCfg = jobDingTalkCfg.ApplyDefault(&prowSlackCfg.DingTalkReporterConfig)
-			gotToken := jobDingTalkCfg.Token
-			if gotToken != tc.wantToken {
-				t.Fatalf("Expected token: %q, got: %q", tc.wantToken, gotToken)
-			}
-		})
+				prowSlackCfg, jobDingTalkCfg := sr.getConfig(tc.pj)
+				jobDingTalkCfg = jobDingTalkCfg.ApplyDefault(&prowSlackCfg.DingTalkReporterConfig)
+				gotToken := jobDingTalkCfg.Token
+				if gotToken != tc.wantToken {
+					t.Fatalf("Expected token: %q, got: %q", tc.wantToken, gotToken)
+				}
+			},
+		)
 	}
 }
 
@@ -646,6 +685,9 @@ func TestReportDefaultsToExtraRefs(t *testing.T) {
 		t.Fatalf("reporting failed: %v", err)
 	}
 	if fsc.messages["emercengy"] != wantMessage {
-		t.Errorf("expected the token 'emergency' to contain message 'there you go' but wasn't the case, all messages: %v", fsc.messages)
+		t.Errorf(
+			"expected the token 'emergency' to contain message 'there you go' but wasn't the case, all messages: %v",
+			fsc.messages,
+		)
 	}
 }
