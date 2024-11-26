@@ -29,20 +29,20 @@ import (
 func Test_newS3Client(t *testing.T) {
 	tests := []struct {
 		name  string
-		creds s3Credentials
-		want  s3Credentials
+		creds S3Credentials
+		want  S3Credentials
 	}{
 		{
 			name: "only accesskey and secretkey set",
-			creds: s3Credentials{
+			creds: S3Credentials{
 				AccessKey: "foo",
 				SecretKey: "bar",
 			},
-			want: s3Credentials{},
+			want: S3Credentials{},
 		},
 		{
 			name: "all options set ",
-			creds: s3Credentials{
+			creds: S3Credentials{
 				AccessKey:        "foo",
 				SecretKey:        "bar",
 				Endpoint:         "https://foobar.com",
@@ -50,7 +50,7 @@ func Test_newS3Client(t *testing.T) {
 				Insecure:         true,
 				S3ForcePathStyle: true,
 			},
-			want: s3Credentials{
+			want: S3Credentials{
 				Endpoint:         "https://foobar.com",
 				Region:           "eu01",
 				Insecure:         true,
@@ -94,7 +94,7 @@ func Test_newS3Client(t *testing.T) {
 			} else {
 				endpoint = *s3opts.BaseEndpoint
 			}
-			got := s3Credentials{
+			got := S3Credentials{
 				Region:           s3opts.Region,
 				Endpoint:         endpoint,
 				S3ForcePathStyle: s3opts.UsePathStyle,

@@ -34,9 +34,9 @@ import (
 const S3MinUploadPartSize = 5 * 1024 * 1024 // 5 MiB
 
 // getS3Bucket opens a gocloud blob.Bucket based on given credentials in the format the
-// struct s3Credentials defines (see documentation of GetBucket for an example)
+// struct S3Credentials defines (see documentation of GetBucket for an example)
 func getS3Bucket(ctx context.Context, creds []byte, bucketName string) (*blob.Bucket, error) {
-	s3Creds := &s3Credentials{}
+	s3Creds := &S3Credentials{}
 	if err := json.Unmarshal(creds, s3Creds); err != nil {
 		return nil, fmt.Errorf("error getting S3 credentials from JSON: %w", err)
 	}
@@ -51,7 +51,7 @@ func getS3Bucket(ctx context.Context, creds []byte, bucketName string) (*blob.Bu
 	return bkt, nil
 }
 
-func newS3Client(ctx context.Context, creds *s3Credentials) (*s3.Client, error) {
+func newS3Client(ctx context.Context, creds *S3Credentials) (*s3.Client, error) {
 	var opts []func(*config.LoadOptions) error
 
 	// Use the default credential chain if no credentials are specified
