@@ -98,6 +98,7 @@ type S3Credentials struct {
 	S3ForcePathStyle bool   `json:"s3_force_path_style"`
 	AccessKey        string `json:"access_key"`
 	SecretKey        string `json:"secret_key"`
+	SessionToken     string `json:"session_token"`
 }
 
 // HasStorageProviderPrefix returns true if the given string starts with
