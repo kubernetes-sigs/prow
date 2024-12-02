@@ -219,6 +219,7 @@ function main() {
   done
 
   if ((setup_kind_cluster)); then
+    source "${REPO_ROOT}"/hack/tools/ensure-kind.sh
     "${SCRIPT_ROOT}"/setup-kind-cluster.sh \
       -fakepubsub-node-port="${fakepubsub_node_port}"
   fi
