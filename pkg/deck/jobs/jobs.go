@@ -73,7 +73,7 @@ type Job struct {
 }
 
 type serviceClusterClient interface {
-	ListProwJobs(selector string) ([]prowapi.ProwJob, error)
+	ListProwJobs(selector string, hiddenRepos func() sets.Set[string]) ([]prowapi.ProwJob, error)
 }
 
 // PodLogClient is an interface for interacting with the pod logs.
@@ -90,27 +90,27 @@ type PJListingClient interface {
 func NewJobAgent(ctx context.Context, pjLister PJListingClient, hiddenOnly, showHidden bool, tenantIDs []string, plClients map[string]PodLogClient, cfg config.Getter) *JobAgent {
 	return &JobAgent{
 		kc: &filteringProwJobLister{
-			ctx:         ctx,
-			client:      pjLister,
-			hiddenRepos: func() sets.Set[string] { return sets.New[string](cfg().Deck.HiddenRepos...) },
-			hiddenOnly:  hiddenOnly,
-			showHidden:  showHidden,
-			tenantIDs:   tenantIDs,
-			cfg:         cfg,
+			ctx:        ctx,
+			client:     pjLister,
+			hiddenOnly: hiddenOnly,
+			showHidden: showHidden,
+			tenantIDs:  tenantIDs,
+			cfg:        cfg,
 		},
-		pkcs:   plClients,
-		config: cfg,
+		pkcs:          plClients,
+		config:        cfg,
+		includeHidden: hiddenOnly || showHidden,
+		hiddenRepos:   func() sets.Set[string] { return sets.New[string](cfg().Deck.HiddenRepos...) },
 	}
 }
 
 type filteringProwJobLister struct {
-	ctx         context.Context
-	client      PJListingClient
-	cfg         config.Getter
-	hiddenRepos func() sets.Set[string]
-	hiddenOnly  bool
-	showHidden  bool
-	tenantIDs   []string
+	ctx        context.Context
+	client     PJListingClient
+	cfg        config.Getter
+	hiddenOnly bool
+	showHidden bool
+	tenantIDs  []string
 }
 
 func (c *filteringProwJobLister) TenantIDMatch(pj prowapi.ProwJob) bool {
@@ -129,7 +129,7 @@ func tenantIDMissingOrDefault(pj prowapi.ProwJob) bool {
 	return pj.Spec.ProwJobDefault == nil || pj.Spec.ProwJobDefault.TenantID == "" || pj.Spec.ProwJobDefault.TenantID == config.DefaultTenantID
 }
 
-func (c *filteringProwJobLister) ListProwJobs(selector string) ([]prowapi.ProwJob, error) {
+func (c *filteringProwJobLister) ListProwJobs(selector string, hiddenRepos func() sets.Set[string]) ([]prowapi.ProwJob, error) {
 	prowJobList := &prowapi.ProwJobList{}
 	parsedSelector, err := labels.Parse(selector)
 	if err != nil {
@@ -149,7 +149,7 @@ func (c *filteringProwJobLister) ListProwJobs(selector string) ([]prowapi.ProwJo
 			}
 		} else if len(c.tenantIDs) == 0 {
 			// Deck has no tenantID
-			shouldHide := item.Spec.Hidden || c.pjHasHiddenRefs(item)
+			shouldHide := item.Spec.Hidden || pjHasHiddenRefs(hiddenRepos, item)
 			if shouldHide && (c.showHidden || c.hiddenOnly) {
 				// If Hidden and we are showing Hidden we add it
 				filtered = append(filtered, item)
@@ -163,30 +163,18 @@ func (c *filteringProwJobLister) ListProwJobs(selector string) ([]prowapi.ProwJo
 	return filtered, nil
 }
 
-func (c *filteringProwJobLister) pjHasHiddenRefs(pj prowapi.ProwJob) bool {
-	allRefs := pj.Spec.ExtraRefs
-	if pj.Spec.Refs != nil {
-		allRefs = append(allRefs, *pj.Spec.Refs)
-	}
-	for _, refs := range allRefs {
-		if c.hiddenRepos().HasAny(fmt.Sprintf("%s/%s", refs.Org, refs.Repo), refs.Org) {
-			return true
-		}
-	}
-
-	return false
-}
-
 // JobAgent creates lists of jobs, updates their status and returns their run logs.
 type JobAgent struct {
-	kc        serviceClusterClient
-	pkcs      map[string]PodLogClient
-	config    config.Getter
-	prowJobs  []prowapi.ProwJob
-	jobs      []Job
-	jobsMap   map[string]Job                        // pod name -> Job
-	jobsIDMap map[string]map[string]prowapi.ProwJob // job name -> id -> ProwJob
-	mut       sync.Mutex
+	kc            serviceClusterClient
+	pkcs          map[string]PodLogClient
+	config        config.Getter
+	hiddenRepos   func() sets.Set[string]
+	includeHidden bool
+	prowJobs      []prowapi.ProwJob
+	jobs          []Job
+	jobsMap       map[string]Job                        // pod name -> Job
+	jobsIDMap     map[string]map[string]prowapi.ProwJob // job name -> id -> ProwJob
+	mut           sync.Mutex
 }
 
 // Start will start the job and periodically update it.
@@ -242,6 +230,9 @@ func (ja *JobAgent) GetJobLog(job, id string, container string) ([]byte, error) 
 	if err != nil {
 		return nil, fmt.Errorf("error getting prowjob: %w", err)
 	}
+	if (j.Spec.Hidden || pjHasHiddenRefs(ja.hiddenRepos, j)) && !ja.includeHidden {
+		return nil, fmt.Errorf("prowjob: %q hidden and deck is not configed to show hidden jobs", id)
+	}
 	if j.Spec.Agent == prowapi.KubernetesAgent {
 		client, ok := ja.pkcs[j.ClusterAlias()]
 		if !ok {
@@ -271,6 +262,20 @@ func (ja *JobAgent) GetJobLog(job, id string, container string) ([]byte, error) 
 	return nil, fmt.Errorf("cannot get logs for prowjob %q with agent %q: the agent is missing from the prow config file", j.ObjectMeta.Name, j.Spec.Agent)
 }
 
+func pjHasHiddenRefs(hiddenRepos func() sets.Set[string], pj prowapi.ProwJob) bool {
+	allRefs := pj.Spec.ExtraRefs
+	if pj.Spec.Refs != nil {
+		allRefs = append(allRefs, *pj.Spec.Refs)
+	}
+	for _, refs := range allRefs {
+		if hiddenRepos().HasAny(fmt.Sprintf("%s/%s", refs.Org, refs.Repo), refs.Org) {
+			return true
+		}
+	}
+
+	return false
+}
+
 func (ja *JobAgent) tryUpdate() {
 	if err := ja.update(); err != nil {
 		logrus.WithError(err).Warning("Error updating job list.")
@@ -291,7 +296,7 @@ func (a byPJStartTime) Less(i, j int) bool {
 }
 
 func (ja *JobAgent) update() error {
-	pjs, err := ja.kc.ListProwJobs(labels.Everything().String())
+	pjs, err := ja.kc.ListProwJobs(labels.Everything().String(), ja.hiddenRepos)
 	if err != nil {
 		return err
 	}

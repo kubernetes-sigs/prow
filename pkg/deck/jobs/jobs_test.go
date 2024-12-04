@@ -44,7 +44,7 @@ func createTime(layout string, timeString string) metav1.Time {
 
 type fkc []prowapi.ProwJob
 
-func (f fkc) ListProwJobs(s string) ([]prowapi.ProwJob, error) {
+func (f fkc) ListProwJobs(s string, hiddenRepos func() sets.Set[string]) ([]prowapi.ProwJob, error) {
 	return f, nil
 }
 
@@ -57,7 +57,7 @@ func (f fpkc) GetLogs(name, container string) ([]byte, error) {
 	return nil, fmt.Errorf("pod not found: %s", name)
 }
 
-func TestGetLog(t *testing.T) {
+func TestGetJobLog(t *testing.T) {
 	kc := fkc{
 		prowapi.ProwJob{
 			Spec: prowapi.ProwJobSpec{
@@ -77,6 +77,18 @@ func TestGetLog(t *testing.T) {
 			},
 			Status: prowapi.ProwJobStatus{
 				PodName: "powowow",
+				BuildID: "123",
+			},
+		},
+		prowapi.ProwJob{
+			Spec: prowapi.ProwJobSpec{
+				Agent:   prowapi.KubernetesAgent,
+				Job:     "hidden",
+				Cluster: "trusted",
+				Hidden:  true,
+			},
+			Status: prowapi.ProwJobStatus{
+				PodName: "wowowow",
 				BuildID: "123",
 			},
 		},
@@ -105,6 +117,17 @@ func TestGetLog(t *testing.T) {
 		t.Fatalf("Failed to get log: %v", err)
 	} else if got, expect := string(res), fmt.Sprintf("clusterB.%s", customContainerName); got != expect {
 		t.Errorf("Unexpected result getting logs for job 'job'. Expected %q, but got %q.", expect, got)
+	}
+
+	ja.includeHidden = true
+	if res, err := ja.GetJobLog("hidden", "123", kube.TestContainerName); err != nil {
+		t.Fatalf("Failed to get log: %v", err)
+	} else if got, expect := string(res), fmt.Sprintf("clusterB.%s", kube.TestContainerName); got != expect {
+		t.Errorf("Unexpected result getting logs for job 'job'. Expected %q, but got %q.", expect, got)
+	}
+	ja.includeHidden = false
+	if _, err := ja.GetJobLog("hidden", "123", kube.TestContainerName); err == nil {
+		t.Fatalf("expected error getting hidden job")
 	}
 }
 
@@ -725,17 +748,17 @@ func TestListProwJobs(t *testing.T) {
 			shouldError: testCase.listErr,
 		}
 		lister := filteringProwJobLister{
-			client: fakeProwJobClient,
-			hiddenRepos: func() sets.Set[string] {
-				return testCase.hiddenRepos
-			},
+			client:     fakeProwJobClient,
 			hiddenOnly: testCase.hiddenOnly,
 			showHidden: testCase.showHidden,
 			tenantIDs:  testCase.tenantIDs,
 			cfg:        func() *config.Config { return &config.Config{} },
 		}
 
-		filtered, err := lister.ListProwJobs(testCase.selector)
+		hiddenRepos := func() sets.Set[string] {
+			return testCase.hiddenRepos
+		}
+		filtered, err := lister.ListProwJobs(testCase.selector, hiddenRepos)
 		if err == nil && testCase.expectedErr {
 			t.Errorf("%s: expected an error but got none", testCase.name)
 		}
