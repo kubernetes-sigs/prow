@@ -59,7 +59,7 @@ func newS3Client(ctx context.Context, creds *S3Credentials) (*s3.Client, error) 
 		opts = append(opts, config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(
 			creds.AccessKey,
 			creds.SecretKey,
-			"",
+			creds.SessionToken,
 		)))
 	}
 	opts = append(opts,
