@@ -61,6 +61,7 @@ func handleGenericComment(c Client, trigger plugins.Trigger, gc github.GenericCo
 		!pjutil.RetestRequiredRe.MatchString(gc.Body) &&
 		!pjutil.OkToTestRe.MatchString(gc.Body) &&
 		!pjutil.TestAllRe.MatchString(gc.Body) &&
+		!pjutil.TestByLabelsRe.MatchString(gc.Body) &&
 		!pjutil.MayNeedHelpComment(gc.Body) {
 		matched := false
 		for _, presubmit := range presubmits {
@@ -191,6 +192,8 @@ type GitHubClient interface {
 //   - if we got a /test all or an /ok-to-test, we want to consider any job
 //     that doesn't explicitly require a human trigger comment; jobs will
 //     default to not run unless we can determine that they should
+//   - if we got a /test-by-label selector, it work the same as "/test all", but
+//     restricted to those jobs matching the given label selector
 //
 // If a comment that we get matches more than one of the above patterns, we
 // consider the set of matching presubmits the union of the results from the
