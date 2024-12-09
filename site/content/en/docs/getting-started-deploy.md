@@ -276,14 +276,21 @@ By default, Prow doesn't support Azure blob storage for storing job metadata, lo
 However, with [MinIO](https://github.com/minio/minio) it is possible to keep artifacts in
 Azure blob storage as one would in GCS or S3. MinIO Gateway adds Amazon S3 compatibility
 to Azure Blob Storage. As such, we can mimic S3 storage for Prow, while actually pushing
-artifacts to the Azure storage. To run MinIO in gateway mode with Azure being the backend
+artifacts to the Azure storage. 
+
+> MinIO gateway was [deprecated](https://blog.min.io/deprecation-of-the-minio-gateway/) in February 2022 and was removed after the **RELEASE.2022-04-29T01-27-09Z** release.
+> MinIO gateway for Azure was still functinal as of December 2024 using this release but may stop working in the future.
+
+To run MinIO in gateway mode with Azure being the backend
 storage, we need to pass the following arguments to MinIO deployment:
 
 ```yaml
-  args:
-  - gateway # mode of MinIO
-  - azure # storage provider
-  - --console-address=:"<<CHANGE_ME_MINIO_CONSOLE_PORT>>" # predictable port number of the web console. E.g. 33333
+  - name: minio
+    image: minio/minio:RELEASE.2022-04-29T01-27-09Z
+    args:
+    - gateway # mode of MinIO
+    - azure # storage provider
+    - --console-address=:"<<CHANGE_ME_MINIO_CONSOLE_PORT>>" # predictable port number of the web console. E.g. 33333
 ```
 
 In order to configure the Azure storage, follow the following steps:
