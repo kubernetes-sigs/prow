@@ -60,6 +60,11 @@ cmd/external-plugins/cherrypicker/cherrypicker
 cmd/external-plugins/needs-rebase/needs-rebase
 cmd/external-plugins/refresh/refresh
 cmd/ghproxy/ghproxy
+pj.yaml
+pod.yaml
+*.min.js
+vendor/
+
 
 # Generated files by hugo
 site/public/
