@@ -51,6 +51,10 @@ const (
 
 	// DefaultGraphQLEndpoint is the default GitHub GraphQL API endpoint.
 	DefaultGraphQLEndpoint = "https://api.github.com/graphql"
+
+	// ChangesFilesLimit is the limit to the files changed pushed by the github rest API.
+	// See https://docs.github.com/en/rest/pulls/pulls?apiVersion=2022-11-28#list-pull-requests-files.
+	ChangesFilesLimit = 3000
 )
 
 var (
