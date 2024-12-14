@@ -136,6 +136,7 @@ func rolloutDeployment(t *testing.T, ctx context.Context, client ctrlruntimeclie
 	}
 
 	timeout := 30 * time.Second
+	var lastErr string
 	if err := wait.PollUntilContextTimeout(ctx, time.Second, timeout, false, func(ctx context.Context) (bool, error) {
 		var current appsv1.Deployment
 		if err := client.Get(ctx, ctrlruntimeclient.ObjectKeyFromObject(&depl), &current); err != nil {
@@ -148,13 +149,26 @@ func rolloutDeployment(t *testing.T, ctx context.Context, client ctrlruntimeclie
 			return false, errors.New("Deployment has no replicas defined")
 		}
 
-		ready := true &&
-			current.Status.AvailableReplicas == *replicas &&
-			current.Status.ReadyReplicas == *replicas &&
-			current.Status.UpdatedReplicas == *replicas &&
-			current.Status.UnavailableReplicas == 0
+		var errMsg string
+		if remaining := *replicas - current.Status.UpdatedReplicas; remaining != 0 {
+			errMsg = fmt.Sprintf("not all replicas updated (%d remaining)", remaining)
+		} else if remaining := *replicas - current.Status.AvailableReplicas; remaining != 0 {
+			errMsg = fmt.Sprintf("not all replicas available (%d remaining)", remaining)
+		} else if remaining := *replicas - current.Status.ReadyReplicas; remaining != 0 {
+			errMsg = fmt.Sprintf("not all replicas ready (%d remaining)", remaining)
+		} else if current.Status.UnavailableReplicas != 0 {
+			errMsg = fmt.Sprintf("%d unavailable replicas remaining", current.Status.UnavailableReplicas)
+		}
 
-		return ready, nil
+		if errMsg != "" {
+			if errMsg != lastErr {
+				t.Logf("Still waiting: %s.", errMsg)
+			}
+		}
+
+		lastErr = errMsg
+
+		return errMsg == "", nil
 	}); err != nil {
 		return fmt.Errorf("Deployment did not fully roll out after %v: %w", timeout, err)
 	}
