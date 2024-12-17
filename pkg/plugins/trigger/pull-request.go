@@ -354,8 +354,8 @@ func buildAllButDrafts(c Client, pr *github.PullRequest, eventGUID string, baseS
 
 // buildAll ensures that all builds that should run and will be required are built
 func buildAll(c Client, pr *github.PullRequest, eventGUID string, baseSHA string, presubmits []config.Presubmit) error {
-	org, repo, number, branch := pr.Base.Repo.Owner.Login, pr.Base.Repo.Name, pr.Number, pr.Base.Ref
-	changes := config.NewGitHubDeferredChangedFilesProvider(c.GitHubClient, org, repo, number)
+	org, repo, number, branch, headSHA := pr.Base.Repo.Owner.Login, pr.Base.Repo.Name, pr.Number, pr.Base.Ref, pr.Head.SHA
+	changes := config.NewGitHubDeferredChangedFilesProvider(c.GitClient, c.GitHubClient, org, repo, number, baseSHA, headSHA)
 	toTest, err := pjutil.FilterPresubmits(pjutil.NewTestAllFilter(), changes, branch, presubmits, c.Logger)
 	if err != nil {
 		return err
