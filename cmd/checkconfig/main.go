@@ -1526,7 +1526,7 @@ func validateRequiredJobAnnotations(a []string, c config.JobConfig) error {
 		var errs []error
 		for _, annotation := range annotations {
 			if _, ok := job.Annotations[annotation]; !ok {
-				errs = append(errs, fmt.Errorf(annotation))
+				errs = append(errs, fmt.Errorf("%s", annotation))
 			}
 		}
 		return utilerrors.NewAggregate(errs)

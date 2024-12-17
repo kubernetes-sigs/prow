@@ -91,7 +91,7 @@ func getClient(pc plugins.Agent) client {
 }
 
 func handleIssueComment(pc plugins.Agent, ic github.IssueCommentEvent) error {
-	if (pc.PluginConfig.Heart.Adorees == nil || len(pc.PluginConfig.Heart.Adorees) == 0) || len(pc.PluginConfig.Heart.CommentRegexp) == 0 {
+	if (len(pc.PluginConfig.Heart.Adorees) == 0) || len(pc.PluginConfig.Heart.CommentRegexp) == 0 {
 		return nil
 	}
 	return handleIC(getClient(pc), pc.PluginConfig.Heart.Adorees, pc.PluginConfig.Heart.CommentRe, ic)
