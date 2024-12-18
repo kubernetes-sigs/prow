@@ -618,6 +618,7 @@ func TestHandlePullRequest(t *testing.T) {
 		draft             bool
 		ignoreDrafts      bool
 		ignoreAuthors     []string
+		waitForStatus     *plugins.ContextMatch
 	}{
 		{
 			name:              "PR opened",
@@ -633,6 +634,15 @@ func TestHandlePullRequest(t *testing.T) {
 			body:          "/cc",
 			filesChanged:  []string{"a.go"},
 			reviewerCount: 1,
+		},
+		{
+			name:              "PR opened but config has WaitForStatus set",
+			action:            github.PullRequestActionOpened,
+			body:              "/auto-cc",
+			filesChanged:      []string{"a.go"},
+			reviewerCount:     1,
+			expectedRequested: []string{"al"},
+			waitForStatus:     &plugins.ContextMatch{},
 		},
 		{
 			name:          "PR closed",
@@ -682,6 +692,7 @@ func TestHandlePullRequest(t *testing.T) {
 				ExcludeApprovers: false,
 				IgnoreDrafts:     tc.ignoreDrafts,
 				IgnoreAuthors:    tc.ignoreAuthors,
+				WaitForStatus:    tc.waitForStatus,
 			}
 
 			if err := handlePullRequest(
