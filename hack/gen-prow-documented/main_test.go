@@ -61,7 +61,7 @@ skip_report: true
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			tmpDir := t.TempDir()
-			in, out := tc.name+".in", tc.name+".out"
+			in, out := tc.name+".go", tc.name+".yaml"
 			if err := os.WriteFile(path.Join(tmpDir, in), tc.rawContents, 0644); err != nil {
 				t.Fatalf("Failed creating input: %v", err)
 			}
@@ -73,7 +73,9 @@ skip_report: true
 				out:    out,
 			}
 
-			if err := g.gen(tmpDir); err != nil {
+			if err := g.gen(tmpDir, func(dir string) (string, error) {
+				return "fake", nil
+			}); err != nil {
 				t.Fatalf("Got unexpected error: %v", err)
 			}
 
@@ -83,6 +85,44 @@ skip_report: true
 			}
 			if diff := cmp.Diff(string(tc.expectedRawYaml), string(got)); diff != "" {
 				t.Fatalf("Mismatch:\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestImportPathResolver(t *testing.T) {
+	for _, testCase := range []struct {
+		name           string
+		root           string
+		dir            string
+		wantImportPath string
+	}{
+		{
+			name:           "Resolve successfully",
+			root:           "/usr/src/prow",
+			dir:            "/usr/src/prow/cmd/deck",
+			wantImportPath: "sigs.k8s.io/prow/cmd/deck",
+		},
+		{
+			name:           "Root with leading slash",
+			root:           "/usr/src/prow/",
+			dir:            "/usr/src/prow/cmd/deck",
+			wantImportPath: "sigs.k8s.io/prow/cmd/deck",
+		},
+	} {
+		t.Run(testCase.name, func(tt *testing.T) {
+			resolver, err := importPathResolverFunc(testCase.root)
+			if err != nil {
+				tt.Fatalf("Failed to create resolver func: %s", err)
+			}
+
+			importPath, err := resolver(testCase.dir)
+			if err != nil {
+				tt.Fatalf("Failed to resolve %s: %s", testCase.dir, err)
+			}
+
+			if testCase.wantImportPath != importPath {
+				tt.Fatalf("Expected %s but got %s", testCase.wantImportPath, importPath)
 			}
 		})
 	}
