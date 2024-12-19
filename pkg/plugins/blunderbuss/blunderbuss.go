@@ -46,6 +46,7 @@ var (
 func init() {
 	plugins.RegisterPullRequestHandler(PluginName, handlePullRequestEvent, helpProvider)
 	plugins.RegisterGenericCommentHandler(PluginName, handleGenericCommentEvent, helpProvider)
+	plugins.RegisterStatusEventHandler(PluginName, handleStatusEvent, helpProvider)
 }
 
 func configString(reviewCount int) string {
@@ -123,6 +124,7 @@ func (foc fallbackReviewersClient) LeafReviewers(path string) sets.Set[string] {
 
 type githubClient interface {
 	RequestReview(org, repo string, number int, logins []string) error
+	FindIssues(query, sort string, asc bool) ([]github.Issue, error)
 	GetPullRequestChanges(org, repo string, number int) ([]github.PullRequestChange, error)
 	GetPullRequest(org, repo string, number int) (*github.PullRequest, error)
 	Query(context.Context, interface{}, map[string]interface{}) error
@@ -145,7 +147,11 @@ func handlePullRequestEvent(pc plugins.Agent, pre github.PullRequestEvent) error
 }
 
 func handlePullRequest(ghc githubClient, roc repoownersClient, log *logrus.Entry, config plugins.Blunderbuss, action github.PullRequestEventAction, pr *github.PullRequest, repo *github.Repo) error {
-	if !(action == github.PullRequestActionOpened || action == github.PullRequestActionReadyForReview) || assign.CCRegexp.MatchString(pr.Body) {
+	// Ignore pull request event if:
+	// - not an opened or ready for review event
+	// - if they have a /cc command in the description (will be handled elsewhere)
+	// - if we are configured to wait for a specific commit status
+	if !(action == github.PullRequestActionOpened || action == github.PullRequestActionReadyForReview) || assign.CCRegexp.MatchString(pr.Body) || config.WaitForStatus != nil {
 		return nil
 	}
 	if pr.Draft && config.IgnoreDrafts {
@@ -211,6 +217,88 @@ func handleGenericComment(ghc githubClient, roc repoownersClient, log *logrus.En
 		repo,
 		pr,
 	)
+}
+
+func handleStatusEvent(pc plugins.Agent, se github.StatusEvent) error {
+	if se.State == "" || se.Context == "" || se.Description == "" {
+		return fmt.Errorf("invalid status event delivered with empty state/context/description")
+	}
+
+	return handleStatus(
+		pc.GitHubClient,
+		pc.OwnersClient,
+		pc.Logger,
+		pc.PluginConfig.Blunderbuss,
+		se.SHA,
+		se.Context,
+		se.State,
+		se.Description,
+		&se.Repo,
+	)
+
+}
+
+func handleStatus(ghc githubClient, roc repoownersClient, log *logrus.Entry, config plugins.Blunderbuss, sha string, context string, state string, description string, repo *github.Repo) error {
+	wfs := config.WaitForStatus
+	if wfs == nil {
+		return nil
+	}
+
+	if context != wfs.Context {
+		// Not the CNCF CLA context, do not process this.
+		return nil
+	}
+
+	if state != wfs.State {
+		// do nothing and wait for state to be updated.
+		return nil
+	}
+
+	if !wfs.DescriptionRe.MatchString(description) {
+		return nil
+	}
+
+	org := repo.Owner.Login
+	log.Info("Searching for PRs matching the commit.")
+
+	issues, err := ghc.FindIssues(fmt.Sprintf("%s repo:%s/%s type:pr state:open", sha, org, repo.Name), "", false)
+	if err != nil {
+		return fmt.Errorf("error searching for issues matching commit: %w", err)
+	}
+	log.Infof("Found %d PRs matching commit.", len(issues))
+
+	for _, issue := range issues {
+		l := log.WithField("pr", issue.Number)
+
+		l.Info("Getting pull request info.")
+		pr, err := ghc.GetPullRequest(org, repo.Name, issue.Number)
+		if err != nil {
+			l.WithError(err).Warning("Unable to fetch pull request.")
+			continue
+		}
+
+		// Check if this is the latest commit in the PR.
+		if pr.Head.SHA != sha {
+			l.Info("Event is not for PR HEAD, skipping.")
+			continue
+		}
+
+		err = handle(
+			ghc,
+			roc,
+			l,
+			config.ReviewerCount,
+			config.MaxReviewerCount,
+			config.ExcludeApprovers,
+			config.UseStatusAvailability,
+			repo,
+			pr)
+
+		if err != nil {
+			l.WithError(err).Warning("Error processing event from commit status update")
+		}
+	}
+	return err
 }
 
 func handle(ghc githubClient, roc repoownersClient, log *logrus.Entry, reviewerCount *int, maxReviewers int, excludeApprovers bool, useStatusAvailability bool, repo *github.Repo, pr *github.PullRequest) error {
