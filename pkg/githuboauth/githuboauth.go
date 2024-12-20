@@ -274,7 +274,7 @@ func (ga *Agent) HandleRedirect(client OAuthClient, identifier AuthenticatedUser
 				} else {
 					ga.logger.WithFields(fields).Error("GitHub passed errors in callback, token is not present")
 				}
-				ga.serverError(w, "OAuth authentication with GitHub", fmt.Errorf(gherror))
+				ga.serverError(w, "OAuth authentication with GitHub", fmt.Errorf("%s", gherror))
 			} else {
 				ga.serverErrorAndPrint(w, "Exchange code for token", err)
 			}

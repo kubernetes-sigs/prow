@@ -73,7 +73,7 @@ func (trmt TideRepoMergeType) MarshalJSON() ([]byte, error) {
 	if trmt.MergeType != "" {
 		return json.Marshal(trmt.MergeType)
 	}
-	if trmt.Branches == nil || len(trmt.Branches) == 0 {
+	if len(trmt.Branches) == 0 {
 		return json.Marshal("")
 	}
 	return json.Marshal(trmt.Branches)
@@ -122,7 +122,7 @@ func (tomt TideOrgMergeType) MarshalJSON() ([]byte, error) {
 	if tomt.MergeType != "" {
 		return json.Marshal(tomt.MergeType)
 	}
-	if tomt.Repos == nil || len(tomt.Repos) == 0 {
+	if len(tomt.Repos) == 0 {
 		return json.Marshal("")
 	}
 	return json.Marshal(tomt.Repos)

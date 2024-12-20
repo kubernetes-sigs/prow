@@ -403,7 +403,7 @@ func testLintCodeSuggestion(clients localgit.Clients, t *testing.T) {
 				t.Fatalf("Expected one comments, got %d: %v.", len(gh.comment.Comments), gh.comment.Comments)
 			}
 			if test.comment != gh.comment.Comments[0].Body {
-				t.Fatalf("Expected\n" + test.comment + "\n but got\n" + gh.comment.Comments[0].Body)
+				t.Fatalf("Expected\n%s\n but got\n%s", test.comment, gh.comment.Comments[0].Body)
 			}
 		}
 	}
