@@ -1,6 +1,6 @@
 module sigs.k8s.io/prow/hack/tools
 
-go 1.22.3
+go 1.23
 
 // Please DO NOT add any "replace" directives to go.mod files in this repo.
 // See the following for an explanation of why this is problematic for published
