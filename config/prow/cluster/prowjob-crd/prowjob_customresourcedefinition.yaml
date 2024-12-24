@@ -1584,6 +1584,12 @@ spec:
                   If this field is unspecified or false, a new pod will be created to replace
                   the evicted one.
                 type: boolean
+              error_on_termination:
+                description: ErrorOnTermination indicates that the ProwJob should
+                  be completed and given the ErrorState status if the pod that is
+                  executing the job is terminated. If this field is unspecified or
+                  false, a new pod will be created to replace the terminated one.
+                type: boolean
               extra_refs:
                 description: |-
                   ExtraRefs are auxiliary repositories that
@@ -9788,6 +9794,9 @@ spec:
                   PrevReportStates stores the previous reported prowjob state per reporter
                   So crier won't make duplicated report attempt
                 type: object
+              retryCount:
+                description: Amount of times the Pod was retried.
+                type: integer
               startTime:
                 description: StartTime is equal to the creation time of the ProwJob
                 format: date-time
