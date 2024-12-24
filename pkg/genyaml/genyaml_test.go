@@ -64,6 +64,10 @@ func readFile(t *testing.T, extension string) []byte {
 	return data
 }
 
+func fakeImportPathResolver(string) (string, error) {
+	return "foo.bar/baz/qux", nil
+}
+
 func TestFmtRawDoc(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -193,7 +197,7 @@ func TestInjectComment(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			cm, err := NewCommentMap(nil)
+			cm, err := NewCommentMap(fakeImportPathResolver, nil)
 			if err != nil {
 				t.Fatalf("Failed to construct comment map: %v", err)
 			}
@@ -245,7 +249,7 @@ func TestAddPath(t *testing.T) {
 			for _, file := range test.paths {
 				resolved = append(resolved, resolvePath(t, file))
 			}
-			cm, err := NewCommentMap(nil, resolved...)
+			cm, err := NewCommentMap(fakeImportPathResolver, nil, resolved...)
 			if err != nil {
 				t.Fatalf("failed to construct comment map: %v", err)
 			}
@@ -287,7 +291,7 @@ func TestGenYAML(t *testing.T) {
 		{
 			name: "also-read-raw",
 			rawContents: map[string][]byte{
-				"alias_types.yaml": []byte(`package alias_types
+				"alias_types.go": []byte(`package alias_types
 type Alias = AliasedType
 type AliasedType struct {
   // StringField comment
@@ -451,7 +455,7 @@ string: string
 			for _, path := range test.paths {
 				paths = append(paths, resolvePath(t, path))
 			}
-			cm, err := NewCommentMap(test.rawContents, paths...)
+			cm, err := NewCommentMap(fakeImportPathResolver, test.rawContents, paths...)
 			if err != nil {
 				t.Fatalf("failed to construct comment map: %v", err)
 			}

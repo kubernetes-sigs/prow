@@ -490,7 +490,7 @@ func (c *Client) GetJobInfo(spec *prowapi.ProwJobSpec) (*JobInfo, error) {
 // JobParameterized tells us if the Jenkins job for this ProwJob is parameterized
 func (c *Client) JobParameterized(jobInfo *JobInfo) bool {
 	for _, prop := range jobInfo.Property {
-		if prop.ParameterDefinitions != nil && len(prop.ParameterDefinitions) > 0 {
+		if len(prop.ParameterDefinitions) > 0 {
 			return true
 		}
 	}

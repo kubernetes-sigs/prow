@@ -23,7 +23,9 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
@@ -64,7 +66,7 @@ var (
 	statusEventHandlers        = map[string]StatusEventHandler{}
 	// CommentMap is used by many plugins for printing help messages defined in
 	// config.go.
-	CommentMap, _ = genyaml.NewCommentMap(nil)
+	CommentMap, _ = genyaml.NewCommentMap(func(dir string) (string, error) { return "", nil }, nil)
 
 	//go:embed config.go
 	embeddedConfigGoFileContent []byte
@@ -79,7 +81,17 @@ func init() {
 		return
 	}
 
-	if cm, err := genyaml.NewCommentMap(map[string][]byte{"prow/plugins/config.go": embeddedConfigGoFileContent}); err == nil {
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		panic("module support needed")
+	}
+
+	resolver := func(dir string) (string, error) {
+		noPrefix := strings.TrimPrefix("prow", dir)
+		return path.Join(info.Main.Path, noPrefix), nil
+	}
+
+	if cm, err := genyaml.NewCommentMap(resolver, map[string][]byte{"prow/plugins/config.go": embeddedConfigGoFileContent}); err == nil {
 		CommentMap = cm
 	} else {
 		logrus.WithError(err).Error("Failed to initialize commentMap")

@@ -86,6 +86,11 @@ const (
 	jsonTag = "json"
 )
 
+// ImportPathResolver resolves an import path out of physical directory path. Example:
+//
+//	/usr/src/prow/pkg/genyaml -> sigs.k8s.io/prow/pkg/genyaml
+type ImportPathResolver func(dir string) (string, error)
+
 // Comment is an abstract structure for storing mapped types to comments.
 type CommentMap struct {
 	// comments is a map of string(typeSpecName) -> string(tagName) -> Comment.
@@ -96,7 +101,7 @@ type CommentMap struct {
 
 // NewCommentMap is the constructor for CommentMap accepting a variadic number
 // of path and raw files contents.
-func NewCommentMap(rawFiles map[string][]byte, paths ...string) (*CommentMap, error) {
+func NewCommentMap(resolver ImportPathResolver, rawFiles map[string][]byte, paths ...string) (*CommentMap, error) {
 	cm := &CommentMap{
 		comments: make(map[string]map[string]Comment),
 	}
@@ -107,13 +112,18 @@ func NewCommentMap(rawFiles map[string][]byte, paths ...string) (*CommentMap, er
 	type group struct {
 		paths       []string
 		rawContents map[string][]byte
+		importPath  string
 	}
 
 	packageFiles := map[string]*group{}
 	for _, path := range paths {
 		dir := filepath.Dir(path)
 		if _, ok := packageFiles[dir]; !ok {
-			packageFiles[dir] = &group{}
+			importPath, err := resolver(dir)
+			if err != nil {
+				return nil, fmt.Errorf("failed to resolve import path from %s: %w", dir, err)
+			}
+			packageFiles[dir] = &group{importPath: importPath}
 		}
 		packageFiles[dir].paths = append(packageFiles[dir].paths, path)
 	}
@@ -121,13 +131,17 @@ func NewCommentMap(rawFiles map[string][]byte, paths ...string) (*CommentMap, er
 	for path, content := range rawFiles {
 		dir := filepath.Dir(path)
 		if _, ok := packageFiles[dir]; !ok {
-			packageFiles[dir] = &group{}
+			importPath, err := resolver(dir)
+			if err != nil {
+				return nil, fmt.Errorf("failed to resolve import path from %s: %w", dir, err)
+			}
+			packageFiles[dir] = &group{importPath: importPath}
 		}
 		packageFiles[dir].rawContents = map[string][]byte{path: content}
 	}
 
 	for pkg, files := range packageFiles {
-		if err := cm.addPackage(files.paths, files.rawContents); err != nil {
+		if err := cm.addPackage(files.paths, files.rawContents, files.importPath); err != nil {
 			return nil, fmt.Errorf("failed to add files in %s: %w", pkg, err)
 		}
 	}
@@ -178,47 +192,32 @@ func jsonToYaml(j []byte) ([]byte, error) {
 	return yaml3.Marshal(jsonObj)
 }
 
-// astFrom takes paths of Go files, or the content of Go files,
-// returns the abstract syntax tree (AST) for that file.
-func astFrom(paths []string, rawFiles map[string][]byte) (*doc.Package, error) {
+// packageFrom takes paths of Go files, or the content of Go files, returns the package they belong to.
+func packageFrom(paths []string, rawFiles map[string][]byte, importPath string) (*doc.Package, error) {
 	fset := token.NewFileSet()
-	m := make(map[string]*ast.File)
+	astFiles := make([]*ast.File, 0, len(paths)+len(rawFiles))
 
 	for _, file := range paths {
 		f, err := parser.ParseFile(fset, file, nil, parser.ParseComments)
 		if err != nil {
 			return nil, fmt.Errorf("unable to parse file to AST from path %s: %w", file, err)
 		}
-		m[file] = f
+		astFiles = append(astFiles, f)
 	}
 	for fn, content := range rawFiles {
 		f, err := parser.ParseFile(fset, fn, content, parser.ParseComments)
 		if err != nil {
 			return nil, fmt.Errorf("unable to parse file to AST from raw content %s: %w", fn, err)
 		}
-		m[fn] = f
+		astFiles = append(astFiles, f)
 	}
 
-	// Copied from the go doc command: https://github.com/golang/go/blob/fc116b69e2004c159d0f2563c6e91ac75a79f872/src/go/doc/doc.go#L203
-	apkg, _ := ast.NewPackage(fset, m, simpleImporter, nil)
-
-	astDoc := doc.New(apkg, "", 0)
-	if astDoc == nil {
-		return nil, fmt.Errorf("unable to parse AST documentation from paths %v: got no doc", paths)
+	astDoc, err := doc.NewFromFiles(fset, astFiles, importPath)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse AST documentation from paths %v: %w", paths, err)
 	}
 
 	return astDoc, nil
-}
-
-func simpleImporter(imports map[string]*ast.Object, path string) (*ast.Object, error) {
-	pkg := imports[path]
-	if pkg == nil {
-		// note that strings.LastIndex returns -1 if there is no "/"
-		pkg = ast.NewObj(ast.Pkg, path[strings.LastIndex(path, "/")+1:])
-		pkg.Data = ast.NewScope(nil) // required by ast.NewPackage for dot-import
-		imports[path] = pkg
-	}
-	return pkg, nil
 }
 
 // fmtRawDoc formats/sanitizes a Go doc string removing TODOs, newlines, whitespace, and various other characters from the resultant string.
@@ -314,8 +313,8 @@ func getType(typ interface{}) string {
 }
 
 // genDocMap extracts the name of the field as it should appear in YAML format and returns the resultant string.
-func (cm *CommentMap) genDocMap(packageFiles []string, rawFiles map[string][]byte) error {
-	pkg, err := astFrom(packageFiles, rawFiles)
+func (cm *CommentMap) genDocMap(packageFiles []string, rawFiles map[string][]byte, importPath string) error {
+	pkg, err := packageFrom(packageFiles, rawFiles, importPath)
 	if err != nil {
 		return fmt.Errorf("unable to generate AST documentation map: %w", err)
 	}
@@ -439,11 +438,11 @@ func (cm *CommentMap) PrintComments() {
 }
 
 // addPackage allow for adding to the CommentMap via a list of paths to go files in the same package
-func (cm *CommentMap) addPackage(paths []string, rawFiles map[string][]byte) error {
+func (cm *CommentMap) addPackage(paths []string, rawFiles map[string][]byte, importPath string) error {
 	cm.Lock()
 	defer cm.Unlock()
 
-	err := cm.genDocMap(paths, rawFiles)
+	err := cm.genDocMap(paths, rawFiles, importPath)
 	if err != nil {
 		return err
 	}
