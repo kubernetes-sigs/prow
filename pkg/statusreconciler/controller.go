@@ -19,6 +19,7 @@ package statusreconciler
 import (
 	"context"
 	"fmt"
+	"sigs.k8s.io/prow/pkg/git/v2"
 	"strings"
 	"time"
 
@@ -38,7 +39,7 @@ import (
 )
 
 // NewController constructs a new controller to reconcile stauses on config change
-func NewController(continueOnError bool, addedPresubmitDenylist, addedPresubmitDenylistAll sets.Set[string], opener io.Opener, configOpts configflagutil.ConfigOptions, statusURI string, prowJobClient prowv1.ProwJobInterface, githubClient github.Client, pluginAgent *plugins.ConfigAgent) *Controller {
+func NewController(continueOnError bool, addedPresubmitDenylist, addedPresubmitDenylistAll sets.Set[string], opener io.Opener, configOpts configflagutil.ConfigOptions, statusURI string, prowJobClient prowv1.ProwJobInterface, gc git.ClientFactory, githubClient github.Client, pluginAgent *plugins.ConfigAgent) *Controller {
 	sc := &statusController{
 		logger:     logrus.WithField("client", "statusController"),
 		opener:     opener,
@@ -57,6 +58,7 @@ func NewController(continueOnError bool, addedPresubmitDenylist, addedPresubmitD
 			pluginAgent:   pluginAgent,
 		},
 		githubClient: githubClient,
+		gitClient:    gc,
 		statusMigrator: &gitHubMigrator{
 			githubClient:    githubClient,
 			continueOnError: continueOnError,
@@ -151,6 +153,7 @@ type Controller struct {
 	addedPresubmitDenylistAll sets.Set[string]
 	prowJobTriggerer          prowJobTriggerer
 	githubClient              githubClient
+	gitClient                 git.ClientFactory
 	statusMigrator            statusMigrator
 	trustedChecker            trustedChecker
 	statusClient              statusClient
@@ -247,8 +250,8 @@ func (c *Controller) triggerNewPresubmits(addedPresubmits map[string][]config.Pr
 			filter := pjutil.NewArbitraryFilter(func(p config.Presubmit) (shouldRun bool, forcedToRun bool, defaultBehavior bool) {
 				return true, false, true
 			}, "inline-filter")
-			org, repo, number, branch := pr.Base.Repo.Owner.Login, pr.Base.Repo.Name, pr.Number, pr.Base.Ref
-			changes := config.NewGitHubDeferredChangedFilesProvider(c.githubClient, org, repo, number)
+			org, repo, number, branch, baseSHA, headSHA := pr.Base.Repo.Owner.Login, pr.Base.Repo.Name, pr.Number, pr.Base.Ref, pr.Base.SHA, pr.Head.SHA
+			changes := config.NewGitHubDeferredChangedFilesProvider(c.gitClient, c.githubClient, org, repo, number, baseSHA, headSHA)
 			logger := log.WithFields(logrus.Fields{"org": org, "repo": repo, "number": number, "branch": branch})
 			toTrigger, err := pjutil.FilterPresubmits(filter, changes, branch, presubmits, logger)
 			if err != nil {
