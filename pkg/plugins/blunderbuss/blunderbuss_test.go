@@ -103,7 +103,7 @@ func (c *fakeGitHubClient) Query(ctx context.Context, q interface{}, vars map[st
 	return nil
 }
 
-func (c *fakeGitHubClient) FindIssues(query string, sort string, asc bool) ([]github.Issue, error) {
+func (c *fakeGitHubClient) FindIssuesWithOrg(org string, query string, sort string, asc bool) ([]github.Issue, error) {
 	// Query should match the head commit of the pull request
 	if strings.HasPrefix(query, c.pr.Head.SHA) || slices.ContainsFunc(c.changes, func(change github.PullRequestChange) bool {
 		return strings.HasPrefix(query, change.SHA)

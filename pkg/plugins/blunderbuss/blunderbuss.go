@@ -123,10 +123,10 @@ func (foc fallbackReviewersClient) LeafReviewers(path string) sets.Set[string] {
 }
 
 type githubClient interface {
-	RequestReview(org, repo string, number int, logins []string) error
-	FindIssues(query, sort string, asc bool) ([]github.Issue, error)
-	GetPullRequestChanges(org, repo string, number int) ([]github.PullRequestChange, error)
-	GetPullRequest(org, repo string, number int) (*github.PullRequest, error)
+	RequestReview(org string, repo string, number int, logins []string) error
+	FindIssuesWithOrg(org string, query string, sort string, asc bool) ([]github.Issue, error)
+	GetPullRequestChanges(org string, repo string, number int) ([]github.PullRequestChange, error)
+	GetPullRequest(org string, repo string, number int) (*github.PullRequest, error)
 	Query(context.Context, interface{}, map[string]interface{}) error
 }
 
@@ -245,7 +245,7 @@ func handleStatus(ghc githubClient, roc repoownersClient, log *logrus.Entry, con
 	}
 
 	if context != wfs.Context {
-		// Not the CNCF CLA context, do not process this.
+		// Not the expected context, do not process this.
 		return nil
 	}
 
@@ -261,7 +261,7 @@ func handleStatus(ghc githubClient, roc repoownersClient, log *logrus.Entry, con
 	org := repo.Owner.Login
 	log.Info("Searching for PRs matching the commit.")
 
-	issues, err := ghc.FindIssues(fmt.Sprintf("%s repo:%s/%s type:pr state:open", sha, org, repo.Name), "", false)
+	issues, err := ghc.FindIssuesWithOrg(org, fmt.Sprintf("%s repo:%s/%s type:pr state:open", sha, org, repo.Name), "", false)
 	if err != nil {
 		return fmt.Errorf("error searching for issues matching commit: %w", err)
 	}
