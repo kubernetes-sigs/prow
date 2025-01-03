@@ -151,7 +151,7 @@ type ContextMatch struct {
 	// Context name of the context to match on, defaults to "tide"
 	Context string `json:"context,omitempty"`
 	// Description regular expression to match the context description, defaults to
-	// "Not mergeable. (PullRequest is missing sufficient approving GitHub review\(s\)|Needs (lgtm|approved) label)."
+	// "Not mergeable. (PullRequest is missing sufficient approving GitHub review\(s\)|Needs (lgtm|approved) label)"
 	Description string `json:"description,omitempty"`
 	// Compiled description
 	DescriptionRe *regexp.Regexp `json:"-"`
@@ -1095,7 +1095,7 @@ func (c *Configuration) setDefaults() {
 			c.Blunderbuss.WaitForStatus.State = "pending"
 		}
 		if c.Blunderbuss.WaitForStatus.Description == "" {
-			c.Blunderbuss.WaitForStatus.Description = "Not mergeable. (PullRequest is missing sufficient approving GitHub review\\(s\\)|Needs (lgtm|approved|approved, lgtm) labels?)."
+			c.Blunderbuss.WaitForStatus.Description = "Not mergeable. (PullRequest is missing sufficient approving GitHub review\\(s\\)|Needs (lgtm|approved|approved, lgtm) labels?)"
 		}
 	}
 	for i := range c.Triggers {
