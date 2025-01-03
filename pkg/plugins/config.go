@@ -1095,7 +1095,7 @@ func (c *Configuration) setDefaults() {
 			c.Blunderbuss.WaitForStatus.State = "pending"
 		}
 		if c.Blunderbuss.WaitForStatus.Description == "" {
-			c.Blunderbuss.WaitForStatus.Description = "Not mergeable. (PullRequest is missing sufficient approving GitHub review\\(s\\)|Needs (lgtm|approved|approved, lgtm) labels?)"
+			c.Blunderbuss.WaitForStatus.Description = "Not mergeable. (PullRequest is missing sufficient approving GitHub review\\(s\\)|Needs (lgtm|approved|approved, lgtm) labels?)\\.?"
 		}
 	}
 	for i := range c.Triggers {

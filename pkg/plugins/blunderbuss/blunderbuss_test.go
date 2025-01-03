@@ -921,7 +921,7 @@ func TestHandleStatus(t *testing.T) {
 			pr := github.PullRequest{Number: 5, User: github.User{Login: "author"}, Head: github.PullRequestBranch{Ref: "test", SHA: "0001"}}
 			fghc := newFakeGitHubClient(&pr, tc.filesChanged)
 			repo := github.Repo{Owner: github.User{Login: "org"}, Name: "repo"}
-			descriptionPattern := "Not mergeable. (PullRequest is missing sufficient approving GitHub review\\(s\\)|Needs (lgtm|approved|approved, lgtm) labels?)"
+			descriptionPattern := "Not mergeable. (PullRequest is missing sufficient approving GitHub review\\(s\\)|Needs (lgtm|approved|approved, lgtm) labels?)\\.?"
 			config := plugins.Blunderbuss{
 				ReviewerCount:    &tc.reviewerCount,
 				MaxReviewerCount: 0,
