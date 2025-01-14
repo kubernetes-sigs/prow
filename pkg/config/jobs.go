@@ -266,6 +266,19 @@ type Postsubmit struct {
 	JenkinsSpec *JenkinsSpec `json:"jenkins_spec,omitempty"`
 }
 
+// Retry defines the configuration for retrying failed prowjobs.
+type Retry struct {
+	// RunAll retries will not stop on first successful run
+	// (failed job will always cause Attempts retries to be executed)
+	RunAll bool `json:"run_all,omitempty"`
+	// Attempts specifies the maximum number of retry attempts allowed.
+	Attempts int `json:"attempts,omitempty"`
+	// Interval defines the wait duration between consecutive retry attempts.
+	Interval string `json:"interval,omitempty"`
+
+	interval time.Duration
+}
+
 // Periodic runs on a timer.
 type Periodic struct {
 	JobBase
@@ -282,6 +295,8 @@ type Periodic struct {
 	// Tags for config entries
 	Tags []string `json:"tags,omitempty"`
 
+	Retry *Retry `json:"retry,omitempty"`
+
 	interval         time.Duration
 	minimum_interval time.Duration
 }
@@ -291,6 +306,16 @@ type JenkinsSpec struct {
 	// Job is managed by the GH branch source plugin
 	// and requires a specific path
 	GitHubBranchSourceJob bool `json:"github_branch_source_job,omitempty"`
+}
+
+// SetInterval updates interval, the frequency duration it runs.
+func (r *Retry) SetInterval(d time.Duration) {
+	r.interval = d
+}
+
+// GetInterval returns interval, the frequency duration it runs.
+func (r *Retry) GetInterval() time.Duration {
+	return r.interval
 }
 
 // SetInterval updates interval, the frequency duration it runs.

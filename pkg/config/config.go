@@ -2435,6 +2435,14 @@ func (c Config) validatePeriodics(periodics []Periodic) error {
 			periodics[j].interval = d
 		}
 
+		if p.Retry != nil {
+			d, err := time.ParseDuration(periodics[j].Retry.Interval)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("cannot parse Retry duration for %s: %w", periodics[j].Name, err))
+			}
+			periodics[j].interval = d
+		}
+
 		if p.MinimumInterval != "" {
 			d, err := time.ParseDuration(periodics[j].MinimumInterval)
 			if err != nil {
