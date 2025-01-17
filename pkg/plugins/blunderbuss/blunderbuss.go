@@ -283,6 +283,19 @@ func handleStatus(ghc githubClient, roc repoownersClient, log *logrus.Entry, con
 			continue
 		}
 
+		// Ignore drafts if specified in config
+		if pr.Draft && config.IgnoreDrafts {
+			// ignore Draft PR when IgnoreDrafts is true
+			return nil
+		}
+
+		// Ignore PRs submitted by users matching logins set in IgnoreAuthors
+		for _, user := range config.IgnoreAuthors {
+			if user == pr.User.Login {
+				return nil
+			}
+		}
+
 		err = handle(
 			ghc,
 			roc,
