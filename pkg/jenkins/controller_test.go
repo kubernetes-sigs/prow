@@ -189,7 +189,6 @@ func (f *fghc) EditCommentWithContext(_ context.Context, org, repo string, ID in
 
 func TestSyncTriggeredJobs(t *testing.T) {
 	fakeClock := clocktesting.NewFakeClock(time.Now().Truncate(1 * time.Second))
-	pendingTime := metav1.NewTime(fakeClock.Now())
 
 	var testcases = []struct {
 		name           string
@@ -223,9 +222,9 @@ func TestSyncTriggeredJobs(t *testing.T) {
 			},
 			expectedBuild:       true,
 			expectedReport:      true,
-			expectedState:       prowapi.PendingState,
+			expectedState:       prowapi.TriggeredState,
 			expectedEnqueued:    true,
-			expectedPendingTime: &pendingTime,
+			expectedPendingTime: nil,
 		},
 		{
 			name: "start new job, error",
@@ -292,9 +291,9 @@ func TestSyncTriggeredJobs(t *testing.T) {
 			maxConcurrency:      21,
 			expectedBuild:       true,
 			expectedReport:      true,
-			expectedState:       prowapi.PendingState,
+			expectedState:       prowapi.TriggeredState,
 			expectedEnqueued:    true,
-			expectedPendingTime: &pendingTime,
+			expectedPendingTime: nil,
 		},
 	}
 	for _, tc := range testcases {
@@ -398,14 +397,14 @@ func TestSyncPendingJobs(t *testing.T) {
 					Job: "test-job",
 				},
 				Status: prowapi.ProwJobStatus{
-					State:       prowapi.PendingState,
+					State:       prowapi.TriggeredState,
 					Description: "Jenkins job enqueued.",
 				},
 			},
 			builds: map[string]Build{
 				"foofoo": {enqueued: true, Number: 10},
 			},
-			expectedState:    prowapi.PendingState,
+			expectedState:    prowapi.TriggeredState,
 			expectedEnqueued: true,
 		},
 		{
@@ -420,7 +419,7 @@ func TestSyncPendingJobs(t *testing.T) {
 				},
 				Status: prowapi.ProwJobStatus{
 					State:       prowapi.PendingState,
-					Description: "Jenkins job enqueued.",
+					Description: "Jenkins job running.",
 				},
 			},
 			builds: map[string]Build{
@@ -635,7 +634,7 @@ func TestBatch(t *testing.T) {
 	fakeProwJobClient := fake.NewSimpleClientset(&pj)
 	jc := &fjc{
 		builds: map[string]Build{
-			"known_name": { /* Running */ },
+			"known_name": {enqueued: true},
 		},
 	}
 	totServ := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -661,7 +660,7 @@ func TestBatch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to get prowjob from client: %v", err)
 	}
-	if afterFirstSync.Status.State != prowapi.PendingState {
+	if afterFirstSync.Status.State != prowapi.TriggeredState {
 		t.Fatalf("Wrong state: %v", afterFirstSync.Status.State)
 	}
 	if afterFirstSync.Status.Description != "Jenkins job enqueued." {

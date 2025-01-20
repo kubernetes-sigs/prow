@@ -123,7 +123,7 @@ type JobInfo struct {
 
 // IsRunning means the job started but has not finished.
 func (jb *Build) IsRunning() bool {
-	return jb.Result == nil
+	return jb.Result == nil && !jb.enqueued
 }
 
 // IsSuccess means the job passed

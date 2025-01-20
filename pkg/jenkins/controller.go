@@ -448,27 +448,28 @@ func (c *Controller) syncTriggeredJob(pj prowapi.ProwJob, reports chan<- prowapi
 		} else {
 			pj.Status.Description = "Jenkins job enqueued."
 		}
-	} else {
-		if jb.IsRunning() {
-			// If a Jenkins build already exists for this job, advance the ProwJob to Pending and
-			// it should be handled by syncPendingJob in the next sync.
-			if pj.Status.PendingTime == nil {
-				now := metav1.NewTime(c.clock.Now())
-				pj.Status.PendingTime = &now
-			}
-			pj.Status.State = prowapi.PendingState
-			pj.Status.Description = "Jenkins job running."
+	} else if jb.IsEnqueued() {
+		// Still in queue.
+		pj.Status.Description = "Jenkins job enqueued."
+	} else if jb.IsRunning() {
+		// If a Jenkins build already exists for this job, advance the ProwJob to Pending and
+		// it should be handled by syncPendingJob in the next sync.
+		if pj.Status.PendingTime == nil {
+			now := metav1.NewTime(c.clock.Now())
+			pj.Status.PendingTime = &now
+		}
+		pj.Status.State = prowapi.PendingState
+		pj.Status.Description = "Jenkins job running."
 
-			// Construct the status URL that will be used in reports.
-			pj.Status.PodName = pj.ObjectMeta.Name
-			pj.Status.BuildID = jb.BuildID()
-			pj.Status.JenkinsBuildID = strconv.Itoa(jb.Number)
-			var b bytes.Buffer
-			if err := c.config().JobURLTemplate.Execute(&b, &pj); err != nil {
-				c.log.WithFields(pjutil.ProwJobFields(&pj)).Errorf("error executing URL template: %v", err)
-			} else {
-				pj.Status.URL = b.String()
-			}
+		// Construct the status URL that will be used in reports.
+		pj.Status.PodName = pj.ObjectMeta.Name
+		pj.Status.BuildID = jb.BuildID()
+		pj.Status.JenkinsBuildID = strconv.Itoa(jb.Number)
+		var b bytes.Buffer
+		if err := c.config().JobURLTemplate.Execute(&b, &pj); err != nil {
+			c.log.WithFields(pjutil.ProwJobFields(&pj)).Errorf("error executing URL template: %v", err)
+		} else {
+			pj.Status.URL = b.String()
 		}
 	}
 	// Report to GitHub.
