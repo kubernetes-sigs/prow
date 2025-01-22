@@ -823,9 +823,8 @@ func TestHandleStatus(t *testing.T) {
 		context           string
 		state             string
 		description       string
-		issueState        string
-		isPR              bool
-		body              string
+		author            string
+		alreadyRequested  []github.User
 		filesChanged      []string
 		reviewerCount     int
 		expectedRequested []string
@@ -915,10 +914,39 @@ func TestHandleStatus(t *testing.T) {
 			filesChanged:  []string{"a.go"},
 			reviewerCount: 1,
 		},
+		{
+			name:          "ignore if author listed in IgnoreAuthors",
+			author:        "ignoreme",
+			sha:           "0001",
+			context:       "tide",
+			state:         "pending",
+			description:   "Not mergeable. PullRequest is missing sufficient approving GitHub review(s)",
+			filesChanged:  []string{"a.go"},
+			reviewerCount: 1,
+		},
+		{
+			name:             "ignore if reviews already requested",
+			alreadyRequested: []github.User{{Login: "who"}},
+			sha:              "0001",
+			context:          "tide",
+			state:            "pending",
+			description:      "Not mergeable. PullRequest is missing sufficient approving GitHub review(s)",
+			filesChanged:     []string{"a.go"},
+			reviewerCount:    1,
+		},
 	}
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
-			pr := github.PullRequest{Number: 5, User: github.User{Login: "author"}, Head: github.PullRequestBranch{Ref: "test", SHA: "0001"}}
+			pr := github.PullRequest{
+				Number:             5,
+				User:               github.User{Login: "author"},
+				Head:               github.PullRequestBranch{Ref: "test", SHA: "0001"},
+				RequestedReviewers: tc.alreadyRequested,
+			}
+			if tc.author != "" {
+				pr.User.Login = tc.author
+			}
+
 			fghc := newFakeGitHubClient(&pr, tc.filesChanged)
 			repo := github.Repo{Owner: github.User{Login: "org"}, Name: "repo"}
 			descriptionPattern := "Not mergeable. (PullRequest is missing sufficient approving GitHub review\\(s\\)|Needs (lgtm|approved|approved, lgtm) labels?)\\.?"
@@ -926,6 +954,7 @@ func TestHandleStatus(t *testing.T) {
 				ReviewerCount:    &tc.reviewerCount,
 				MaxReviewerCount: 0,
 				ExcludeApprovers: false,
+				IgnoreAuthors:    []string{"ignoreme"},
 				WaitForStatus: &plugins.ContextMatch{
 					Context:       "tide",
 					Description:   descriptionPattern,

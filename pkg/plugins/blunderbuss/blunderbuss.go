@@ -296,6 +296,11 @@ func handleStatus(ghc githubClient, roc repoownersClient, log *logrus.Entry, con
 			}
 		}
 
+		// Don't add reviewers if there are already requested reviewers
+		if len(pr.RequestedReviewers) > 0 {
+			return nil
+		}
+
 		err = handle(
 			ghc,
 			roc,
