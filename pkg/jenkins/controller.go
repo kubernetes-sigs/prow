@@ -365,7 +365,7 @@ func (c *Controller) syncPendingJob(pj prowapi.ProwJob, reports chan<- prowapi.P
 		case jb.IsRunning():
 			// Build still going.
 			c.incrementNumPendingJobs(pj.Spec.Job)
-			if pj.Status.Description == "Jenkins job running." {
+			if pj.Status.Description == "Jenkins job running." && pj.Status.URL != "" {
 				return nil
 			}
 			pj.Status.Description = "Jenkins job running."
@@ -429,7 +429,7 @@ func (c *Controller) syncTriggeredJob(pj prowapi.ProwJob, reports chan<- prowapi
 	// Record last known state so we can patch
 	prevPJ := pj.DeepCopy()
 
-	if _, jbExists := jbs[pj.ObjectMeta.Name]; !jbExists {
+	if jb, jbExists := jbs[pj.ObjectMeta.Name]; !jbExists {
 		// Do not start more jobs than specified.
 		if !c.canExecuteConcurrently(&pj) {
 			return nil
@@ -446,12 +446,12 @@ func (c *Controller) syncTriggeredJob(pj prowapi.ProwJob, reports chan<- prowapi
 			pj.Status.URL = c.cfg().StatusErrorLink
 			pj.Status.Description = "Error starting Jenkins job."
 		} else {
-			now := metav1.NewTime(c.clock.Now())
-			pj.Status.PendingTime = &now
-			pj.Status.State = prowapi.PendingState
 			pj.Status.Description = "Jenkins job enqueued."
 		}
-	} else {
+	} else if jb.IsEnqueued() {
+		// Still in queue.
+		pj.Status.Description = "Jenkins job enqueued."
+	} else if jb.IsRunning() {
 		// If a Jenkins build already exists for this job, advance the ProwJob to Pending and
 		// it should be handled by syncPendingJob in the next sync.
 		if pj.Status.PendingTime == nil {
@@ -459,7 +459,18 @@ func (c *Controller) syncTriggeredJob(pj prowapi.ProwJob, reports chan<- prowapi
 			pj.Status.PendingTime = &now
 		}
 		pj.Status.State = prowapi.PendingState
-		pj.Status.Description = "Jenkins job enqueued."
+		pj.Status.Description = "Jenkins job running."
+
+		// Construct the status URL that will be used in reports.
+		pj.Status.PodName = pj.ObjectMeta.Name
+		pj.Status.BuildID = jb.BuildID()
+		pj.Status.JenkinsBuildID = strconv.Itoa(jb.Number)
+		var b bytes.Buffer
+		if err := c.config().JobURLTemplate.Execute(&b, &pj); err != nil {
+			c.log.WithFields(pjutil.ProwJobFields(&pj)).Errorf("error executing URL template: %v", err)
+		} else {
+			pj.Status.URL = b.String()
+		}
 	}
 	// Report to GitHub.
 	reports <- pj
