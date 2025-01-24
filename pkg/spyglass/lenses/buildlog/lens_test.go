@@ -70,6 +70,14 @@ func TestGetConfig(t *testing.T) {
 				d.IframeSandboxPermissions = "allow-scripts allow-downloads"
 				return d
 			}(),
+		}, {
+			name: "empty iframe sandbox permissions does not return default permissions",
+			raw:  `{"iframe_sandbox_permissions": []}`,
+			want: func() parsedConfig {
+				d := def
+				d.IframeSandboxPermissions = ""
+				return d
+			}(),
 		},
 	}
 
