@@ -2,7 +2,6 @@ package configuredjobs
 
 //TODO: documentation for everything here
 
-// TODO: we don't need all the json info
 type ConfiguredJobs struct {
 	Repos []Repo `json:"repos"`
 }
@@ -12,32 +11,23 @@ type Index struct {
 }
 
 type Org struct {
-	Name  string   `json:"name"`
-	Repos []string `json:"repos"`
+	Name string `json:"name"`
+	// SafeName is the Name with unsupported chars stripped
+	SafeName string   `json:"safeName"` //TODO: do we use this anywhere?
+	Repos    []string `json:"repos"`
 }
 
 type Repo struct {
-	Org         string       `json:"org"`
-	Name        string       `json:"name"`
-	Presubmits  []Presubmit  `json:"presubmits,omitempty"`
-	Postsubmits []Postsubmit `json:"postsubmits,omitempty"`
-	Periodics   []Periodic   `json:"periodics,omitempty"`
+	Org Org `json:"org"`
+	// SafeName is the Name with unsupported chars stripped
+	SafeName string    `json:"safeName"`
+	Name     string    `json:"name"`
+	Jobs     []JobInfo `json:"jobs"`
 }
 
-type Presubmit struct {
-	Name              string `json:"name"`
-	ConfigurationLink string `json:"configuration_link"`
-	YAMLDefinition    string `json:"yaml_definition"`
-}
-
-type Postsubmit struct {
-	Name              string `json:"name"`
-	ConfigurationLink string `json:"configuration_link"`
-	YAMLDefinition    string `json:"yaml_definition"`
-}
-
-type Periodic struct {
-	Name              string `json:"name"`
-	ConfigurationLink string `json:"configuration_link"`
-	YAMLDefinition    string `json:"yaml_definition"`
+type JobInfo struct {
+	Name           string `json:"name"`
+	Type           string `json:"type"`
+	JobHistoryLink string `json:"jobHistoryLink"`
+	YAMLDefinition string `json:"yamlDefinition"`
 }

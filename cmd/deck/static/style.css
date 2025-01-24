@@ -652,6 +652,44 @@ Plugin Help style
 }
 
 /*
+Configured Jobs style
+ */
+.job-container {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.repo-name {
+    display: flex;
+    justify-content: center;
+}
+
+#job-dialog {
+    width: 800px;
+}
+
+pre.prettyprint code.job-definition {
+    padding: 0;
+}
+
+.job-definition-card {
+    justify-content: space-between;
+    margin: 8px;
+    min-height: 0;
+    width: 800px;
+}
+
+.job-definition-card > .mdl-card__supporting-text {
+    font-size: 15px;
+}
+
+.job-definition-card > .mdl-card__title, .mdl-dialog__title {
+    color: #3f51b5;
+}
+
+/*
  * PR dashboard style sheet
  */
 #loading-progress {

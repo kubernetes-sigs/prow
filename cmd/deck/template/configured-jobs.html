@@ -1,51 +1,33 @@
 {{define "title"}}Configured Jobs{{end}}
 {{define "scripts"}}
-<!--TODO: do I need the following sheet???-->
 <link rel="stylesheet" href="/static/dialog-polyfill.css?v={{deckVersion}}">
-<!--TODO: move the following sheet somewhere common-->
-<link rel="stylesheet" href="static/plugin-help/prettify.css?v={{deckVersion}}">
+<link rel="stylesheet" href="/static/common/prettify.css?v={{deckVersion}}">
+
+<script type="text/javascript">
+    let repos = {{.Repos}}
+</script>
+<script type="text/javascript" src="/static/configured_jobs_bundle.min.js?v={{deckVersion}}"></script>
 {{end}}
 {{define "content"}}
-<ul>
+<div id="job-container">
     {{ range .Repos }}
-        <li>
-            <h3><a href="/configured-jobs/{{.Org}}">{{.Org}}</a>/{{.Name}}</h3>
-            {{ if .Presubmits }}
-                <h4>Presubmits</h4>
-                <ul>
-                    {{ range .Presubmits }}
-                        <li>
-                            <h4>{{.Name}}</h4>
-                            <pre class="prettyprint"><code class="language-yaml">{{.YAMLDefinition}}</code></pre>
-                        </li>
-                    {{ end }}
-                </ul>
-            {{ end }}
-            {{ if .Postsubmits }}
-            <h4>Postsubmits</h4>
-            <ul>
-                {{ range .Postsubmits }}
-                <li>
-                    <h4>{{.Name}}</h4>
-                    <pre class="prettyprint"><code class="language-yaml">{{.YAMLDefinition}}</code></pre>
-                </li>
-                {{ end }}
-            </ul>
-            {{ end }}
-            {{ if .Periodics }}
-            <h4>Periodics</h4>
-            <ul>
-                {{ range .Periodics }}
-                <li>
-                    <h4>{{.Name}}</h4>
-                    <pre class="prettyprint"><code class="language-yaml">{{.YAMLDefinition}}</code></pre>
-                </li>
-                {{ end }}
-            </ul>
-            {{ end }}
-        </li>
+        <h2 class="repo-name">{{.Org.Name}}/{{.Name}}</h2>
+        <div id="job-container-{{.SafeName}}" class="job-container">
+            <p>Loading...</p>
+        </div>
     {{ end }}
-</ul>
+</div>
+{{end}}
+
+{{define "extra content"}}
+<dialog id="job-dialog" class="mdl-dialog">
+    <h4 class="mdl-dialog__title"></h4>
+    <div class="mdl-dialog__content">
+    </div>
+    <div class="mdl-dialog__actions">
+        <button type="button" class="mdl-button close">Close</button>
+    </div>
+</dialog>
 {{end}}
 
 {{template "page" (settings mobileUnfriendly lightMode "configured-jobs" .)}}

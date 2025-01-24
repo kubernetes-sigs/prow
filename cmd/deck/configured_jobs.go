@@ -56,8 +56,9 @@ func GetConfiguredJobs(jobConfig config.JobConfig, org, repo string) (*configure
 	for _, orgRepo := range orgRepos {
 		r := strings.Split(orgRepo, "/")[1]
 		cjRepo := configuredjobs.Repo{
-			Org:  org,
-			Name: r,
+			Org:      configuredjobs.Org{Name: org, SafeName: safeName(org)},
+			Name:     r,
+			SafeName: safeName(r),
 		}
 		//TODO: I think we could improve the performance here by including all the repos in each search and then sorting jobs later
 		// not sure if it is worth the decreased readability though
@@ -67,10 +68,11 @@ func GetConfiguredJobs(jobConfig config.JobConfig, org, repo string) (*configure
 			if err != nil {
 				return nil, fmt.Errorf("could not marshal presubmit: %w", err)
 			}
-			cjRepo.Presubmits = append(cjRepo.Presubmits, configuredjobs.Presubmit{
-				Name:              presubmit.Name,
-				ConfigurationLink: "TODO", //TODO: is it even possible to do this???
-				YAMLDefinition:    string(definition),
+			cjRepo.Jobs = append(cjRepo.Jobs, configuredjobs.JobInfo{
+				Name:           presubmit.Name,
+				Type:           "presubmit",
+				JobHistoryLink: "TODO", //TODO: add the link
+				YAMLDefinition: string(definition),
 			})
 		}
 		postsubmits := jobConfig.AllStaticPostsubmits([]string{orgRepo})
@@ -79,10 +81,11 @@ func GetConfiguredJobs(jobConfig config.JobConfig, org, repo string) (*configure
 			if err != nil {
 				return nil, fmt.Errorf("could not marshal postsubmit: %w", err)
 			}
-			cjRepo.Postsubmits = append(cjRepo.Postsubmits, configuredjobs.Postsubmit{
-				Name:              postsubmit.Name,
-				ConfigurationLink: "TODO", //TODO: is it even possible to do this???
-				YAMLDefinition:    string(definition),
+			cjRepo.Jobs = append(cjRepo.Jobs, configuredjobs.JobInfo{
+				Name:           postsubmit.Name,
+				Type:           "postsubmit",
+				JobHistoryLink: "TODO", //TODO: add the link
+				YAMLDefinition: string(definition),
 			})
 		}
 		periodics := jobConfig.PeriodicsMatchingExtraRefs(org, repo)
@@ -91,10 +94,11 @@ func GetConfiguredJobs(jobConfig config.JobConfig, org, repo string) (*configure
 			if err != nil {
 				return nil, fmt.Errorf("could not marshal periodic: %w", err)
 			}
-			cjRepo.Periodics = append(cjRepo.Periodics, configuredjobs.Periodic{
-				Name:              periodic.Name,
-				ConfigurationLink: "TODO", //TODO
-				YAMLDefinition:    string(definition),
+			cjRepo.Jobs = append(cjRepo.Jobs, configuredjobs.JobInfo{
+				Name:           periodic.Name,
+				Type:           "periodic",
+				JobHistoryLink: "TODO", //TODO: add the link
+				YAMLDefinition: string(definition),
 			})
 		}
 
@@ -102,4 +106,8 @@ func GetConfiguredJobs(jobConfig config.JobConfig, org, repo string) (*configure
 	}
 
 	return configuredJobs, nil
+}
+
+func safeName(name string) string {
+	return strings.Replace(name, ".", "-", -1)
 }

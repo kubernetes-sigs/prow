@@ -566,6 +566,7 @@ func prodOnlyMain(cfg config.Getter, pluginAgent *plugins.ConfigAgent, authCfgGe
 	mux.Handle("/prowjob", gziphandler.GzipHandler(handleProwJob(prowJobClient, logrus.WithField("handler", "/prowjob"))))
 
 	if o.hookURL != "" {
+		//TODO: here is the "script" where the help ends up being populated...
 		mux.Handle("/plugin-help.js",
 			gziphandler.GzipHandler(handlePluginHelp(newHelpAgent(o.hookURL), logrus.WithField("handler", "/plugin-help.js"))))
 	}
@@ -834,7 +835,6 @@ func handleConfiguredJobs(o options, cfg config.Getter, log *logrus.Entry) http.
 		jobConfig := cfg().JobConfig
 		setHeadersNoCaching(w)
 		p := r.URL.Path
-		log.Infof("path is %s", p)                    //TODO: remove
 		if strings.HasSuffix(p, "configured-jobs/") { // If there is no further path, fetch the index page
 			index := GetIndex(jobConfig)
 			handleSimpleTemplate(o, cfg, "configured-jobs-index.html", index)(w, r)

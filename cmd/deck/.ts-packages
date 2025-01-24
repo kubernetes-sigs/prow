@@ -32,6 +32,9 @@ packages:
 - dir: cmd/deck/static/command-help
   entrypoint: command-help.ts
   dst: ../command_help_bundle.min.js
+- dir: cmd/deck/static/configured-jobs
+  entrypoint: configured-jobs.ts
+  dst: ../configured_jobs_bundle.min.js
 - dir: cmd/deck/static/tide-history
   entrypoint: tide-history.ts
   dst: ../tide_history_bundle.min.js
