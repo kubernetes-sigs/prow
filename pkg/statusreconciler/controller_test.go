@@ -33,7 +33,7 @@ import (
 var ignoreUnexported = cmpopts.IgnoreUnexported(config.Presubmit{}, config.RegexpChangeMatcher{}, config.Brancher{})
 
 func TestAddedBlockingPresubmits(t *testing.T) {
-	var testCases = []struct {
+	testCases := []struct {
 		name     string
 		old, new string
 		expected map[string][]config.Presubmit
@@ -251,7 +251,7 @@ func TestAddedBlockingPresubmits(t *testing.T) {
 }
 
 func TestRemovedPresubmits(t *testing.T) {
-	var testCases = []struct {
+	testCases := []struct {
 		name     string
 		old, new string
 		expected map[string][]config.Presubmit
@@ -409,7 +409,7 @@ func TestRemovedPresubmits(t *testing.T) {
 }
 
 func TestMigratedBlockingPresubmits(t *testing.T) {
-	var testCases = []struct {
+	testCases := []struct {
 		name     string
 		old, new string
 		expected map[string][]presubmitMigration
@@ -687,6 +687,7 @@ func newFakeGitHubClient(key orgRepo) fakeGitHubClient {
 		refErrors: map[orgRepo]sets.Set[string]{key: sets.New[string]()},
 		prs:       map[orgRepo][]github.PullRequest{key: {}},
 		refs:      map[orgRepo]map[string]string{key: {}},
+		changes:   map[orgRepo]map[int][]github.PullRequestChange{key: {}},
 	}
 }
 
@@ -780,7 +781,9 @@ func TestControllerReconcile(t *testing.T) {
     context: new-required-context
     always_run: true
     branches:
-    - base`
+    - base
+  - name: run-on-changes-job
+    run_if_changed: "^mychange"`
 
 	var oldConfig, newConfig config.Config
 	if err := yaml.Unmarshal([]byte(oldConfigData), &oldConfig); err != nil {
@@ -871,7 +874,7 @@ func TestControllerReconcile(t *testing.T) {
 			SHA: "prsha3",
 		},
 	}
-	var testCases = []struct {
+	testCases := []struct {
 		name string
 		// generator creates the controller and a func that checks
 		// the internal state of the fakes in the controller
@@ -1187,6 +1190,72 @@ func TestControllerReconcile(t *testing.T) {
 				return controller, checker
 			},
 			expectErr: true,
+		},
+		{
+			name: "changes on PR that don't match run_if_changed we should not trigger run-on-changes-job",
+			generator: func() (Controller, func(*testing.T)) {
+				fpjt := newfakeProwJobTriggerer()
+				fghc := newFakeGitHubClient(orgRepoKey)
+				fghc.prs[orgRepoKey] = []github.PullRequest{pr}
+				fghc.refs[orgRepoKey]["heads/"+pr.Base.Ref] = baseSha
+				fghc.changes[orgRepoKey] = map[int][]github.PullRequestChange{
+					prNumber: {
+						{
+							Filename: "notmychange",
+						},
+					},
+				}
+				fsm := newFakeMigrator(orgRepoKey)
+				ftc := newFakeTrustedChecker(orgRepoKey)
+				ftc.trusted[orgRepoKey][prAuthorKey] = true
+				controller := Controller{
+					continueOnError:        true,
+					addedPresubmitDenylist: sets.New[string](),
+					prowJobTriggerer:       &fpjt,
+					githubClient:           &fghc,
+					statusMigrator:         &fsm,
+					trustedChecker:         &ftc,
+				}
+				checker := func(t *testing.T) {
+					expectedProwJob := map[prKey]sets.Set[string]{prOrgRepoKey: sets.New[string]("new-required-job")}
+					checkTriggerer(t, fpjt, expectedProwJob)
+					checkMigrator(t, fsm, map[orgRepo]sets.Set[string]{orgRepoKey: sets.New[string]("required-job")}, map[orgRepo]migrationSet{orgRepoKey: {migrate: nil}})
+				}
+				return controller, checker
+			},
+		},
+		{
+			name: "changes on PR that match run_if_changed we should see trigger and no retire",
+			generator: func() (Controller, func(*testing.T)) {
+				fpjt := newfakeProwJobTriggerer()
+				fghc := newFakeGitHubClient(orgRepoKey)
+				fghc.prs[orgRepoKey] = []github.PullRequest{pr}
+				fghc.refs[orgRepoKey]["heads/"+pr.Base.Ref] = baseSha
+				fghc.changes[orgRepoKey] = map[int][]github.PullRequestChange{
+					prNumber: {
+						{
+							Filename: "mychange",
+						},
+					},
+				}
+				fsm := newFakeMigrator(orgRepoKey)
+				ftc := newFakeTrustedChecker(orgRepoKey)
+				ftc.trusted[orgRepoKey][prAuthorKey] = true
+				controller := Controller{
+					continueOnError:        true,
+					addedPresubmitDenylist: sets.New[string](),
+					prowJobTriggerer:       &fpjt,
+					githubClient:           &fghc,
+					statusMigrator:         &fsm,
+					trustedChecker:         &ftc,
+				}
+				checker := func(t *testing.T) {
+					expectedProwJob := map[prKey]sets.Set[string]{prOrgRepoKey: sets.New[string]("new-required-job", "run-on-changes-job")}
+					checkTriggerer(t, fpjt, expectedProwJob)
+					checkMigrator(t, fsm, map[orgRepo]sets.Set[string]{orgRepoKey: sets.New[string]("required-job")}, map[orgRepo]migrationSet{orgRepoKey: {migrate: nil}})
+				}
+				return controller, checker
+			},
 		},
 	}
 
