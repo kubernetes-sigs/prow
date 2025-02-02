@@ -245,7 +245,7 @@ func (c *Controller) triggerNewPresubmits(addedPresubmits map[string][]config.Pr
 			// added. we know all of the presubmits we are filtering need to be forced to run, so we can
 			// enforce that with a custom filter
 			filter := pjutil.NewArbitraryFilter(func(p config.Presubmit) (shouldRun bool, forcedToRun bool, defaultBehavior bool) {
-				return true, false, true
+				return true, false, false
 			}, "inline-filter")
 			org, repo, number, branch := pr.Base.Repo.Owner.Login, pr.Base.Repo.Name, pr.Number, pr.Base.Ref
 			changes := config.NewGitHubDeferredChangedFilesProvider(c.githubClient, org, repo, number)
