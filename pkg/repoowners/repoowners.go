@@ -663,14 +663,42 @@ func ParseAliasesConfig(b []byte) (RepoAliases, error) {
 	result := make(RepoAliases)
 
 	config := &struct {
-		Data map[string][]string `json:"aliases,omitempty"`
+		Data map[string]interface{} `json:"aliases,omitempty"`
 	}{}
 	if err := yaml.Unmarshal(b, config); err != nil {
 		return result, err
 	}
 
 	for alias, expanded := range config.Data {
-		result[github.NormLogin(alias)] = NormLogins(expanded)
+		switch v := expanded.(type) {
+		case []interface{}:
+			// Convert []interface{} to []string
+			var members []string
+			for _, member := range v {
+				members = append(members, member.(string))
+			}
+			if len(members) == 0 {
+				return result, fmt.Errorf("alias group '%s' is empty", alias)
+			}
+			result[github.NormLogin(alias)] = NormLogins(members)
+		case map[interface{}]interface{}:
+			// Handle empty braces {} as an empty list
+			if len(v) == 0 {
+				return result, fmt.Errorf("alias group '%s' is empty", alias)
+			}
+		case string:
+			// Handle empty string as an empty list
+			if v == "" {
+				return result, fmt.Errorf("alias group '%s' is empty", alias)
+			}
+		case map[string]interface{}:
+			// Handle nested map[string]interface{} as an empty list
+			if len(v) == 0 {
+				return result, fmt.Errorf("alias group '%s' is empty", alias)
+			}
+		default:
+			return result, fmt.Errorf("unexpected type for alias group: %T", v)
+		}
 	}
 	return result, nil
 }
