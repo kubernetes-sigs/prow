@@ -34,8 +34,7 @@ import (
 
 func TestGetConfig(t *testing.T) {
 	def := parsedConfig{
-		showRawLog:               true,
-		IframeSandboxPermissions: defaultSandboxPermissions,
+		showRawLog: true,
 	}
 	cases := []struct {
 		name string
@@ -60,22 +59,6 @@ func TestGetConfig(t *testing.T) {
 					Endpoint: "service",
 					Pin:      true,
 				}
-				return d
-			}(),
-		}, {
-			name: "configure iframe sandbox permissions",
-			raw:  `{"iframe_sandbox_permissions": ["allow-scripts", "allow-downloads"]}`,
-			want: func() parsedConfig {
-				d := def
-				d.IframeSandboxPermissions = "allow-scripts allow-downloads"
-				return d
-			}(),
-		}, {
-			name: "empty iframe sandbox permissions does not return default permissions",
-			raw:  `{"iframe_sandbox_permissions": []}`,
-			want: func() parsedConfig {
-				d := def
-				d.IframeSandboxPermissions = ""
 				return d
 			}(),
 		},
