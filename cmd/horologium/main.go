@@ -21,6 +21,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -30,12 +31,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/cluster"
 
 	prowapi "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
+	v1 "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 	"sigs.k8s.io/prow/pkg/config"
 	"sigs.k8s.io/prow/pkg/cron"
 	pkgflagutil "sigs.k8s.io/prow/pkg/flagutil"
 	prowflagutil "sigs.k8s.io/prow/pkg/flagutil"
 	configflagutil "sigs.k8s.io/prow/pkg/flagutil/config"
 	"sigs.k8s.io/prow/pkg/interrupts"
+	"sigs.k8s.io/prow/pkg/kube"
 	"sigs.k8s.io/prow/pkg/logrusutil"
 	"sigs.k8s.io/prow/pkg/metrics"
 	"sigs.k8s.io/prow/pkg/pjutil"
@@ -44,6 +47,7 @@ import (
 
 const (
 	defaultTickInterval = time.Minute
+	maxRetries          = 10
 )
 
 type options struct {
@@ -206,8 +210,17 @@ func sync(prowJobClient ctrlruntimeclient.Client, cfg *config.Config, cr cronCli
 				"job":            p.JobBase.Name,
 			}).Debug("Trigger time has not yet been reached.")
 		}
-		if !previousFound || shouldTrigger {
-			prowJob := pjutil.NewProwJob(pjutil.PeriodicSpec(p), p.Labels, p.Annotations,
+
+		var labels map[string]string
+		if p.Labels != nil {
+			labels = make(map[string]string)
+			for k, v := range p.Labels {
+				labels[k] = v
+			}
+		}
+
+		if !previousFound || shouldTrigger || shouldTriggerFailedRun(j, p, now, logger, &labels) {
+			prowJob := pjutil.NewProwJob(pjutil.PeriodicSpec(p), labels, p.Annotations,
 				pjutil.RequireScheduling(cfg.Scheduler.Enabled))
 			prowJob.Namespace = cfg.ProwJobNamespace
 			logger.WithFields(logrus.Fields{
@@ -226,4 +239,55 @@ func sync(prowJobClient ctrlruntimeclient.Client, cfg *config.Config, cr cronCli
 		return fmt.Errorf("failed to create %d prowjobs: %v", len(errs), errs)
 	}
 	return nil
+}
+
+func shouldTriggerFailedRun(j v1.ProwJob, p config.Periodic, now time.Time, logger *logrus.Entry, labels *map[string]string) bool {
+	if p.Retry == nil {
+		return false
+	}
+	if !j.Complete() {
+		return false
+	}
+	runCount := 1
+
+	countLabel, exists := j.Labels[kube.ReRunLabel]
+	if exists {
+		count, err := strconv.Atoi(countLabel)
+		if err != nil {
+			logger.WithFields(logrus.Fields{}).WithFields(
+				pjutil.ProwJobFields(&j),
+			).Warn("Failed to convert label value.")
+			return false
+		}
+		runCount = count + 1
+	}
+
+	maxForJob := p.Retry.Attempts
+	if maxForJob > maxRetries {
+		maxForJob = maxRetries
+	}
+	if runCount > maxForJob {
+		return false
+	}
+
+	lastRunTime := j.Status.StartTime.Time
+	if now.Sub(lastRunTime) <= p.Retry.GetInterval() {
+		return false
+	}
+
+	if !p.Retry.RunAll && j.Status.State == v1.SuccessState {
+		return false
+	}
+
+	if *labels == nil {
+		*labels = make(map[string]string)
+	}
+	(*labels)[kube.ReRunLabel] = strconv.Itoa(runCount)
+
+	logger.WithFields(logrus.Fields{
+		"attempt": strconv.Itoa(runCount),
+		"run_all": p.Retry.RunAll,
+	}).Debug("Job marked to be retried")
+
+	return true
 }

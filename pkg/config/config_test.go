@@ -8206,6 +8206,13 @@ func TestValidatePeriodics(t *testing.T) {
 			expectedError: "cannot parse duration for a: time: invalid duration \"hello\"",
 		},
 		{
+			name: "Invalid Retry interval",
+			periodics: []Periodic{
+				{JobBase: JobBase{Name: "a"}, Retry: &Retry{Interval: "hello"}, Interval: "6h"},
+			},
+			expectedError: "cannot parse Retry duration for a: time: invalid duration \"hello\"",
+		},
+		{
 			name: "Invalid minimum_interval",
 			periodics: []Periodic{
 				{JobBase: JobBase{Name: "a"}, MinimumInterval: "hello"},
@@ -8219,6 +8226,15 @@ func TestValidatePeriodics(t *testing.T) {
 			},
 			expected: []Periodic{
 				{JobBase: JobBase{Name: "a"}, Interval: "10ns", interval: time.Duration(10)},
+			},
+		},
+		{
+			name: "Sets Retrigger Failed interval",
+			periodics: []Periodic{
+				{JobBase: JobBase{Name: "a"}, Retry: &Retry{Interval: "10ns"}, Interval: "6h"},
+			},
+			expected: []Periodic{
+				{JobBase: JobBase{Name: "a"}, Retry: &Retry{Interval: "10ns"}, interval: time.Duration(10), Interval: "6h"},
 			},
 		},
 		{
