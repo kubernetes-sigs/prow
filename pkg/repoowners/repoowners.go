@@ -681,21 +681,24 @@ func ParseAliasesConfig(b []byte) (RepoAliases, error) {
 				return result, fmt.Errorf("alias group '%s' is empty", alias)
 			}
 			result[github.NormLogin(alias)] = NormLogins(members)
-		case map[interface{}]interface{}:
-			// Handle empty braces {} as an empty list
-			if len(v) == 0 {
-				return result, fmt.Errorf("alias group '%s' is empty", alias)
-			}
 		case string:
 			// Handle empty string as an empty list
 			if v == "" {
 				return result, fmt.Errorf("alias group '%s' is empty", alias)
 			}
 		case map[string]interface{}:
-			// Handle nested map[string]interface{} as an empty list
+			// Handle Flow Style Mapping (Inline Dictionary/Object Syntax). Example - aliases: { alias-group: { alias1, alias2 } }
 			if len(v) == 0 {
 				return result, fmt.Errorf("alias group '%s' is empty", alias)
 			}
+			var members []string
+            for key := range v {
+				members = append(members, key)
+            }
+            result[github.NormLogin(alias)] = NormLogins(members)
+		case nil:
+			// Handle empty alias group as an empty list. Examples - aliases: { alias-group: }
+			return result, fmt.Errorf("alias group '%s' is empty", alias)
 		default:
 			return result, fmt.Errorf("unexpected type for alias group: %T", v)
 		}

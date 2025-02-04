@@ -833,10 +833,15 @@ var ownersAliases = map[string][]byte{
   foo-reviewers:
   - alice
 `),
-	"emptyAliasGroupOwnersAliases": []byte(`aliases:
+	"emptyAliasGroupOwnersAliasesWithEmptyBraces": []byte(`aliases:
   foo-reviewers:
   - alice
   empty-aliases-group: {}
+`),
+	"emptyAliasGroupOwnersAliases": []byte(`aliases:
+  foo-reviewers:
+  - alice
+  empty-aliases-group:
 `),
 }
 
@@ -1456,7 +1461,16 @@ func testHandleParseAliasesConfigErrors(clients localgit.Clients, t *testing.T) 
 		skipTrustedUserCheck bool
 	}{
 		{
-			name:                 "empty alias group additions in OWNERS_ALIASES file",
+			name:                 "empty alias group with braces in OWNERS_ALIASES file",
+			filesChanged:         []string{"OWNERS_ALIASES"},
+			ownersFile:           "collaboratorsWithAliases",
+			ownersAliasesFile:    "emptyAliasGroupOwnersAliasesWithEmptyBraces",
+			shouldError:          true,
+			expectedErrorMessage: "error parsing aliases config for OWNERS_ALIASES file",
+			skipTrustedUserCheck: true,
+		},
+		{
+			name:                 "empty alias group in OWNERS_ALIASES file",
 			filesChanged:         []string{"OWNERS_ALIASES"},
 			ownersFile:           "collaboratorsWithAliases",
 			ownersAliasesFile:    "emptyAliasGroupOwnersAliases",
@@ -1465,6 +1479,7 @@ func testHandleParseAliasesConfigErrors(clients localgit.Clients, t *testing.T) 
 			skipTrustedUserCheck: true,
 		},
 	}
+
 	lg, c, err := clients()
 	if err != nil {
 		t.Fatalf("Making localgit: %v", err)

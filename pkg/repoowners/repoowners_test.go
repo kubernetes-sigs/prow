@@ -1429,16 +1429,16 @@ func TestRepoOwners_AllReviewers(t *testing.T) {
 }
 
 func TestParseAliasesConfig(t *testing.T) {
-    tests := []struct {
-        name     string
-        input    string
-        expected RepoAliases
-        wantErr  bool
-		errContains string
-    }{
-        {
-            name: "valid aliases",
-            input: `
+	tests := []struct {
+		name        string
+		input       string
+		expected    RepoAliases
+		wantErr     bool
+		errContainsRegexp string
+	}{
+		{
+			name: "valid aliases",
+			input: `
 aliases:
   team1:
     - alice
@@ -1446,44 +1446,61 @@ aliases:
   team2:
     - nikhilnishad
 `,
-            expected: RepoAliases{
+			expected: RepoAliases{
 				"team1": sets.New[string]("alice", "bob"),
 				"team2": sets.New[string]("nikhilnishad"),
-            },
-            wantErr: false,
-        },
-        {
-            name: "empty alias group with braces",
-            input: `
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid aliases in flow style mapping syntax",
+			input: `
+aliases:
+  team1: {alice, bob}
+`,
+			expected: RepoAliases{
+				"team1": sets.New[string]("alice", "bob"),
+			},
+			wantErr: false,
+		},
+		{
+			name: "empty alias group with braces",
+			input: `
 aliases:
   empty-alias-group-with-braces: {}
 `,
-            expected: RepoAliases{},
-            wantErr:  true,
-			errContains: "alias group is empty",
-        },
-        {
-            name: "empty alias group with empty string",
-            input: `
+			expected:    RepoAliases{},
+			wantErr:     true,
+			errContainsRegexp: "alias group '.*' is empty",
+		},
+		{
+			name: "empty alias group",
+			input: `
 aliases:
   empty-alias-group-with-empty-string:
 `,
-            expected: RepoAliases{},
-            wantErr:  true,
-			errContains: "alias group is empty",
-        },
-    }
+			expected:    RepoAliases{},
+			wantErr:     true,
+			errContainsRegexp: "alias group '.*' is empty",
+		},
+	}
 
-    for _, tt := range tests {
-        t.Run(tt.name, func(t *testing.T) {
-            got, err := ParseAliasesConfig([]byte(tt.input))
-            if (err != nil) != tt.wantErr {
-                t.Errorf("ParseAliasesConfig() error = %v, wantErr %v", err, tt.wantErr)
-                return
-            }
-            if !reflect.DeepEqual(got, tt.expected) {
-                t.Errorf("ParseAliasesConfig() = %v, want %v", got, tt.expected)
-            }
-        })
-    }
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ParseAliasesConfig([]byte(tt.input))
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ParseAliasesConfig() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if err != nil {
+				matched, _ := regexp.MatchString(tt.errContainsRegexp, err.Error())
+				if !matched {
+					t.Errorf("ParseAliasesConfig() error = %v, expected to contain %v", err, tt.errContainsRegexp)
+				}
+			}
+			if !reflect.DeepEqual(got, tt.expected) {
+				t.Errorf("ParseAliasesConfig() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
 }
