@@ -4,10 +4,8 @@
     "configured-jobs.ts",
     "../common/prettify.ts",
     "../common/common.ts",
-    //TODO: make sure the following includes are neccessary
     "../vendor.d.ts",
     "../../../../node_modules/moment/moment.d.ts",
     "../../../../node_modules/@types/gtag.js/index.d.ts",
-    "../api"
   ],
 }

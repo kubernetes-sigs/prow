@@ -186,7 +186,7 @@ func gatherOptions(fs *flag.FlagSet, args ...string) options {
 	fs.BoolVar(&o.allowInsecure, "allow-insecure", false, "Allows insecure requests for CSRF and GitHub oauth.")
 	fs.BoolVar(&o.dryRun, "dry-run", false, "Whether or not to make mutating API calls to GitHub.")
 	fs.Var(&o.tenantIDs, "tenant-id", "The tenantID(s) used by the ProwJobs that should be displayed by this instance of Deck. This flag can be repeated.")
-	o.config.AddFlags(fs) //TODO: this arg already exists, so we can use it to obtain the jobs
+	o.config.AddFlags(fs)
 	o.instrumentation.AddFlags(fs)
 	o.controllerManager.TimeoutListingProwJobsDefault = 30 * time.Second
 	o.controllerManager.AddFlags(fs)
@@ -566,7 +566,6 @@ func prodOnlyMain(cfg config.Getter, pluginAgent *plugins.ConfigAgent, authCfgGe
 	mux.Handle("/prowjob", gziphandler.GzipHandler(handleProwJob(prowJobClient, logrus.WithField("handler", "/prowjob"))))
 
 	if o.hookURL != "" {
-		//TODO: here is the "script" where the help ends up being populated...
 		mux.Handle("/plugin-help.js",
 			gziphandler.GzipHandler(handlePluginHelp(newHelpAgent(o.hookURL), logrus.WithField("handler", "/plugin-help.js"))))
 	}
@@ -660,8 +659,6 @@ func prodOnlyMain(cfg config.Getter, pluginAgent *plugins.ConfigAgent, authCfgGe
 
 	mux.Handle("/rerun", gziphandler.GzipHandler(handleRerun(cfg, prowJobClient, o.rerunCreatesJob, authCfgGetter, goa, githuboauth.NewAuthenticatedUserIdentifier(&o.github), githubClient, pluginAgent, logrus.WithField("handler", "/rerun"))))
 	mux.Handle("/abort", gziphandler.GzipHandler(handleAbort(prowJobClient, authCfgGetter, goa, githuboauth.NewAuthenticatedUserIdentifier(&o.github), githubClient, pluginAgent, logrus.WithField("handler", "/abort"))))
-
-	//TODO: do I need to add new handler here as well?
 
 	// optionally inject http->https redirect handler when behind loadbalancer
 	if o.redirectHTTPTo != "" {
@@ -846,10 +843,11 @@ func handleConfiguredJobs(o options, cfg config.Getter, log *logrus.Entry) http.
 			if len(orgRepoSplit) > 1 {
 				repo = orgRepoSplit[1]
 			}
-			configuredJobs, err := GetConfiguredJobs(jobConfig, org, repo)
+			configuredJobs, err := GetConfiguredJobs(cfg, org, repo)
 			if err != nil {
 				log.WithError(err).Error("Error getting configured jobs")
-				//TODO error response
+				http.Error(w, "Error obtaining configured jobs", httpStatusForError(err))
+				return
 			}
 			handleSimpleTemplate(o, cfg, "configured-jobs.html", configuredJobs)(w, r)
 		}

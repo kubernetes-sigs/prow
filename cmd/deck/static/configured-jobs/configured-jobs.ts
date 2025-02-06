@@ -1,80 +1,113 @@
 import "code-prettify";
 import dialogPolyfill from "dialog-polyfill";
 import {Prettify} from "../common/prettify";
+import {getParameterByName} from "../common/urls";
 
 declare const PR: Prettify;
-declare const repos; //TODO: this could be formalized as a type
+declare const includedRepos: Repo[];
+declare const allRepos: string[];
 
 window.onload = (): void => {
     redraw();
     // Register dialog
-    const dialog = document.querySelector('dialog') ;
+    const dialog = document.querySelector('dialog');
     dialogPolyfill.registerDialog(dialog);
     dialog.querySelector('.close')!.addEventListener('click', () => {
         dialog.close();
     });
 }
 
+interface Repo {
+    org: Org;
+    safeName: string;
+    name: string;
+    jobs: Job[];
+}
+
+interface Org {
+    name: string
+}
+
 interface Job {
-    Type: string;
-    JobDefinition: string;
+    name: string;
+    type: string;
+    yamlDefinition: string;
+    jobHistoryLink: string;
 }
 
 /**
  * Redraws the content of the page.
  */
 function redraw(): void {
-    repos.forEach((repo) => {
-        if (repo.jobs != null) {
-            let jobs: Map<string, Job> = new Map();
-            repo.jobs.forEach((job) => {
-                jobs.set(job.name, {
-                    Type: job.type,
-                    JobDefinition: job.yamlDefinition
-                })
-            })
-
-            redrawRepo(jobs, repo.org, repo.name, repo.safeName)
-        }
+    redrawOptions();
+    includedRepos.forEach((repo) => {
+        redrawRepo(repo);
     })
 }
 
-//TODO: document
-function redrawRepo(jobs: Map<string, Job>, org: string, repo: string, safeRepoName: string): void {
-    console.log("redrawing for " + org + "/" + repo); //TODO: remove prior to check in
+/**
+ * Redraws the repo selection box
+ */
+function redrawOptions(): void {
+    const repos = allRepos.sort();
+    const sel = document.getElementById("repo") as HTMLSelectElement;
+    while (sel.length > 1) {
+        sel.removeChild(sel.lastChild);
+    }
+
+    //If we are only showing a single repo, we should have that option as selected
+    let selectedRepo: string
+    if (includedRepos.length == 1) {
+        selectedRepo = includedRepos[0].org.name + "/" + includedRepos[0].name
+    }
+
+    repos.forEach((repo) => {
+        const o = document.createElement("option");
+        o.text = repo;
+        o.value = "/configured-jobs/" + repo;
+        o.selected = repo === selectedRepo
+        sel.appendChild(o);
+    });
+
+    sel.addEventListener("change", (e) => {
+        window.location.href = sel.value;
+    })
+}
+
+/**
+ * Redraws the content of the provided repo.
+ */
+function redrawRepo(repo: Repo): void {
     const container = document.querySelector("#job-container")!;
-    const repoContainer = container.querySelector(`#job-container-${safeRepoName}`)!;
+    const repoContainer = container.querySelector(`#job-container-${repo.safeName}`)!;
     while (repoContainer.childElementCount !== 0) {
         repoContainer.removeChild(repoContainer.firstChild);
     }
 
-    if (jobs.size > 0) {
-        const names = jobs.keys();
-        const namesArray = Array.from(names).sort();
-        console.log("namesArray consists of: " + namesArray);
-        namesArray.forEach((name) => {
-            console.log("creating card for:" + name); //TODO: remove prior to check in
-            let job = jobs.get(name)!;
-            repoContainer.appendChild(createJobCard(name, job.Type, job.JobDefinition));
+    if (repo.jobs.length > 0) {
+        repo.jobs.forEach((job) => {
+            repoContainer.appendChild(createJobCard(job));
         });
     } else {
         const message = document.createElement("h3");
-        message.innerHTML = "No Jobs found for " +  org + "/" + repo;
+        message.innerHTML = "No Jobs found for " + repo.org.name + "/" + repo;
         repoContainer.appendChild(message);
     }
 }
 
-//TODO: document
-function createJobCard(name: string, type: string, jobYaml: string): HTMLElement {
+/**
+ * Creates and returns a card for the provided job
+ */
+function createJobCard(job: Job): HTMLElement {
     const title = document.createElement("h3")
-    title.innerHTML = name;
+    title.innerHTML = job.name;
     title.classList.add("mdl-card__title-text");
     const cardTitle = document.createElement("div");
     cardTitle.classList.add("mdl-card__title");
     cardTitle.appendChild(title);
 
     const cardDesc = document.createElement("div");
-    cardDesc.innerHTML = type;
+    cardDesc.innerHTML = job.type;
     cardDesc.classList.add("mdl-card__supporting-text");
 
     const cardAction = document.createElement("div");
@@ -82,9 +115,9 @@ function createJobCard(name: string, type: string, jobYaml: string): HTMLElement
     actionButton.innerHTML = "Details";
     actionButton.classList.add(...["mdl-button", "mdl-button--colored", "mdl-js-button", "mdl-js-ripple-effect"]);
     actionButton.addEventListener("click", () => {
-        const dialogElement = document.querySelector("dialog") ;
+        const dialogElement = document.querySelector("dialog");
         const titleElement = dialogElement.querySelector(".mdl-dialog__title")!;
-        titleElement.innerHTML = name;
+        titleElement.innerHTML = job.name;
         const contentElement = dialogElement.querySelector(".mdl-dialog__content")!;
 
         while (contentElement.firstChild) {
@@ -97,7 +130,7 @@ function createJobCard(name: string, type: string, jobYaml: string): HTMLElement
         contentElement.appendChild(container);
 
         sectionBody.classList.add("dialog-section-body");
-        sectionBody.innerHTML = genJobDetails(type, jobYaml);
+        sectionBody.innerHTML = genJobDetails(job);
         sectionTitle.classList.add("dialog-section-title");
         sectionTitle.innerHTML = "Job Definition";
 
@@ -119,12 +152,15 @@ function createJobCard(name: string, type: string, jobYaml: string): HTMLElement
     return card;
 }
 
-//TODO: document
-function genJobDetails(type: string, yamlDefinition: string): string {
+/**
+ * Creates and returns the inner content of the modal display for the provided job
+ */
+function genJobDetails(job: Job): string {
     return `
         <div>
-            <summary>Type: ${type}</summary>
-            <pre class="prettyprint"><code class="language-yaml job-definition">${yamlDefinition}</code></pre>
+            <summary>Type: ${job.type}</summary>
+            <pre class="prettyprint"><code class="language-yaml job-definition">${job.yamlDefinition}</code></pre>
+            <a href="${job.jobHistoryLink}">Job History</a>
         </div>
     `;
 }

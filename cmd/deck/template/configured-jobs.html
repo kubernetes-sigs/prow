@@ -4,17 +4,31 @@
 <link rel="stylesheet" href="/static/common/prettify.css?v={{deckVersion}}">
 
 <script type="text/javascript">
-    let repos = {{.Repos}}
+    let includedRepos = {{.IncludedRepos}}
+    let allRepos = {{.AllRepos}}
 </script>
 <script type="text/javascript" src="/static/configured_jobs_bundle.min.js?v={{deckVersion}}"></script>
 {{end}}
 {{define "content"}}
+<aside>
+    <div class="card-box">
+        <ul class="noBullets">
+            <li>Configured Jobs For</li>
+            <li><select id="repo">
+                <option>Select</option>
+
+            </select></li>
+        </ul>
+    </div>
+</aside>
 <div id="job-container">
-    {{ range .Repos }}
-        <h2 class="repo-name">{{.Org.Name}}/{{.Name}}</h2>
+    {{ range .IncludedRepos }}
+        <h2 class="repo-name"><a href="/configured-jobs/{{.Org.Name}}/{{.Name}}">{{.Org.Name}}/{{.Name}}</a></h2>
+        {{ if .Jobs }}
         <div id="job-container-{{.SafeName}}" class="job-container">
             <p>Loading...</p>
         </div>
+        {{ end }}
     {{ end }}
 </div>
 {{end}}

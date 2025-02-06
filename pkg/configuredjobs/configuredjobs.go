@@ -1,23 +1,26 @@
 package configuredjobs
 
-//TODO: documentation for everything here
+import v1 "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 
-type ConfiguredJobs struct {
-	Repos []Repo `json:"repos"`
+// JobsByRepo contains a list of RepoInfo that is used to display the Configured Jobs subpages
+type JobsByRepo struct {
+	IncludedRepos []RepoInfo `json:"includedRepos"`
+	AllRepos      []string   `json:"allRepos"`
 }
 
+// Index contains a list of Org that is used to display the Configured Jobs index page
 type Index struct {
 	Orgs []Org `json:"orgs"`
 }
 
+// Org contains the information necessary to display the org level Configured Jobs information
 type Org struct {
-	Name string `json:"name"`
-	// SafeName is the Name with unsupported chars stripped
-	SafeName string   `json:"safeName"` //TODO: do we use this anywhere?
-	Repos    []string `json:"repos"`
+	Name  string   `json:"name"`
+	Repos []string `json:"repos"`
 }
 
-type Repo struct {
+// RepoInfo contains the information necessary to display the Configured Jobs page for a repo
+type RepoInfo struct {
 	Org Org `json:"org"`
 	// SafeName is the Name with unsupported chars stripped
 	SafeName string    `json:"safeName"`
@@ -25,9 +28,10 @@ type Repo struct {
 	Jobs     []JobInfo `json:"jobs"`
 }
 
+// JobInfo contains the necessary information for a job for the Configured Jobs page
 type JobInfo struct {
-	Name           string `json:"name"`
-	Type           string `json:"type"`
-	JobHistoryLink string `json:"jobHistoryLink"`
-	YAMLDefinition string `json:"yamlDefinition"`
+	Name           string         `json:"name"`
+	Type           v1.ProwJobType `json:"type"`
+	JobHistoryLink string         `json:"jobHistoryLink"`
+	YAMLDefinition string         `json:"yamlDefinition"`
 }
