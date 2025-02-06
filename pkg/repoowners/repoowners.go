@@ -675,7 +675,11 @@ func ParseAliasesConfig(b []byte) (RepoAliases, error) {
 			// Convert []interface{} to []string
 			var members []string
 			for _, member := range v {
-				members = append(members, member.(string))
+				memberAsString, ok := member.(string)
+				if !ok {
+					return result, fmt.Errorf("unexpected type for alias group member: %T", member)
+				}
+				members = append(members, memberAsString)
 			}
 			if len(members) == 0 {
 				return result, fmt.Errorf("alias group '%s' is empty", alias)
