@@ -3,8 +3,10 @@ package main
 import (
 	"fmt"
 	"net/url"
+	"sort"
 	"strings"
 
+	"k8s.io/apimachinery/pkg/util/sets"
 	v1 "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 	"sigs.k8s.io/prow/pkg/config"
 	"sigs.k8s.io/prow/pkg/configuredjobs"
@@ -16,7 +18,7 @@ func GetIndex(jobConfig config.JobConfig) configuredjobs.Index {
 	repos := jobConfig.AllRepos
 
 	orgs := make(map[string]*configuredjobs.Org)
-	for _, r := range repos.UnsortedList() {
+	for _, r := range sets.List(repos) {
 		orgRepo := strings.Split(r, "/")
 		org, repo := orgRepo[0], orgRepo[1]
 		if org == "" || repo == "" {
@@ -34,9 +36,15 @@ func GetIndex(jobConfig config.JobConfig) configuredjobs.Index {
 		}
 	}
 
-	orgList := make([]configuredjobs.Org, 0, len(orgs))
-	for _, org := range orgs {
-		orgList = append(orgList, *org)
+	// Sort the orgs
+	orgNames := make([]string, 0, len(orgs))
+	for orgName := range orgs {
+		orgNames = append(orgNames, orgName)
+	}
+	sort.Strings(orgNames)
+	orgList := make([]configuredjobs.Org, 0, len(orgNames))
+	for _, orgName := range orgNames {
+		orgList = append(orgList, *orgs[orgName])
 	}
 	return configuredjobs.Index{Orgs: orgList}
 }
@@ -45,15 +53,14 @@ func GetIndex(jobConfig config.JobConfig) configuredjobs.Index {
 func GetConfiguredJobs(cfg config.Getter, org, repo string) (*configuredjobs.JobsByRepo, error) {
 	jobConfig := cfg().JobConfig
 	configuredJobs := &configuredjobs.JobsByRepo{
-		AllRepos: jobConfig.AllRepos.UnsortedList(),
+		AllRepos: sets.List(jobConfig.AllRepos),
 	}
 
 	var orgRepos []string
 	if repo != "" {
 		orgRepos = []string{fmt.Sprintf("%s/%s", org, repo)}
 	} else {
-
-		for _, r := range jobConfig.AllRepos.UnsortedList() {
+		for _, r := range sets.List(jobConfig.AllRepos) {
 			o := strings.Split(r, "/")[0]
 			if o == org {
 				orgRepos = append(orgRepos, r)
@@ -63,7 +70,7 @@ func GetConfiguredJobs(cfg config.Getter, org, repo string) (*configuredjobs.Job
 
 	// If there are more than 10 repos in the org, the page will be slow and not particularly useful,
 	// Instead, just list the repos so they can be drilled down into
-	includeJobs := len(orgRepos) < 10
+	includeJobs := len(orgRepos) <= 10
 
 	for _, orgRepo := range orgRepos {
 		r := strings.Split(orgRepo, "/")[1]
@@ -81,7 +88,7 @@ func GetConfiguredJobs(cfg config.Getter, org, repo string) (*configuredjobs.Job
 					return nil, fmt.Errorf("could not marshal presubmit: %w", err)
 				}
 
-				provider, bucket, err := getStorageProviderAndBucket(cfg, org, repo, presubmit.JobBase)
+				provider, bucket, err := getStorageProviderAndBucket(cfg, org, r, presubmit.JobBase)
 				if err != nil {
 					return nil, fmt.Errorf("could not get storage provider and bucket: %w", err)
 				}
@@ -99,7 +106,7 @@ func GetConfiguredJobs(cfg config.Getter, org, repo string) (*configuredjobs.Job
 					return nil, fmt.Errorf("could not marshal postsubmit: %w", err)
 				}
 
-				provider, bucket, err := getStorageProviderAndBucket(cfg, org, repo, postsubmit.JobBase)
+				provider, bucket, err := getStorageProviderAndBucket(cfg, org, r, postsubmit.JobBase)
 				if err != nil {
 					return nil, fmt.Errorf("could not get storage provider and bucket: %w", err)
 				}
@@ -110,14 +117,14 @@ func GetConfiguredJobs(cfg config.Getter, org, repo string) (*configuredjobs.Job
 					YAMLDefinition: string(definition),
 				})
 			}
-			periodics := jobConfig.PeriodicsMatchingExtraRefs(org, repo)
+			periodics := jobConfig.PeriodicsMatchingExtraRefs(org, r)
 			for _, periodic := range periodics {
 				definition, err := yaml.Marshal(periodic)
 				if err != nil {
 					return nil, fmt.Errorf("could not marshal periodic: %w", err)
 				}
 
-				provider, bucket, err := getStorageProviderAndBucket(cfg, org, repo, periodic.JobBase)
+				provider, bucket, err := getStorageProviderAndBucket(cfg, org, r, periodic.JobBase)
 				if err != nil {
 					return nil, fmt.Errorf("could not get storage provider and bucket: %w", err)
 				}
