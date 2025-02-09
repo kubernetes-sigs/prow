@@ -1261,10 +1261,9 @@ Approvers can cancel approval by writing ` + "`/approve cancel`" + ` in a commen
 					LinkURL: test.githubLinkURL,
 				},
 				&plugins.Approve{
-					Repos:               []string{"org/repo"},
 					RequireSelfApproval: &rsa,
-					IssueRequired:       test.needsIssue,
-					LgtmActsAsApprove:   test.lgtmActsAsApprove,
+					IssueRequired:       &test.needsIssue,
+					LgtmActsAsApprove:   &test.lgtmActsAsApprove,
 					IgnoreReviewState:   &irs,
 					CommandHelpLink:     "https://go.k8s.io/bot-commands",
 					PrProcessLink:       "https://git.k8s.io/community/contributors/guide/owners.md#the-code-review-process",
@@ -1548,17 +1547,14 @@ func TestHandleGenericComment(t *testing.T) {
 				Host:   "github.com",
 			},
 		}
-		config := &plugins.Configuration{}
-		config.Approve = append(config.Approve, plugins.Approve{
-			Repos:             []string{test.commentEvent.Repo.Owner.Login},
-			LgtmActsAsApprove: test.lgtmActsAsApprove,
-		})
 		err := handleGenericComment(
 			logrus.WithField("plugin", "approve"),
 			fghc,
 			fakeOwnersClient{},
 			githubConfig,
-			config,
+			&plugins.Approve{
+				LgtmActsAsApprove: &test.lgtmActsAsApprove,
+			},
 			&test.commentEvent,
 		)
 
@@ -1767,19 +1763,16 @@ func TestHandleReview(t *testing.T) {
 				Host:   "github.com",
 			},
 		}
-		config := &plugins.Configuration{}
 		irs := !test.reviewActsAsApprove
-		config.Approve = append(config.Approve, plugins.Approve{
-			Repos:             []string{test.reviewEvent.Repo.Owner.Login},
-			LgtmActsAsApprove: test.lgtmActsAsApprove,
-			IgnoreReviewState: &irs,
-		})
 		err := handleReview(
 			logrus.WithField("plugin", "approve"),
 			fghc,
 			fakeOwnersClient{},
 			githubConfig,
-			config,
+			&plugins.Approve{
+				LgtmActsAsApprove: &test.lgtmActsAsApprove,
+				IgnoreReviewState: &irs,
+			},
 			&test.reviewEvent,
 		)
 
@@ -1923,7 +1916,7 @@ func TestHandlePullRequest(t *testing.T) {
 					Host:   "github.com",
 				},
 			},
-			&plugins.Configuration{},
+			&plugins.Approve{},
 			&test.prEvent,
 		)
 
@@ -1965,13 +1958,9 @@ func TestHelpProvider(t *testing.T) {
 		{
 			name: "All configs enabled",
 			config: &plugins.Configuration{
-				Approve: []plugins.Approve{
-					{
-						Repos:               []string{"org2/repo"},
-						IssueRequired:       true,
-						RequireSelfApproval: &[]bool{true}[0],
-						LgtmActsAsApprove:   true,
-						IgnoreReviewState:   &[]bool{true}[0],
+				Approve: plugins.ConfigTree[plugins.Approve]{
+					Orgs: map[string]plugins.Org[plugins.Approve]{
+						"org2": {},
 					},
 				},
 			},
