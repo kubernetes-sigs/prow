@@ -60,7 +60,7 @@ require (
 	golang.org/x/oauth2 v0.26.0
 	golang.org/x/sync v0.11.0
 	golang.org/x/text v0.22.0
-	golang.org/x/time v0.6.0
+	golang.org/x/time v0.10.0
 	gomodules.xyz/jsonpatch/v2 v2.4.0
 	google.golang.org/api v0.191.0
 	google.golang.org/genproto v0.0.0-20240812133136-8ffd90a71988
