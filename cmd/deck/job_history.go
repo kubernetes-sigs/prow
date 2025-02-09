@@ -529,3 +529,13 @@ func getJobHistory(ctx context.Context, url *url.URL, cfg config.Getter, opener 
 	logrus.Infof("loaded %s in %v", url.Path, elapsed)
 	return tmpl, nil
 }
+
+// jobHistoryLink returns the proper link for the job history page for the provided jobName, storageProvider, and bucketName
+// it generates a presubmit specific link if presubmit is passed as true
+func jobHistoryLink(storageProvider, bucketName, jobName string, presubmit bool) string {
+	if presubmit {
+		return fmt.Sprintf("/job-history/%s/%s/pr-logs/directory/%s", storageProvider, bucketName, jobName)
+	} else {
+		return fmt.Sprintf("/job-history/%s/%s/logs/%s", storageProvider, bucketName, jobName)
+	}
+}

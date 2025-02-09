@@ -94,10 +94,6 @@ func githubCommitLink(githubHost, org, repo, commitHash string) string {
 	return fmt.Sprintf("https://%s/%s/%s/commit/%s", githubHost, org, repo, commitHash)
 }
 
-func jobHistLink(storageProvider, bucketName, jobName string) string {
-	return fmt.Sprintf("/job-history/%s/%s/pr-logs/directory/%s", storageProvider, bucketName, jobName)
-}
-
 // gets the pull commit hash from metadata
 func getPullCommitHash(pull string) (string, error) {
 	match := pullCommitRe.FindStringSubmatch(pull)
@@ -310,7 +306,7 @@ func getPRHistory(ctx context.Context, prHistoryURL *url.URL, config *config.Con
 				jobName := path.Base(jobPrefix)
 				jobData := prJobData{
 					Name: jobName,
-					Link: jobHistLink(storageProvider, bucketName, jobName),
+					Link: jobHistoryLink(storageProvider, bucketName, jobName, true),
 				}
 				template.Jobs = append(template.Jobs, jobData)
 				jobCommitBuilds[jobName] = make(map[string][]buildData)

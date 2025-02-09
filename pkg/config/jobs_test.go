@@ -1439,3 +1439,66 @@ func TestJobBase_GetPipelineRunSpec(t *testing.T) {
 		})
 	}
 }
+
+func TestPeriodicsMatchingExtraRefs(t *testing.T) {
+	c := &Config{
+		JobConfig: JobConfig{
+			PresubmitsStatic: map[string][]Presubmit{
+				"r1": {{
+					JobBase: JobBase{
+						Name: "a",
+						UtilityConfig: UtilityConfig{
+							ExtraRefs: []prowapi.Refs{
+								{Org: "o", Repo: "r1"},
+							},
+						},
+					}},
+				},
+			},
+			PostsubmitsStatic: map[string][]Postsubmit{
+				"r1": {{JobBase: JobBase{Name: "b"}}},
+			},
+			Periodics: []Periodic{
+				{
+					JobBase: JobBase{
+						Name: "c",
+						UtilityConfig: UtilityConfig{
+							ExtraRefs: []prowapi.Refs{
+								{Org: "o", Repo: "r1"},
+							},
+						},
+					},
+				},
+				{JobBase: JobBase{Name: "d"}},
+				{
+					JobBase: JobBase{
+						Name: "e",
+						UtilityConfig: UtilityConfig{
+							ExtraRefs: []prowapi.Refs{
+								{Org: "o", Repo: "r1"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	expected := []string{"c", "e"}
+	actual := c.PeriodicsMatchingExtraRefs("o", "r1")
+	if len(actual) != len(expected) {
+		t.Fatalf("Wrong number of jobs. Got %v, expected %v", actual, expected)
+	}
+	for _, j1 := range expected {
+		found := false
+		for _, j2 := range actual {
+			if j1 == j2.Name {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("Did not find job %s in output", j1)
+		}
+	}
+}
