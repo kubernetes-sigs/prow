@@ -1428,6 +1428,13 @@ func TestValidateAgent(t *testing.T) {
 			},
 			pass: true,
 		},
+		{
+			name: "error_on_termination allowed for kubernetes agent",
+			base: func(j *JobBase) {
+				j.ErrorOnTermination = true
+			},
+			pass: true,
+		},
 	}
 
 	for _, tc := range cases {
@@ -8426,6 +8433,10 @@ moonraker:
   client_timeout: 10m0s
 plank:
   max_goroutines: 20
+  max_retries: 3
+  node_termination_reasons:
+  - DeletionByPodGC
+  - DeletionByGCPControllerManager
   pod_pending_timeout: 10m0s
   pod_running_timeout: 48h0m0s
   pod_unscheduled_timeout: 5m0s
@@ -8510,6 +8521,10 @@ moonraker:
   client_timeout: 10m0s
 plank:
   max_goroutines: 20
+  max_retries: 3
+  node_termination_reasons:
+  - DeletionByPodGC
+  - DeletionByGCPControllerManager
   pod_pending_timeout: 10m0s
   pod_running_timeout: 48h0m0s
   pod_unscheduled_timeout: 5m0s
@@ -8587,6 +8602,10 @@ moonraker:
   client_timeout: 10m0s
 plank:
   max_goroutines: 20
+  max_retries: 3
+  node_termination_reasons:
+  - DeletionByPodGC
+  - DeletionByGCPControllerManager
   pod_pending_timeout: 10m0s
   pod_running_timeout: 48h0m0s
   pod_unscheduled_timeout: 5m0s
@@ -8669,6 +8688,10 @@ moonraker:
   client_timeout: 10m0s
 plank:
   max_goroutines: 20
+  max_retries: 3
+  node_termination_reasons:
+  - DeletionByPodGC
+  - DeletionByGCPControllerManager
   pod_pending_timeout: 10m0s
   pod_running_timeout: 48h0m0s
   pod_unscheduled_timeout: 5m0s
