@@ -19,10 +19,12 @@ package blunderbuss
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -48,8 +50,12 @@ type fakeGitHubClient struct {
 
 func newFakeGitHubClient(pr *github.PullRequest, filesChanged []string) *fakeGitHubClient {
 	changes := make([]github.PullRequestChange, 0, len(filesChanged))
-	for _, name := range filesChanged {
-		changes = append(changes, github.PullRequestChange{Filename: name})
+	for idx, name := range filesChanged {
+		sha := pr.Head.SHA
+		if idx > 0 || sha == "" {
+			sha = fmt.Sprintf("%s%0X", sha, idx)
+		}
+		changes = append(changes, github.PullRequestChange{Filename: name, SHA: sha})
 	}
 	return &fakeGitHubClient{pr: pr, changes: changes}
 }
@@ -95,6 +101,33 @@ func (c *fakeGitHubClient) Query(ctx context.Context, q interface{}, vars map[st
 		sq.User.Status.IndicatesLimitedAvailability = githubql.Boolean(true)
 	}
 	return nil
+}
+
+func (c *fakeGitHubClient) FindIssuesWithOrg(org string, query string, sort string, asc bool) ([]github.Issue, error) {
+	// Query should match the head commit of the pull request
+	if strings.HasPrefix(query, c.pr.Head.SHA) || slices.ContainsFunc(c.changes, func(change github.PullRequestChange) bool {
+		return strings.HasPrefix(query, change.SHA)
+	}) {
+		prStruct := struct{}{}
+		return []github.Issue{{
+			ID:          c.pr.Number,
+			NodeID:      c.pr.NodeID,
+			User:        c.pr.User,
+			Number:      c.pr.Number,
+			Title:       c.pr.Title,
+			State:       c.pr.State,
+			HTMLURL:     c.pr.HTMLURL,
+			Labels:      c.pr.Labels,
+			Assignees:   c.pr.Assignees,
+			Body:        c.pr.Body,
+			CreatedAt:   c.pr.CreatedAt,
+			UpdatedAt:   c.pr.UpdatedAt,
+			PullRequest: &prStruct,
+		}}, nil
+	}
+
+	// No match
+	return []github.Issue{}, nil
 }
 
 type fakeRepoownersClient struct {
@@ -585,6 +618,7 @@ func TestHandlePullRequest(t *testing.T) {
 		draft             bool
 		ignoreDrafts      bool
 		ignoreAuthors     []string
+		waitForStatus     *plugins.ContextMatch
 	}{
 		{
 			name:              "PR opened",
@@ -600,6 +634,14 @@ func TestHandlePullRequest(t *testing.T) {
 			body:          "/cc",
 			filesChanged:  []string{"a.go"},
 			reviewerCount: 1,
+		},
+		{
+			name:          "PR opened but config has WaitForStatus set",
+			action:        github.PullRequestActionOpened,
+			body:          "/auto-cc",
+			filesChanged:  []string{"a.go"},
+			reviewerCount: 1,
+			waitForStatus: &plugins.ContextMatch{},
 		},
 		{
 			name:          "PR closed",
@@ -649,6 +691,7 @@ func TestHandlePullRequest(t *testing.T) {
 				ExcludeApprovers: false,
 				IgnoreDrafts:     tc.ignoreDrafts,
 				IgnoreAuthors:    tc.ignoreAuthors,
+				WaitForStatus:    tc.waitForStatus,
 			}
 
 			if err := handlePullRequest(
@@ -762,6 +805,180 @@ func TestHandleGenericComment(t *testing.T) {
 	}
 }
 
+func TestHandleStatus(t *testing.T) {
+	froc := &fakeRepoownersClient{
+		foc: &fakeOwnersClient{
+			owners: map[string]string{
+				"a.go": "1",
+			},
+			leafReviewers: map[string]sets.Set[string]{
+				"a.go": sets.New[string]("al"),
+			},
+		},
+	}
+
+	var testcases = []struct {
+		name              string
+		sha               string
+		context           string
+		state             string
+		description       string
+		author            string
+		alreadyRequested  []github.User
+		filesChanged      []string
+		reviewerCount     int
+		expectedRequested []string
+	}{
+		{
+			name:              "commit with matching context status for GitHub review and an open pull request will request a review",
+			sha:               "0001",
+			context:           "tide",
+			state:             "pending",
+			description:       "Not mergeable. PullRequest is missing sufficient approving GitHub review(s)",
+			filesChanged:      []string{"a.go"},
+			reviewerCount:     1,
+			expectedRequested: []string{"al"},
+		},
+		{
+			name:              "commit with matching context status for lgtm label and an open pull request will request a review",
+			sha:               "0001",
+			context:           "tide",
+			state:             "pending",
+			description:       "Not mergeable. Needs lgtm label.",
+			filesChanged:      []string{"a.go"},
+			reviewerCount:     1,
+			expectedRequested: []string{"al"},
+		},
+		{
+			name:              "commit with matching context status for approved label and an open pull request will request a review",
+			sha:               "0001",
+			context:           "tide",
+			state:             "pending",
+			description:       "Not mergeable. Needs approved label.",
+			filesChanged:      []string{"a.go"},
+			reviewerCount:     1,
+			expectedRequested: []string{"al"},
+		},
+		{
+			name:              "commit with matching context status for lgtm and approved label and an open pull request will request a review",
+			sha:               "0001",
+			context:           "tide",
+			state:             "pending",
+			description:       "Not mergeable. Needs approved, lgtm labels.",
+			filesChanged:      []string{"a.go"},
+			reviewerCount:     1,
+			expectedRequested: []string{"al"},
+		},
+		{
+			name:          "ignore if sha mismatch on pull request",
+			sha:           "x",
+			context:       "tide",
+			state:         "pending",
+			description:   "Not mergeable. PullRequest is missing sufficient approving GitHub review(s)",
+			filesChanged:  []string{"a.go"},
+			reviewerCount: 1,
+		},
+		{
+			name:          "ignore if sha is not the head sha",
+			sha:           "0002",
+			context:       "tide",
+			state:         "pending",
+			description:   "Not mergeable. PullRequest is missing sufficient approving GitHub review(s)",
+			filesChanged:  []string{"a.go", "a.go"},
+			reviewerCount: 1,
+		},
+		{
+			name:          "ignore if state does not match",
+			sha:           "0001",
+			context:       "tide",
+			state:         "success",
+			description:   "Not mergeable. PullRequest is missing sufficient approving GitHub review(s)",
+			filesChanged:  []string{"a.go"},
+			reviewerCount: 1,
+		},
+		{
+			name:          "ignore if context does not match",
+			sha:           "0001",
+			context:       "test",
+			state:         "pending",
+			description:   "Not mergeable. PullRequest is missing sufficient approving GitHub review(s)",
+			filesChanged:  []string{"a.go"},
+			reviewerCount: 1,
+		},
+		{
+			name:          "ignore if description does not match",
+			sha:           "0001",
+			context:       "tide",
+			state:         "pending",
+			description:   "Retesting: test, lint",
+			filesChanged:  []string{"a.go"},
+			reviewerCount: 1,
+		},
+		{
+			name:          "ignore if author listed in IgnoreAuthors",
+			author:        "ignoreme",
+			sha:           "0001",
+			context:       "tide",
+			state:         "pending",
+			description:   "Not mergeable. PullRequest is missing sufficient approving GitHub review(s)",
+			filesChanged:  []string{"a.go"},
+			reviewerCount: 1,
+		},
+		{
+			name:             "ignore if reviews already requested",
+			alreadyRequested: []github.User{{Login: "who"}},
+			sha:              "0001",
+			context:          "tide",
+			state:            "pending",
+			description:      "Not mergeable. PullRequest is missing sufficient approving GitHub review(s)",
+			filesChanged:     []string{"a.go"},
+			reviewerCount:    1,
+		},
+	}
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			pr := github.PullRequest{
+				Number:             5,
+				User:               github.User{Login: "author"},
+				Head:               github.PullRequestBranch{Ref: "test", SHA: "0001"},
+				RequestedReviewers: tc.alreadyRequested,
+			}
+			if tc.author != "" {
+				pr.User.Login = tc.author
+			}
+
+			fghc := newFakeGitHubClient(&pr, tc.filesChanged)
+			repo := github.Repo{Owner: github.User{Login: "org"}, Name: "repo"}
+			descriptionPattern := "Not mergeable. (PullRequest is missing sufficient approving GitHub review\\(s\\)|Needs (lgtm|approved|approved, lgtm) labels?)\\.?"
+			config := plugins.Blunderbuss{
+				ReviewerCount:    &tc.reviewerCount,
+				MaxReviewerCount: 0,
+				ExcludeApprovers: false,
+				IgnoreAuthors:    []string{"ignoreme"},
+				WaitForStatus: &plugins.ContextMatch{
+					Context:       "tide",
+					Description:   descriptionPattern,
+					DescriptionRe: regexp.MustCompile(descriptionPattern),
+					State:         "pending",
+				},
+			}
+
+			if err := handleStatus(
+				fghc, froc, logrus.WithField("plugin", PluginName), config,
+				tc.sha, tc.context, tc.state, tc.description, &repo,
+			); err != nil {
+				t.Fatalf("unexpected error from handle: %v", err)
+			}
+
+			sort.Strings(fghc.requested)
+			sort.Strings(tc.expectedRequested)
+			if !reflect.DeepEqual(fghc.requested, tc.expectedRequested) {
+				t.Fatalf("expected the requested reviewers to be %q, but got %q.", tc.expectedRequested, fghc.requested)
+			}
+		})
+	}
+}
+
 func TestHandleGenericCommentEvent(t *testing.T) {
 	pc := plugins.Agent{
 		PluginConfig: &plugins.Configuration{},
@@ -776,6 +993,14 @@ func TestHandlePullRequestEvent(t *testing.T) {
 	}
 	pre := github.PullRequestEvent{}
 	handlePullRequestEvent(pc, pre)
+}
+
+func TestHandleStatusEvent(t *testing.T) {
+	pc := plugins.Agent{
+		PluginConfig: &plugins.Configuration{},
+	}
+	pre := github.StatusEvent{}
+	handleStatusEvent(pc, pre)
 }
 
 func TestHelpProvider(t *testing.T) {
