@@ -30,12 +30,15 @@ import (
 )
 
 // GetIndex returns the necessary information for the configured jobs index page, including all the potential orgs and repos
-func GetIndex(jobConfig config.JobConfig) configuredjobs.Index {
+func GetIndex(jobConfig config.JobConfig) (configuredjobs.Index, error) {
 	repos := jobConfig.AllRepos
 
 	orgs := make(map[string]*configuredjobs.Org)
 	for _, r := range sets.List(repos) {
 		orgRepo := strings.Split(r, "/")
+		if len(orgRepo) != 2 {
+			return configuredjobs.Index{}, fmt.Errorf("invalid format for repo: %s. must be in <org/repo> format", r)
+		}
 		org, repo := orgRepo[0], orgRepo[1]
 		if org == "" || repo == "" {
 			continue
@@ -43,7 +46,6 @@ func GetIndex(jobConfig config.JobConfig) configuredjobs.Index {
 		existingOrg := orgs[org]
 		if existingOrg != nil {
 			existingOrg.Repos = append(existingOrg.Repos, repo)
-			orgs[org] = existingOrg
 		} else {
 			orgs[org] = &configuredjobs.Org{
 				Name:  org,
@@ -62,21 +64,22 @@ func GetIndex(jobConfig config.JobConfig) configuredjobs.Index {
 	for _, orgName := range orgNames {
 		orgList = append(orgList, *orgs[orgName])
 	}
-	return configuredjobs.Index{Orgs: orgList}
+	return configuredjobs.Index{Orgs: orgList}, nil
 }
 
 // GetConfiguredJobs returns the information for the configured jobs page for a given repo, or the org if the repo is empty
 func GetConfiguredJobs(cfg config.Getter, org, repo string) (*configuredjobs.JobsByRepo, error) {
 	jobConfig := cfg().JobConfig
+	allRepos := sets.List(jobConfig.AllRepos)
 	configuredJobs := &configuredjobs.JobsByRepo{
-		AllRepos: sets.List(jobConfig.AllRepos),
+		AllRepos: allRepos,
 	}
 
 	var orgRepos []string
 	if repo != "" {
 		orgRepos = []string{fmt.Sprintf("%s/%s", org, repo)}
 	} else {
-		for _, r := range sets.List(jobConfig.AllRepos) {
+		for _, r := range allRepos {
 			o := strings.Split(r, "/")[0]
 			if o == org {
 				orgRepos = append(orgRepos, r)
@@ -177,6 +180,9 @@ func getStorageProviderAndBucket(cfg config.Getter, org, repo string, job config
 	}
 
 	b := gcsConfig.Bucket
+	if b == "" {
+		return "", "", fmt.Errorf("failed to determine GCS bucket")
+	}
 	// If no provider is included, default to gs
 	if !strings.Contains(b, "://") {
 		b = "gs://" + b

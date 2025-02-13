@@ -52,7 +52,10 @@ func TestGetIndex(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			jobConfig := config.JobConfig{AllRepos: sets.New(tc.repos...)}
-			index := GetIndex(jobConfig)
+			index, err := GetIndex(jobConfig)
+			if err != nil {
+				t.Fatalf("GetIndex() failed: %v", err)
+			}
 			if diff := cmp.Diff(tc.expected, index); diff != "" {
 				t.Errorf("GetIndex() returned unexpected diff (-want +got):\n%s", diff)
 			}

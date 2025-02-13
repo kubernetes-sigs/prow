@@ -833,25 +833,34 @@ func handleConfiguredJobs(o options, cfg config.Getter, log *logrus.Entry) http.
 		setHeadersNoCaching(w)
 		p := r.URL.Path
 		if strings.HasSuffix(p, "configured-jobs/") { // If there is no further path, fetch the index page
-			index := GetIndex(jobConfig)
-			handleSimpleTemplate(o, cfg, "configured-jobs-index.html", index)(w, r)
-		} else {
-			var org, repo string
-			orgRepoPath := strings.Split(p, "configured-jobs/")[1]
-			orgRepoSplit := strings.Split(orgRepoPath, "/")
-			org = orgRepoSplit[0]
-			if len(orgRepoSplit) > 1 {
-				repo = orgRepoSplit[1]
-			}
-			configuredJobs, err := GetConfiguredJobs(cfg, org, repo)
+			index, err := GetIndex(jobConfig)
 			if err != nil {
-				log.WithError(err).Error("Error getting configured jobs")
-				http.Error(w, "Error obtaining configured jobs", httpStatusForError(err))
+				log.WithError(err).Error("Error getting configured jobs index")
+				http.Error(w, "Error obtaining configured jobs index", httpStatusForError(err))
 				return
 			}
-			handleSimpleTemplate(o, cfg, "configured-jobs.html", configuredJobs)(w, r)
+			handleSimpleTemplate(o, cfg, "configured-jobs-index.html", index)(w, r)
+			return
 		}
 
+		var org, repo string
+		orgRepoPath := strings.Split(p, "configured-jobs/")[1]
+		orgRepoSplit := strings.Split(orgRepoPath, "/")
+		if len(orgRepoSplit) > 2 {
+			http.NotFound(w, r)
+			return
+		}
+		org = orgRepoSplit[0]
+		if len(orgRepoSplit) > 1 {
+			repo = orgRepoSplit[1]
+		}
+		configuredJobs, err := GetConfiguredJobs(cfg, org, repo)
+		if err != nil {
+			log.WithError(err).Error("Error getting configured jobs")
+			http.Error(w, "Error obtaining configured jobs", httpStatusForError(err))
+			return
+		}
+		handleSimpleTemplate(o, cfg, "configured-jobs.html", configuredJobs)(w, r)
 	}
 }
 
