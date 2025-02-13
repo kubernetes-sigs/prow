@@ -283,9 +283,9 @@ func TestDeletePod(t *testing.T) {
 			}
 
 			// Make sure pod is deleted.
-			t.Logf("Wait for sinker deleting pod or timeout in 5 minutes: %s", pod.Name)
-			var scheduled_for_deletion bool
-			err = wait.PollUntilContextTimeout(ctx, time.Second, 5*time.Minute, true, func(ctx context.Context) (bool, error) {
+			t.Logf("Wait for sinker deleting pod or timeout in 1 minute: %s", pod.Name)
+			var scheduledForDeletion bool
+			err = wait.PollUntilContextTimeout(ctx, time.Second, 1*time.Minute, true, func(ctx context.Context) (bool, error) {
 				pods := &corev1.PodList{}
 				err := kubeClient.List(ctx, pods, ctrlruntimeclient.InNamespace(testpodNamespace))
 				if err != nil {
@@ -294,24 +294,25 @@ func TestDeletePod(t *testing.T) {
 				for _, p := range pods.Items {
 					if p.Name == pod.Name {
 						if p.ObjectMeta.DeletionTimestamp != nil { // Pod scheduled to deletion
-							scheduled_for_deletion = true
+							scheduledForDeletion = true
 							break
 						}
 					}
 				}
-				return scheduled_for_deletion, nil
+				return scheduledForDeletion, nil
 			})
+			t.Logf("err is: %v", err)
 			// Check for the error of `List` call.
 			if err != nil && !wait.Interrupted(err) {
 				t.Fatal(err)
 			}
-			t.Logf("Pod %s scheduled for deletion: %v", pod.Name, scheduled_for_deletion)
-			if want, got := tt.wantPodDeleted, scheduled_for_deletion; want != got {
-				t.Fatalf("wantPodDeleted: %v, but got scheduled_for_deletion: %v", want, got)
+			t.Logf("Pod %s scheduled for deletion: %v", pod.Name, scheduledForDeletion)
+			if want, got := tt.wantPodDeleted, scheduledForDeletion; want != got {
+				t.Fatalf("wantPodDeleted: %v, but got scheduledForDeletion: %v", want, got)
 			}
 
 			// Check for prowjob deletion.
-			var prowjob_exists bool
+			var prowjobExists bool
 			if prowjob != nil {
 				pjs := &prowjobv1.ProwJobList{}
 				err = kubeClient.List(ctx, pjs, ctrlruntimeclient.InNamespace(defaultNamespace))
@@ -320,11 +321,11 @@ func TestDeletePod(t *testing.T) {
 				}
 				for _, pj := range pjs.Items {
 					if pj.Name == prowjob.Name {
-						prowjob_exists = true
+						prowjobExists = true
 						break
 					}
 				}
-				if tt.wantJobDeleted && prowjob_exists {
+				if tt.wantJobDeleted && prowjobExists {
 					t.Fatalf("Wanted ProwJob deletion, but it still exists")
 				}
 			}
