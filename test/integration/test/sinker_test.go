@@ -301,7 +301,7 @@ func TestDeletePod(t *testing.T) {
 				}
 				return scheduledForDeletion, nil
 			})
-			t.Logf("err is: %v", err)
+			t.Errorf("err is: %v", err)
 			// Check for the error of `List` call.
 			if err != nil && !wait.Interrupted(err) {
 				t.Fatal(err)
