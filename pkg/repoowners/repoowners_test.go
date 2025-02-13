@@ -1496,6 +1496,16 @@ aliases:
 			wantErr:           true,
 			errContainsRegexp: "error converting YAML",
 		},
+		{
+			name: "incorrect representation of alias group list",
+			input: `
+aliases:
+  alias-group-1: ""
+`,
+			expected:          RepoAliases{},
+			wantErr:           true,
+			errContainsRegexp: "must contain a list of members",
+		},
 	}
 
 	for _, tt := range tests {

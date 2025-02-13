@@ -1456,7 +1456,6 @@ func testHandleParseAliasesConfigErrors(clients localgit.Clients, t *testing.T) 
 		filesChanged         []string
 		ownersFile           string
 		ownersAliasesFile    string
-		shouldError          bool
 		expectedErrorMessage string
 		skipTrustedUserCheck bool
 	}{
@@ -1465,7 +1464,6 @@ func testHandleParseAliasesConfigErrors(clients localgit.Clients, t *testing.T) 
 			filesChanged:         []string{"OWNERS_ALIASES"},
 			ownersFile:           "collaboratorsWithAliases",
 			ownersAliasesFile:    "emptyAliasGroupOwnersAliasesWithEmptyBraces",
-			shouldError:          true,
 			expectedErrorMessage: "error parsing aliases config for OWNERS_ALIASES file",
 			skipTrustedUserCheck: true,
 		},
@@ -1474,7 +1472,6 @@ func testHandleParseAliasesConfigErrors(clients localgit.Clients, t *testing.T) 
 			filesChanged:         []string{"OWNERS_ALIASES"},
 			ownersFile:           "collaboratorsWithAliases",
 			ownersAliasesFile:    "emptyAliasGroupOwnersAliases",
-			shouldError:          true,
 			expectedErrorMessage: "error parsing aliases config for OWNERS_ALIASES file",
 			skipTrustedUserCheck: true,
 		},
@@ -1549,14 +1546,12 @@ func testHandleParseAliasesConfigErrors(clients localgit.Clients, t *testing.T) 
 				number:       pr,
 			}
 
-			if test.shouldError {
-				if err := handle(fghc, c, froc, logrus.WithField("plugin", PluginName), &pre.PullRequest, prInfo, []string{labels.Approved, labels.LGTM}, plugins.Trigger{}, test.skipTrustedUserCheck, &fakePruner{}, ownersconfig.FakeResolver); err != nil {
-					if !strings.Contains(err.Error(), test.expectedErrorMessage) {
-						t.Errorf("expected error message to contain %q, but got %q", test.expectedErrorMessage, err.Error())
-					}
-				} else {
-					t.Fatalf("Expected error but got none")
+			if err := handle(fghc, c, froc, logrus.WithField("plugin", PluginName), &pre.PullRequest, prInfo, []string{labels.Approved, labels.LGTM}, plugins.Trigger{}, test.skipTrustedUserCheck, &fakePruner{}, ownersconfig.FakeResolver); err != nil {
+				if !strings.Contains(err.Error(), test.expectedErrorMessage) {
+					t.Errorf("expected error message to contain %q, but got %q", test.expectedErrorMessage, err.Error())
 				}
+			} else {
+				t.Fatalf("Expected error but got none")
 			}
 		})
 	}
