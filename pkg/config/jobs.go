@@ -268,8 +268,9 @@ type Postsubmit struct {
 
 // Retry defines the configuration for retrying failed prowjobs.
 type Retry struct {
-	// RunAll retries will not stop on first successful run
-	// (failed job will always cause Attempts retries to be executed)
+	// RunAll retries will not stop on first successful run.
+	// Failed job will always cause Attempts retries to be executed,
+	// not waiting on previous result, respecting Interval only.
 	RunAll bool `json:"run_all,omitempty"`
 	// Attempts specifies the maximum number of retry attempts allowed.
 	Attempts int `json:"attempts,omitempty"`
