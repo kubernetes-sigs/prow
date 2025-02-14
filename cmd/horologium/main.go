@@ -245,7 +245,7 @@ func shouldTriggerFailedRun(j v1.ProwJob, p config.Periodic, now time.Time, logg
 	if p.Retry == nil {
 		return false
 	}
-	if !j.Complete() {
+	if !j.Complete() && !p.Retry.RunAll {
 		return false
 	}
 	runCount := 1
