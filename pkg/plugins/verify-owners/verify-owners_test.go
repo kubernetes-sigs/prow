@@ -833,6 +833,16 @@ var ownersAliases = map[string][]byte{
   foo-reviewers:
   - alice
 `),
+	"emptyAliasGroupOwnersAliasesWithEmptyBraces": []byte(`aliases:
+  foo-reviewers:
+  - alice
+  empty-aliases-group: {}
+`),
+	"emptyAliasGroupOwnersAliases": []byte(`aliases:
+  foo-reviewers:
+  - alice
+  empty-aliases-group:
+`),
 }
 
 var ownersAliasesPatch = map[string]string{
@@ -1434,4 +1444,115 @@ func testOwnersRemoval(clients localgit.Clients, t *testing.T) {
 
 func TestOwnersRemovalV2(t *testing.T) {
 	testOwnersRemoval(localgit.NewV2, t)
+}
+
+func TestHandleParseAliasesConfigErrors(t *testing.T) {
+	testHandleParseAliasesConfigErrors(localgit.NewV2, t)
+}
+
+func testHandleParseAliasesConfigErrors(clients localgit.Clients, t *testing.T) {
+	var tests = []struct {
+		name                 string
+		filesChanged         []string
+		ownersFile           string
+		ownersAliasesFile    string
+		expectedErrorMessage string
+		skipTrustedUserCheck bool
+	}{
+		{
+			name:                 "empty alias group with braces in OWNERS_ALIASES file",
+			filesChanged:         []string{"OWNERS_ALIASES"},
+			ownersFile:           "collaboratorsWithAliases",
+			ownersAliasesFile:    "emptyAliasGroupOwnersAliasesWithEmptyBraces",
+			expectedErrorMessage: "error parsing aliases config for OWNERS_ALIASES file",
+			skipTrustedUserCheck: true,
+		},
+		{
+			name:                 "empty alias group in OWNERS_ALIASES file",
+			filesChanged:         []string{"OWNERS_ALIASES"},
+			ownersFile:           "collaboratorsWithAliases",
+			ownersAliasesFile:    "emptyAliasGroupOwnersAliases",
+			expectedErrorMessage: "error parsing aliases config for OWNERS_ALIASES file",
+			skipTrustedUserCheck: true,
+		},
+	}
+
+	lg, c, err := clients()
+	if err != nil {
+		t.Fatalf("Making localgit: %v", err)
+	}
+	defer func() {
+		if err := lg.Clean(); err != nil {
+			t.Errorf("Cleaning up localgit: %v", err)
+		}
+		if err := c.Clean(); err != nil {
+			t.Errorf("Cleaning up client: %v", err)
+		}
+	}()
+	if err := lg.MakeFakeRepo("org", "repo"); err != nil {
+		t.Fatalf("Making fake repo: %v", err)
+	}
+	for i, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			pr := i + 1
+			// make sure we're on master before branching
+			if err := lg.Checkout("org", "repo", defaultBranch); err != nil {
+				t.Fatalf("Switching to master branch: %v", err)
+			}
+			if err := lg.CheckoutNewBranch("org", "repo", fmt.Sprintf("pull/%d/head", pr)); err != nil {
+				t.Fatalf("Checking out pull branch: %v", err)
+			}
+			pullFiles := map[string][]byte{}
+
+			for _, file := range test.filesChanged {
+				if strings.Contains(file, "OWNERS_ALIASES") {
+					pullFiles[file] = ownersAliases[test.ownersAliasesFile]
+				}
+			}
+
+			if err := lg.AddCommit("org", "repo", pullFiles); err != nil {
+				t.Fatalf("Adding PR commit: %v", err)
+			}
+			sha, err := lg.RevParse("org", "repo", "HEAD")
+			if err != nil {
+				t.Fatalf("Getting commit SHA: %v", err)
+			}
+			pre := &github.PullRequestEvent{
+				PullRequest: github.PullRequest{
+					User: github.User{Login: "author"},
+					Base: github.PullRequestBranch{
+						Ref: defaultBranch,
+					},
+					Head: github.PullRequestBranch{
+						SHA: sha,
+					},
+				},
+			}
+			fghc := newFakeGitHubClient(emptyPatch(test.filesChanged), nil, pr)
+
+			fghc.PullRequests = map[int]*github.PullRequest{}
+			fghc.PullRequests[pr] = &github.PullRequest{
+				Base: github.PullRequestBranch{
+					Ref: fakegithub.TestRef,
+				},
+			}
+
+			froc := makeFakeRepoOwnersClient()
+
+			prInfo := info{
+				org:          "org",
+				repo:         "repo",
+				repoFullName: "org/repo",
+				number:       pr,
+			}
+
+			if err := handle(fghc, c, froc, logrus.WithField("plugin", PluginName), &pre.PullRequest, prInfo, []string{labels.Approved, labels.LGTM}, plugins.Trigger{}, test.skipTrustedUserCheck, &fakePruner{}, ownersconfig.FakeResolver); err != nil {
+				if !strings.Contains(err.Error(), test.expectedErrorMessage) {
+					t.Errorf("expected error message to contain %q, but got %q", test.expectedErrorMessage, err.Error())
+				}
+			} else {
+				t.Fatalf("Expected error but got none")
+			}
+		})
+	}
 }
