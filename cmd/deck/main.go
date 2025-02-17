@@ -829,6 +829,10 @@ func handleProwJobs(ja *jobs.JobAgent, log *logrus.Entry) http.HandlerFunc {
 
 func handleConfiguredJobs(o options, cfg config.Getter, log *logrus.Entry) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			http.Error(w, "Path only valid for GET", http.StatusMethodNotAllowed)
+			return
+		}
 		jobConfig := cfg().JobConfig
 		setHeadersNoCaching(w)
 		p := r.URL.Path

@@ -90,7 +90,7 @@ function redrawRepo(repo: Repo): void {
         });
     } else {
         const message = document.createElement("h3");
-        message.innerHTML = "No Jobs found for " + repo.org.name + "/" + repo;
+        message.innerText = "No Jobs found for " + repo.org.name + "/" + repo;
         repoContainer.appendChild(message);
     }
 }
@@ -100,24 +100,24 @@ function redrawRepo(repo: Repo): void {
  */
 function createJobCard(job: Job): HTMLElement {
     const title = document.createElement("h3")
-    title.innerHTML = job.name;
+    title.innerText = job.name;
     title.classList.add("mdl-card__title-text");
     const cardTitle = document.createElement("div");
     cardTitle.classList.add("mdl-card__title");
     cardTitle.appendChild(title);
 
     const cardDesc = document.createElement("div");
-    cardDesc.innerHTML = job.type;
+    cardDesc.innerText = job.type;
     cardDesc.classList.add("mdl-card__supporting-text");
 
     const cardAction = document.createElement("div");
     const actionButton = document.createElement("a");
-    actionButton.innerHTML = "Details";
+    actionButton.innerText = "Details";
     actionButton.classList.add(...["mdl-button", "mdl-button--colored", "mdl-js-button", "mdl-js-ripple-effect"]);
     actionButton.addEventListener("click", () => {
         const dialogElement = document.querySelector("dialog");
-        const titleElement = dialogElement.querySelector(".mdl-dialog__title")!;
-        titleElement.innerHTML = job.name;
+        const titleElement = <HTMLHeadingElement>dialogElement.querySelector("#job-title")!;
+        titleElement.innerText = job.name;
         const contentElement = dialogElement.querySelector(".mdl-dialog__content")!;
 
         while (contentElement.firstChild) {
@@ -130,9 +130,9 @@ function createJobCard(job: Job): HTMLElement {
         contentElement.appendChild(container);
 
         sectionBody.classList.add("dialog-section-body");
-        sectionBody.innerHTML = genJobDetails(job);
+        sectionBody.appendChild(genJobDetails(job));
         sectionTitle.classList.add("dialog-section-title");
-        sectionTitle.innerHTML = "Job Definition";
+        sectionTitle.innerText = "Job Definition";
 
         container.classList.add("dialog-section");
         container.appendChild(sectionTitle);
@@ -155,12 +155,26 @@ function createJobCard(job: Job): HTMLElement {
 /**
  * Creates and returns the inner content of the modal display for the provided job
  */
-function genJobDetails(job: Job): string {
-    return `
-        <div>
-            <summary>Type: ${job.type}</summary>
-            <pre class="prettyprint"><code class="language-yaml job-definition">${job.yamlDefinition}</code></pre>
-            <a href="${job.jobHistoryLink}">Job History</a>
-        </div>
-    `;
+function genJobDetails(job: Job): HTMLDivElement {
+    const jobHistoryLink = document.createElement('a');
+    jobHistoryLink.href = job.jobHistoryLink;
+    jobHistoryLink.appendChild(document.createTextNode('Job History'));
+
+    const code = document.createElement('code');
+    code.className = 'language-yaml job-definition';
+    code.appendChild(document.createTextNode(job.yamlDefinition));
+
+    const jobDefinition = document.createElement('pre');
+    jobDefinition.className = 'prettyprint';
+    jobDefinition.appendChild(code);
+
+    const jobType = document.createElement('summary');
+    jobType.appendChild(document.createTextNode(`Type: ${job.type}`));
+
+    const jobDetails = document.createElement('div');
+    jobDetails.appendChild(jobType);
+    jobDetails.appendChild(jobDefinition);
+    jobDetails.appendChild(jobHistoryLink);
+
+    return jobDetails;
 }
