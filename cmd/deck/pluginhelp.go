@@ -44,6 +44,7 @@ func newHelpAgent(path string) *helpAgent {
 	}
 }
 
+// TODO: this function sets the plugin help for ts somehow
 func (ha *helpAgent) getHelp() (*pluginhelp.Help, error) {
 	ha.Lock()
 	defer ha.Unlock()

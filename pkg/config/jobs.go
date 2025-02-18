@@ -725,6 +725,22 @@ func (c *JobConfig) AllPeriodics() []Periodic {
 	return listPeriodic(c.Periodics)
 }
 
+func (c *JobConfig) PeriodicsMatchingExtraRefs(org, repo string) []Periodic {
+	filterPeriodics := func(ps []Periodic) []Periodic {
+		var res []Periodic
+		for _, p := range ps {
+			for _, ref := range p.ExtraRefs {
+				if ref.Org == org && ref.Repo == repo {
+					res = append(res, p)
+				}
+			}
+		}
+		return res
+	}
+
+	return filterPeriodics(c.Periodics)
+}
+
 // ClearCompiledRegexes removes compiled regexes from the presubmits,
 // useful for testing when deep equality is needed between presubmits
 func ClearCompiledRegexes(presubmits []Presubmit) {
