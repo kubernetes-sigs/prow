@@ -142,6 +142,8 @@ function pause() {
 
 authed=""
 function getClusterCreds() {
+  echo "Ensuring gke-gcloud-auth-plugin is installed"
+  gcloud components install gke-gcloud-auth-plugin --quiet
   if [[ -z "${authed}" ]]; then
     gcloud container clusters get-credentials --project="${PROJECT}" --zone="${ZONE}" "${CLUSTER}"
     authed="true"
