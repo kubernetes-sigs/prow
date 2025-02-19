@@ -231,8 +231,6 @@ func TestDeletePod(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
 			prowjob, pod := tt.prowjob, tt.pod
 			// The name of prowjob and pod is derived from the test name,
 			// doing it here to avoid repeated declaration in tests.
@@ -250,10 +248,7 @@ func TestDeletePod(t *testing.T) {
 				t.Fatalf("Failed creating clients for cluster %q: %v", clusterContext, err)
 			}
 
-			//TODO: don't commit
 			ctx := context.Background()
-			deadline, ok := ctx.Deadline()
-			t.Errorf("ctx deadline ok? %v deadline: %v", ok, deadline)
 
 			t.Cleanup(func() {
 				if prowjob != nil {
@@ -304,10 +299,8 @@ func TestDeletePod(t *testing.T) {
 				}
 				return scheduledForDeletion, nil
 			})
-			t.Errorf("err is: %v", err) //TODO: remove
 			// Check for the error of `List` call.
 			if err != nil && !wait.Interrupted(err) {
-				//TODO: clearly this "Wait(n=1) would exceed context deadline" error is not included in wait.Interrupted
 				t.Fatal(err)
 			}
 			t.Logf("Pod %s scheduled for deletion: %v", pod.Name, scheduledForDeletion)
