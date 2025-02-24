@@ -2016,7 +2016,7 @@ func (c *client) GetPullRequestsByState(org, repo, state string) ([]PullRequest,
 	err := c.readPaginatedResultsWithValues(
 		path,
 		url.Values{
-			state:      []string{state},
+			"state":    []string{state},
 			"per_page": []string{"100"},
 		},
 		// allow the description and draft fields
