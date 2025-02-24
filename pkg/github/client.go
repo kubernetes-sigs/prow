@@ -125,6 +125,10 @@ type IssueClient interface {
 // PullRequestClient interface for pull request related API actions
 type PullRequestClient interface {
 	GetPullRequests(org, repo string) ([]PullRequest, error)
+	GetPullRequestsByState(org, repo, state string) ([]PullRequest, error)
+	GetPullRequestsAll(org, repo string) ([]PullRequest, error)
+	GetPullRequestsClosed(org, repo string) ([]PullRequest, error)
+	GetPullRequestsOpen(org, repo string) ([]PullRequest, error)
 	GetPullRequest(org, repo string, number int) (*PullRequest, error)
 	EditPullRequest(org, repo string, number int, pr *PullRequest) (*PullRequest, error)
 	GetPullRequestDiff(org, repo string, number int) ([]byte, error)
@@ -1994,18 +1998,27 @@ func (c *client) ListOpenIssues(org, repo string) ([]Issue, error) {
 	return issues, nil
 }
 
-// GetPullRequests get all open pull requests for a repo.
+// GetPullRequests get open, closed, or all pull requests for a repo.
 //
 // See https://developer.github.com/v3/pulls/#list-pull-requests
-func (c *client) GetPullRequests(org, repo string) ([]PullRequest, error) {
-	c.log("GetPullRequests", org, repo)
+func (c *client) GetPullRequestsByState(org, repo, state string) ([]PullRequest, error) {
+	c.log("GetPullRequests", org, repo, state)
 	var prs []PullRequest
 	if c.fake {
 		return prs, nil
 	}
+
+	if state != "open" || state != "closed" || state != "all" {
+		return prs, fmt.Errorf("invalid pull request state provider [%s], state must be one of: all, open, closed")
+	}
+
 	path := fmt.Sprintf("/repos/%s/%s/pulls", org, repo)
-	err := c.readPaginatedResults(
+	err := c.readPaginatedResultsWithValues(
 		path,
+		url.Values{
+			state:      []string{state},
+			"per_page": []string{"100"},
+		},
 		// allow the description and draft fields
 		// https://developer.github.com/changes/2018-02-22-label-description-search-preview/
 		// https://developer.github.com/changes/2019-02-14-draft-pull-requests/
@@ -2022,6 +2035,34 @@ func (c *client) GetPullRequests(org, repo string) ([]PullRequest, error) {
 		return nil, err
 	}
 	return prs, err
+}
+
+// GetPullRequests get open pull requests for a repo.
+//
+// See https://developer.github.com/v3/pulls/#list-pull-requests
+func (c *client) GetPullRequests(org, repo string) ([]PullRequest, error) {
+	return c.GetPullRequestsByState(org, repo, "open")
+}
+
+// GetPullRequestsOpen get open pull requests for a repo.
+//
+// See https://developer.github.com/v3/pulls/#list-pull-requests
+func (c *client) GetPullRequests(org, repo string) ([]PullRequest, error) {
+	return c.GetPullRequests(org, repo)
+}
+
+// GetPullRequestsClosed get closed pull requests for a repo.
+//
+// See https://developer.github.com/v3/pulls/#list-pull-requests
+func (c *client) GetPullRequestsClosed(org, repo string) ([]PullRequest, error) {
+	return c.GetPullRequestsByState(org, repo, "closed")
+}
+
+// GetPullRequestsAll get all pull requests for a repo.
+//
+// See https://developer.github.com/v3/pulls/#list-pull-requests
+func (c *client) GetPullRequestsAll(org, repo string) ([]PullRequest, error) {
+	return c.GetPullRequestsByState(org, repo, "all")
 }
 
 // GetPullRequest gets a pull request.
