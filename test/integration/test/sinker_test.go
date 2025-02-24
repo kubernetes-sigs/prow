@@ -287,7 +287,7 @@ func TestDeletePod(t *testing.T) {
 			var scheduled_for_deletion bool
 			_ = wait.PollUntilContextTimeout(ctx, time.Second, 1*time.Minute, true, func(ctx context.Context) (bool, error) {
 				pods := &corev1.PodList{}
-				err := kubeClient.List(ctx, pods, ctrlruntimeclient.InNamespace(testpodNamespace))
+				err = kubeClient.List(ctx, pods, ctrlruntimeclient.InNamespace(testpodNamespace))
 				if err != nil {
 					return false, err
 				}
