@@ -2009,7 +2009,7 @@ func (c *client) GetPullRequestsByState(org, repo, state string) ([]PullRequest,
 	}
 
 	if state != "open" || state != "closed" || state != "all" {
-		return prs, fmt.Errorf("invalid pull request state provider [%s], state must be one of: all, open, closed")
+		return prs, fmt.Errorf("invalid pull request state provider [%s], state must be one of: all, open, closed", state)
 	}
 
 	path := fmt.Sprintf("/repos/%s/%s/pulls", org, repo)
