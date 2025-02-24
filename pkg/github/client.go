@@ -29,6 +29,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -2008,7 +2009,7 @@ func (c *client) GetPullRequestsByState(org, repo, state string) ([]PullRequest,
 		return prs, nil
 	}
 
-	if state != "open" || state != "closed" || state != "all" {
+	if !slices.Contains([]string{"open", "closed", "all"}, state) {
 		return prs, fmt.Errorf("invalid pull request state provider [%s], state must be one of: all, open, closed", state)
 	}
 
@@ -2047,7 +2048,7 @@ func (c *client) GetPullRequests(org, repo string) ([]PullRequest, error) {
 // GetPullRequestsOpen get open pull requests for a repo.
 //
 // See https://developer.github.com/v3/pulls/#list-pull-requests
-func (c *client) GetPullRequests(org, repo string) ([]PullRequest, error) {
+func (c *client) GetPullRequestsOpen(org, repo string) ([]PullRequest, error) {
 	return c.GetPullRequests(org, repo)
 }
 

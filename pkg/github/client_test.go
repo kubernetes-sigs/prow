@@ -409,6 +409,16 @@ func TestGetPullRequestChanges(t *testing.T) {
 	}
 }
 
+func TestGetPullRequestsByState(t *testing.T) {
+	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	defer ts.Close()
+	c := getClient(ts.URL)
+	_, err := c.GetPullRequestsByState("org", "repo", "invalid")
+	if err == nil {
+		t.Errorf("Expected an error and didn't receive one")
+	}
+}
+
 func TestGetRef(t *testing.T) {
 	testCases := []struct {
 		name              string
