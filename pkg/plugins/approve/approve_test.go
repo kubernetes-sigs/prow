@@ -250,7 +250,7 @@ Approvers can cancel approval by writing ` + "`/approve cancel`" + ` in a commen
 			expectedComment: `[APPROVALNOTIFIER] This PR is **NOT APPROVED**
 
 This pull-request has been approved by:
-**Once this PR has been reviewed and has the lgtm label**, please ask for approval from [cjwagner](https://github.com/cjwagner). For more information see [the Code Review Process](https://git.k8s.io/community/contributors/guide/owners.md#the-code-review-process).
+**Once this PR has been reviewed and has the lgtm label**, please assign [cblecker](https://github.com/cblecker) for approval. For more information see [the Code Review Process](https://git.k8s.io/community/contributors/guide/owners.md#the-code-review-process).
 
 The full list of commands accepted by this bot can be found [here](https://go.k8s.io/bot-commands?repo=org%2Frepo).
 
@@ -262,7 +262,40 @@ Needs approval from an approver in each of these files:
 Approvers can indicate their approval by writing ` + "`/approve`" + ` in a comment
 Approvers can cancel approval by writing ` + "`/approve cancel`" + ` in a comment
 </details>
-<!-- META={"approvers":["cjwagner"]} -->`,
+<!-- META={"approvers":["cblecker"]} -->`,
+		},
+		{
+			name:                "notification for unapproved state but assignee is also a potential approver",
+			hasLabel:            false,
+			files:               []string{"c/c.go", "e/e.go"},
+			comments:            []github.IssueComment{},
+			reviews:             []github.Review{},
+			selfApprove:         false,
+			needsIssue:          false,
+			lgtmActsAsApprove:   false,
+			reviewActsAsApprove: false,
+			githubLinkURL:       &url.URL{Scheme: "https", Host: "github.com"},
+
+			expectDelete:  false,
+			expectToggle:  false,
+			expectComment: true,
+			expectedComment: `[APPROVALNOTIFIER] This PR is **NOT APPROVED**
+
+This pull-request has been approved by:
+**Once this PR has been reviewed and has the lgtm label**, please ask for approval from [spxtr](https://github.com/spxtr) and additionally assign [cblecker](https://github.com/cblecker) for approval. For more information see [the Code Review Process](https://git.k8s.io/community/contributors/guide/owners.md#the-code-review-process).
+
+The full list of commands accepted by this bot can be found [here](https://go.k8s.io/bot-commands?repo=org%2Frepo).
+
+<details open>
+Needs approval from an approver in each of these files:
+
+- **[c/OWNERS](https://github.com/org/repo/blob/master/c/OWNERS)**
+- **[e/OWNERS](https://github.com/org/repo/blob/master/e/OWNERS)**
+
+Approvers can indicate their approval by writing ` + "`/approve`" + ` in a comment
+Approvers can cancel approval by writing ` + "`/approve cancel`" + ` in a comment
+</details>
+<!-- META={"approvers":["cblecker","spxtr"]} -->`,
 		},
 		{
 			name:                "no-issue comment",
@@ -751,7 +784,7 @@ Approvers can cancel approval by writing ` + "`/approve cancel`" + ` in a commen
 			expectedComment: `[APPROVALNOTIFIER] This PR is **NOT APPROVED**
 
 This pull-request has been approved by:
-**Once this PR has been reviewed and has the lgtm label**, please ask for approval from [cjwagner](https://github.com/cjwagner). For more information see [the Code Review Process](https://git.k8s.io/community/contributors/guide/owners.md#the-code-review-process).
+**Once this PR has been reviewed and has the lgtm label**, please assign [cblecker](https://github.com/cblecker) for approval. For more information see [the Code Review Process](https://git.k8s.io/community/contributors/guide/owners.md#the-code-review-process).
 
 The full list of commands accepted by this bot can be found [here](https://go.k8s.io/bot-commands?repo=org%2Frepo).
 
@@ -763,7 +796,7 @@ Needs approval from an approver in each of these files:
 Approvers can indicate their approval by writing ` + "`/approve`" + ` in a comment
 Approvers can cancel approval by writing ` + "`/approve cancel`" + ` in a comment
 </details>
-<!-- META={"approvers":["cjwagner"]} -->`,
+<!-- META={"approvers":["cblecker"]} -->`,
 		},
 		{
 			name:                "approved review with reviewActsAsApprove enabled",
@@ -820,7 +853,7 @@ Approvers can cancel approval by writing ` + "`/approve cancel`" + ` in a commen
 			expectedComment: `[APPROVALNOTIFIER] This PR is **NOT APPROVED**
 
 This pull-request has been approved by:
-**Once this PR has been reviewed and has the lgtm label**, please ask for approval from [cjwagner](https://github.com/cjwagner). For more information see [the Code Review Process](https://git.k8s.io/community/contributors/guide/owners.md#the-code-review-process).
+**Once this PR has been reviewed and has the lgtm label**, please assign [cblecker](https://github.com/cblecker) for approval. For more information see [the Code Review Process](https://git.k8s.io/community/contributors/guide/owners.md#the-code-review-process).
 
 The full list of commands accepted by this bot can be found [here](https://go.k8s.io/bot-commands?repo=org%2Frepo).
 
@@ -832,7 +865,7 @@ Needs approval from an approver in each of these files:
 Approvers can indicate their approval by writing ` + "`/approve`" + ` in a comment
 Approvers can cancel approval by writing ` + "`/approve cancel`" + ` in a comment
 </details>
-<!-- META={"approvers":["cjwagner"]} -->`,
+<!-- META={"approvers":["cblecker"]} -->`,
 		},
 		{
 			name:     "review in request changes state means cancel",
@@ -857,7 +890,7 @@ Approvers can cancel approval by writing ` + "`/approve cancel`" + ` in a commen
 			expectedComment: `[APPROVALNOTIFIER] This PR is **NOT APPROVED**
 
 This pull-request has been approved by:
-**Once this PR has been reviewed and has the lgtm label**, please ask for approval from [cjwagner](https://github.com/cjwagner). For more information see [the Code Review Process](https://git.k8s.io/community/contributors/guide/owners.md#the-code-review-process).
+**Once this PR has been reviewed and has the lgtm label**, please assign [cblecker](https://github.com/cblecker) for approval. For more information see [the Code Review Process](https://git.k8s.io/community/contributors/guide/owners.md#the-code-review-process).
 
 The full list of commands accepted by this bot can be found [here](https://go.k8s.io/bot-commands?repo=org%2Frepo).
 
@@ -869,7 +902,7 @@ Needs approval from an approver in each of these files:
 Approvers can indicate their approval by writing ` + "`/approve`" + ` in a comment
 Approvers can cancel approval by writing ` + "`/approve cancel`" + ` in a comment
 </details>
-<!-- META={"approvers":["cjwagner"]} -->`,
+<!-- META={"approvers":["cblecker"]} -->`,
 		},
 		{
 			name:     "dismissed review doesn't cancel prior approval",
@@ -932,7 +965,7 @@ Approvers can cancel approval by writing ` + "`/approve cancel`" + ` in a commen
 			expectedComment: `[APPROVALNOTIFIER] This PR is **NOT APPROVED**
 
 This pull-request has been approved by:
-**Once this PR has been reviewed and has the lgtm label**, please ask for approval from [cjwagner](https://github.com/cjwagner). For more information see [the Code Review Process](https://git.k8s.io/community/contributors/guide/owners.md#the-code-review-process).
+**Once this PR has been reviewed and has the lgtm label**, please assign [cblecker](https://github.com/cblecker) for approval. For more information see [the Code Review Process](https://git.k8s.io/community/contributors/guide/owners.md#the-code-review-process).
 
 The full list of commands accepted by this bot can be found [here](https://go.k8s.io/bot-commands?repo=org%2Frepo).
 
@@ -944,7 +977,7 @@ Needs approval from an approver in each of these files:
 Approvers can indicate their approval by writing ` + "`/approve`" + ` in a comment
 Approvers can cancel approval by writing ` + "`/approve cancel`" + ` in a comment
 </details>
-<!-- META={"approvers":["cjwagner"]} -->`,
+<!-- META={"approvers":["cblecker"]} -->`,
 		},
 		{
 			name:     "remove-approve command supersedes earlier approved review",
@@ -969,7 +1002,7 @@ Approvers can cancel approval by writing ` + "`/approve cancel`" + ` in a commen
 			expectedComment: `[APPROVALNOTIFIER] This PR is **NOT APPROVED**
 
 This pull-request has been approved by:
-**Once this PR has been reviewed and has the lgtm label**, please ask for approval from [cjwagner](https://github.com/cjwagner). For more information see [the Code Review Process](https://git.k8s.io/community/contributors/guide/owners.md#the-code-review-process).
+**Once this PR has been reviewed and has the lgtm label**, please assign [cblecker](https://github.com/cblecker) for approval. For more information see [the Code Review Process](https://git.k8s.io/community/contributors/guide/owners.md#the-code-review-process).
 
 The full list of commands accepted by this bot can be found [here](https://go.k8s.io/bot-commands?repo=org%2Frepo).
 
@@ -981,7 +1014,7 @@ Needs approval from an approver in each of these files:
 Approvers can indicate their approval by writing ` + "`/approve`" + ` in a comment
 Approvers can cancel approval by writing ` + "`/approve cancel`" + ` in a comment
 </details>
-<!-- META={"approvers":["cjwagner"]} -->`,
+<!-- META={"approvers":["cblecker"]} -->`,
 		},
 		{
 			name:     "approve cancel command supersedes simultaneous approved review",
@@ -1003,7 +1036,7 @@ Approvers can cancel approval by writing ` + "`/approve cancel`" + ` in a commen
 			expectedComment: `[APPROVALNOTIFIER] This PR is **NOT APPROVED**
 
 This pull-request has been approved by:
-**Once this PR has been reviewed and has the lgtm label**, please ask for approval from [cjwagner](https://github.com/cjwagner) and additionally assign [alice](https://github.com/alice) for approval. For more information see [the Code Review Process](https://git.k8s.io/community/contributors/guide/owners.md#the-code-review-process).
+**Once this PR has been reviewed and has the lgtm label**, please assign [alice](https://github.com/alice), [cblecker](https://github.com/cblecker) for approval. For more information see [the Code Review Process](https://git.k8s.io/community/contributors/guide/owners.md#the-code-review-process).
 
 The full list of commands accepted by this bot can be found [here](https://go.k8s.io/bot-commands?repo=org%2Frepo).
 
@@ -1016,7 +1049,7 @@ Needs approval from an approver in each of these files:
 Approvers can indicate their approval by writing ` + "`/approve`" + ` in a comment
 Approvers can cancel approval by writing ` + "`/approve cancel`" + ` in a comment
 </details>
-<!-- META={"approvers":["alice","cjwagner"]} -->`,
+<!-- META={"approvers":["alice","cblecker"]} -->`,
 		},
 		{
 			name:     "remove-approve command supersedes simultaneous approved review",
@@ -1038,7 +1071,7 @@ Approvers can cancel approval by writing ` + "`/approve cancel`" + ` in a commen
 			expectedComment: `[APPROVALNOTIFIER] This PR is **NOT APPROVED**
 
 This pull-request has been approved by:
-**Once this PR has been reviewed and has the lgtm label**, please ask for approval from [cjwagner](https://github.com/cjwagner) and additionally assign [alice](https://github.com/alice) for approval. For more information see [the Code Review Process](https://git.k8s.io/community/contributors/guide/owners.md#the-code-review-process).
+**Once this PR has been reviewed and has the lgtm label**, please assign [alice](https://github.com/alice), [cblecker](https://github.com/cblecker) for approval. For more information see [the Code Review Process](https://git.k8s.io/community/contributors/guide/owners.md#the-code-review-process).
 
 The full list of commands accepted by this bot can be found [here](https://go.k8s.io/bot-commands?repo=org%2Frepo).
 
@@ -1051,7 +1084,7 @@ Needs approval from an approver in each of these files:
 Approvers can indicate their approval by writing ` + "`/approve`" + ` in a comment
 Approvers can cancel approval by writing ` + "`/approve cancel`" + ` in a comment
 </details>
-<!-- META={"approvers":["alice","cjwagner"]} -->`,
+<!-- META={"approvers":["alice","cblecker"]} -->`,
 		},
 		{
 			name:                "approve command supersedes simultaneous changes requested review",
@@ -1185,39 +1218,6 @@ Approvers can cancel approval by writing ` + "`/approve cancel`" + ` in a commen
 </details>
 <!-- META={"approvers":[]} -->`,
 		},
-		{
-			name:                "don't suggest to /assign already assigned cjwagner",
-			hasLabel:            false,
-			files:               []string{"a/a.go", "c/c.go"},
-			comments:            []github.IssueComment{},
-			reviews:             []github.Review{newTestReview("Alice", "/approve", github.ReviewStateChangesRequested)},
-			selfApprove:         false,
-			needsIssue:          false,
-			lgtmActsAsApprove:   false,
-			reviewActsAsApprove: true,
-			githubLinkURL:       &url.URL{Scheme: "https", Host: "github.com"},
-
-			expectDelete:  false,
-			expectToggle:  false,
-			expectComment: true,
-			expectedComment: `[APPROVALNOTIFIER] This PR is **NOT APPROVED**
-
-This pull-request has been approved by: *<a href="" title="Approved">Alice</a>*
-**Once this PR has been reviewed and has the lgtm label**, please ask for approval from [cjwagner](https://github.com/cjwagner). For more information see [the Code Review Process](https://git.k8s.io/community/contributors/guide/owners.md#the-code-review-process).
-
-The full list of commands accepted by this bot can be found [here](https://go.k8s.io/bot-commands?repo=org%2Frepo).
-
-<details open>
-Needs approval from an approver in each of these files:
-
-- ~~[a/OWNERS](https://github.com/org/repo/blob/master/a/OWNERS)~~ [Alice]
-- **[c/OWNERS](https://github.com/org/repo/blob/master/c/OWNERS)**
-
-Approvers can indicate their approval by writing ` + "`/approve`" + ` in a comment
-Approvers can cancel approval by writing ` + "`/approve cancel`" + ` in a comment
-</details>
-<!-- META={"approvers":["cjwagner"]} -->`,
-		},
 	}
 
 	fr := fakeRepo{
@@ -1225,11 +1225,13 @@ Approvers can cancel approval by writing ` + "`/approve cancel`" + ` in a commen
 			"a":   layeredsets.NewString("alice"),
 			"a/b": layeredsets.NewString("alice", "bob"),
 			"c":   layeredsets.NewString("cblecker", "cjwagner"),
+			"e":   layeredsets.NewString("spxtr"),
 		},
 		leafApprovers: map[string]sets.Set[string]{
 			"a":   sets.New[string]("alice"),
 			"a/b": sets.New[string]("bob"),
 			"c":   sets.New[string]("cblecker", "cjwagner"),
+			"e":   sets.New[string]("spxtr"),
 		},
 		approverOwners: map[string]string{
 			"a/a.go":                   "a",
@@ -1237,6 +1239,7 @@ Approvers can cancel approval by writing ` + "`/approve cancel`" + ` in a commen
 			"a/b/b.go":                 "a/b",
 			"c/c.go":                   "c",
 			"d/new-folder/new_file.go": "d",
+			"e/e.go":                   "e",
 		},
 		autoApproveUnownedSubfolders: map[string]bool{
 			"d": true,
