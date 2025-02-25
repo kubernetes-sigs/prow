@@ -291,7 +291,7 @@ func TestDeletePod(t *testing.T) {
 				t.Fatalf("Failed listing pods: %v", err)
 			}
 			for _, p := range pods.Items {
-				if p.Name == pod.Name {
+				if p.Name == pod.Name && p.ObjectMeta.DeletionTimestamp == nil {
 					podDeleted = false
 				}
 			}
