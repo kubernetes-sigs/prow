@@ -282,10 +282,9 @@ func TestDeletePod(t *testing.T) {
 			}
 
 			// Make sure pod is deleted.
-			start := time.Now()
-			t.Logf("Checking for sinker deleting pod after 2 minutes(%v): %s", start, pod.Name)
-			time.Sleep(2 * time.Minute)
-			var scheduledForDeletion bool
+			t.Logf("Checking for sinker deleting pod after 1 minutes: %s", pod.Name)
+			time.Sleep(1 * time.Minute)
+			podDeleted := true
 			pods := &corev1.PodList{}
 			err = kubeClient.List(ctx, pods, ctrlruntimeclient.InNamespace(testpodNamespace))
 			if err != nil {
@@ -293,16 +292,13 @@ func TestDeletePod(t *testing.T) {
 			}
 			for _, p := range pods.Items {
 				if p.Name == pod.Name {
-					if p.ObjectMeta.DeletionTimestamp != nil { // Pod scheduled to deletion
-						scheduledForDeletion = true
-						break
-					}
+					podDeleted = false
 				}
 			}
 
-			t.Logf("Pod %s scheduled for deletion(%v): %v", pod.Name, time.Now(), scheduledForDeletion)
-			if want, got := tt.wantPodDeleted, scheduledForDeletion; want != got {
-				t.Fatalf("wantPodDeleted: %v, but got scheduledForDeletion: %v", want, got)
+			t.Logf("Pod %s scheduled for deletion: %v", pod.Name, podDeleted)
+			if want, got := tt.wantPodDeleted, podDeleted; want != got {
+				t.Fatalf("wantPodDeleted: %v, but got podDeleted: %v", want, got)
 			}
 
 			// Check for prowjob deletion.
