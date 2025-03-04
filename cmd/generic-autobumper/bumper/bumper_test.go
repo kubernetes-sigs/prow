@@ -24,6 +24,8 @@ import (
 	"testing"
 
 	"sigs.k8s.io/prow/pkg/config/secret"
+	"sigs.k8s.io/prow/pkg/github"
+	"sigs.k8s.io/prow/pkg/github/fakegithub"
 )
 
 func TestValidateOptions(t *testing.T) {
@@ -333,6 +335,66 @@ func TestCDToRootDir(t *testing.T) {
 				if !strings.HasSuffix(afterDir, tc.expectedResDir) {
 					t.Errorf("Expected to switch to %q but was switched to: %q", tc.expectedResDir, afterDir)
 				}
+			}
+		})
+	}
+}
+
+func TestCreateOrUpdatePROnDefaultBranch(t *testing.T) {
+	tests := []struct {
+		name          string
+		client        *fakegithub.FakeClient
+		org           string
+		repo          string
+		opts          *Options
+		prTitle       string
+		prBody        string
+		expectedError bool
+	}{
+		{
+			name: "Successful PR creation",
+			client: &fakegithub.FakeClient{
+				Repos: map[string][]github.Repo{
+					"org/repo": {
+						DefaultBranch: "main",
+				},
+			},
+			org:           "org",
+			repo:          "repo",
+			opts:          &Options{GitHubOrg: "org", GitHubRepo: "repo", GitHubLogin: "login"},
+			prTitle:       "Test PR",
+			prBody:        "This is a test PR",
+			expectedError: false,
+		},
+		{
+			name: "Repo not found",
+			client: &fakegithub.FakeClient{
+				Repos: map[string][]github.Repo{},
+			},
+			org:           "other-org",
+			repo:          "other-repo",
+			opts:          &Options{},
+			prTitle:       "Missing Repo",
+			prBody:        "Should fail",
+			expectedError: true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := CreateOrUpdatePROnDefaultBranch(
+				test.client,
+				test.org,
+				test.repo,
+				test.opts,
+				test.prTitle,
+				test.prBody,
+			)
+			defaultBranch, exists := test.client.Repos["test.org"]
+			if repo, exists := client.Repos["org/repo"]; !exists || repo.DefaultBranch != "main" {
+   				t.Errorf("Expected default branch 'main', got '%s'", repo.DefaultBranch)
+			}
+			if (err != nil) != test.expectedError {
+				t.Errorf("Unexpected error status: got %v, want %v", err, test.expectedError)
 			}
 		})
 	}
