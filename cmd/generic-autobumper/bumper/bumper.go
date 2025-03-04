@@ -681,6 +681,23 @@ func getLastBumpCommit(gerritAuthor, commitTag string) (string, error) {
 	return outBuf.String(), nil
 }
 
+type GithubClient interface {
+	GetRepo(ctx context.Context, org, repo string) (*github.Repo, error)
+}
+
+// getDefaultBranch retrieves the default branch name of a given repository
+// using the provided GitHub client. It fetches the repository details and
+// extracts the default branch. It returns a string representing the default
+// branch name and error if the repository details cannot be retrieved.
+func getDefaultBranch(gc GithubClient, org, repo string) (string, error) {
+	ctx := context.Background()
+	repository, err := gc.GetRepo(ctx, org, repo)
+	if err != nil {
+		return "", fmt.Errorf("failed to get repository details for %s/%s: %w", org, repo, err)
+	}
+	return repository.DefaultBranch, nil
+}
+
 // getChangeId generates a change ID for the gerrit PR that is deterministic
 // rather than being random as is normally preferable.
 // In particular this chooses a change ID by hashing the last commit by the
