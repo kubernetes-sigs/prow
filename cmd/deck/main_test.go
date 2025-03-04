@@ -888,8 +888,9 @@ func TestHandlePluginConfig(t *testing.T) {
 			}},
 		},
 		Blunderbuss: plugins.Blunderbuss{
-			ExcludeApprovers: true,
-		},
+			BlunderbussConfig: &plugins.BlunderbussConfig{
+				ExcludeApprovers: true,
+			}},
 	}
 	pluginAgent := &plugins.ConfigAgent{}
 	pluginAgent.Set(&c)
