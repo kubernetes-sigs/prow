@@ -484,6 +484,17 @@ func (f *FakeClient) GetPullRequestChanges(org, repo string, number int) ([]gith
 	return f.PullRequestChanges[number], nil
 }
 
+// ClosePullRequest closes a pull request.
+func (f *FakeClient) ClosePullRequest(org, repo string, number int) error {
+	f.lock.Lock()
+	defer f.lock.Unlock()
+	if pr, ok := f.PullRequests[number]; ok {
+		pr.State = "closed"
+		return nil
+	}
+	return errors.New("not found")
+}
+
 // GetRef returns the hash of a ref.
 func (f *FakeClient) GetRef(owner, repo, ref string) (string, error) {
 	return TestRef, nil
