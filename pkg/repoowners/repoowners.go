@@ -663,14 +663,41 @@ func ParseAliasesConfig(b []byte) (RepoAliases, error) {
 	result := make(RepoAliases)
 
 	config := &struct {
-		Data map[string][]string `json:"aliases,omitempty"`
+		Data map[string]interface{} `json:"aliases,omitempty"`
 	}{}
 	if err := yaml.Unmarshal(b, config); err != nil {
 		return result, err
 	}
 
 	for alias, expanded := range config.Data {
-		result[github.NormLogin(alias)] = NormLogins(expanded)
+		switch v := expanded.(type) {
+		case []interface{}:
+			// Convert []interface{} to []string
+			var members []string
+			for _, member := range v {
+				memberAsString, ok := member.(string)
+				if !ok {
+					return result, fmt.Errorf("unexpected type for alias group member: %T", member)
+				}
+				members = append(members, memberAsString)
+			}
+			result[github.NormLogin(alias)] = NormLogins(members)
+		case string:
+			// Alias group must contain a list of members.
+			return result, fmt.Errorf("alias group '%s' must contain a list of members", alias)
+		case map[string]interface{}:
+			// Handle Flow Style Mapping (Inline Dictionary/Object Syntax). Example - aliases: { alias-group: { alias1, alias2 } }
+			var members []string
+			for key := range v {
+				members = append(members, key)
+			}
+			result[github.NormLogin(alias)] = NormLogins(members)
+		case nil:
+			// Handle empty alias group as an empty list. Examples - aliases: { alias-group: }
+			result[github.NormLogin(alias)] = sets.New[string]()
+		default:
+			return result, fmt.Errorf("unexpected type for alias group: %T", v)
+		}
 	}
 	return result, nil
 }
