@@ -17,6 +17,8 @@ limitations under the License.
 package bumper
 
 import (
+	"context"
+	"errors"
 	"os"
 	"path"
 	"path/filepath"
@@ -24,6 +26,7 @@ import (
 	"testing"
 
 	"sigs.k8s.io/prow/pkg/config/secret"
+	"sigs.k8s.io/prow/pkg/github"
 )
 
 func TestValidateOptions(t *testing.T) {
@@ -333,6 +336,61 @@ func TestCDToRootDir(t *testing.T) {
 				if !strings.HasSuffix(afterDir, tc.expectedResDir) {
 					t.Errorf("Expected to switch to %q but was switched to: %q", tc.expectedResDir, afterDir)
 				}
+			}
+		})
+	}
+}
+
+type fakedGithubClient struct {
+	repo *github.Repo
+	err  error
+}
+
+func (f *fakedGithubClient) GetRepo(ctx context.Context, org, repo string) (*github.Repo, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	return f.repo, nil
+}
+
+func TestGetDefaultBranch(t *testing.T) {
+	testCases := []struct {
+		name           string
+		client         GithubClient
+		org            string
+		repo           string
+		expectedBranch string
+		expectedError  bool
+	}{
+		{
+			name: "Successful retrieval",
+			client: &fakedGithubClient{
+				repo: &github.Repo{DefaultBranch: "main"},
+			},
+			org:            "test-org",
+			repo:           "test-repo",
+			expectedBranch: "main",
+			expectedError:  false,
+		},
+		{
+			name: "Github API failure",
+			client: &fakedGithubClient{
+				err: errors.New("Github API error"),
+			},
+			org:           "test-org",
+			repo:          "test-repo",
+			expectedError: true,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			branch, err := getDefaultBranch(tc.client, tc.org, tc.repo)
+			if tc.expectedError && err == nil {
+				t.Errorf("Expected to get an error but the result is nil")
+			} else if !tc.expectedError && err != nil {
+				t.Errorf("Expected to not get an error but got one: %v", err)
+			} else if branch != tc.expectedBranch {
+				t.Errorf("Expected branch %q, but got %q", tc.expectedBranch, branch)
 			}
 		})
 	}
