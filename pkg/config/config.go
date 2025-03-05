@@ -1135,6 +1135,8 @@ type LensRemoteConfig struct {
 	Priority *uint `json:"priority"`
 	// HideTitle defines if we will keep showing the title after lens loads.
 	HideTitle *bool `json:"hide_title"`
+	// Iframe sandbox permissions to be configured for the lens's iframe.
+	IframeSandboxPermissions *[]string `json:"iframe_sandbox_permissions"`
 }
 
 // Spyglass holds config for Spyglass.

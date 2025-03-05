@@ -84,9 +84,10 @@ type Lens struct{}
 // Config returns the lens's configuration.
 func (lens Lens) Config() lenses.LensConfig {
 	return lenses.LensConfig{
-		Name:     name,
-		Title:    title,
-		Priority: priority,
+		Name:                     name,
+		Title:                    title,
+		Priority:                 priority,
+		IframeSandboxPermissions: lenses.DefaultSandboxPermissions,
 	}
 }
 
@@ -99,16 +100,8 @@ func (lens Lens) Header(artifacts []api.Artifact, resourceDir string, config jso
 // It is only used if highlight_regexes is not specified in the lens config.
 var defaultErrRE = regexp.MustCompile(`timed out|ERROR:|(FAIL|Failure \[)\b|panic\b|^E\d{4} \d\d:\d\d:\d\d\.\d\d\d]`)
 
-// defaultSandboxPermissions is the default value for iframe_sandbox_permissions lense config if it is not specified.
-var defaultSandboxPermissions = strings.Join(
-	[]string{
-		"allow-scripts",
-		"allow-top-navigation",
-		"allow-popups",
-		"allow-same-origin",
-	},
-	" ",
-)
+// see defaultSandboxPermissions - this is string version for the html.
+var defaultIframeSandboxPermissionsString = strings.Join(lenses.DefaultSandboxPermissions, " ")
 
 func init() {
 	lenses.RegisterLens(Lens{})
@@ -185,7 +178,7 @@ func getConfig(rawConfig json.RawMessage) parsedConfig {
 	conf := parsedConfig{
 		highlightRegex:           defaultErrRE,
 		showRawLog:               true,
-		IframeSandboxPermissions: defaultSandboxPermissions,
+		IframeSandboxPermissions: defaultIframeSandboxPermissionsString,
 	}
 
 	// No config at all is fine.
@@ -205,7 +198,7 @@ func getConfig(rawConfig json.RawMessage) parsedConfig {
 	conf.showRawLog = !c.HideRawLog
 
 	if c.IframeSandboxPermissions == nil {
-		conf.IframeSandboxPermissions = defaultSandboxPermissions
+		conf.IframeSandboxPermissions = defaultIframeSandboxPermissionsString
 	} else {
 		conf.IframeSandboxPermissions = strings.Join(c.IframeSandboxPermissions, " ")
 	}

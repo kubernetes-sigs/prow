@@ -51,6 +51,14 @@ var (
 	ErrContextUnsupported = errors.New("artifact does not support context operations")
 )
 
+// DefaultSandboxPermissions is the default value for iframe_sandbox_permissions lense config if it is not specified
+var DefaultSandboxPermissions = []string{
+	"allow-scripts",
+	"allow-top-navigation",
+	"allow-popups",
+	"allow-same-origin",
+}
+
 type LensConfig struct {
 	// Name is the name of the lens. It must match the package name.
 	Name string
@@ -60,6 +68,8 @@ type LensConfig struct {
 	Priority uint
 	// HideTitle will hide the lens title after loading if set to true.
 	HideTitle bool
+	// Iframe sandbox permissions to be configured for the lens's iframe.
+	IframeSandboxPermissions []string
 }
 
 // Lens defines the interface that lenses are required to implement in order to be used by Spyglass.

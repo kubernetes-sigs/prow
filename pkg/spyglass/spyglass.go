@@ -169,6 +169,12 @@ func getLensConfig(lensFileConfig config.LensFileConfig) (LensConfig, error) {
 		if lensFileConfig.RemoteConfig.HideTitle != nil {
 			lc.HideTitle = *lensFileConfig.RemoteConfig.HideTitle
 		}
+		if lensFileConfig.RemoteConfig.IframeSandboxPermissions != nil {
+			lc.IframeSandboxPermissions = *lensFileConfig.RemoteConfig.IframeSandboxPermissions
+		} else {
+			// we do not want to break existing remote config which doesn't have iframeSandboxPermissions set.
+			lc.IframeSandboxPermissions = lenses.DefaultSandboxPermissions
+		}
 		return lensConfigWrapper{lc}, nil
 	}
 	return nil, fmt.Errorf("could not find lens")

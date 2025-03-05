@@ -35,7 +35,7 @@ import (
 func TestGetConfig(t *testing.T) {
 	def := parsedConfig{
 		showRawLog:               true,
-		IframeSandboxPermissions: defaultSandboxPermissions,
+		IframeSandboxPermissions: defaultIframeSandboxPermissionsString,
 	}
 	cases := []struct {
 		name string

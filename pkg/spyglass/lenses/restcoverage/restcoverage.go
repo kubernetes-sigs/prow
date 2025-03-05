@@ -91,9 +91,10 @@ func init() {
 // Config returns the lens's configuration.
 func (lens Lens) Config() lenses.LensConfig {
 	return lenses.LensConfig{
-		Title:    "REST API coverage report",
-		Name:     "restcoverage",
-		Priority: 0,
+		Title:                    "REST API coverage report",
+		Name:                     "restcoverage",
+		Priority:                 0,
+		IframeSandboxPermissions: lenses.DefaultSandboxPermissions,
 	}
 }
 
