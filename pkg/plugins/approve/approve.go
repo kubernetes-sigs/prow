@@ -439,10 +439,8 @@ func handle(log *logrus.Entry, ghc githubClient, repo approvers.Repo, githubConf
 	// Author implicitly approves their own PR if config allows it
 	if opts.HasSelfApproval() {
 		approversHandler.AddAuthorSelfApprover(pr.author, pr.htmlURL+"#", false)
-	} else {
-		// Treat the author as an assignee, and suggest them if possible
-		approversHandler.AddAssignees(pr.author)
 	}
+
 	log.WithField("duration", time.Since(start).String()).Debug("Completed configuring approversHandler in handle")
 
 	start = time.Now()
