@@ -24,6 +24,7 @@ import (
 	"testing"
 
 	"sigs.k8s.io/prow/pkg/config/secret"
+	"sigs.k8s.io/prow/pkg/github"
 )
 
 func TestValidateOptions(t *testing.T) {
@@ -333,6 +334,85 @@ func TestCDToRootDir(t *testing.T) {
 				if !strings.HasSuffix(afterDir, tc.expectedResDir) {
 					t.Errorf("Expected to switch to %q but was switched to: %q", tc.expectedResDir, afterDir)
 				}
+			}
+		})
+	}
+}
+
+func TestCreateOrUpdatePROnDefaultBranch(t *testing.T) {
+	testCases := []struct {
+		name        string
+		org         string
+		repo        string
+		prTitle     string
+		prBody      string
+		existingPRs []*github.PullRequest
+		expectError bool
+		errorMsg    string
+	}{
+		{
+			name:        "no existing PRs",
+			org:         "org",
+			repo:        "repo",
+			prTitle:     "Test Title",
+			prBody:      "Test Body",
+			existingPRs: []*github.PullRequest{},
+			expectError: false,
+		},
+		{
+			name:    "existing PR with same title",
+			org:     "org",
+			repo:    "repo",
+			prTitle: "Test Title",
+			prBody:  "Test Body",
+			existingPRs: []*github.PullRequest{
+				{
+					// ID:    1,
+					Title: "Test Title",
+					Body:  "Existing PR Body",
+				},
+			},
+			expectError: false,
+		},
+		{
+			name:    "error creating PR",
+			org:     "org",
+			repo:    "repo",
+			prTitle: "Test Title",
+			prBody:  "Test Body",
+			existingPRs: []*github.PullRequest{
+				{
+					// ID:    2,
+					Title: "Existing PR Title",
+					Body:  "Existing PR Body",
+				},
+			},
+			expectError: true,
+			errorMsg:    "failed to create pull request",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			githubClient := github.NewFakeClient()
+
+			opts := &Options{
+				GitHubOrg:      tc.org,
+				GitHubRepo:     tc.repo,
+				GitHubLogin:    "login",
+				HeadBranchName: "head-branch",
+			}
+
+			err := CreateOrUpdatePROnDefaultBranch(githubClient, tc.org, tc.repo, opts, tc.prTitle, tc.prBody)
+
+			if tc.expectError && err == nil {
+				t.Errorf("Expected to get an error but the result is nil")
+			}
+			if !tc.expectError && err != nil {
+				t.Errorf("Expected to not get an error but got one: %v", err)
+			}
+			if tc.expectError && err != nil && !strings.Contains(err.Error(), tc.errorMsg) {
+				t.Errorf("Expected error message to contain %q but got %v", tc.errorMsg, err)
 			}
 		})
 	}
