@@ -833,6 +833,11 @@ var ownersAliases = map[string][]byte{
   foo-reviewers:
   - alice
 `),
+	"emptyAliasGroupOwnersAliasesWithEmptyBraces": []byte(`aliases:
+  foo-reviewers:
+  - alice
+  empty-aliases-group: {}
+`),
 }
 
 var ownersAliasesPatch = map[string]string{
@@ -1434,4 +1439,110 @@ func testOwnersRemoval(clients localgit.Clients, t *testing.T) {
 
 func TestOwnersRemovalV2(t *testing.T) {
 	testOwnersRemoval(localgit.NewV2, t)
+}
+
+func TestHandleParseAliasesConfigWarningLabels(t *testing.T) {
+	testHandleParseAliasesConfigWarningLabels(localgit.NewV2, t)
+}
+
+func testHandleParseAliasesConfigWarningLabels(clients localgit.Clients, t *testing.T) {
+	var tests = []struct {
+		name              string
+		filesChanged      []string
+		ownersAliasesFile string
+	}{
+		{
+			name:              "empty alias group with braces in OWNERS_ALIASES file",
+			filesChanged:      []string{"OWNERS_ALIASES"},
+			ownersAliasesFile: "emptyAliasGroupOwnersAliasesWithEmptyBraces",
+		},
+	}
+
+	lg, c, err := clients()
+	if err != nil {
+		t.Fatalf("Making localgit: %v", err)
+	}
+	defer func() {
+		if err := lg.Clean(); err != nil {
+			t.Fatalf("Cleaning up localgit: %v", err)
+		}
+		if err := c.Clean(); err != nil {
+			t.Fatalf("Cleaning up client: %v", err)
+		}
+	}()
+	if err := lg.MakeFakeRepo("org", "repo"); err != nil {
+		t.Fatalf("Making fake repo: %v", err)
+	}
+	for i, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			pr := i + 1
+			// make sure we're on master before branching
+			if err := lg.Checkout("org", "repo", defaultBranch); err != nil {
+				t.Fatalf("Switching to master branch: %v", err)
+			}
+			if err := lg.CheckoutNewBranch("org", "repo", fmt.Sprintf("pull/%d/head", pr)); err != nil {
+				t.Fatalf("Checking out pull branch: %v", err)
+			}
+			pullFiles := map[string][]byte{}
+
+			for _, file := range test.filesChanged {
+				if strings.Contains(file, "OWNERS_ALIASES") {
+					pullFiles[file] = ownersAliases[test.ownersAliasesFile]
+				}
+			}
+
+			if err := lg.AddCommit("org", "repo", pullFiles); err != nil {
+				t.Fatalf("Adding PR commit: %v", err)
+			}
+			sha, err := lg.RevParse("org", "repo", "HEAD")
+			if err != nil {
+				t.Fatalf("Getting commit SHA: %v", err)
+			}
+			pre := &github.PullRequestEvent{
+				PullRequest: github.PullRequest{
+					User: github.User{Login: "author"},
+					Base: github.PullRequestBranch{
+						Ref: defaultBranch,
+					},
+					Head: github.PullRequestBranch{
+						SHA: sha,
+					},
+				},
+			}
+			fghc := newFakeGitHubClient(emptyPatch(test.filesChanged), nil, pr)
+
+			fghc.PullRequests = map[int]*github.PullRequest{}
+			fghc.PullRequests[pr] = &github.PullRequest{
+				Base: github.PullRequestBranch{
+					Ref: fakegithub.TestRef,
+				},
+			}
+
+			froc := makeFakeRepoOwnersClient()
+
+			prInfo := info{
+				org:          "org",
+				repo:         "repo",
+				repoFullName: "org/repo",
+				number:       pr,
+			}
+
+			if err := handle(fghc, c, froc, logrus.WithField("plugin", PluginName), &pre.PullRequest, prInfo, []string{labels.Approved, labels.LGTM}, plugins.Trigger{}, true, &fakePruner{}, ownersconfig.FakeResolver); err != nil {
+				t.Fatalf("Found errors when no error was expected")
+			} else {
+				// Check if the PR created had empty alias comment comment.
+				expectedComment := "There are empty aliases in OWNER_ALIASES, cleanup is advised."
+				found := false
+				for _, comment := range fghc.IssueComments[pr] {
+					if comment.Body == expectedComment {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Fatalf("Expected comment not found in PR %d", pr)
+				}
+			}
+		})
+	}
 }
