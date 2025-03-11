@@ -9,4 +9,4 @@ emeritus_approvers:
 - listx
 - sebastienvas
 labels:
-- area/prow/pubsub
+- area/pubsub

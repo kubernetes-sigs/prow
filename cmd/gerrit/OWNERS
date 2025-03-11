@@ -10,4 +10,4 @@ emeritus_approvers:
 - fejta
 - krzyzacy
 labels:
-- area/prow/gerrit
+- area/gerrit

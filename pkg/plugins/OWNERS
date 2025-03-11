@@ -12,4 +12,4 @@ required_reviewers:
 approvers:
 - cjwagner
 labels:
-  - area/prow/plugins
+  - area/plugins

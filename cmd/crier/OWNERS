@@ -8,4 +8,4 @@ emeritus_approvers:
 - fejta
 - krzyzacy
 labels:
-- area/prow/crier
+- area/crier

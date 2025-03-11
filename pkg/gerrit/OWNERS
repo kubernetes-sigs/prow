@@ -9,4 +9,4 @@ emeritus_approvers:
 - fejta
 - Katharine
 labels:
-- area/prow/gerrit
+- area/gerrit
