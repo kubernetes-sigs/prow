@@ -4,5 +4,3 @@ reviewers:
 - stevekuznetsov
 approvers:
 - stevekuznetsov
-labels:
- - area/prow/mkpod

@@ -5,4 +5,4 @@ reviewers:
 approvers:
 - cjwagner
 labels:
- - area/prow/hook
+ - area/hook

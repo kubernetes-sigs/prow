@@ -5,4 +5,4 @@ emeritus_approvers:
 - chaodaiG
 - mpherman2
 labels:
- - area/prow/hook
+ - area/hook
