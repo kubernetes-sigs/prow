@@ -37,10 +37,10 @@ const (
 
 var (
 	defaultLabels          = []string{"kind", "priority", "area"}
-	needsLabels            = []string{"kind", "priority", "sig", "triage"} // "needs-*"
+	needsLabels            = []string{"kind", "priority", "sig", "triage", "risk"} // "needs-*"
 	commentRegex           = regexp.MustCompile(`(?s)<!--(.*?)-->`)
-	labelRegex             = regexp.MustCompile(`(?m)^/(area|committee|kind|language|priority|sig|triage|wg)\s*(.*?)\s*$`)
-	removeLabelRegex       = regexp.MustCompile(`(?m)^/remove-(area|committee|kind|language|priority|sig|triage|wg)\s*(.*?)\s*$`)
+	labelRegex             = regexp.MustCompile(`(?m)^/(area|committee|kind|language|priority|risk|sig|triage|wg)\s*(.*?)\s*$`)
+	removeLabelRegex       = regexp.MustCompile(`(?m)^/remove-(area|committee|kind|language|priority|risk|sig|triage|wg)\s*(.*?)\s*$`)
 	customLabelRegex       = regexp.MustCompile(`(?m)^/label\s*(.*?)\s*$`)
 	customRemoveLabelRegex = regexp.MustCompile(`(?m)^/remove-label\s*(.*?)\s*$`)
 )
@@ -79,14 +79,14 @@ func helpProvider(config *plugins.Configuration, _ []config.OrgRepo) (*pluginhel
 		logrus.WithError(err).Warnf("cannot generate comments for %s plugin", PluginName)
 	}
 	pluginHelp := &pluginhelp.PluginHelp{
-		Description: "The label plugin provides commands that add or remove certain types of labels. Labels of the following types can be manipulated: 'area/*', 'committee/*', 'kind/*', 'language/*', 'priority/*', 'sig/*', 'triage/*', and 'wg/*'. More labels can be configured to be used via the /label command. Restricted labels are only able to be added by the teams and users present in their configuration, and those users can be automatically assigned when another label is added using the assign_on config.",
+		Description: "The label plugin provides commands that add or remove certain types of labels. Labels of the following types can be manipulated: 'area/*', 'committee/*', 'kind/*', 'language/*', 'priority/*', 'risk/*', 'sig/*', 'triage/*', and 'wg/*'. More labels can be configured to be used via the /label command. Restricted labels are only able to be added by the teams and users present in their configuration, and those users can be automatically assigned when another label is added using the assign_on config.",
 		Config: map[string]string{
 			"": configString(labels),
 		},
 		Snippet: yamlSnippet,
 	}
 	pluginHelp.AddCommand(pluginhelp.Command{
-		Usage:       "/[remove-](area|committee|kind|language|priority|sig|triage|wg|label) <target>",
+		Usage:       "/[remove-](area|committee|kind|language|priority|risk|sig|triage|wg|label) <target>",
 		Description: "Applies or removes a label from one of the recognized types of labels.",
 		Featured:    false,
 		WhoCanUse:   "Anyone can trigger this command on issues and PRs. `triage/accepted` can only be added by org members. Restricted labels are only able to be added by teams and users in their configuration.",
