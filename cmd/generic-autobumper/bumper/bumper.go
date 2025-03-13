@@ -681,6 +681,16 @@ func getLastBumpCommit(gerritAuthor, commitTag string) (string, error) {
 	return outBuf.String(), nil
 }
 
+// CreateOrUpdatePROnDefaultBranch retrieves the default branch for the repository
+// and creates/updates a PR on that branch without requiring the caller to specify the branch.
+func CreateOrUpdatePROnDefaultBranch(gc github.Client, org, repo string, opts *Options, prTitle, prBody string) error {
+	repository, err := gc.GetRepo(org, repo)
+	if err != nil {
+		return fmt.Errorf("failed to get repository details for %s/%s: %w", org, repo, err)
+	}
+	return UpdatePR(gc, opts.GitHubOrg, opts.GitHubRepo, "", opts.GitHubLogin, repository.DefaultBranch, opts.HeadBranchName, true, prTitle, prBody)
+}
+
 // getChangeId generates a change ID for the gerrit PR that is deterministic
 // rather than being random as is normally preferable.
 // In particular this chooses a change ID by hashing the last commit by the
