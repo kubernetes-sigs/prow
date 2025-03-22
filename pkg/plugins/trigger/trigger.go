@@ -129,6 +129,13 @@ func helpProvider(config *plugins.Configuration, enabledRepos []config.OrgRepo) 
 		Examples:    []string{"/test all", "/test pull-bazel-test"},
 	})
 	pluginHelp.AddCommand(pluginhelp.Command{
+		Usage:       "/test-by-label label=selector",
+		Description: "Manually starts all jobs matching the given label selector.",
+		Featured:    true,
+		WhoCanUse:   "Anyone can trigger this command on a trusted PR.",
+		Examples:    []string{"/test-by-label provider=kubevirt", "/test-by-label release=31"},
+	})
+	pluginHelp.AddCommand(pluginhelp.Command{
 		Usage:       "/retest",
 		Description: "Rerun test jobs that have failed.",
 		Featured:    true,
