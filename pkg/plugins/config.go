@@ -184,7 +184,7 @@ type Blunderbuss struct {
 	// This is useful when a bot user or admin opens a PR that will be
 	// merged regardless of approvals.
 	IgnoreAuthors []string `json:"ignore_authors,omitempty"`
-	// WaitForTideStatus specifies whether to request reviews if the tide status indicates that
+	// WaitForStatus specifies whether to request reviews if the tide status indicates that
 	// the tests have passed but there are insufficient pull request reviews.
 	WaitForStatus *ContextMatch `json:"wait_for_status,omitempty"`
 }
