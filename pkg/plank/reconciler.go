@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -469,7 +470,7 @@ func (r *reconciler) syncPendingJob(ctx context.Context, pj *prowv1.ProwJob) (*r
 			pj.Status.PodName = pn
 			r.log.WithFields(pjutil.ProwJobFields(pj)).Info("Pod is missing, starting a new pod")
 		}
-	} else if podUnexpectedStopCause := getPodUnexpectedStopCause(pod); podUnexpectedStopCause != PodUnexpectedStopCauseNone {
+	} else if podUnexpectedStopCause := getPodUnexpectedStopCause(pod, r.config().Plank.TerminationConditionReasons); podUnexpectedStopCause != PodUnexpectedStopCauseNone {
 		switch {
 		case podUnexpectedStopCause == PodUnexpectedStopCauseEvicted && pj.Spec.ErrorOnEviction:
 			// ErrorOnEviction is enabled, complete the PJ and mark it as errored.
@@ -477,6 +478,12 @@ func (r *reconciler) syncPendingJob(ctx context.Context, pj *prowv1.ProwJob) (*r
 			pj.SetComplete()
 			pj.Status.State = prowv1.ErrorState
 			pj.Status.Description = "Job pod was evicted by the cluster."
+		case podUnexpectedStopCause == PodUnexpectedStopCauseTerminated && pj.Spec.ErrorOnTermination:
+			// ErrorOnTermination is enabled, complete the PJ and mark it as errored.
+			r.log.WithField("error-on-termination", true).WithFields(pjutil.ProwJobFields(pj)).Info("Pods Node got terminated, fail job.")
+			pj.SetComplete()
+			pj.Status.State = prowv1.ErrorState
+			pj.Status.Description = "Job pod's node was terminated."
 		case pj.Status.RevivalCount >= *r.config().Plank.MaxRevivals:
 			// MaxRevivals is reached, complete the PJ and mark it as errored.
 			r.log.WithField("unexpected-stop-cause", podUnexpectedStopCause).WithFields(pjutil.ProwJobFields(pj)).Info("Pod Node reached max retries, fail job.")
@@ -661,12 +668,26 @@ const (
 	PodUnexpectedStopCauseNone        PodUnexpectedStopCause = ""
 	PodUnexpectedStopCauseUnknown     PodUnexpectedStopCause = "unknown"
 	PodUnexpectedStopCauseEvicted     PodUnexpectedStopCause = "evicted"
+	PodUnexpectedStopCauseTerminated  PodUnexpectedStopCause = "terminated"
 	PodUnexpectedStopCauseUnreachable PodUnexpectedStopCause = "unreachable"
 )
 
-func getPodUnexpectedStopCause(pod *corev1.Pod) PodUnexpectedStopCause {
+func getPodUnexpectedStopCause(pod *corev1.Pod, terminationConditionReasons []string) PodUnexpectedStopCause {
 	if pod.Status.Reason == Evicted {
 		return PodUnexpectedStopCauseEvicted
+	}
+
+	// If there was a Graceful node shutdown, the Pod's status will have a
+	// reason set to "Terminated":
+	// https://kubernetes.io/docs/concepts/architecture/nodes/#graceful-node-shutdown
+	if pod.Status.Reason == Terminated {
+		return PodUnexpectedStopCauseTerminated
+	}
+
+	for _, condition := range pod.Status.Conditions {
+		if slices.Contains(terminationConditionReasons, condition.Reason) {
+			return PodUnexpectedStopCauseTerminated
+		}
 	}
 
 	if pod.Status.Reason == NodeUnreachablePodReason && pod.DeletionTimestamp != nil {
