@@ -655,6 +655,19 @@ type Plank struct {
 	// stuck in an unscheduled state. Defaults to 5 minutes.
 	PodUnscheduledTimeout *metav1.Duration `json:"pod_unscheduled_timeout,omitempty"`
 
+	// MaxRevivals is the maximum number of times a prowjob will be retried in case of an
+	// unexpected stop of the job before being marked as failed. Generally a job is stopped
+	// unexpectedly due to the underlying Node being terminated, evicted or becoming unreachable.
+	// Defaults to 3. A value of 0 means no retries.
+	MaxRevivals *int `json:"max_revivals,omitempty"`
+
+	// TerminationConditionReasons is a set of pod status condition reasons on which the
+	// controller will match to determine if the pod's node is being terminated. If a node is being
+	// terminated the controller will restart the prowjob, unless the ErrorOnTermination option
+	// is set on the prowjob or the MaxRevivals option is reached.
+	// Defaults to ["DeletionByPodGC", "DeletionByGCPControllerManager"].
+	TerminationConditionReasons []string `json:"termination_condition_reasons,omitempty"`
+
 	// DefaultDecorationConfigs holds the default decoration config for specific values.
 	//
 	// Each entry in the slice specifies Repo and Cluster regexp filter fields to
@@ -2503,6 +2516,24 @@ func parseProwConfig(c *Config) error {
 		c.Plank.PodUnscheduledTimeout = &metav1.Duration{Duration: 5 * time.Minute}
 	}
 
+	if c.Plank.MaxRevivals == nil {
+		maxRetries := 3
+		c.Plank.MaxRevivals = &maxRetries
+	}
+
+	if c.Plank.TerminationConditionReasons == nil {
+		c.Plank.TerminationConditionReasons = []string{
+			// If the node does no longer exist and the pod gets garbage collected,
+			// this condition will be set:
+			// https://kubernetes.io/docs/concepts/workloads/pods/disruptions/#pod-disruption-conditions
+			"DeletionByPodGC",
+			// On GCP, before a new spot instance is started, the old pods are garbage
+			// collected (if they have not been already by the Kubernetes PodGC):
+			// https://github.com/kubernetes/cloud-provider-gcp/blob/25e5dcc715781316bc5e39f8b17c0d5b313453f7/cmd/gcp-controller-manager/node_csr_approver.go#L1035-L1058
+			"DeletionByGCPControllerManager",
+		}
+	}
+
 	if err := c.Gerrit.DefaultAndValidate(); err != nil {
 		return fmt.Errorf("validating gerrit config: %w", err)
 	}
@@ -2902,6 +2933,8 @@ func validateAgent(v JobBase, podNamespace string) error {
 		return fmt.Errorf("decoration requires agent: %s (found %q)", k, agent)
 	case v.ErrorOnEviction && agent != k:
 		return fmt.Errorf("error_on_eviction only applies to agent: %s (found %q)", k, agent)
+	case v.ErrorOnTermination && agent != k:
+		return fmt.Errorf("error_on_termination only applies to agent: %s (found %q)", k, agent)
 	case v.Namespace == nil || *v.Namespace == "":
 		return fmt.Errorf("failed to default namespace")
 	case *v.Namespace != podNamespace && agent != p:
