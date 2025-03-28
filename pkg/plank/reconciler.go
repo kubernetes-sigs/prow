@@ -62,7 +62,8 @@ const ControllerName = "plank"
 
 // PodStatus constants
 const (
-	Evicted = "Evicted"
+	Evicted    = "Evicted"
+	Terminated = "Terminated"
 )
 
 // NodeStatus constants
@@ -468,24 +469,33 @@ func (r *reconciler) syncPendingJob(ctx context.Context, pj *prowv1.ProwJob) (*r
 			pj.Status.PodName = pn
 			r.log.WithFields(pjutil.ProwJobFields(pj)).Info("Pod is missing, starting a new pod")
 		}
-	} else if pod.Status.Reason == Evicted {
-		// Pod was evicted.
-		if pj.Spec.ErrorOnEviction {
-			// ErrorOnEviction is enabled, complete the PJ and mark it as
-			// errored.
+	} else if podUnexpectedStopCause := getPodUnexpectedStopCause(pod); podUnexpectedStopCause != PodUnexpectedStopCauseNone {
+		switch {
+		case podUnexpectedStopCause == PodUnexpectedStopCauseEvicted && pj.Spec.ErrorOnEviction:
+			// ErrorOnEviction is enabled, complete the PJ and mark it as errored.
 			r.log.WithField("error-on-eviction", true).WithFields(pjutil.ProwJobFields(pj)).Info("Pods Node got evicted, fail job.")
 			pj.SetComplete()
 			pj.Status.State = prowv1.ErrorState
 			pj.Status.Description = "Job pod was evicted by the cluster."
-		} else {
-			// ErrorOnEviction is disabled. Delete the pod now and recreate it in
-			// the next resync.
-			r.log.WithFields(pjutil.ProwJobFields(pj)).Info("Pods Node got evicted, deleting & next sync loop will restart pod")
+		case pj.Status.RevivalCount >= *r.config().Plank.MaxRevivals:
+			// MaxRevivals is reached, complete the PJ and mark it as errored.
+			r.log.WithField("unexpected-stop-cause", podUnexpectedStopCause).WithFields(pjutil.ProwJobFields(pj)).Info("Pod Node reached max retries, fail job.")
+			pj.SetComplete()
+			pj.Status.State = prowv1.ErrorState
+			pj.Status.Description = fmt.Sprintf("Job pod reached max revivals (%d) after being stopped unexpectedly (%s)", pj.Status.RevivalCount, podUnexpectedStopCause)
+		default:
+			// Update the revival count and delete the pod so it gets recreated in the next resync.
+			pj.Status.RevivalCount++
+			r.log.
+				WithField("unexpected-stop-cause", podUnexpectedStopCause).
+				WithFields(pjutil.ProwJobFields(pj)).
+				Info("Pod has stopped unexpectedly, deleting & next sync loop will restart pod")
+
 			client, ok := r.buildClients[pj.ClusterAlias()]
 			if !ok {
-				return nil, TerminalError(fmt.Errorf("evicted pod %s: unknown cluster alias %q", pod.Name, pj.ClusterAlias()))
+				return nil, TerminalError(fmt.Errorf("pod %s which was stopped unexpectedly (%s): unknown cluster alias %q", pod.Name, podUnexpectedStopCause, pj.ClusterAlias()))
 			}
-			if finalizers := sets.New[string](pod.Finalizers...); finalizers.Has(kubernetesreporterapi.FinalizerName) {
+			if finalizers := sets.New(pod.Finalizers...); finalizers.Has(kubernetesreporterapi.FinalizerName) {
 				// We want the end user to not see this, so we have to remove the finalizer, otherwise the pod hangs
 				oldPod := pod.DeepCopy()
 				pod.Finalizers = finalizers.Delete(kubernetesreporterapi.FinalizerName).UnsortedList()
@@ -493,51 +503,17 @@ func (r *reconciler) syncPendingJob(ctx context.Context, pj *prowv1.ProwJob) (*r
 					return nil, fmt.Errorf("failed to patch pod trying to remove %s finalizer: %w", kubernetesreporterapi.FinalizerName, err)
 				}
 			}
+
+			// Pod is already deleted, so we don't need to delete it again.
+			if pod.DeletionTimestamp != nil {
+				return nil, nil
+			}
+
 			r.log.WithField("name", pj.ObjectMeta.Name).Debug("Delete Pod.")
 			return nil, ctrlruntimeclient.IgnoreNotFound(client.Delete(ctx, pod))
 		}
-	} else if pod.DeletionTimestamp != nil && pod.Status.Reason == NodeUnreachablePodReason {
-		// This can happen in any phase and means the node got evicted after it became unresponsive. Delete the finalizer so the pod
-		// vanishes and we will silently re-create it in the next iteration.
-		r.log.WithFields(pjutil.ProwJobFields(pj)).Info("Pods Node got lost, deleting & next sync loop will restart pod")
-		client, ok := r.buildClients[pj.ClusterAlias()]
-		if !ok {
-			return nil, TerminalError(fmt.Errorf("unknown pod %s: unknown cluster alias %q", pod.Name, pj.ClusterAlias()))
-		}
-
-		if finalizers := sets.New[string](pod.Finalizers...); finalizers.Has(kubernetesreporterapi.FinalizerName) {
-			// We want the end user to not see this, so we have to remove the finalizer, otherwise the pod hangs
-			oldPod := pod.DeepCopy()
-			pod.Finalizers = finalizers.Delete(kubernetesreporterapi.FinalizerName).UnsortedList()
-			if err := client.Patch(ctx, pod, ctrlruntimeclient.MergeFrom(oldPod)); err != nil {
-				return nil, fmt.Errorf("failed to patch pod trying to remove %s finalizer: %w", kubernetesreporterapi.FinalizerName, err)
-			}
-		}
-
-		return nil, nil
 	} else {
 		switch pod.Status.Phase {
-		case corev1.PodUnknown:
-			// Pod is in Unknown state. This can happen if there is a problem with
-			// the node. Delete the old pod, this will fire an event that triggers
-			// a new reconciliation in which we will re-create the pod.
-			r.log.WithFields(pjutil.ProwJobFields(pj)).Info("Pod is in unknown state, deleting & restarting pod")
-			client, ok := r.buildClients[pj.ClusterAlias()]
-			if !ok {
-				return nil, TerminalError(fmt.Errorf("unknown pod %s: unknown cluster alias %q", pod.Name, pj.ClusterAlias()))
-			}
-
-			if finalizers := sets.New[string](pod.Finalizers...); finalizers.Has(kubernetesreporterapi.FinalizerName) {
-				// We want the end user to not see this, so we have to remove the finalizer, otherwise the pod hangs
-				oldPod := pod.DeepCopy()
-				pod.Finalizers = finalizers.Delete(kubernetesreporterapi.FinalizerName).UnsortedList()
-				if err := client.Patch(ctx, pod, ctrlruntimeclient.MergeFrom(oldPod)); err != nil {
-					return nil, fmt.Errorf("failed to patch pod trying to remove %s finalizer: %w", kubernetesreporterapi.FinalizerName, err)
-				}
-			}
-			r.log.WithField("name", pj.ObjectMeta.Name).Debug("Delete Pod.")
-			return nil, ctrlruntimeclient.IgnoreNotFound(client.Delete(ctx, pod))
-
 		case corev1.PodSucceeded:
 			pj.SetComplete()
 			// There were bugs around this in the past so be paranoid and verify each container
@@ -677,6 +653,31 @@ func (r *reconciler) syncPendingJob(ctx context.Context, pj *prowv1.ProwJob) (*r
 	}
 
 	return nil, nil
+}
+
+type PodUnexpectedStopCause string
+
+const (
+	PodUnexpectedStopCauseNone        PodUnexpectedStopCause = ""
+	PodUnexpectedStopCauseUnknown     PodUnexpectedStopCause = "unknown"
+	PodUnexpectedStopCauseEvicted     PodUnexpectedStopCause = "evicted"
+	PodUnexpectedStopCauseUnreachable PodUnexpectedStopCause = "unreachable"
+)
+
+func getPodUnexpectedStopCause(pod *corev1.Pod) PodUnexpectedStopCause {
+	if pod.Status.Reason == Evicted {
+		return PodUnexpectedStopCauseEvicted
+	}
+
+	if pod.Status.Reason == NodeUnreachablePodReason && pod.DeletionTimestamp != nil {
+		return PodUnexpectedStopCauseUnreachable
+	}
+
+	if pod.Status.Phase == corev1.PodUnknown {
+		return PodUnexpectedStopCauseUnknown
+	}
+
+	return PodUnexpectedStopCauseNone
 }
 
 // syncTriggeredJob syncs jobs that do not yet have an associated test workload running
