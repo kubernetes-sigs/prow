@@ -675,7 +675,9 @@ function redraw(fz: FuzzySearch, pushState = true): void {
     // Started column
     r.appendChild(cell.time(i.toString(), moment.unix(started)));
     // Duration column
-    r.appendChild(cell.text(durationStr));
+    const duration = cell.text(durationStr)
+    duration.classList.remove("mdl-data-table__cell--non-numeric");
+    r.appendChild(duration);
     builds.appendChild(r);
   }
 
@@ -778,6 +780,7 @@ function batchRevisionCell(build: ProwJob): HTMLTableDataCellElement {
   const {refs: {org = "", repo = "", pulls = []} = {}} = build.spec;
 
   const c = document.createElement("td");
+  c.classList.add("mdl-data-table__cell--non-numeric");
   if (!pulls.length) {
     return c;
   }
@@ -921,6 +924,7 @@ function createSpyglassCell(url: string): HTMLTableDataCellElement {
   const i = icon.create('visibility', 'View in Spyglass');
   i.href = url;
   const c = document.createElement('td');
+  c.classList.add("mdl-data-table__cell--non-numeric");
   c.appendChild(i);
   return c;
 }
