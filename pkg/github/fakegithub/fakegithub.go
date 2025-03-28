@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"regexp"
 	"sort"
 	"strings"
@@ -29,6 +30,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/sets"
 
+	"github.com/google/go-github/v32/github"
 	"sigs.k8s.io/prow/pkg/github"
 )
 
@@ -152,6 +154,11 @@ type FakeClient struct {
 
 	// Reviewers Requested
 	ReviewersRequested []string
+
+	// CheckRuns is a map of repository names to their check runs
+	CheckRuns map[string][]github.CheckRun
+
+	Repos map[string]github.Repo
 }
 
 type TeamWithMembers struct {
@@ -482,6 +489,38 @@ func (f *FakeClient) GetPullRequestChanges(org, repo string, number int) ([]gith
 	f.lock.RLock()
 	defer f.lock.RUnlock()
 	return f.PullRequestChanges[number], nil
+}
+
+// ClosePullRequest closes a pull request.
+func (f *FakeClient) ClosePullRequest(org, repo string, number int) error {
+	f.lock.Lock()
+	defer f.lock.Unlock()
+	if pr, ok := f.PullRequests[number]; ok {
+		pr.State = "closed"
+		return nil
+	}
+	return errors.New("not found")
+}
+
+// CreateCheckRun creates a check run.
+func (f *FakeClient) CreateCheckRun(owner, repo string, opt github.CreateCheckRunRequest) (*github.CheckRun, *github.Response, error) {
+	if f.CheckRuns == nil {
+		f.CheckRuns = make(map[string][]github.CheckRun)
+	}
+	checkRun := github.CheckRun{
+		ID:         int64(len(f.CheckRuns[repo]) + 1),
+		Name:       opt.Name,
+		Status:     opt.Status,
+		Conclusion: opt.Conclusion,
+		DetailsURL: opt.DetailsURL,
+		Output:     opt.Output,
+	}
+	f.CheckRuns[repo] = append(f.CheckRuns[repo], checkRun)
+
+	response := &github.Response{
+		Response: &http.Response{StatusCode: http.StatusCreated},
+	}
+	return &checkRun, response, nil
 }
 
 // GetRef returns the hash of a ref.
