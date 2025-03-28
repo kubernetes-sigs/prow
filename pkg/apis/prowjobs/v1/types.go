@@ -1098,6 +1098,8 @@ type ProwJobStatus struct {
 	PendingTime *metav1.Time `json:"pendingTime,omitempty"`
 	// CompletionTime is the timestamp for when the job goes to a final state
 	CompletionTime *metav1.Time `json:"completionTime,omitempty"`
+	// Amount of times the Pod was revived from an unexpected stop.
+	RevivalCount int `json:"revivalCount,omitempty"`
 	// +kubebuilder:validation:Enum=scheduling;triggered;pending;success;failure;aborted;error
 	// +kubebuilder:validation:Required
 	State       ProwJobState `json:"state,omitempty"`
