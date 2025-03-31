@@ -18,6 +18,7 @@ package trigger
 
 import (
 	"fmt"
+	"sigs.k8s.io/prow/pkg/git/v2"
 
 	"github.com/sirupsen/logrus"
 	"sigs.k8s.io/prow/pkg/kube"
@@ -126,12 +127,12 @@ func handleGenericComment(c Client, trigger plugins.Trigger, gc github.GenericCo
 		return err
 	}
 
-	toTest, err := FilterPresubmits(HonorOkToTest(trigger), c.GitHubClient, gc.Body, pr, presubmits, c.Logger)
+	toTest, err := FilterPresubmits(HonorOkToTest(trigger), c.GitClient, c.GitHubClient, gc.Body, pr, presubmits, c.Logger)
 	if err != nil {
 		return err
 	}
 	if needsHelp, note := pjutil.ShouldRespondWithHelp(gc.Body, len(toTest)); needsHelp {
-		return addHelpComment(c.GitHubClient, gc.Body, org, repo, pr.Base.Ref, pr.Number, presubmits, gc.HTMLURL, commentAuthor, note, c.Logger)
+		return addHelpComment(c.GitClient, c.GitHubClient, gc.Body, org, repo, pr, presubmits, gc.HTMLURL, commentAuthor, note, c.Logger)
 	}
 	// we want to be able to track re-tests separately from the general body of tests
 	additionalLabels := map[string]string{}
@@ -195,7 +196,7 @@ type GitHubClient interface {
 // If a comment that we get matches more than one of the above patterns, we
 // consider the set of matching presubmits the union of the results from the
 // matching cases.
-func FilterPresubmits(honorOkToTest bool, gitHubClient GitHubClient, body string, pr *github.PullRequest, presubmits []config.Presubmit, logger *logrus.Entry) ([]config.Presubmit, error) {
+func FilterPresubmits(honorOkToTest bool, gc git.ClientFactory, gitHubClient GitHubClient, body string, pr *github.PullRequest, presubmits []config.Presubmit, logger *logrus.Entry) ([]config.Presubmit, error) {
 	org, repo, sha := pr.Base.Repo.Owner.Login, pr.Base.Repo.Name, pr.Head.SHA
 
 	contextGetter := func() (sets.Set[string], sets.Set[string], error) {
@@ -212,8 +213,8 @@ func FilterPresubmits(honorOkToTest bool, gitHubClient GitHubClient, body string
 		return nil, err
 	}
 
-	number, branch := pr.Number, pr.Base.Ref
-	changes := config.NewGitHubDeferredChangedFilesProvider(gitHubClient, org, repo, number)
+	number, branch, baseSHA, headSHA := pr.Number, pr.Base.Ref, pr.Base.SHA, pr.Head.SHA
+	changes := config.NewGitHubDeferredChangedFilesProvider(gc, gitHubClient, org, repo, number, baseSHA, headSHA)
 	return pjutil.FilterPresubmits(filter, changes, branch, presubmits, logger)
 }
 
@@ -231,8 +232,9 @@ func getContexts(combinedStatus *github.CombinedStatus) (sets.Set[string], sets.
 	return failedContexts, allContexts
 }
 
-func addHelpComment(githubClient githubClient, body, org, repo, branch string, number int, presubmits []config.Presubmit, HTMLURL, user, note string, logger *logrus.Entry) error {
-	changes := config.NewGitHubDeferredChangedFilesProvider(githubClient, org, repo, number)
+func addHelpComment(gc git.ClientFactory, githubClient githubClient, body, org, repo string, pr *github.PullRequest, presubmits []config.Presubmit, HTMLURL, user, note string, logger *logrus.Entry) error {
+	number, branch, baseSHA, headSHA := pr.Number, pr.Base.Ref, pr.Base.SHA, pr.Head.SHA
+	changes := config.NewGitHubDeferredChangedFilesProvider(gc, githubClient, org, repo, number, baseSHA, headSHA)
 	testAllNames, optionalJobsCommands, requiredJobsCommands, err := pjutil.AvailablePresubmits(changes, branch, presubmits, logger)
 	if err != nil {
 		return err
