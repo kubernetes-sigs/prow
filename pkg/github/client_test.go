@@ -381,6 +381,65 @@ func TestGetPullRequest(t *testing.T) {
 	}
 }
 
+func TestGetFailedActionRunsByHeadBranch(t *testing.T) {
+	const (
+		org     = "k8s"
+		repo    = "kuber"
+		branch  = "main"
+		headSHA = "123abc"
+	)
+	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Errorf("Expected GET method, got %s", r.Method)
+		}
+		expectedPath := fmt.Sprintf("/repos/%s/%s/actions/runs", org, repo)
+		if r.URL.Path != expectedPath {
+			t.Errorf("Expected path %s, got %s", expectedPath, r.URL.Path)
+		}
+
+		// Check query parameters
+		query := r.URL.Query()
+		if query.Get("status") != "failure" {
+			t.Errorf("Expected query parameter status=failure, got %s", query.Get("status"))
+		}
+		expectedEvent := "pull_request OR pull_request_target OR workflow_call"
+		if query.Get("event") != "pull_request OR pull_request_target OR workflow_call" {
+			t.Errorf("Expected query parameter event=%q, got %q", expectedEvent, query.Get("event"))
+		}
+		if query.Get("branch") != branch {
+			t.Errorf("Expected query parameter branch=%s, got %s", branch, query.Get("branch"))
+		}
+
+		// Prepare a response with two runs, one matching and one not matching headSHA.
+		runs := WorkflowRuns{
+			WorkflowRuns: []WorkflowRun{
+				{HeadSha: headSHA},
+				{HeadSha: "otherSHA"},
+			},
+		}
+		b, err := json.Marshal(&runs)
+		if err != nil {
+			t.Fatalf("Unexpected error marshalling JSON: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, string(b))
+	}))
+	defer ts.Close()
+
+	c := getClient(ts.URL)
+	runs, err := c.GetFailedActionRunsByHeadBranch(org, repo, branch, headSHA)
+	if err != nil {
+		t.Errorf("Did not expect error, got %v", err)
+	}
+
+	// Only one run should match the headSHA.
+	if len(runs) != 1 {
+		t.Errorf("Expected 1 workflow run, got %d", len(runs))
+	} else if runs[0].HeadSha != headSHA {
+		t.Errorf("Expected headSha %s, got %s", headSHA, runs[0].HeadSha)
+	}
+}
+
 func TestGetPullRequestChanges(t *testing.T) {
 	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
