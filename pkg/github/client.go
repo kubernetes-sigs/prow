@@ -2055,7 +2055,8 @@ func (c *client) GetFailedActionRunsByHeadBranch(org, repo, branchName, headSHA 
 		Path: fmt.Sprintf("/repos/%s/%s/actions/runs", org, repo),
 	}
 	query := u.Query()
-	query.Add("status", "failure")
+	// Filter for the specific head SHA
+	query.Add("head_sha", headSHA)
 	// setting the OR condition to get both PR and PR target workflows, as well
 	// as workflows called via another workflow using workflow_call (matrix workflows)
 	query.Add("event", "pull_request OR pull_request_target OR workflow_call")
@@ -2072,9 +2073,15 @@ func (c *client) GetFailedActionRunsByHeadBranch(org, repo, branchName, headSHA 
 
 	prRuns := []WorkflowRun{}
 
-	// keep only the runs matching the current PR headSHA
+	// We only want to get failed workflows.
+	// Note: The query parameter "status" is overloaded and used for both status and conclusion.
+	// See https://docs.github.com/en/rest/actions/workflow-runs?apiVersion=2022-11-28#list-workflow-runs-for-a-workflow
+	// This makes it hard to use directly. Instead, we loop through the runs and check them individually.
+	// A successful workflow will have status "completed" and conclusion "success".
+	// A failed workflow also have status "completed", but the conclusion can be either "failure" or "cancelled".
+	// We only want completed jobs that are not successful.
 	for _, run := range runs.WorkflowRuns {
-		if run.HeadSha == headSHA {
+		if run.Status == "completed" && run.Conclusion != "success" {
 			prRuns = append(prRuns, run)
 		}
 	}

@@ -381,6 +381,116 @@ func TestGetPullRequest(t *testing.T) {
 	}
 }
 
+func TestGetFailedActionRunsByHeadBranch(t *testing.T) {
+	const (
+		org     = "k8s"
+		repo    = "kuber"
+		branch  = "main"
+		headSHA = "123abc"
+	)
+	var (
+		failedRun       = WorkflowRun{HeadSha: headSHA, Status: "completed", Conclusion: "failure"}
+		successfulRun   = WorkflowRun{HeadSha: headSHA, Status: "completed", Conclusion: "success"}
+		secondFailedRun = WorkflowRun{HeadSha: headSHA, Status: "completed", Conclusion: "failure"}
+		cancelledRun    = WorkflowRun{HeadSha: headSHA, Status: "completed", Conclusion: "cancelled"}
+	)
+	testCases := []struct {
+		name string
+		// queryResponse is the response from the GitHub API
+		queryResponse WorkflowRuns
+		// expectedRuns is the expected result after filtering the queryResponse
+		expectedRuns []WorkflowRun
+	}{
+		{
+			name: "single matching run",
+			queryResponse: WorkflowRuns{
+				WorkflowRuns: []WorkflowRun{failedRun},
+			},
+			expectedRuns: []WorkflowRun{failedRun},
+		},
+		{
+			name: "multiple runs, one matching",
+			queryResponse: WorkflowRuns{
+				WorkflowRuns: []WorkflowRun{failedRun, successfulRun},
+			},
+			expectedRuns: []WorkflowRun{failedRun},
+		},
+		{
+			name: "multiple runs, two matching",
+			queryResponse: WorkflowRuns{
+				WorkflowRuns: []WorkflowRun{failedRun, successfulRun, secondFailedRun},
+			},
+			expectedRuns: []WorkflowRun{failedRun, secondFailedRun},
+		},
+		{
+			name: "cancelled run",
+			queryResponse: WorkflowRuns{
+				WorkflowRuns: []WorkflowRun{cancelledRun},
+			},
+			expectedRuns: []WorkflowRun{cancelledRun},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != http.MethodGet {
+					t.Errorf("Expected GET method, got %s", r.Method)
+				}
+				expectedPath := fmt.Sprintf("/repos/%s/%s/actions/runs", org, repo)
+				if r.URL.Path != expectedPath {
+					t.Errorf("Expected path %s, got %s", expectedPath, r.URL.Path)
+				}
+
+				// Check query parameters
+				query := r.URL.Query()
+				if query.Get("head_sha") != headSHA {
+					t.Errorf("Expected query parameter head_sha=%s, got %s", headSHA, query.Get("head_sha"))
+				}
+				expectedEvent := "pull_request OR pull_request_target OR workflow_call"
+				if query.Get("event") != "pull_request OR pull_request_target OR workflow_call" {
+					t.Errorf("Expected query parameter event=%q, got %q", expectedEvent, query.Get("event"))
+				}
+				if query.Get("branch") != branch {
+					t.Errorf("Expected query parameter branch=%s, got %s", branch, query.Get("branch"))
+				}
+
+				// Prepare a response based on the test case
+				b, err := json.Marshal(&tc.queryResponse)
+				if err != nil {
+					t.Fatalf("Unexpected error marshalling JSON: %v", err)
+				}
+				w.Header().Set("Content-Type", "application/json")
+				fmt.Fprint(w, string(b))
+			}))
+			defer ts.Close()
+
+			c := getClient(ts.URL)
+			runs, err := c.GetFailedActionRunsByHeadBranch(org, repo, branch, headSHA)
+			if err != nil {
+				t.Errorf("Did not expect error, got %v", err)
+			}
+
+			// Check if the returned runs match the expected runs
+			if len(runs) != len(tc.expectedRuns) {
+				t.Errorf("Expected %d runs, got %d", len(tc.expectedRuns), len(runs))
+			}
+			for _, run := range runs {
+				found := false
+				for _, expectedRun := range tc.expectedRuns {
+					if run.Status == expectedRun.Status && run.Conclusion == expectedRun.Conclusion && run.HeadSha == expectedRun.HeadSha {
+						found = true
+					}
+				}
+				if !found {
+					t.Errorf("Run %v not found in expected result %v", run, tc.expectedRuns)
+				}
+			}
+		})
+	}
+
+}
+
 func TestGetPullRequestChanges(t *testing.T) {
 	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
