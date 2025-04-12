@@ -19,6 +19,7 @@ export namespace cell {
 
   export function text(content: string): HTMLTableDataCellElement {
     const c = document.createElement("td");
+    c.classList.add("mdl-data-table__cell--non-numeric");
     c.appendChild(document.createTextNode(content));
     return c;
   }
@@ -40,6 +41,7 @@ export namespace cell {
 
   export function link(displayText: string, url: string): HTMLTableDataCellElement {
     const c = document.createElement("td");
+    c.classList.add("mdl-data-table__cell--non-numeric");
     const a = document.createElement("a");
     a.href = url;
     a.appendChild(document.createTextNode(displayText));
@@ -49,6 +51,7 @@ export namespace cell {
 
   export function state(s: ProwJobState): HTMLTableDataCellElement {
     const c = document.createElement("td");
+    c.classList.add("mdl-data-table__cell--non-numeric");
     if (!s) {
       c.appendChild(document.createTextNode(""));
       return c;
@@ -99,6 +102,7 @@ export namespace cell {
 
   export function commitRevision(repo: string, ref: string, SHA: string, pushCommitLink: string): HTMLTableDataCellElement {
     const c = document.createElement("td");
+    c.classList.add("mdl-data-table__cell--non-numeric");
     const bl = document.createElement("a");
     bl.href = pushCommitLink;
     if (!bl.href) {
@@ -111,6 +115,7 @@ export namespace cell {
 
   export function prRevision(repo: string, pull: Pull): HTMLTableDataCellElement {
     const td = document.createElement("td");
+    td.classList.add("mdl-data-table__cell--non-numeric");
     addPRRevision(td, repo, pull);
     return td;
   }
