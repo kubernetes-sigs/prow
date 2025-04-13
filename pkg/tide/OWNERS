@@ -7,4 +7,4 @@ approvers:
 emeritus_approvers:
 - chaodaiG
 labels:
- - area/prow/tide
+ - area/tide

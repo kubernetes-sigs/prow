@@ -6,5 +6,3 @@ reviewers:
 approvers:
 - chases2
 - stevekuznetsov
-labels:
- - area/prow/config-bootstrapper

@@ -29,6 +29,7 @@ import (
 	"google.golang.org/grpc/metadata"
 	status "google.golang.org/grpc/status"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -124,9 +125,18 @@ func (gw *Gangway) GetJobExecution(ctx context.Context, gjer *GetJobExecutionReq
 
 	jobExec := &JobExecution{
 		Id:        prowJobCR.Name,
+		JobName:   prowJobCR.Spec.Job,
+		JobType:   TranslateProwJobType(prowJobCR.Spec.Type),
 		JobStatus: TranslateProwJobStatus(&prowJobCR.Status),
+		JobUrl:    prowJobCR.Status.URL,
 	}
 
+	if !prowJobCR.Status.StartTime.IsZero() {
+		jobExec.CreateTime = timestamppb.New(prowJobCR.Status.StartTime.Time)
+	}
+	if prowJobCR.Status.CompletionTime != nil && !prowJobCR.Status.CompletionTime.IsZero() {
+		jobExec.CompletionTime = timestamppb.New(prowJobCR.Status.CompletionTime.Time)
+	}
 	return jobExec, nil
 }
 

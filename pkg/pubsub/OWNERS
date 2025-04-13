@@ -10,4 +10,4 @@ emeritus_approvers:
 - sebastienvas
 - yutongz
 labels:
-- area/prow/pubsub
+- area/pubsub

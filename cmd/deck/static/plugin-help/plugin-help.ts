@@ -2,7 +2,7 @@ import "code-prettify";
 import dialogPolyfill from "dialog-polyfill";
 import {Command, Help, PluginHelp} from "../api/help";
 import {getParameterByName} from '../common/urls';
-import {Language, Prettify} from "./prettify";
+import {Language, Prettify} from "../common/prettify";
 
 declare const allHelp: Help;
 declare const PR: Prettify;

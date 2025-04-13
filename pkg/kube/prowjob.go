@@ -69,6 +69,9 @@ const (
 	// IsOptionalLabel is added in resources created by prow and
 	// carries the Optional from a Presubmit job.
 	IsOptionalLabel = "prow.k8s.io/is-optional"
+	// ReRunLabel is added in periodics that are configured to be
+	// re-runned several times, value starts from 0 and it's increased on re-run
+	ReRunLabel = "prow.k8s.io/re-run"
 
 	// Gerrit related labels that are used by Prow
 

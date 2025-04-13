@@ -95,7 +95,7 @@ article {
     margin: 8px;
 }
 
-table {
+table#job-histogram {
     background: #fff;
     border-radius: 2px;
     box-shadow: 0 0 4px #e0e0e0;
@@ -103,29 +103,42 @@ table {
     width: 100%;
 }
 
-tr {
-    border-top: 1px solid #f4f4f4;
+.mdl-data-table {
+    font-size: 15px;
+    white-space: normal;
+    width: 100%;
 }
 
-tr.changed {
+.mdl-data-table th {
+	font-size: 15px;
+	color: #585858;
+}
+
+.mdl-data-table tr {
+    border-top: 1px solid rgba(0,0,0,.12);
+}
+
+.mdl-data-table tr.changed {
     border-top: 1px solid #a4a4a4;
 }
-
-td:first-child, th:first-child {
-    padding-left: 16px;
+.mdl-data-table td {
+    border: 0;
 }
 
-td:last-child, th:last-child {
-    padding-right: 16px;
+.mdl-data-table tbody tr {
+    transition-duration: 0s;
 }
 
-td, th {
-    text-align: left;
+.mdl-data-table th, .mdl-data-table td {
     padding: 8px;
 }
 
-th {
-    color: #333;
+.mdl-data-table th:first-of-type, .mdl-data-table td:first-of-type {
+    padding-left: 24px;
+}
+
+..mdl-data-table th:last-of-type, .mdl-data-table td:last-of-type {
+    padding-right: 24px;
 }
 
 .hidden {
@@ -649,6 +662,44 @@ Plugin Help style
     font-weight: bold;
     margin: 0 8px;
     padding: 8px 16px;
+}
+
+/*
+Configured Jobs style
+ */
+.job-container {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.repo-name {
+    display: flex;
+    justify-content: center;
+}
+
+#job-dialog {
+    width: 800px;
+}
+
+pre.prettyprint code.job-definition {
+    padding: 0;
+}
+
+.job-definition-card {
+    justify-content: space-between;
+    margin: 8px;
+    min-height: 0;
+    width: 800px;
+}
+
+.job-definition-card > .mdl-card__supporting-text {
+    font-size: 15px;
+}
+
+.job-definition-card > .mdl-card__title, .mdl-dialog__title {
+    color: #3f51b5;
 }
 
 /*

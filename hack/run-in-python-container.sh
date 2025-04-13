@@ -22,7 +22,7 @@ set -o pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 cd "${REPO_ROOT}"
 
-PY_IMAGE='python:3.9-slim-buster'
+PY_IMAGE='python:3.13-slim-bookworm'
 
 docker run \
     --rm -i \

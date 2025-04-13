@@ -45,7 +45,4 @@ import (
 
 	// image builder
 	_ "github.com/google/ko"
-
-	// caching
-	_ "github.com/sethvargo/gcs-cacher"
 )

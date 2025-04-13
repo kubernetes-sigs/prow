@@ -20,6 +20,7 @@ import (
 	"context"
 	"flag"
 	"reflect"
+	"strconv"
 	"testing"
 	"time"
 
@@ -30,9 +31,11 @@ import (
 	fakectrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	prowapi "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
+	v1 "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 	"sigs.k8s.io/prow/pkg/config"
 	"sigs.k8s.io/prow/pkg/flagutil"
 	configflagutil "sigs.k8s.io/prow/pkg/flagutil/config"
+	"sigs.k8s.io/prow/pkg/kube"
 )
 
 type fakeCron struct {
@@ -60,9 +63,14 @@ func TestSync(t *testing.T) {
 	testcases := []struct {
 		testName string
 
-		jobName         string
-		jobComplete     bool
-		jobStartTimeAgo time.Duration
+		jobName                  string
+		jobComplete              bool
+		jobStartTimeAgo          time.Duration
+		retry                    *config.Retry
+		state                    prowapi.ProwJobState
+		interval                 time.Duration
+		retryLabelNumber         int
+		expectedRetryLabelNumber int
 
 		shouldStart bool
 	}{
@@ -105,50 +113,183 @@ func TestSync(t *testing.T) {
 			jobStartTimeAgo: time.Second,
 			shouldStart:     false,
 		},
+		{
+			testName:        "old, complete job",
+			jobName:         "j",
+			jobComplete:     true,
+			jobStartTimeAgo: time.Hour,
+			shouldStart:     true,
+		},
+		{
+			testName:                 "complete job meant to be re-run",
+			jobName:                  "j",
+			jobComplete:              true,
+			jobStartTimeAgo:          time.Minute,
+			shouldStart:              true,
+			state:                    v1.FailureState,
+			retry:                    &config.Retry{Attempts: 3},
+			interval:                 time.Minute,
+			retryLabelNumber:         1,
+			expectedRetryLabelNumber: 2,
+		},
+		{
+			testName:         "failed job but horologium limit is reached",
+			jobName:          "j",
+			jobComplete:      true,
+			jobStartTimeAgo:  time.Minute,
+			shouldStart:      false,
+			state:            v1.FailureState,
+			retry:            &config.Retry{Attempts: 13},
+			interval:         time.Minute,
+			retryLabelNumber: 10,
+		},
+		{
+			testName:         "running job not meant to be re-run",
+			jobName:          "j",
+			jobComplete:      false,
+			jobStartTimeAgo:  time.Minute,
+			shouldStart:      false,
+			state:            v1.PendingState,
+			retry:            &config.Retry{Attempts: 3},
+			interval:         time.Minute,
+			retryLabelNumber: 1,
+		},
+		{
+			testName:                 "running job meant to be re-run when RunAll",
+			jobName:                  "j",
+			jobComplete:              false,
+			jobStartTimeAgo:          time.Minute,
+			shouldStart:              true,
+			state:                    v1.PendingState,
+			retry:                    &config.Retry{RunAll: true, Attempts: 3},
+			interval:                 time.Minute,
+			retryLabelNumber:         1,
+			expectedRetryLabelNumber: 2,
+		},
+		{
+			testName:                 "complete job meant to be re-run even if success state",
+			jobName:                  "j",
+			jobComplete:              true,
+			jobStartTimeAgo:          time.Minute,
+			shouldStart:              true,
+			state:                    v1.SuccessState,
+			retry:                    &config.Retry{RunAll: true, Attempts: 3},
+			interval:                 time.Minute,
+			retryLabelNumber:         1,
+			expectedRetryLabelNumber: 2,
+		},
+		{
+			testName:                 "complete job meant to be re-run after 2 attempts",
+			jobName:                  "j",
+			jobComplete:              true,
+			jobStartTimeAgo:          time.Minute,
+			shouldStart:              true,
+			state:                    v1.SuccessState,
+			retry:                    &config.Retry{RunAll: true, Attempts: 3},
+			interval:                 time.Minute,
+			retryLabelNumber:         1,
+			expectedRetryLabelNumber: 2,
+		},
+		{
+			testName:         "complete job not meant to be re-run after 3 attempts",
+			jobName:          "j",
+			jobComplete:      true,
+			jobStartTimeAgo:  time.Minute,
+			shouldStart:      false,
+			state:            v1.SuccessState,
+			retry:            &config.Retry{RunAll: true, Attempts: 3},
+			interval:         time.Minute,
+			retryLabelNumber: 3,
+		},
+		{
+			testName:         "complete job not meant to be re-run with until_success after success state",
+			jobName:          "j",
+			jobComplete:      true,
+			jobStartTimeAgo:  time.Minute,
+			shouldStart:      false,
+			state:            v1.SuccessState,
+			retry:            &config.Retry{Attempts: 3},
+			interval:         time.Minute,
+			retryLabelNumber: 2,
+		},
 	}
 	for _, tc := range testcases {
-		cfg := config.Config{
-			ProwConfig: config.ProwConfig{
-				ProwJobNamespace: "prowjobs",
-			},
-			JobConfig: config.JobConfig{
-				Periodics: []config.Periodic{{JobBase: config.JobBase{Name: "j"}}},
-			},
-		}
-		cfg.Periodics[0].SetInterval(time.Minute)
-
-		var jobs []client.Object
-		now := time.Now()
-		if tc.jobName != "" {
-			job := &prowapi.ProwJob{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "with-interval",
-					Namespace: "prowjobs",
+		t.Run(tc.testName, func(t *testing.T) {
+			cfg := config.Config{
+				ProwConfig: config.ProwConfig{
+					ProwJobNamespace: "prowjobs",
 				},
-				Spec: prowapi.ProwJobSpec{
-					Type: prowapi.PeriodicJob,
-					Job:  tc.jobName,
-				},
-				Status: prowapi.ProwJobStatus{
-					StartTime: metav1.NewTime(now.Add(-tc.jobStartTimeAgo)),
+				JobConfig: config.JobConfig{
+					Periodics: []config.Periodic{{JobBase: config.JobBase{Name: "j"}, Retry: tc.retry}},
 				},
 			}
-			complete := metav1.NewTime(now.Add(-time.Millisecond))
-			if tc.jobComplete {
-				job.Status.CompletionTime = &complete
+			cfg.Periodics[0].SetInterval(time.Minute * 30)
+			if cfg.JobConfig.Periodics[0].Retry != nil {
+				tc.retry.SetInterval(tc.interval)
 			}
-			jobs = append(jobs, job)
-		}
-		fakeProwJobClient := newCreateTrackingClient(jobs)
-		fc := &fakeCron{}
-		if err := sync(fakeProwJobClient, &cfg, fc, now); err != nil {
-			t.Fatalf("For case %s, didn't expect error: %v", tc.testName, err)
-		}
 
-		sawCreation := fakeProwJobClient.sawCreate
-		if tc.shouldStart != sawCreation {
-			t.Errorf("For case %s, did the wrong thing.", tc.testName)
-		}
+			var jobs []client.Object
+			now := time.Now()
+			if tc.jobName != "" {
+				job := &prowapi.ProwJob{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "with-interval",
+						Namespace: "prowjobs",
+					},
+					Spec: prowapi.ProwJobSpec{
+						Type: prowapi.PeriodicJob,
+						Job:  tc.jobName,
+					},
+					Status: prowapi.ProwJobStatus{
+						StartTime: metav1.NewTime(now.Add(-tc.jobStartTimeAgo)),
+						State:     tc.state,
+					},
+				}
+				complete := metav1.NewTime(now.Add(-time.Millisecond))
+				if tc.jobComplete {
+					job.Status.CompletionTime = &complete
+				}
+				jobs = append(jobs, job)
+				if tc.retryLabelNumber != 0 {
+					if job.Labels == nil {
+						job.Labels = make(map[string]string)
+					}
+					job.Labels[kube.ReRunLabel] = strconv.Itoa(tc.retryLabelNumber)
+				}
+			}
+
+			fakeProwJobClient := newCreateTrackingClient(jobs)
+			fc := &fakeCron{}
+			if err := sync(fakeProwJobClient, &cfg, fc, now); err != nil {
+				t.Fatalf("Didn't expect error: %v", err)
+			}
+
+			sawCreation := fakeProwJobClient.sawCreate
+			if tc.shouldStart != sawCreation {
+				t.Errorf("Did the wrong thing. Expected sawCreation: %v, got: %v", tc.shouldStart, sawCreation)
+			}
+			if sawCreation {
+				pj, ok := fakeProwJobClient.created[0].(*v1.ProwJob)
+				if !ok {
+					t.Error("Failed to convert created object to *v1.ProwJob")
+					return
+				}
+
+				if tc.retryLabelNumber > 0 {
+					countLabel, exists := pj.Labels[kube.ReRunLabel]
+					if !exists {
+						t.Errorf("Expected label %s to exist", kube.ReRunLabel)
+					} else {
+						count, err := strconv.Atoi(countLabel)
+						if err != nil {
+							t.Errorf("Failed to convert label value: %v", err)
+						} else if count != tc.expectedRetryLabelNumber {
+							t.Errorf("Expected retry label value %d, but got %d", tc.expectedRetryLabelNumber, count)
+						}
+					}
+				}
+			}
+		})
 	}
 }
 

@@ -223,6 +223,9 @@ var simplifier = simplifypath.NewSimplifier(l("", // shadow element mimicking th
 	l("badge.svg"),
 	l("command-help"),
 	l("config"),
+	l("configured-jobs",
+		v("org"),
+		v("repo")),
 	l("data.js"),
 	l("favicon.ico"),
 	l("github-login",
@@ -320,6 +323,7 @@ func main() {
 	mux.Handle("/tide", gziphandler.GzipHandler(handleSimpleTemplate(o, cfg, "tide.html", nil)))
 	mux.Handle("/tide-history", gziphandler.GzipHandler(handleSimpleTemplate(o, cfg, "tide-history.html", nil)))
 	mux.Handle("/plugins", gziphandler.GzipHandler(handleSimpleTemplate(o, cfg, "plugins.html", nil)))
+	mux.Handle("/configured-jobs/", gziphandler.GzipHandler(handleConfiguredJobs(o, cfg, logrus.WithField("handler", "/configured-jobs"))))
 
 	runLocal := o.pregeneratedData != ""
 
@@ -820,6 +824,47 @@ func handleProwJobs(ja *jobs.JobAgent, log *logrus.Entry) http.HandlerFunc {
 			jd = []byte("{}")
 		}
 		writeJSONResponse(w, r, jd)
+	}
+}
+
+func handleConfiguredJobs(o options, cfg config.Getter, log *logrus.Entry) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			http.Error(w, "Path only valid for GET", http.StatusMethodNotAllowed)
+			return
+		}
+		jobConfig := cfg().JobConfig
+		setHeadersNoCaching(w)
+		p := r.URL.Path
+		if strings.HasSuffix(p, "configured-jobs/") { // If there is no further path, fetch the index page
+			index, err := GetIndex(jobConfig)
+			if err != nil {
+				log.WithError(err).Error("Error getting configured jobs index")
+				http.Error(w, "Error obtaining configured jobs index", httpStatusForError(err))
+				return
+			}
+			handleSimpleTemplate(o, cfg, "configured-jobs-index.html", index)(w, r)
+			return
+		}
+
+		var org, repo string
+		orgRepoPath := strings.Split(p, "configured-jobs/")[1]
+		orgRepoSplit := strings.Split(orgRepoPath, "/")
+		if len(orgRepoSplit) > 2 {
+			http.NotFound(w, r)
+			return
+		}
+		org = orgRepoSplit[0]
+		if len(orgRepoSplit) > 1 {
+			repo = orgRepoSplit[1]
+		}
+		configuredJobs, err := GetConfiguredJobs(cfg, org, repo)
+		if err != nil {
+			log.WithError(err).Error("Error getting configured jobs")
+			http.Error(w, "Error obtaining configured jobs", httpStatusForError(err))
+			return
+		}
+		handleSimpleTemplate(o, cfg, "configured-jobs.html", configuredJobs)(w, r)
 	}
 }
 

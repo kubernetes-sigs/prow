@@ -8,4 +8,4 @@ approvers:
 - stevekuznetsov
 
 labels:
- - area/prow/pod-utilities
+ - area/pod-utilities
