@@ -26,6 +26,7 @@ import (
 	"sigs.k8s.io/prow/pkg/config"
 	"sigs.k8s.io/prow/pkg/github"
 	"sigs.k8s.io/prow/pkg/labels"
+	"sigs.k8s.io/prow/pkg/markdown"
 	"sigs.k8s.io/prow/pkg/pjutil"
 	"sigs.k8s.io/prow/pkg/plugins"
 )
@@ -57,14 +58,15 @@ func handleGenericComment(c Client, trigger plugins.Trigger, gc github.GenericCo
 	presubmits := getPresubmits(c.Logger, c.GitClient, c.Config, org+"/"+repo, refGetter.BaseSHA, refGetter.HeadSHA)
 
 	// Skip comments not germane to this plugin
-	if !pjutil.RetestRe.MatchString(gc.Body) &&
-		!pjutil.RetestRequiredRe.MatchString(gc.Body) &&
-		!pjutil.OkToTestRe.MatchString(gc.Body) &&
-		!pjutil.TestAllRe.MatchString(gc.Body) &&
-		!pjutil.MayNeedHelpComment(gc.Body) {
+	textToCheck := markdown.DropCodeBlock(gc.Body)
+	if !pjutil.RetestRe.MatchString(textToCheck) &&
+		!pjutil.RetestRequiredRe.MatchString(textToCheck) &&
+		!pjutil.OkToTestRe.MatchString(textToCheck) &&
+		!pjutil.TestAllRe.MatchString(textToCheck) &&
+		!pjutil.MayNeedHelpComment(textToCheck) {
 		matched := false
 		for _, presubmit := range presubmits {
-			matched = matched || presubmit.TriggerMatches(gc.Body)
+			matched = matched || presubmit.TriggerMatches(textToCheck)
 			if matched {
 				break
 			}
@@ -105,7 +107,7 @@ func handleGenericComment(c Client, trigger plugins.Trigger, gc github.GenericCo
 			return err
 		}
 	}
-	isOkToTest := HonorOkToTest(trigger) && pjutil.OkToTestRe.MatchString(gc.Body)
+	isOkToTest := HonorOkToTest(trigger) && pjutil.OkToTestRe.MatchString(textToCheck)
 	if isOkToTest && !github.HasLabel(labels.OkToTest, l) {
 		if err := c.GitHubClient.AddLabel(org, repo, number, labels.OkToTest); err != nil {
 			return err
@@ -130,16 +132,16 @@ func handleGenericComment(c Client, trigger plugins.Trigger, gc github.GenericCo
 	if err != nil {
 		return err
 	}
-	if needsHelp, note := pjutil.ShouldRespondWithHelp(gc.Body, len(toTest)); needsHelp {
+	if needsHelp, note := pjutil.ShouldRespondWithHelp(textToCheck, len(toTest)); needsHelp {
 		return addHelpComment(c.GitHubClient, gc.Body, org, repo, pr.Base.Ref, pr.Number, presubmits, gc.HTMLURL, commentAuthor, note, c.Logger)
 	}
 	// we want to be able to track re-tests separately from the general body of tests
 	additionalLabels := map[string]string{}
-	if pjutil.RetestRe.MatchString(gc.Body) || pjutil.RetestRequiredRe.MatchString(gc.Body) {
+	if pjutil.RetestRe.MatchString(textToCheck) || pjutil.RetestRequiredRe.MatchString(textToCheck) {
 		additionalLabels[kube.RetestLabel] = "true"
 	}
 	// run failed github actions
-	if trigger.TriggerGitHubWorkflows && (pjutil.RetestRe.MatchString(gc.Body) || pjutil.TestAllRe.MatchString(gc.Body)) {
+	if trigger.TriggerGitHubWorkflows && (pjutil.RetestRe.MatchString(textToCheck) || pjutil.TestAllRe.MatchString(textToCheck)) {
 		headSHA, err := refGetter.HeadSHA()
 		if err != nil {
 			c.Logger.Warnf("headSHA unavailable, failed github actions for pr will not be triggered: %v", pr)
