@@ -537,8 +537,18 @@ func NewFromCache(roundTripper http.RoundTripper, cache CachePartitionCreator, m
 // Important note: The redis implementation does not support partitioning the cache
 // which means that requests to the same path from different tokens will invalidate
 // each other.
-func NewRedisCache(roundTripper http.RoundTripper, redisAddress string, maxConcurrency int, throttlingTimes RequestThrottlingTimes) http.RoundTripper {
-	conn, err := redis.Dial("tcp", redisAddress)
+func NewRedisCache(roundTripper http.RoundTripper, redisAddress string, redisUsername string, redisPassword string, maxConcurrency int, throttlingTimes RequestThrottlingTimes) http.RoundTripper {
+
+	var conn redis.Conn
+	var err error
+	if redisUsername != "" {
+		conn, err = redis.Dial("tcp", redisAddress, redis.DialUsername(redisUsername), redis.DialPassword(redisPassword))
+	} else if redisPassword != "" {
+		conn, err = redis.Dial("tcp", redisAddress, redis.DialPassword(redisPassword))
+	} else {
+		conn, err = redis.Dial("tcp", redisAddress)
+	}
+
 	if err != nil {
 		logrus.WithError(err).Fatal("Error connecting to Redis")
 	}
