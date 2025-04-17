@@ -93,7 +93,9 @@ type options struct {
 	sizeGB                                 int
 	diskCacheDisableAuthHeaderPartitioning bool
 
-	redisAddress string
+	redisAddress  string
+	redisUsername string
+	redisPassword string
 
 	port           int
 	upstream       string
@@ -143,6 +145,8 @@ func flagOptions() *options {
 	flag.IntVar(&o.sizeGB, "cache-sizeGB", 0, "Cache size in GB per unique token if using a disk cache.")
 	flag.BoolVar(&o.diskCacheDisableAuthHeaderPartitioning, "legacy-disable-disk-cache-partitions-by-auth-header", true, "Whether to disable partitioning a disk cache by auth header. Disabling this will start a new cache at $cache_dir/$sha256sum_of_authorization_header for each unique authorization header. Bigger setups are advise to manually warm this up from an existing cache. This option will be removed and set to `false` in the future")
 	flag.StringVar(&o.redisAddress, "redis-address", "", "Redis address if using a redis cache e.g. localhost:6379.")
+	flag.StringVar(&o.redisUsername, "redis-usersname", "", "Redis username")
+	flag.StringVar(&o.redisPassword, "redis-password", "", "Redis password")
 	flag.IntVar(&o.port, "port", 8888, "Port to listen on.")
 	flag.StringVar(&o.upstream, "upstream", "https://api.github.com", "Scheme, host, and base path of reverse proxy upstream.")
 	flag.IntVar(&o.maxConcurrency, "concurrency", 25, "Maximum number of concurrent in-flight requests to GitHub.")
@@ -202,7 +206,7 @@ func proxy(o *options, upstreamTransport http.RoundTripper, diskCachePruneInterv
 	var cache http.RoundTripper
 	throttlingTimes := ghcache.NewRequestThrottlingTimes(o.requestThrottlingTime, o.requestThrottlingTimeV4, o.requestThrottlingTimeForGET, o.requestThrottlingMaxDelayTime, o.requestThrottlingMaxDelayTimeV4)
 	if o.redisAddress != "" {
-		cache = ghcache.NewRedisCache(apptokenequalizer.New(upstreamTransport), o.redisAddress, o.maxConcurrency, throttlingTimes)
+		cache = ghcache.NewRedisCache(apptokenequalizer.New(upstreamTransport), o.redisAddress, o.redisUsername, o.redisPassword, o.maxConcurrency, throttlingTimes)
 	} else if o.dir == "" {
 		cache = ghcache.NewMemCache(apptokenequalizer.New(upstreamTransport), o.maxConcurrency, throttlingTimes)
 	} else {
