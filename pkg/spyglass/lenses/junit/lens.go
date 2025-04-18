@@ -63,9 +63,10 @@ type JVD struct {
 // Config returns the lens's configuration.
 func (lens Lens) Config() lenses.LensConfig {
 	return lenses.LensConfig{
-		Name:     name,
-		Title:    title,
-		Priority: priority,
+		Name:                     name,
+		Title:                    title,
+		Priority:                 priority,
+		IframeSandboxPermissions: lenses.DefaultSandboxPermissions,
 	}
 }
 
