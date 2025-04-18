@@ -477,15 +477,15 @@ func (r *reconciler) syncPendingJob(ctx context.Context, pj *prowv1.ProwJob) (*r
 			pj.SetComplete()
 			pj.Status.State = prowv1.ErrorState
 			pj.Status.Description = "Job pod was evicted by the cluster."
-		case pj.Status.RevivalCount >= *r.config().Plank.MaxRevivals:
+		case pj.Status.PodRevivalCount >= *r.config().Plank.MaxRevivals:
 			// MaxRevivals is reached, complete the PJ and mark it as errored.
 			r.log.WithField("unexpected-stop-cause", podUnexpectedStopCause).WithFields(pjutil.ProwJobFields(pj)).Info("Pod Node reached max retries, fail job.")
 			pj.SetComplete()
 			pj.Status.State = prowv1.ErrorState
-			pj.Status.Description = fmt.Sprintf("Job pod reached max revivals (%d) after being stopped unexpectedly (%s)", pj.Status.RevivalCount, podUnexpectedStopCause)
+			pj.Status.Description = fmt.Sprintf("Job pod reached max revivals (%d) after being stopped unexpectedly (%s)", pj.Status.PodRevivalCount, podUnexpectedStopCause)
 		default:
 			// Update the revival count and delete the pod so it gets recreated in the next resync.
-			pj.Status.RevivalCount++
+			pj.Status.PodRevivalCount++
 			r.log.
 				WithField("unexpected-stop-cause", podUnexpectedStopCause).
 				WithFields(pjutil.ProwJobFields(pj)).

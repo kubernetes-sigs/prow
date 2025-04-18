@@ -1194,9 +1194,9 @@ func TestSyncPendingJob(t *testing.T) {
 					PodSpec: &v1.PodSpec{Containers: []v1.Container{{Name: "test-name", Env: []v1.EnvVar{}}}},
 				},
 				Status: prowapi.ProwJobStatus{
-					RevivalCount: maxRevivals,
-					State:        prowapi.PendingState,
-					PodName:      "boop-42",
+					PodRevivalCount: maxRevivals,
+					State:           prowapi.PendingState,
+					PodName:         "boop-42",
 				},
 			},
 			Pods: []v1.Pod{

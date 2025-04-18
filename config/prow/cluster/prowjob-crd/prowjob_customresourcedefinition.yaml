@@ -9780,6 +9780,12 @@ spec:
                   plank. This field should always be the same as
                   the ProwJob.ObjectMeta.Name field.
                 type: string
+              pod_revival_count:
+                description: |-
+                  PodRevivalCount applies only to ProwJobs fulfilled by
+                  plank. This field shows the amount of times the
+                  Pod was recreated due to an unexpected stop.
+                type: integer
               prev_report_states:
                 additionalProperties:
                   description: ProwJobState specifies whether the job is running
@@ -9788,10 +9794,6 @@ spec:
                   PrevReportStates stores the previous reported prowjob state per reporter
                   So crier won't make duplicated report attempt
                 type: object
-              revivalCount:
-                description: Amount of times the Pod was revived from an unexpected
-                  stop.
-                type: integer
               startTime:
                 description: StartTime is equal to the creation time of the ProwJob
                 format: date-time

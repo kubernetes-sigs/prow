@@ -1098,14 +1098,16 @@ type ProwJobStatus struct {
 	PendingTime *metav1.Time `json:"pendingTime,omitempty"`
 	// CompletionTime is the timestamp for when the job goes to a final state
 	CompletionTime *metav1.Time `json:"completionTime,omitempty"`
-	// Amount of times the Pod was revived from an unexpected stop.
-	RevivalCount int `json:"revivalCount,omitempty"`
 	// +kubebuilder:validation:Enum=scheduling;triggered;pending;success;failure;aborted;error
 	// +kubebuilder:validation:Required
 	State       ProwJobState `json:"state,omitempty"`
 	Description string       `json:"description,omitempty"`
 	URL         string       `json:"url,omitempty"`
 
+	// PodRevivalCount applies only to ProwJobs fulfilled by
+	// plank. This field shows the amount of times the
+	// Pod was recreated due to an unexpected stop.
+	PodRevivalCount int `json:"pod_revival_count,omitempty"`
 	// PodName applies only to ProwJobs fulfilled by
 	// plank. This field should always be the same as
 	// the ProwJob.ObjectMeta.Name field.
