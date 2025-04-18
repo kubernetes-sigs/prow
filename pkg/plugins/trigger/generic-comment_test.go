@@ -45,6 +45,8 @@ func issueLabels(labels ...string) []string {
 	return ls
 }
 
+const shouldNotAddComment = "<none>"
+
 type testcase struct {
 	name string
 
@@ -997,6 +999,40 @@ func TestHandleGenericComment(t *testing.T) {
 			AddedComment: helpComment + "Use `/test all` to run all jobs.",
 		},
 		{
+			name:   `ignore "/test ?" in code block`,
+			Author: "trusted-member",
+			Body:   produceCodeBlock("/test ?", false),
+			State:  "open",
+			IsPR:   true,
+			Presubmits: map[string][]config.Presubmit{
+				"org/repo": {
+					{
+						JobBase: config.JobBase{
+							Name: "job",
+						},
+						AlwaysRun: true,
+						Reporter: config.Reporter{
+							Context: "pull-job",
+						},
+						Trigger:      `(?m)^/test (?:.*? )?job(?: .*?)?$`,
+						RerunCommand: `/test job`,
+					},
+					{
+						JobBase: config.JobBase{
+							Name: "jib",
+						},
+						AlwaysRun: true,
+						Reporter: config.Reporter{
+							Context: "pull-jib",
+						},
+						Trigger:      `(?m)^/test (?:.*? )?jib(?: .*?)?$`,
+						RerunCommand: `/test jib`,
+					},
+				},
+			},
+			AddedComment: shouldNotAddComment,
+		},
+		{
 			name:   `help command "/test ?" uses unique RerunCommand field of presubmits`,
 			Author: "trusted-member",
 			Body:   "/test ?",
@@ -1051,6 +1087,22 @@ func TestHandleGenericComment(t *testing.T) {
 			AddedComment: pjutil.TestWithoutTargetNote + helpComment + helpTestAllWithJobsComment,
 		},
 		{
+			name:         "ignore `/test` with no target results in a code block",
+			Author:       "trusted-member",
+			Body:         "```\n/test\n```",
+			State:        "open",
+			IsPR:         true,
+			AddedComment: shouldNotAddComment,
+		},
+		{
+			name:         "ignore `/test` with no target results in a tilda code block",
+			Author:       "trusted-member",
+			Body:         "~~~\n/test\n~~~",
+			State:        "open",
+			IsPR:         true,
+			AddedComment: shouldNotAddComment,
+		},
+		{
 			name:         "/test with no target but ? in the next line results in an invalid test command message",
 			Author:       "trusted-member",
 			Body:         "/test \r\n?",
@@ -1067,6 +1119,14 @@ func TestHandleGenericComment(t *testing.T) {
 			AddedComment: pjutil.RetestWithTargetNote + helpComment + helpTestAllWithJobsComment,
 		},
 		{
+			name:         "/retest with trailing words results in a code block",
+			Author:       "trusted-member",
+			Body:         produceCodeBlock("/retest FOO", false),
+			State:        "open",
+			IsPR:         true,
+			AddedComment: shouldNotAddComment,
+		},
+		{
 			name:          "/retest without target but with lines following it, is valid",
 			Author:        "trusted-member",
 			Body:          "/retest \r\n/other-command",
@@ -1079,6 +1139,52 @@ func TestHandleGenericComment(t *testing.T) {
 			name:         "/test with unknown target results in a help message",
 			Author:       "trusted-member",
 			Body:         "/test FOO",
+			State:        "open",
+			IsPR:         true,
+			AddedComment: pjutil.TargetNotFoundNote + helpComment + helpTestAllWithJobsComment,
+		},
+		{
+			name:         "/test with unknown target results in code block. Should be ignored",
+			Author:       "trusted-member",
+			Body:         produceCodeBlock("/test FOO", false),
+			State:        "open",
+			IsPR:         true,
+			AddedComment: shouldNotAddComment,
+		},
+		{
+			name:         "two `/test` with unknown target results. One in a code block, and one is not.",
+			Author:       "trusted-member",
+			Body:         produceCodeBlock("/test FOO", true) + "/test BAR",
+			State:        "open",
+			IsPR:         true,
+			AddedComment: pjutil.TargetNotFoundNote + helpComment + helpTestAllWithJobsComment,
+		},
+		{
+			name:         "two `/test` with unknown target results. One out of a code block, and one is inside.",
+			Author:       "trusted-member",
+			Body:         "/test FOO\n" + produceCodeBlock("/test BAR", false),
+			State:        "open",
+			IsPR:         true,
+			AddedComment: pjutil.TargetNotFoundNote + helpComment + helpTestAllWithJobsComment,
+		},
+		{
+			name:   "multiple code blocks; should be ignored.",
+			Author: "trusted-member",
+			Body: produceCodeBlock("/test FOO", true) +
+				produceCodeBlock("/test BAR", true) +
+				produceCodeBlock("/test BAZ", false),
+			State:        "open",
+			IsPR:         true,
+			AddedComment: shouldNotAddComment,
+		},
+		{
+			name:   "/test mixed with multiple code blocks; should be ignored.",
+			Author: "trusted-member",
+			Body: produceCodeBlock("/test FOO", true) + // code block
+				produceCodeBlock("/test BAR", true) + // code block
+				"/test BAZ\n" + // /test as a regular text
+				"Will trigger the help message.\n" + // some regular text
+				produceCodeBlock("/test QUX", false), // code block
 			State:        "open",
 			IsPR:         true,
 			AddedComment: pjutil.TargetNotFoundNote + helpComment + helpTestAllWithJobsComment,
@@ -1149,6 +1255,40 @@ func TestHandleGenericComment(t *testing.T) {
 				},
 			},
 			AddedComment: pjutil.ThereAreNoTestAllJobsNote + helpComment,
+		},
+		{
+			name:   "when no jobs can be run with /test all, ignore if inside a code block",
+			Author: "trusted-member",
+			Body:   produceCodeBlock("/test all", false),
+			State:  "open",
+			IsPR:   true,
+			Presubmits: map[string][]config.Presubmit{
+				"org/repo": {
+					{
+						JobBase: config.JobBase{
+							Name: "job",
+						},
+						AlwaysRun: false,
+						Reporter: config.Reporter{
+							Context: "pull-job",
+						},
+						Trigger:      `(?m)^/test job$`,
+						RerunCommand: `/test job`,
+					},
+					{
+						JobBase: config.JobBase{
+							Name: "jib",
+						},
+						AlwaysRun: false,
+						Reporter: config.Reporter{
+							Context: "pull-jib",
+						},
+						Trigger:      `(?m)^/test jib$`,
+						RerunCommand: `/test jib`,
+					},
+				},
+			},
+			AddedComment: shouldNotAddComment,
 		},
 		{
 			name:   "available presubmits should not list those excluded by branch",
@@ -1386,12 +1526,18 @@ func validate(t *testing.T, actions []clienttesting.Action, g *fakegithub.FakeCl
 		t.Errorf("expected %q to be removed, got %q", tc.RemovedLabels, g.IssueLabelsRemoved)
 	}
 	if tc.AddedComment != "" {
-		if len(g.IssueComments[0]) == 0 {
-			t.Errorf("expected the comments to contain %s, got no comments", tc.AddedComment)
-		}
-		for _, c := range g.IssueComments[0] {
-			if !strings.Contains(c.Body, tc.AddedComment) {
-				t.Errorf("expected the comment to contain %s, got %s", tc.AddedComment, c.Body)
+		if tc.AddedComment == shouldNotAddComment {
+			if len(g.IssueComments[0]) != 0 {
+				t.Errorf("expected no comments, got %v", g.IssueComments[0])
+			}
+		} else {
+			if len(g.IssueComments[0]) == 0 {
+				t.Errorf("expected the comments to contain %s, got no comments", tc.AddedComment)
+			}
+			for _, c := range g.IssueComments[0] {
+				if !strings.Contains(c.Body, tc.AddedComment) {
+					t.Errorf("expected the comment to contain %s, got %s", tc.AddedComment, c.Body)
+				}
 			}
 		}
 	}
@@ -1480,4 +1626,13 @@ func TestRetestFilter(t *testing.T) {
 			}
 		})
 	}
+}
+
+func produceCodeBlock(text string, withNewLine bool) string {
+	newline := ""
+	if withNewLine {
+		newline = "\n"
+	}
+
+	return fmt.Sprintf("```\n%s\n```%s", text, newline)
 }

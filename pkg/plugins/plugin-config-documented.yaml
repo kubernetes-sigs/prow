@@ -62,6 +62,16 @@ blunderbuss:
     # additional token per successful reviewer (and potentially more depending on
     # how many busy reviewers it had to pass over).
     use_status_availability: true
+    # WaitForStatus specifies whether to request reviews if the tide status indicates that
+    # the tests have passed but there are insufficient pull request reviews.
+    wait_for_status:
+        # Context name of the context to match on, defaults to "tide"
+        context: ' '
+        # Description regular expression to match the context description, defaults to
+        # "Not mergeable. (PullRequest is missing sufficient approving GitHub review\(s\)|Needs (lgtm|approved) label)"
+        description: ' '
+        # State is the state we want the context to be in before requesting reviews, e.g. "pending"
+        state: ' '
 branch_cleaner:
     # PreservedBranches is a map of org/repo branches
     # format:
