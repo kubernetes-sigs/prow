@@ -9780,6 +9780,12 @@ spec:
                   plank. This field should always be the same as
                   the ProwJob.ObjectMeta.Name field.
                 type: string
+              pod_revival_count:
+                description: |-
+                  PodRevivalCount applies only to ProwJobs fulfilled by
+                  plank. This field shows the amount of times the
+                  Pod was recreated due to an unexpected stop.
+                type: integer
               prev_report_states:
                 additionalProperties:
                   description: ProwJobState specifies whether the job is running
