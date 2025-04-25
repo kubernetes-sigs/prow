@@ -21,16 +21,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/andygrunwald/go-jira"
+	"github.com/hashicorp/go-retryablehttp"
+	"github.com/sirupsen/logrus"
 	stdio "io"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"net/http"
 	"net/url"
 	"strings"
 	"sync"
-
-	"github.com/andygrunwald/go-jira"
-	"github.com/hashicorp/go-retryablehttp"
-	"github.com/sirupsen/logrus"
-	"k8s.io/apimachinery/pkg/util/sets"
 
 	"sigs.k8s.io/prow/pkg/version"
 )
@@ -623,7 +622,7 @@ func (bart *bearerAuthRoundtripper) RoundTrip(req *http.Request) (*http.Response
 	req2.URL = new(url.URL)
 	*req2.URL = *req.URL
 	token := bart.generator()
-	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 	logrus.WithField("curl", toCurl(req2)).Trace("Executing http request")
 	return bart.upstream.RoundTrip(req2)
 }
