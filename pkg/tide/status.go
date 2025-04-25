@@ -22,6 +22,7 @@ import (
 	"fmt"
 	stdio "io"
 	"net/url"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -145,18 +146,35 @@ func requirementDiff(pr *PullRequest, q *config.TideQuery, cc contextChecker) (s
 	// Weight incorrect branches with very high diff so that we select the query
 	// for the correct branch.
 	targetBranchDenied := false
-	for _, excludedBranch := range q.ExcludedBranches {
-		if string(pr.BaseRef.Name) == excludedBranch {
+	if len(q.ExcludedBranches) > 0 {
+		branchExclusions, err := regexp.Compile(strings.Join(q.ExcludedBranches, `|`))
+		if err == nil && branchExclusions.MatchString(string(pr.BaseRef.Name)) {
 			targetBranchDenied = true
-			break
+		} else if err != nil {
+			// Fall back to exact matching if regex compilation fails
+			for _, excludedBranch := range q.ExcludedBranches {
+				if string(pr.BaseRef.Name) == excludedBranch {
+					targetBranchDenied = true
+					break
+				}
+			}
 		}
 	}
+	
 	// if no allowlist is configured, the target is OK by default
 	targetBranchAllowed := len(q.IncludedBranches) == 0
-	for _, includedBranch := range q.IncludedBranches {
-		if string(pr.BaseRef.Name) == includedBranch {
+	if !targetBranchAllowed && len(q.IncludedBranches) > 0 {
+		branchInclusions, err := regexp.Compile(strings.Join(q.IncludedBranches, `|`))
+		if err == nil && branchInclusions.MatchString(string(pr.BaseRef.Name)) {
 			targetBranchAllowed = true
-			break
+		} else if err != nil {
+			// Fall back to exact matching if regex compilation fails
+			for _, includedBranch := range q.IncludedBranches {
+				if string(pr.BaseRef.Name) == includedBranch {
+					targetBranchAllowed = true
+					break
+				}
+			}
 		}
 	}
 	if targetBranchDenied || !targetBranchAllowed {

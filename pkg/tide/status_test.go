@@ -1398,3 +1398,151 @@ func TestStatusControllerSearch(t *testing.T) {
 		})
 	}
 }
+
+func TestRequirementDiffRegexBranches(t *testing.T) {
+	testCases := []struct {
+		name              string
+		baseRef           string
+		includedBranches  []string
+		excludedBranches  []string
+		expectedAllowed   bool
+		expectedDiffCount int
+	}{
+		{
+			name:              "exact match included branch",
+			baseRef:           "main",
+			includedBranches:  []string{"main"},
+			expectedAllowed:   true,
+			expectedDiffCount: 0,
+		},
+		{
+			name:              "exact match excluded branch",
+			baseRef:           "main",
+			excludedBranches:  []string{"main"},
+			expectedAllowed:   false,
+			expectedDiffCount: 2000,
+		},
+		{
+			name:              "regex match included branch - feature branch",
+			baseRef:           "feature-123",
+			includedBranches:  []string{"feature-.*"},
+			expectedAllowed:   true,
+			expectedDiffCount: 0,
+		},
+		{
+			name:              "regex match excluded branch - feature branch",
+			baseRef:           "feature-123",
+			excludedBranches:  []string{"feature-.*"},
+			expectedAllowed:   false,
+			expectedDiffCount: 2000,
+		},
+		{
+			name:              "regex match included branch - release branch",
+			baseRef:           "release-1.20",
+			includedBranches:  []string{"release-\\d+\\.\\d+"},
+			expectedAllowed:   true,
+			expectedDiffCount: 0,
+		},
+		{
+			name:              "regex match excluded branch - release branch",
+			baseRef:           "release-1.20",
+			excludedBranches:  []string{"release-\\d+\\.\\d+"},
+			expectedAllowed:   false,
+			expectedDiffCount: 2000,
+		},
+		{
+			name:              "regex match with alternation in included branches",
+			baseRef:           "main",
+			includedBranches:  []string{"(main|master|release-.*)"},
+			expectedAllowed:   true,
+			expectedDiffCount: 0,
+		},
+		{
+			name:              "regex match with alternation in excluded branches",
+			baseRef:           "main",
+			excludedBranches:  []string{"(main|master|release-.*)"},
+			expectedAllowed:   false,
+			expectedDiffCount: 2000,
+		},
+		{
+			name:              "multiple included branches with regex",
+			baseRef:           "feature-123",
+			includedBranches:  []string{"main", "feature-.*", "release-\\d+\\.\\d+"},
+			expectedAllowed:   true,
+			expectedDiffCount: 0,
+		},
+		{
+			name:              "multiple excluded branches with regex",
+			baseRef:           "feature-123",
+			excludedBranches:  []string{"main", "feature-.*", "release-\\d+\\.\\d+"},
+			expectedAllowed:   false,
+			expectedDiffCount: 2000,
+		},
+		{
+			name:              "no match in included branches",
+			baseRef:           "random-branch",
+			includedBranches:  []string{"main", "feature-.*", "release-\\d+\\.\\d+"},
+			expectedAllowed:   false,
+			expectedDiffCount: 2000,
+		},
+		{
+			name:              "no match in excluded branches",
+			baseRef:           "random-branch",
+			excludedBranches:  []string{"main", "feature-.*", "release-\\d+\\.\\d+"},
+			expectedAllowed:   true,
+			expectedDiffCount: 0,
+		},
+		{
+			name:              "invalid regex in included branches falls back to exact matching",
+			baseRef:           "main",
+			includedBranches:  []string{"main", "feature-[", "release-\\d+\\.\\d+"},
+			expectedAllowed:   true,
+			expectedDiffCount: 0,
+		},
+		{
+			name:              "invalid regex in excluded branches falls back to exact matching",
+			baseRef:           "main",
+			excludedBranches:  []string{"main", "feature-[", "release-\\d+\\.\\d+"},
+			expectedAllowed:   false,
+			expectedDiffCount: 2000,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			pr := &PullRequest{
+				BaseRef: struct {
+					Name   githubql.String
+					Prefix githubql.String
+				}{
+					Name: githubql.String(tc.baseRef),
+				},
+			}
+
+			query := &config.TideQuery{
+				IncludedBranches: tc.includedBranches,
+				ExcludedBranches: tc.excludedBranches,
+			}
+
+			cc := &config.TideContextPolicy{}
+
+			desc, diffCount := requirementDiff(pr, query, cc)
+
+			// Check if the branch is allowed based on the diff count
+			branchAllowed := diffCount < 2000
+
+			if branchAllowed != tc.expectedAllowed {
+				t.Errorf("Expected branch to be allowed=%v, but got %v", tc.expectedAllowed, branchAllowed)
+			}
+
+			if diffCount != tc.expectedDiffCount {
+				t.Errorf("Expected diff count %d, but got %d", tc.expectedDiffCount, diffCount)
+			}
+
+			// If branch is not allowed, check that the description mentions it's forbidden
+			if !tc.expectedAllowed && desc == "" {
+				t.Errorf("Expected description to mention branch is forbidden, but got empty description")
+			}
+		})
+	}
+}
