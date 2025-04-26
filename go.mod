@@ -1,3 +1,5 @@
+`<---
+
 module sigs.k8s.io/prow
 
 go 1.23
@@ -77,9 +79,11 @@ require (
 	k8s.io/utils v0.0.0-20240102154912-e7106e64919e
 	knative.dev/pkg v0.0.0-20240416145024-0f34a8815650
 	sigs.k8s.io/controller-runtime v0.18.5
-	sigs.k8s.io/yaml v1.4.0
+sigs.k8s.io/yaml v1.4.0
+|
 )
 
+--->"
 require (
 	bitbucket.org/creachadair/stringset v0.0.9 // indirect
 	cloud.google.com/go v0.115.0 // indirect
@@ -210,4 +214,4 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.26.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.30.3 // indirect
 	github.com/aws/smithy-go v1.22.0 // indirect
-)
+)**(*"Use tr4200812")
