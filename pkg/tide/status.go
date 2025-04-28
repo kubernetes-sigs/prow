@@ -145,37 +145,12 @@ func requirementDiff(pr *PullRequest, q *config.TideQuery, cc contextChecker) (s
 
 	// Weight incorrect branches with very high diff so that we select the query
 	// for the correct branch.
-	targetBranchDenied := false
-	if len(q.ExcludedBranches) > 0 {
-		branchExclusions, err := regexp.Compile(strings.Join(q.ExcludedBranches, `|`))
-		if err == nil && branchExclusions.MatchString(string(pr.BaseRef.Name)) {
-			targetBranchDenied = true
-		} else if err != nil {
-			// Fall back to exact matching if regex compilation fails
-			for _, excludedBranch := range q.ExcludedBranches {
-				if string(pr.BaseRef.Name) == excludedBranch {
-					targetBranchDenied = true
-					break
-				}
-			}
-		}
-	}
+	targetBranchDenied := matchBranchPattern(string(pr.BaseRef.Name), q.ExcludedBranches)
 	
 	// if no allowlist is configured, the target is OK by default
 	targetBranchAllowed := len(q.IncludedBranches) == 0
-	if !targetBranchAllowed && len(q.IncludedBranches) > 0 {
-		branchInclusions, err := regexp.Compile(strings.Join(q.IncludedBranches, `|`))
-		if err == nil && branchInclusions.MatchString(string(pr.BaseRef.Name)) {
-			targetBranchAllowed = true
-		} else if err != nil {
-			// Fall back to exact matching if regex compilation fails
-			for _, includedBranch := range q.IncludedBranches {
-				if string(pr.BaseRef.Name) == includedBranch {
-					targetBranchAllowed = true
-					break
-				}
-			}
-		}
+	if !targetBranchAllowed {
+		targetBranchAllowed = matchBranchPattern(string(pr.BaseRef.Name), q.IncludedBranches)
 	}
 	if targetBranchDenied || !targetBranchAllowed {
 		diff += 2000
@@ -376,6 +351,27 @@ func (sc *statusController) expectedStatus(log *logrus.Entry, queryMap *config.Q
 		return github.StatePending, retestingStatus(diff), nil
 	}
 	return github.StatusSuccess, statusInPool, nil
+}
+
+// matchBranchPattern checks if a branch name matches any pattern in the provided list
+// using regex compilation with fallback to exact matching
+func matchBranchPattern(branchName string, patterns []string) bool {
+	if len(patterns) == 0 {
+		return false
+	}
+	
+	patternRegex, err := regexp.Compile(strings.Join(patterns, `|`))
+	if err == nil && patternRegex.MatchString(branchName) {
+		return true
+	} else if err != nil {
+		// Fall back to exact matching if regex compilation fails
+		for _, pattern := range patterns {
+			if branchName == pattern {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func retestingStatus(retested []string) string {
