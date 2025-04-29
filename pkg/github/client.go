@@ -376,6 +376,8 @@ func (c *client) WithFields(fields logrus.Fields) Client {
 
 var (
 	teamRe = regexp.MustCompile(`^(.*)/(.*)$`)
+
+	passedWorkflowRunConclusions = []string{"success", "skipped"}
 )
 
 const (
@@ -2083,7 +2085,7 @@ func (c *client) GetFailedActionRunsByHeadBranch(org, repo, branchName, headSHA 
 	// A failed workflow also have status "completed", but the conclusion can be either "failure" or "cancelled".
 	// We only want completed jobs that are not skipped and not successful.
 	for _, run := range runs.WorkflowRuns {
-		if run.Status == "completed" && !slices.Contains([]string{"success", "skipped"}, run.Conclusion) {
+		if run.Status == "completed" && !slices.Contains(passedWorkflowRunConclusions, run.Conclusion) {
 			prRuns = append(prRuns, run)
 		}
 	}
