@@ -183,14 +183,14 @@ func newJiraClient(endpoint string, o Options, retryingClient *retryablehttp.Cli
 		retryingClient.Backoff = o.BackOff
 	}
 
-	if o.RetryWaitMin != 1*time.Second {
-		retryingClient.RetryWaitMin = o.RetryWaitMin
+	if o.RetryWaitMin == 0 {
+		retryingClient.RetryWaitMin = 1 * time.Second
 	}
-	if o.RetryWaitMax != 30*time.Second {
-		retryingClient.RetryWaitMax = o.RetryWaitMax
+	if o.RetryWaitMax == 0 {
+		retryingClient.RetryWaitMax = 30 * time.Second
 	}
-	if o.RetryMax != 4 {
-		retryingClient.RetryMax = o.RetryMax
+	if o.RetryMax == 0 {
+		retryingClient.RetryMax = 4
 	}
 
 	return jira.NewClient(retryingClient.StandardClient(), endpoint)
