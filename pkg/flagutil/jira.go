@@ -20,7 +20,9 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/hashicorp/go-retryablehttp"
 	"net/url"
+	"time"
 
 	"sigs.k8s.io/prow/pkg/config/secret"
 	"sigs.k8s.io/prow/pkg/jira"
@@ -42,6 +44,10 @@ type JiraOptions struct {
 	username        string
 	passwordFile    string
 	bearerTokenFile string
+	backoff         retryablehttp.Backoff
+	retryWaitMin    time.Duration
+	retryWaitMax    time.Duration
+	retryMax        int
 }
 
 // JiraNoBasicAuth disables the presence of the basic auth flags
@@ -119,6 +125,22 @@ func (o *JiraOptions) Validate(_ bool) error {
 	return nil
 }
 
+func (o *JiraOptions) CustomBackoff(backoff retryablehttp.Backoff) {
+	o.backoff = backoff
+}
+
+func (o *JiraOptions) CustomRetryWaitMin(retryWaitMin time.Duration) {
+	o.retryWaitMin = retryWaitMin
+}
+
+func (o *JiraOptions) CustomRetryWaitMax(retryWaitMax time.Duration) {
+	o.retryWaitMax = retryWaitMax
+}
+
+func (o *JiraOptions) CustomRetryMax(retryMax int) {
+	o.retryMax = retryMax
+}
+
 func (o *JiraOptions) Client() (jira.Client, error) {
 	if o.endpoint == "" {
 		return nil, errors.New("empty --jira-endpoint, can not create a client")
@@ -141,6 +163,19 @@ func (o *JiraOptions) Client() (jira.Client, error) {
 		opts = append(opts, jira.WithBearerAuth(func() string {
 			return string(secret.GetSecret(o.bearerTokenFile))
 		}))
+	}
+
+	if o.backoff != nil {
+		opts = append(opts, jira.WithBackOff(o.backoff))
+	}
+	if o.retryWaitMin != 1*time.Second {
+		opts = append(opts, jira.WithRetryWaitMin(o.retryWaitMin))
+	}
+	if o.retryWaitMax != 30*time.Second {
+		opts = append(opts, jira.WithRetryWaitMax(o.retryWaitMax))
+	}
+	if o.retryMax != 4 {
+		opts = append(opts, jira.WithRetryMax(o.retryMax))
 	}
 
 	return jira.NewClient(o.endpoint, opts...)
