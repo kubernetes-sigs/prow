@@ -168,13 +168,19 @@ func (o *JiraOptions) Client() (jira.Client, error) {
 	if o.backoff != nil {
 		opts = append(opts, jira.WithBackOff(o.backoff))
 	}
-	if o.retryWaitMin != 1*time.Second {
+	if o.retryWaitMin == 0 {
+		opts = append(opts, jira.WithRetryWaitMin(1*time.Second))
+	} else {
 		opts = append(opts, jira.WithRetryWaitMin(o.retryWaitMin))
 	}
-	if o.retryWaitMax != 30*time.Second {
+	if o.retryWaitMax == 0 {
+		opts = append(opts, jira.WithRetryWaitMax(30*time.Second))
+	} else {
 		opts = append(opts, jira.WithRetryWaitMax(o.retryWaitMax))
 	}
-	if o.retryMax != 4 {
+	if o.retryMax == 0 {
+		opts = append(opts, jira.WithRetryMax(4))
+	} else {
 		opts = append(opts, jira.WithRetryMax(o.retryMax))
 	}
 
