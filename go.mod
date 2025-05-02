@@ -35,9 +35,9 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/google/gofuzz v1.2.1-0.20210504230335-f78f29fc09ea
 	github.com/google/uuid v1.6.0
-	github.com/gorilla/csrf v1.6.2
+	github.com/gorilla/csrf v1.7.3
 	github.com/gorilla/mux v1.8.0
-	github.com/gorilla/securecookie v1.1.1
+	github.com/gorilla/securecookie v1.1.2
 	github.com/gorilla/sessions v1.2.0
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/hashicorp/go-retryablehttp v0.7.6
