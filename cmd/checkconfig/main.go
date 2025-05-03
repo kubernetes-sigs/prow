@@ -1289,7 +1289,7 @@ func validateCluster(cfg *config.Config, opener io.Opener) error {
 func validateAdditionalProwConfigIsInOrgRepoDirectoryStructure(filesystem fs.FS, supplementalProwConfigDirs, supplementalPluginsConfigDirs []string, supplementalProwConfigsFileNameSuffix, supplementalPluginsConfigFileNameSuffix string) error {
 	var errs []error
 
-	for _, supplementalProwConfigDir := range supplementalPluginsConfigDirs {
+	for _, supplementalProwConfigDir := range supplementalProwConfigDirs {
 		if err := validateAdditionalConfigIsInOrgRepoDirectoryStructure(supplementalProwConfigDir, filesystem, func() hierarchicalConfig { return &config.Config{} }, supplementalProwConfigsFileNameSuffix); err != nil {
 			errs = append(errs, err)
 		}
