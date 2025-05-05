@@ -56,10 +56,11 @@ func init() {
 // Config returns the lens's configuration.
 func (lens Lens) Config() lenses.LensConfig {
 	return lenses.LensConfig{
-		Title:     title,
-		Name:      name,
-		Priority:  priority,
-		HideTitle: true,
+		Title:                    title,
+		Name:                     name,
+		Priority:                 priority,
+		HideTitle:                true,
+		IframeSandboxPermissions: lenses.DefaultSandboxPermissions,
 	}
 }
 
