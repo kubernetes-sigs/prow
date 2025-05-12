@@ -27,6 +27,7 @@ Repository permissions:
 * Issues: Read & write
 * Metadata: Read-Only
 * Pull Requests: Read & write
+* Workflows: Read & write
 * Projects: Admin when using the `projects` plugin, none otherwise
 
 Organization permissions:
