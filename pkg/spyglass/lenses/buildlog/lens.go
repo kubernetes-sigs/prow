@@ -50,10 +50,11 @@ const (
 var defaultHighlightLineLengthMax = 10000 // Default maximum length of a line worth highlighting
 
 type config struct {
-	HighlightRegexes   []string         `json:"highlight_regexes"`
-	HideRawLog         bool             `json:"hide_raw_log,omitempty"`
-	Highlighter        *highlightConfig `json:"highlighter,omitempty"`
-	HighlightLengthMax *int             `json:"highlight_line_length_max,omitempty"`
+	HighlightRegexes         []string         `json:"highlight_regexes"`
+	HideRawLog               bool             `json:"hide_raw_log,omitempty"`
+	Highlighter              *highlightConfig `json:"highlighter,omitempty"`
+	HighlightLengthMax       *int             `json:"highlight_line_length_max,omitempty"`
+	IframeSandboxPermissions []string         `json:"iframe_sandbox_permissions,omitempty"`
 }
 
 type highlightConfig struct {
@@ -68,10 +69,11 @@ type highlightConfig struct {
 }
 
 type parsedConfig struct {
-	highlightRegex     *regexp.Regexp
-	showRawLog         bool
-	highlighter        *highlightConfig
-	highlightLengthMax int
+	highlightRegex           *regexp.Regexp
+	showRawLog               bool
+	highlighter              *highlightConfig
+	highlightLengthMax       int
+	IframeSandboxPermissions string
 }
 
 var _ api.Lens = Lens{}
@@ -82,9 +84,10 @@ type Lens struct{}
 // Config returns the lens's configuration.
 func (lens Lens) Config() lenses.LensConfig {
 	return lenses.LensConfig{
-		Name:     name,
-		Title:    title,
-		Priority: priority,
+		Name:                     name,
+		Title:                    title,
+		Priority:                 priority,
+		IframeSandboxPermissions: lenses.DefaultSandboxPermissions,
 	}
 }
 
@@ -96,6 +99,9 @@ func (lens Lens) Header(artifacts []api.Artifact, resourceDir string, config jso
 // defaultErrRE matches keywords and glog error messages.
 // It is only used if highlight_regexes is not specified in the lens config.
 var defaultErrRE = regexp.MustCompile(`timed out|ERROR:|(FAIL|Failure \[)\b|panic\b|^E\d{4} \d\d:\d\d:\d\d\.\d\d\d]`)
+
+// see defaultSandboxPermissions - this is string version for the html.
+var defaultIframeSandboxPermissionsString = strings.Join(lenses.DefaultSandboxPermissions, " ")
 
 func init() {
 	lenses.RegisterLens(Lens{})
@@ -170,8 +176,9 @@ type buildLogsView struct {
 
 func getConfig(rawConfig json.RawMessage) parsedConfig {
 	conf := parsedConfig{
-		highlightRegex: defaultErrRE,
-		showRawLog:     true,
+		highlightRegex:           defaultErrRE,
+		showRawLog:               true,
+		IframeSandboxPermissions: defaultIframeSandboxPermissionsString,
 	}
 
 	// No config at all is fine.
@@ -189,6 +196,13 @@ func getConfig(rawConfig json.RawMessage) parsedConfig {
 		conf.highlighter = nil
 	}
 	conf.showRawLog = !c.HideRawLog
+
+	if c.IframeSandboxPermissions == nil {
+		conf.IframeSandboxPermissions = defaultIframeSandboxPermissionsString
+	} else {
+		conf.IframeSandboxPermissions = strings.Join(c.IframeSandboxPermissions, " ")
+	}
+
 	if len(c.HighlightRegexes) == 0 {
 		return conf
 	}
