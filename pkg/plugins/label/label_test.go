@@ -758,6 +758,38 @@ func TestHandleComment(t *testing.T) {
 			action:                github.GenericCommentActionCreated,
 			expectedRemovedLabels: formatWithPRInfo("restricted-label"),
 		},
+		{
+			name:                  "Remove triage category via /triage command",
+			body:                  "/triage needs-information",
+			repoLabels:            []string{"area/infra", "triage/needs-information", "needs-triage"},
+			issueLabels:           []string{"area/infra", "needs-triage"},
+			expectedNewLabels:     formatWithPRInfo("triage/needs-information"),
+			expectedRemovedLabels: formatWithPRInfo("needs-triage"),
+			commenter:             orgMember,
+			action:                github.GenericCommentActionCreated,
+		},
+		{
+			name:                  "Remove triage category via /label command",
+			body:                  "/label triage/needs-information",
+			extraLabels:           []string{"triage/needs-information"},
+			repoLabels:            []string{"triage/needs-information", "needs-triage"},
+			issueLabels:           []string{"needs-triage"},
+			expectedNewLabels:     formatWithPRInfo("triage/needs-information"),
+			expectedRemovedLabels: formatWithPRInfo("needs-triage"),
+			commenter:             orgMember,
+			action:                github.GenericCommentActionCreated,
+		},
+		{
+			name:                  "Nonstandard needs-* label, do not remove",
+			body:                  "/label fake/whatever",
+			extraLabels:           []string{"fake/whatever"},
+			repoLabels:            []string{"needs-fake", "fake/whatever"},
+			issueLabels:           []string{"needs-fake"},
+			expectedNewLabels:     formatWithPRInfo("fake/whatever"),
+			expectedRemovedLabels: []string{},
+			commenter:             orgMember,
+			action:                github.GenericCommentActionCreated,
+		},
 	}
 
 	for _, tc := range testcases {
