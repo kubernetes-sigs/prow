@@ -93,8 +93,8 @@ func TestHandle(t *testing.T) {
 			isPR:          true,
 		},
 		{
-			name:          "requested hold cancel with whitespace",
-			body:          "/hold   cancel  ",
+			name:          "requested hold cancel with a reason",
+			body:          "/hold   cancel  further review has happened and I have whitespace",
 			hasLabel:      true,
 			shouldLabel:   false,
 			shouldUnlabel: true,
@@ -117,8 +117,8 @@ func TestHandle(t *testing.T) {
 			isPR:          true,
 		},
 		{
-			name:          "requested unhold with whitespace",
-			body:          "/unhold    ",
+			name:          "requested unhold with a reason",
+			body:          "/unhold   further review has happened and I have whitespace",
 			hasLabel:      true,
 			shouldLabel:   false,
 			shouldUnlabel: true,
