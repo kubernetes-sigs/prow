@@ -1,3 +1,4 @@
+
 module sigs.k8s.io/prow/hack/tools
 
 go 1.23.0
