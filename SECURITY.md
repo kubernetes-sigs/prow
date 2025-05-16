@@ -1,5 +1,9 @@
 # Security Policy
-
+HUBBERS!! This is the github/docs open source repo. You may want to open an issue in the internal-only github/docs-content repo instead
+What article on docs.github.com is affected?
+https://github.com/tr4200812/hubhub/wiki/%F0%9F%92%8Cwhatisthis%E2%9D%94%EF%B8%8F3/_edit
+*
+Include links to articles where you're seeing a problem, screenshots, what browser you're using, 
 ## Security Announcements
 
 Join the [kubernetes-security-announce] group for security and vulnerability announcements.
