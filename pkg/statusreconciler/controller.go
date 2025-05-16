@@ -242,8 +242,9 @@ func (c *Controller) triggerNewPresubmits(addedPresubmits map[string][]config.Pr
 				continue
 			}
 			// we want to appropriately trigger and skip from the set of identified presubmits that were
-			// added. we know all of the presubmits we are filtering need to be forced to run, so we can
-			// enforce that with a custom filter
+			// added. If a job has its `run_if_changed` regexp changed we should check PRs against the new
+			// regexp and trigger if needed instead of forcing the job to run on all PRs. So the default
+			// behavior of the filter need to be false.
 			filter := pjutil.NewArbitraryFilter(func(p config.Presubmit) (shouldRun bool, forcedToRun bool, defaultBehavior bool) {
 				return true, false, false
 			}, "inline-filter")

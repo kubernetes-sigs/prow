@@ -393,6 +393,7 @@ func TestGetFailedActionRunsByHeadBranch(t *testing.T) {
 		successfulRun   = WorkflowRun{HeadSha: headSHA, Status: "completed", Conclusion: "success"}
 		secondFailedRun = WorkflowRun{HeadSha: headSHA, Status: "completed", Conclusion: "failure"}
 		cancelledRun    = WorkflowRun{HeadSha: headSHA, Status: "completed", Conclusion: "cancelled"}
+		skippedRun      = WorkflowRun{HeadSha: headSHA, Status: "completed", Conclusion: "skipped"}
 	)
 	testCases := []struct {
 		name string
@@ -418,7 +419,7 @@ func TestGetFailedActionRunsByHeadBranch(t *testing.T) {
 		{
 			name: "multiple runs, two matching",
 			queryResponse: WorkflowRuns{
-				WorkflowRuns: []WorkflowRun{failedRun, successfulRun, secondFailedRun},
+				WorkflowRuns: []WorkflowRun{failedRun, successfulRun, secondFailedRun, skippedRun},
 			},
 			expectedRuns: []WorkflowRun{failedRun, secondFailedRun},
 		},

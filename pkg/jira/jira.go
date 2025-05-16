@@ -21,16 +21,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/andygrunwald/go-jira"
+	"github.com/hashicorp/go-retryablehttp"
+	"github.com/sirupsen/logrus"
 	stdio "io"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"net/http"
 	"net/url"
 	"strings"
 	"sync"
-
-	"github.com/andygrunwald/go-jira"
-	"github.com/hashicorp/go-retryablehttp"
-	"github.com/sirupsen/logrus"
-	"k8s.io/apimachinery/pkg/util/sets"
+	"time"
 
 	"sigs.k8s.io/prow/pkg/version"
 )
@@ -101,9 +101,13 @@ type BasicAuthGenerator func() (username, password string)
 type BearerAuthGenerator func() (token string)
 
 type Options struct {
-	BasicAuth  BasicAuthGenerator
-	BearerAuth BearerAuthGenerator
-	LogFields  logrus.Fields
+	BasicAuth    BasicAuthGenerator
+	BearerAuth   BearerAuthGenerator
+	LogFields    logrus.Fields
+	BackOff      retryablehttp.Backoff
+	RetryWaitMin time.Duration
+	RetryWaitMax time.Duration
+	RetryMax     int
 }
 
 type Option func(*Options)
@@ -123,6 +127,30 @@ func WithBearerAuth(token BearerAuthGenerator) Option {
 func WithFields(fields logrus.Fields) Option {
 	return func(o *Options) {
 		o.LogFields = fields
+	}
+}
+
+func WithBackOff(backoff retryablehttp.Backoff) Option {
+	return func(o *Options) {
+		o.BackOff = backoff
+	}
+}
+
+func WithRetryWaitMin(retryWaitMin time.Duration) Option {
+	return func(o *Options) {
+		o.RetryWaitMin = retryWaitMin
+	}
+}
+
+func WithRetryWaitMax(retryWaitMax time.Duration) Option {
+	return func(o *Options) {
+		o.RetryWaitMax = retryWaitMax
+	}
+}
+
+func WithRetryMax(retryMax int) Option {
+	return func(o *Options) {
+		o.RetryMax = retryMax
 	}
 }
 
@@ -149,6 +177,20 @@ func newJiraClient(endpoint string, o Options, retryingClient *retryablehttp.Cli
 			generator: o.BearerAuth,
 			upstream:  retryingClient.HTTPClient.Transport,
 		}
+	}
+
+	if o.BackOff != nil {
+		retryingClient.Backoff = o.BackOff
+	}
+
+	if o.RetryWaitMin == 0 {
+		retryingClient.RetryWaitMin = 1 * time.Second
+	}
+	if o.RetryWaitMax == 0 {
+		retryingClient.RetryWaitMax = 30 * time.Second
+	}
+	if o.RetryMax == 0 {
+		retryingClient.RetryMax = 4
 	}
 
 	return jira.NewClient(retryingClient.StandardClient(), endpoint)
@@ -623,7 +665,7 @@ func (bart *bearerAuthRoundtripper) RoundTrip(req *http.Request) (*http.Response
 	req2.URL = new(url.URL)
 	*req2.URL = *req.URL
 	token := bart.generator()
-	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 	logrus.WithField("curl", toCurl(req2)).Trace("Executing http request")
 	return bart.upstream.RoundTrip(req2)
 }

@@ -31,7 +31,6 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"k8s.io/apimachinery/pkg/util/diff"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/utils/ptr"
@@ -1389,7 +1388,7 @@ func TestVerifyOwnersPresence(t *testing.T) {
 				errMessage = err.Error()
 			}
 			if errMessage != tc.expected {
-				t.Errorf("result differs:\n%s", diff.StringDiff(tc.expected, errMessage))
+				t.Errorf("result differs:\n%s", cmp.Diff(tc.expected, errMessage))
 			}
 		})
 	}
@@ -1998,6 +1997,9 @@ plugins:
 		name string
 		fs   fstest.MapFS
 
+		root       string
+		pluginRoot string
+
 		expectedErrorMessage string
 	}{
 		{
@@ -2082,17 +2084,49 @@ plugins:
 
 			expectedErrorMessage: `[config root/my-org/my-repo/nest/cfg.yaml is at an invalid location. All configs must be below root. If they are org-specific, they must be in a folder named like the org. If they are repo-specific, they must be in a folder named like the repo below a folder named like the org., config root/my-org/my-repo/nest/plugins.yaml is at an invalid location. All configs must be below root. If they are org-specific, they must be in a folder named like the org. If they are repo-specific, they must be in a folder named like the repo below a folder named like the org.]`,
 		},
+		{
+			name:       "Valid repo config in separate hierarchy",
+			pluginRoot: "plugins",
+			fs: testfs(map[string]string{
+				root + "/my-org/my-repo/cfg.yaml":     validRepoConfig,
+				"plugins/my-org/my-repo/plugins.yaml": validRepoPluginsConfig,
+			}),
+		},
+		{
+			name:       "Invalid repo Prow config in separate hierarchy",
+			pluginRoot: "plugins",
+			fs: testfs(map[string]string{
+				root + "/my-org/my-repo/cfg.yaml":     invalidConfig,
+				"plugins/my-org/my-repo/plugins.yaml": validRepoPluginsConfig,
+			}),
+			expectedErrorMessage: `failed to unmarshal root/my-org/my-repo/cfg.yaml into *config.Config: error unmarshaling JSON: while decoding JSON: json: cannot unmarshal array into Go value of type config.Config`,
+		},
+		{
+			name:       "Invalid repo Plugin config in separate hierarchy",
+			pluginRoot: "plugins",
+			fs: testfs(map[string]string{
+				root + "/my-org/my-repo/cfg.yaml":     validRepoConfig,
+				"plugins/my-org/my-repo/plugins.yaml": invalidConfig,
+			}),
+			expectedErrorMessage: `failed to unmarshal plugins/my-org/my-repo/plugins.yaml into *plugins.Configuration: error unmarshaling JSON: while decoding JSON: json: cannot unmarshal array into Go value of type plugins.Configuration`,
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			if tc.root == "" {
+				tc.root = root
+			}
+			if tc.pluginRoot == "" {
+				tc.pluginRoot = root
+			}
 			var errMsg string
-			err := validateAdditionalProwConfigIsInOrgRepoDirectoryStructure(tc.fs, []string{root}, []string{root}, "cfg.yaml", "plugins.yaml")
+			err := validateAdditionalProwConfigIsInOrgRepoDirectoryStructure(tc.fs, []string{tc.root}, []string{tc.pluginRoot}, "cfg.yaml", "plugins.yaml")
 			if err != nil {
 				errMsg = err.Error()
 			}
 			if tc.expectedErrorMessage != errMsg {
-				t.Errorf("expected error %s, got %s", tc.expectedErrorMessage, errMsg)
+				t.Errorf("unexpected error (-want +got):\n%s", cmp.Diff(tc.expectedErrorMessage, errMsg))
 			}
 		})
 	}

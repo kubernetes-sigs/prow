@@ -655,6 +655,12 @@ type Plank struct {
 	// stuck in an unscheduled state. Defaults to 5 minutes.
 	PodUnscheduledTimeout *metav1.Duration `json:"pod_unscheduled_timeout,omitempty"`
 
+	// MaxRevivals is the maximum number of times a prowjob will be retried in case of an
+	// unexpected stop of the job before being marked as failed. Generally a job is stopped
+	// unexpectedly due to the underlying Node being terminated, evicted or becoming unreachable.
+	// Defaults to 3. A value of 0 means no retries.
+	MaxRevivals *int `json:"max_revivals,omitempty"`
+
 	// DefaultDecorationConfigs holds the default decoration config for specific values.
 	//
 	// Each entry in the slice specifies Repo and Cluster regexp filter fields to
@@ -2501,6 +2507,11 @@ func parseProwConfig(c *Config) error {
 
 	if c.Plank.PodUnscheduledTimeout == nil {
 		c.Plank.PodUnscheduledTimeout = &metav1.Duration{Duration: 5 * time.Minute}
+	}
+
+	if c.Plank.MaxRevivals == nil {
+		maxRetries := 3
+		c.Plank.MaxRevivals = &maxRetries
 	}
 
 	if err := c.Gerrit.DefaultAndValidate(); err != nil {

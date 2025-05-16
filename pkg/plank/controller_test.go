@@ -65,6 +65,8 @@ const (
 	podDeletionPreventionFinalizer = "keep-from-vanishing"
 )
 
+var maxRevivals = 3
+
 func newFakeConfigAgent(t *testing.T, maxConcurrency int, queueCapacities map[string]int) *fca {
 	presubmits := []config.Presubmit{
 		{
@@ -106,6 +108,7 @@ func newFakeConfigAgent(t *testing.T, maxConcurrency int, queueCapacities map[st
 					PodPendingTimeout:     &metav1.Duration{Duration: podPendingTimeout},
 					PodRunningTimeout:     &metav1.Duration{Duration: podRunningTimeout},
 					PodUnscheduledTimeout: &metav1.Duration{Duration: podUnscheduledTimeout},
+					MaxRevivals:           &maxRevivals,
 				},
 			},
 			JobConfig: config.JobConfig{
@@ -1177,6 +1180,74 @@ func TestSyncPendingJob(t *testing.T) {
 			},
 			ExpectedComplete: true,
 			ExpectedState:    prowapi.ErrorState,
+			ExpectedNumPods:  1,
+			ExpectedURL:      "boop-42/error",
+		},
+		{
+			Name: "don't delete evicted pod w/ revivalCount == maxRevivals, complete PJ instead",
+			PJ: prowapi.ProwJob{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "boop-42",
+					Namespace: "prowjobs",
+				},
+				Spec: prowapi.ProwJobSpec{
+					PodSpec: &v1.PodSpec{Containers: []v1.Container{{Name: "test-name", Env: []v1.EnvVar{}}}},
+				},
+				Status: prowapi.ProwJobStatus{
+					PodRevivalCount: maxRevivals,
+					State:           prowapi.PendingState,
+					PodName:         "boop-42",
+				},
+			},
+			Pods: []v1.Pod{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "boop-42",
+						Namespace: "pods",
+					},
+					Status: v1.PodStatus{
+						Phase:  v1.PodFailed,
+						Reason: Evicted,
+					},
+				},
+			},
+			ExpectedComplete: true,
+			ExpectedState:    prowapi.ErrorState,
+			ExpectedNumPods:  1,
+			ExpectedURL:      "boop-42/error",
+		},
+		{
+			// TODO: this test case tests the current behavior, but the behavior
+			// is non-ideal: the pod execution did not fail, instead the node on which
+			// the pod was running terminated
+			Name: "a terminated pod is handled as-if it failed",
+			PJ: prowapi.ProwJob{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "boop-42",
+					Namespace: "prowjobs",
+				},
+				Spec: prowapi.ProwJobSpec{
+					PodSpec: &v1.PodSpec{Containers: []v1.Container{{Name: "test-name", Env: []v1.EnvVar{}}}},
+				},
+				Status: prowapi.ProwJobStatus{
+					State:   prowapi.PendingState,
+					PodName: "boop-42",
+				},
+			},
+			Pods: []v1.Pod{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "boop-42",
+						Namespace: "pods",
+					},
+					Status: v1.PodStatus{
+						Phase:  v1.PodFailed,
+						Reason: Terminated,
+					},
+				},
+			},
+			ExpectedComplete: true,
+			ExpectedState:    prowapi.FailureState,
 			ExpectedNumPods:  1,
 			ExpectedURL:      "boop-42/error",
 		},
