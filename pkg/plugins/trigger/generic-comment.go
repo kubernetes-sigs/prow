@@ -92,7 +92,12 @@ func handleGenericComment(c Client, trigger plugins.Trigger, gc github.GenericCo
 			return err
 		}
 		if !trusted {
-			resp := "Cannot trigger testing until a trusted user reviews the PR and leaves an `/ok-to-test` message."
+			var resp string
+			if trigger.IgnoreOkToTest {
+				resp = "PRs from untrusted users cannot be marked as trusted with `/ok-to-test` in this repo meaning untrusted PR authors can never trigger tests themselves. Collaborators can still trigger tests on the PR using `/test`."
+			} else {
+				resp = "Cannot trigger testing until a trusted user reviews the PR and leaves an `/ok-to-test` message."
+			}
 			c.Logger.Infof("Commenting \"%s\".", resp)
 			return c.GitHubClient.CreateComment(org, repo, number, plugins.FormatResponseRaw(gc.Body, gc.HTMLURL, gc.User.Login, resp))
 		}
