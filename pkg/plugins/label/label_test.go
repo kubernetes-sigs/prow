@@ -718,7 +718,7 @@ func TestHandleComment(t *testing.T) {
 			restrictedLabels:    map[string][]plugins.RestrictedLabel{"org": {{Label: "restricted-label", AllowedUsers: []string{orgMemberAlt}}}},
 			action:              github.GenericCommentActionCreated,
 			expectedBotComment:  true,
-			expectedCommentText: "The label(s) `restricted-label` cannot be applied or removed, because you are not in one of the allowed teams and are not an allowed user.",
+			expectedCommentText: "The label(s) `restricted-label` cannot be applied or removed, because you are not in one of the allowed teams and are not an allowed user. Consider assigning one of the following members: Mallory",
 		},
 		{
 			name:              "Restricted label addition, user is in allowed_teams",
@@ -759,7 +759,7 @@ func TestHandleComment(t *testing.T) {
 			restrictedLabels:    map[string][]plugins.RestrictedLabel{"org": {{Label: "restricted-label", AllowedUsers: []string{orgMemberAlt}}}},
 			action:              github.GenericCommentActionCreated,
 			expectedBotComment:  true,
-			expectedCommentText: "The label(s) `restricted-label` cannot be applied or removed, because you are not in one of the allowed teams and are not an allowed user.",
+			expectedCommentText: "The label(s) `restricted-label` cannot be applied or removed, because you are not in one of the allowed teams and are not an allowed user. Consider assigning one of the following members: Mallory",
 		},
 		{
 			name:                  "Restricted label removal, user is in allowed_teams",
