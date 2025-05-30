@@ -18,6 +18,7 @@ package label
 
 import (
 	"fmt"
+	"math/rand/v2"
 	"regexp"
 	"strings"
 
@@ -335,6 +336,12 @@ func canUserSetLabel(ghc githubClient, org string, user string, label string, re
 	msg := fmt.Sprintf("The label(s) `%s` cannot be applied or removed, because you are not in one of the allowed teams and are not an allowed user.", label)
 	if len(config.AllowedTeams) > 0 {
 		msg += fmt.Sprintf(" Must be a member of one of these teams: %v", strings.Join(config.AllowedTeams, ", "))
+	} else if len(config.AllowedUsers) > 0 {
+		randomUsers := []string{}
+		for userIdx := range rand.Perm(len(config.AllowedUsers))[:min(len(config.AllowedUsers), 3)] {
+			randomUsers = append(randomUsers, config.AllowedUsers[userIdx])
+		}
+		msg += fmt.Sprintf(" Consider assigning one of the following members: %s", strings.Join(randomUsers, ","))
 	}
 	return false, msg, nil
 }
