@@ -35,6 +35,7 @@ import (
 
 const (
 	orgMember    = "Alice"
+	orgMemberAlt = "Mallory"
 	nonOrgMember = "Bob"
 )
 
@@ -700,22 +701,33 @@ func TestHandleComment(t *testing.T) {
 			action:                github.GenericCommentActionCreated,
 		},
 		{
-			name:               "Restricted label addition, user is not in group",
+			name:               "Restricted label addition, user is not in allowed_teams",
 			body:               `/label restricted-label`,
 			repoLabels:         []string{"restricted-label"},
 			commenter:          orgMember,
 			restrictedLabels:   map[string][]plugins.RestrictedLabel{"org": {{Label: "restricted-label", AllowedTeams: []string{"privileged-group"}}}},
 			action:             github.GenericCommentActionCreated,
 			expectedBotComment: true,
+			expectedCommentText: "The label(s) `restricted-label` cannot be applied or removed, because you are not in one of the allowed teams and are not an allowed user. Must be a member of one of these teams: privileged-group",
 		},
 		{
-			name:              "Restricted label addition, user is in group",
+			name:                "Restricted label addition, user is not in allowed_users and allowed_teams is empty",
+			body:                `/label restricted-label`,
+			repoLabels:          []string{"restricted-label"},
+			commenter:           orgMember,
+			restrictedLabels:    map[string][]plugins.RestrictedLabel{"org": {{Label: "restricted-label", AllowedUsers: []string{orgMemberAlt}}}},
+			action:              github.GenericCommentActionCreated,
+			expectedBotComment:  true,
+			expectedCommentText: "The label(s) `restricted-label` cannot be applied or removed, because you are not in one of the allowed teams and are not an allowed user. Consider assigning one of the following members: Mallory",
+		},
+		{
+			name:              "Restricted label addition, user is in allowed_teams",
 			body:              `/label restricted-label`,
 			repoLabels:        []string{"restricted-label"},
 			commenter:         orgMember,
 			restrictedLabels:  map[string][]plugins.RestrictedLabel{"org": {{Label: "restricted-label", AllowedTeams: []string{"privileged-group"}}}},
 			action:            github.GenericCommentActionCreated,
-			teams:             map[string]map[string]fakegithub.TeamWithMembers{"org": {"privileged-group": {Members: sets.New[string](orgMember)}}},
+			teams:             map[string]map[string]fakegithub.TeamWithMembers{"org": {"privileged-group": {Members: sets.New(orgMember)}}},
 			expectedNewLabels: formatWithPRInfo("restricted-label"),
 		},
 		{
@@ -728,24 +740,36 @@ func TestHandleComment(t *testing.T) {
 			expectedNewLabels: formatWithPRInfo("restricted-label"),
 		},
 		{
-			name:               "Restricted label removal, user is not in group",
-			body:               `/remove-label restricted-label`,
-			repoLabels:         []string{"restricted-label"},
-			issueLabels:        []string{"restricted-label"},
-			commenter:          orgMember,
-			restrictedLabels:   map[string][]plugins.RestrictedLabel{"org": {{Label: "restricted-label", AllowedTeams: []string{"privileged-group"}}}},
-			action:             github.GenericCommentActionCreated,
-			expectedBotComment: true,
+			name:                "Restricted label removal, user is not in allowed_teams",
+			body:                `/remove-label restricted-label`,
+			repoLabels:          []string{"restricted-label"},
+			issueLabels:         []string{"restricted-label"},
+			commenter:           orgMember,
+			restrictedLabels:    map[string][]plugins.RestrictedLabel{"org": {{Label: "restricted-label", AllowedTeams: []string{"privileged-group"}}}},
+			action:              github.GenericCommentActionCreated,
+			expectedBotComment:  true,
+			expectedCommentText: "The label(s) `restricted-label` cannot be applied or removed, because you are not in one of the allowed teams and are not an allowed user. Must be a member of one of these teams: privileged-group",
 		},
 		{
-			name:                  "Restricted label removal, user is in group",
+			name:                "Restricted label removal, user is not in allowed_users and allowed_teams is empty",
+			body:                `/remove-label restricted-label`,
+			repoLabels:          []string{"restricted-label"},
+			issueLabels:         []string{"restricted-label"},
+			commenter:           orgMember,
+			restrictedLabels:    map[string][]plugins.RestrictedLabel{"org": {{Label: "restricted-label", AllowedUsers: []string{orgMemberAlt}}}},
+			action:              github.GenericCommentActionCreated,
+			expectedBotComment:  true,
+			expectedCommentText: "The label(s) `restricted-label` cannot be applied or removed, because you are not in one of the allowed teams and are not an allowed user. Consider assigning one of the following members: Mallory",
+		},
+		{
+			name:                  "Restricted label removal, user is in allowed_teams",
 			body:                  `/remove-label restricted-label`,
 			repoLabels:            []string{"restricted-label"},
 			issueLabels:           []string{"restricted-label"},
 			commenter:             orgMember,
 			restrictedLabels:      map[string][]plugins.RestrictedLabel{"org": {{Label: "restricted-label", AllowedTeams: []string{"privileged-group"}}}},
 			action:                github.GenericCommentActionCreated,
-			teams:                 map[string]map[string]fakegithub.TeamWithMembers{"org": {"privileged-group": {Members: sets.New[string](orgMember)}}},
+			teams:                 map[string]map[string]fakegithub.TeamWithMembers{"org": {"privileged-group": {Members: sets.New(orgMember)}}},
 			expectedRemovedLabels: formatWithPRInfo("restricted-label"),
 		},
 		{
