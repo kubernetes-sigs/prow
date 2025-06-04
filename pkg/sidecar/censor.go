@@ -77,7 +77,14 @@ func (o Options) censor() error {
 		return fmt.Errorf("could not load secrets: %w", err)
 	}
 	logrus.WithField("secrets", len(secrets)).Debug("Loaded secrets to censor.")
-	censorer := secretutil.NewCensorer()
+
+	minLength := 0
+	if o.CensoringOptions.MinimumSecretLength != nil {
+		minLength = *o.CensoringOptions.MinimumSecretLength
+	}
+	logrus.WithField("minimum_secret_length", minLength).Debug("Using minimum secret length for censoring.")
+
+	censorer := secretutil.NewCensorerWithMinLength(minLength)
 	censorer.RefreshBytes(secrets...)
 
 	bufferSize := defaultBufferSize

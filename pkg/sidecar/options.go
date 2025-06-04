@@ -125,6 +125,11 @@ type CensoringOptions struct {
 	// IniFilenames are secret filenames that should be parsed as INI files in order to
 	// censor the values in the key-value mapping as well as the full content of the file.
 	IniFilenames []string `json:"ini_filenames,omitempty"`
+
+	// MinimumSecretLength is the minimum length a secret must have to be censored.
+	// Secrets shorter than this length will not be censored. If unset, defaults to 0
+	// (all secrets are censored regardless of length).
+	MinimumSecretLength *int `json:"minimum_secret_length,omitempty"`
 }
 
 func (o Options) entries() []wrapper.Options {

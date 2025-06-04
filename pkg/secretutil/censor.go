@@ -34,16 +34,22 @@ type Censorer interface {
 }
 
 func NewCensorer() *ReloadingCensorer {
+	return NewCensorerWithMinLength(0)
+}
+
+func NewCensorerWithMinLength(minLength int) *ReloadingCensorer {
 	return &ReloadingCensorer{
-		RWMutex:  &sync.RWMutex{},
-		Replacer: bytereplacer.New(),
+		RWMutex:             &sync.RWMutex{},
+		Replacer:            bytereplacer.New(),
+		minimumSecretLength: minLength,
 	}
 }
 
 type ReloadingCensorer struct {
 	*sync.RWMutex
 	*bytereplacer.Replacer
-	largestSecret int
+	largestSecret       int
+	minimumSecretLength int
 }
 
 var _ Censorer = &ReloadingCensorer{}
@@ -106,6 +112,10 @@ func (c *ReloadingCensorer) Refresh(secrets ...string) {
 			// this happens when storing credentials to servers where capabilities are different.
 			// while every other type could reasonably be secret (through secret floats would be weird), it's difficult
 			// to justify secret booleans, since all values are known and replacing them carries a high price.
+			continue
+		}
+		if len(secret) < c.minimumSecretLength {
+			// Skip secrets that are shorter than the minimum length
 			continue
 		}
 
