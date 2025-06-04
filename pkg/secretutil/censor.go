@@ -19,6 +19,7 @@ package secretutil
 
 import (
 	"encoding/base64"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -47,6 +48,59 @@ type ReloadingCensorer struct {
 }
 
 var _ Censorer = &ReloadingCensorer{}
+
+// isNumeric returns true if the string represents a numeric value.
+// Uses Go's strconv.ParseFloat for floats and scientific notation,
+// and strconv.ParseInt with base 0 for automatic detection of hex, octal, and binary.
+func isNumeric(s string) bool {
+	// Try ParseFloat for decimal numbers, floats, scientific notation
+	if _, err := strconv.ParseFloat(s, 64); err == nil {
+		return true
+	}
+
+	// Try ParseInt with base 0 for automatic detection of:
+	// - hexadecimal (0x1234, 0X5678)
+	// - explicit octal (0o755, 0O644)
+	// - binary (0b1010, 0B1111)
+	if _, err := strconv.ParseInt(s, 0, 64); err == nil {
+		return true
+	}
+
+	return false
+}
+
+// generateReplacement creates an appropriate replacement string for a secret.
+// For numeric secrets, it returns zeros of the same length.
+// For non-numeric secrets, it returns X's of the same length.
+func generateReplacement(secret string) string {
+	if isNumeric(secret) {
+		// For numeric values, replace with zeros to maintain valid serialization
+		replacement := strings.Repeat("0", len(secret))
+
+		// Preserve prefixes for different number formats
+		if strings.HasPrefix(secret, "0x") || strings.HasPrefix(secret, "0X") {
+			replacement = secret[:2] + strings.Repeat("0", len(secret)-2)
+		} else if strings.HasPrefix(secret, "0o") || strings.HasPrefix(secret, "0O") {
+			replacement = secret[:2] + strings.Repeat("0", len(secret)-2)
+		} else if strings.HasPrefix(secret, "0b") || strings.HasPrefix(secret, "0B") {
+			replacement = secret[:2] + strings.Repeat("0", len(secret)-2)
+		} else {
+			// Handle signs for regular decimal numbers
+			if strings.HasPrefix(secret, "-") {
+				replacement = "-" + strings.Repeat("0", len(secret)-1)
+			} else if strings.HasPrefix(secret, "+") {
+				replacement = "+" + strings.Repeat("0", len(secret)-1)
+			}
+			// Preserve decimal point if present
+			if dotIndex := strings.Index(secret, "."); dotIndex != -1 {
+				replacement = replacement[:dotIndex] + "." + replacement[dotIndex+1:]
+			}
+		}
+		return replacement
+	}
+	// For non-numeric values, use X's as before
+	return strings.Repeat("X", len(secret))
+}
 
 // Censor will remove sensitive data previously registered with the Censorer
 // from the input. This is thread-safe, will mutate the input and will never
@@ -87,7 +141,7 @@ func (c *ReloadingCensorer) Refresh(secrets ...string) {
 	var largestSecret int
 	var replacements []string
 	addReplacement := func(s string) {
-		replacements = append(replacements, s, strings.Repeat(`X`, len(s)))
+		replacements = append(replacements, s, generateReplacement(s))
 		if len(s) > largestSecret {
 			largestSecret = len(s)
 		}
