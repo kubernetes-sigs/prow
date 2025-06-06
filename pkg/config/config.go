@@ -2941,7 +2941,7 @@ func validateDecoration(container v1.Container, config *prowapi.DecorationConfig
 func resolvePresets(name string, labels map[string]string, spec *v1.PodSpec, presets []Preset) error {
 	for _, preset := range presets {
 		if spec != nil {
-			if err := mergePreset(preset, labels, spec.Containers, &spec.Volumes); err != nil {
+			if err := mergePreset(preset, labels, spec); err != nil {
 				return fmt.Errorf("job %s failed to merge presets for podspec: %w", name, err)
 			}
 		}

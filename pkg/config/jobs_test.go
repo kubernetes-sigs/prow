@@ -401,10 +401,11 @@ func TestMergePreset(t *testing.T) {
 		pod       *coreapi.PodSpec
 		presets   []Preset
 
-		shouldError  bool
-		numEnv       int
-		numVol       int
-		numVolMounts int
+		shouldError    bool
+		numEnv         int
+		numVol         int
+		numVolMounts   int
+		numTolerations int
 	}{
 		{
 			name:      "one volume",
@@ -499,11 +500,13 @@ func TestMergePreset(t *testing.T) {
 					Env:          []coreapi.EnvVar{{Name: "baz"}},
 					VolumeMounts: []coreapi.VolumeMount{{Name: "baz"}},
 					Volumes:      []coreapi.Volume{{Name: "qux"}},
+					Tolerations:  []coreapi.Toleration{{Key: "foo", Operator: coreapi.TolerationOpEqual, Value: "bar", Effect: coreapi.TaintEffectNoSchedule}},
 				},
 			},
-			numEnv:       1,
-			numVol:       1,
-			numVolMounts: 1,
+			numEnv:         1,
+			numVol:         1,
+			numVolMounts:   1,
+			numTolerations: 1,
 		},
 		{
 			name:      "two vm",
@@ -588,6 +591,17 @@ func TestMergePreset(t *testing.T) {
 			},
 			shouldError: true,
 		},
+		{
+			name:      "duplicate tolerations",
+			jobLabels: map[string]string{"foo": "bar"},
+			pod:       &coreapi.PodSpec{Tolerations: []coreapi.Toleration{{Key: "kubernetes.io/arch", Operator: coreapi.TolerationOpEqual, Value: "arm64", Effect: coreapi.TaintEffectNoSchedule}}},
+			presets: []Preset{
+				{
+					Tolerations: []coreapi.Toleration{{Key: "kubernetes.io/arch", Operator: coreapi.TolerationOpEqual, Value: "arm64", Effect: coreapi.TaintEffectNoSchedule}},
+				},
+			},
+			shouldError: true,
+		},
 	}
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
@@ -601,6 +615,9 @@ func TestMergePreset(t *testing.T) {
 			}
 			if len(tc.pod.Volumes) != tc.numVol {
 				t.Errorf("wrong number of volumes for podspec. Got %d, expected %d.", len(tc.pod.Volumes), tc.numVol)
+			}
+			if len(tc.pod.Tolerations) != tc.numTolerations {
+				t.Errorf("wrong number of tolerations for podspec. Got %d, expected %d.", len(tc.pod.Tolerations), tc.numTolerations)
 			}
 			for _, c := range tc.pod.Containers {
 				if len(c.VolumeMounts) != tc.numVolMounts {
