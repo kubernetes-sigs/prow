@@ -150,3 +150,75 @@ func TestBooleanNotHidden(t *testing.T) {
 		})
 	}
 }
+
+func TestMinimumSecretLength(t *testing.T) {
+	var testCases = []struct {
+		name      string
+		secrets   []string
+		minLength int
+		input     string
+		expected  string
+	}{
+		{
+			name:      "no minimum length - all secrets censored",
+			secrets:   []string{"a", "bb", "ccc", "dddd"},
+			minLength: 0,
+			input:     "data: a bb ccc dddd",
+			expected:  "dXtX: X XX XXX XXXX",
+		},
+		{
+			name:      "minimum length 3 - short secrets not censored",
+			secrets:   []string{"a", "bb", "ccc", "dddd"},
+			minLength: 3,
+			input:     "data: a bb ccc dddd",
+			expected:  "data: a bb XXX XXXX",
+		},
+		{
+			name:      "minimum length 5 - all secrets censored",
+			secrets:   []string{"short", "verylongsecret"},
+			minLength: 5,
+			input:     "data: short verylongsecret",
+			expected:  "data: XXXXX XXXXXXXXXXXXXX",
+		},
+		{
+			name:      "minimum length 10 - no secrets censored",
+			secrets:   []string{"short", "medium"},
+			minLength: 10,
+			input:     "data: short medium",
+			expected:  "data: short medium",
+		},
+		{
+			name:      "base64 encoding also respects minimum length",
+			secrets:   []string{"abc"},
+			minLength: 5,
+			input:     "data: abc YWJj", // YWJj is base64 for "abc"
+			expected:  "data: abc YWJj", // both too short to censor
+		},
+		{
+			name:      "base64 encoding censored when long enough",
+			secrets:   []string{"secret"},
+			minLength: 5,
+			input:     "data: secret c2VjcmV0", // c2VjcmV0 is base64 for "secret"
+			expected:  "data: XXXXXX XXXXXXXX",
+		},
+		{
+			name:      "mixed length secrets with minimum",
+			secrets:   []string{"x", "password123", "key"},
+			minLength: 4,
+			input:     "config: x=1 password123=secret key=value",
+			expected:  "config: x=1 XXXXXXXXXXX=secret key=value",
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			censorer := NewCensorerWithMinLength(testCase.minLength)
+			censorer.Refresh(testCase.secrets...)
+			input := []byte(testCase.input)
+			censorer.Censor(&input)
+			if diff := cmp.Diff(testCase.expected, string(input)); diff != "" {
+				t.Errorf("%s: got incorrect text after censor: %v", testCase.name, diff)
+			}
+		})
+	}
+}

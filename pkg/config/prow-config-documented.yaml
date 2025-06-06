@@ -622,6 +622,10 @@ plank:
                 # globbed matches.
                 include_directories:
                     - ""
+                # MinimumSecretLength is the minimum length a secret must have to be censored.
+                # Secrets shorter than this length will not be censored. If unset, defaults to 0
+                # (all secrets are censored regardless of length).
+                minimum_secret_length: 0
             # CookieFileSecret is the name of a kubernetes secret that contains
             # a git http.cookiefile, which should be used during the cloning process.
             cookiefile_secret: ""
@@ -975,6 +979,10 @@ plank:
                 # globbed matches.
                 include_directories:
                     - ""
+                # MinimumSecretLength is the minimum length a secret must have to be censored.
+                # Secrets shorter than this length will not be censored. If unset, defaults to 0
+                # (all secrets are censored regardless of length).
+                minimum_secret_length: 0
             # CookieFileSecret is the name of a kubernetes secret that contains
             # a git http.cookiefile, which should be used during the cloning process.
             cookiefile_secret: ""

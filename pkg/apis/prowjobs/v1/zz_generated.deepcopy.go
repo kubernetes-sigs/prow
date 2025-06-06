@@ -53,6 +53,11 @@ func (in *CensoringOptions) DeepCopyInto(out *CensoringOptions) {
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
+	if in.MinimumSecretLength != nil {
+		in, out := &in.MinimumSecretLength, &out.MinimumSecretLength
+		*out = new(int)
+		**out = **in
+	}
 	return
 }
 
