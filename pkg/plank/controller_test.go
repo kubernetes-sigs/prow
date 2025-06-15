@@ -65,7 +65,10 @@ const (
 	podDeletionPreventionFinalizer = "keep-from-vanishing"
 )
 
-var maxRevivals = 3
+var (
+	maxRevivals                 = 3
+	terminationConditionReasons = []string{"DeletionByPodGC", "DeletionByGCPControllerManager"}
+)
 
 func newFakeConfigAgent(t *testing.T, maxConcurrency int, queueCapacities map[string]int) *fca {
 	presubmits := []config.Presubmit{
@@ -104,11 +107,12 @@ func newFakeConfigAgent(t *testing.T, maxConcurrency int, queueCapacities map[st
 						MaxConcurrency: maxConcurrency,
 						MaxGoroutines:  20,
 					},
-					JobQueueCapacities:    queueCapacities,
-					PodPendingTimeout:     &metav1.Duration{Duration: podPendingTimeout},
-					PodRunningTimeout:     &metav1.Duration{Duration: podRunningTimeout},
-					PodUnscheduledTimeout: &metav1.Duration{Duration: podUnscheduledTimeout},
-					MaxRevivals:           &maxRevivals,
+					JobQueueCapacities:          queueCapacities,
+					PodPendingTimeout:           &metav1.Duration{Duration: podPendingTimeout},
+					PodRunningTimeout:           &metav1.Duration{Duration: podRunningTimeout},
+					PodUnscheduledTimeout:       &metav1.Duration{Duration: podUnscheduledTimeout},
+					MaxRevivals:                 &maxRevivals,
+					TerminationConditionReasons: terminationConditionReasons,
 				},
 			},
 			JobConfig: config.JobConfig{
@@ -1217,10 +1221,7 @@ func TestSyncPendingJob(t *testing.T) {
 			ExpectedURL:      "boop-42/error",
 		},
 		{
-			// TODO: this test case tests the current behavior, but the behavior
-			// is non-ideal: the pod execution did not fail, instead the node on which
-			// the pod was running terminated
-			Name: "a terminated pod is handled as-if it failed",
+			Name: "delete terminated pod",
 			PJ: prowapi.ProwJob{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "boop-42",
@@ -1246,8 +1247,72 @@ func TestSyncPendingJob(t *testing.T) {
 					},
 				},
 			},
+			ExpectedComplete: false,
+			ExpectedState:    prowapi.PendingState,
+			ExpectedNumPods:  0,
+		},
+		{
+			Name: "delete terminated pod and remove its k8sreporter finalizer",
+			PJ: prowapi.ProwJob{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "boop-42",
+					Namespace: "prowjobs",
+				},
+				Spec: prowapi.ProwJobSpec{
+					PodSpec: &v1.PodSpec{Containers: []v1.Container{{Name: "test-name", Env: []v1.EnvVar{}}}},
+				},
+				Status: prowapi.ProwJobStatus{
+					State:   prowapi.PendingState,
+					PodName: "boop-42",
+				},
+			},
+			Pods: []v1.Pod{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:       "boop-42",
+						Namespace:  "pods",
+						Finalizers: []string{"prow.x-k8s.io/gcsk8sreporter"},
+					},
+					Status: v1.PodStatus{
+						Phase:  v1.PodFailed,
+						Reason: Terminated,
+					},
+				},
+			},
+			ExpectedComplete: false,
+			ExpectedState:    prowapi.PendingState,
+			ExpectedNumPods:  0,
+		},
+		{
+			Name: "don't delete terminated pod w/ error_on_termination, complete PJ instead",
+			PJ: prowapi.ProwJob{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "boop-42",
+					Namespace: "prowjobs",
+				},
+				Spec: prowapi.ProwJobSpec{
+					ErrorOnTermination: true,
+					PodSpec:            &v1.PodSpec{Containers: []v1.Container{{Name: "test-name", Env: []v1.EnvVar{}}}},
+				},
+				Status: prowapi.ProwJobStatus{
+					State:   prowapi.PendingState,
+					PodName: "boop-42",
+				},
+			},
+			Pods: []v1.Pod{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "boop-42",
+						Namespace: "pods",
+					},
+					Status: v1.PodStatus{
+						Phase:  v1.PodFailed,
+						Reason: Terminated,
+					},
+				},
+			},
 			ExpectedComplete: true,
-			ExpectedState:    prowapi.FailureState,
+			ExpectedState:    prowapi.ErrorState,
 			ExpectedNumPods:  1,
 			ExpectedURL:      "boop-42/error",
 		},
