@@ -1,6 +1,6 @@
 module sigs.k8s.io/prow
 
-go 1.23.0
+go 1.24.0
 
 require (
 	cloud.google.com/go/cloudbuild v1.16.5
