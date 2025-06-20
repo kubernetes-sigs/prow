@@ -210,6 +210,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.26.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.30.3 // indirect
 	github.com/aws/smithy-go v1.22.0 // indirect
+	github.com/client9/misspell v0.3.4 // indirect
 	github.com/fatih/color v1.16.0 // indirect
 	github.com/go-bindata/go-bindata/v3 v3.1.3 // indirect
 	github.com/gobuffalo/flect v1.0.2 // indirect
@@ -225,6 +226,7 @@ require (
 )
 
 tool (
+	github.com/client9/misspell/cmd/misspell
 	github.com/go-bindata/go-bindata/v3/go-bindata
 	k8s.io/code-generator/cmd/client-gen
 	k8s.io/code-generator/cmd/deepcopy-gen

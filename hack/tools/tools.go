@@ -33,8 +33,6 @@ import (
 	// test runner
 	_ "gotest.tools/gotestsum"
 
-	_ "github.com/client9/misspell/cmd/misspell"
-
 	// image builder
 	_ "github.com/google/ko"
 )

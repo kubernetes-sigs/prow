@@ -20,18 +20,8 @@ set -o pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd -P)"
 cd $REPO_ROOT
 
-BIN_DIR="${REPO_ROOT}/_bin/misspell"
-mkdir -p "$BIN_DIR"
-MISSPELL="${BIN_DIR}/misspell"
-
 echo "Ensuring go version."
 source ./hack/build/setup-go.sh
-
-# build misspell
-echo "Install misspell."
-cd "hack/tools"
-go build -o "$MISSPELL" github.com/client9/misspell/cmd/misspell
-cd "${REPO_ROOT}"
 
 trap 'echo ERROR: found unexpected instance of "Git"hub, use github or GitHub' ERR
 
@@ -82,6 +72,6 @@ find -L . -type f -not \( \
     -o -path './hack/tools/go.sum' \
     -o -path './.python_virtual_env/*' \
     \) -prune \
-    \) | xargs "$MISSPELL" --error
+    \) | xargs go tool misspell --error
 
 echo 'PASS: No spelling issues detected'
