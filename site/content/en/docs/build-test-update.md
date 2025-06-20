@@ -2,7 +2,7 @@
 title: "Building, Testing, and Updating Prow"
 weight: 70
 description: >
-  
+
 ---
 
 This guide is directed at Prow developers and maintainers who want to build/test individual components or deploy changes to an existing Prow cluster. ["Deploying Prow"](/docs/getting-started-deploy/) is a better reference for deploying a new Prow cluster.
@@ -118,9 +118,9 @@ for [prow.istio.io](https://prow.istio.io).
 To test ProwJobs for the [prow.k8s.io] instance use [`config/pj-on-kind.sh`](https://github.com/kubernetes/test-infra/blob/master/config/pj-on-kind.sh).
 
 ##### Example
-This command runs the ProwJob [`pull-test-infra-yamllint`](https://github.com/kubernetes/test-infra/blob/170921984a34ca40f2763f9e71d6ce6e033dec03/config/jobs/kubernetes/test-infra/test-infra-presubmits.yaml#L94-L107) locally on Kind.
+This command runs the ProwJob [`pull-community-verify`](https://github.com/kubernetes/test-infra/blob/4c7d366981c6cf14a92547240976ed89095bc5e1/config/jobs/kubernetes/community/community-presubmit.yaml#L3-L26) locally on Kind.
 ```sh
-./pj-on-kind.sh pull-test-infra-yamllint
+./pj-on-kind.sh pull-community-verify
 ```
 You may also need to set the `CONFIG_PATH` and `JOB_CONFIG_PATH` environmental variables:
 ```sh
