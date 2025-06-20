@@ -36,18 +36,6 @@ source ./hack/build/setup-go.sh
 # build codegen tools
 echo "Install codegen tools."
 cd "hack/tools"
-clientgen=${REPO_ROOT}/_bin/client-gen
-go build -o "${clientgen}" k8s.io/code-generator/cmd/client-gen
-deepcopygen=${REPO_ROOT}/_bin/deepcopy-gen
-go build -o "${deepcopygen}" k8s.io/code-generator/cmd/deepcopy-gen
-informergen=${REPO_ROOT}/_bin/informer-gen
-go build -o "${informergen}" k8s.io/code-generator/cmd/informer-gen
-listergen=${REPO_ROOT}/_bin/lister-gen
-go build -o "${listergen}" k8s.io/code-generator/cmd/lister-gen
-go_bindata=${REPO_ROOT}/_bin/go-bindata
-go build -o "${go_bindata}" github.com/go-bindata/go-bindata/v3/go-bindata
-controllergen=${REPO_ROOT}/_bin/controller-gen
-go build -o "${controllergen}" sigs.k8s.io/controller-tools/cmd/controller-gen
 protoc_gen_go="${REPO_ROOT}/_bin/protoc-gen-go" # golang protobuf plugin
 GOBIN="${REPO_ROOT}/_bin" go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.32.0
 GOBIN="${REPO_ROOT}/_bin" go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.3.0
@@ -97,7 +85,7 @@ gen-prow-config-documented() {
 
 gen-deepcopy() {
   echo "Generating DeepCopy() methods..." >&2
-  "$deepcopygen" ./... \
+  go tool deepcopy-gen ./... \
     --go-header-file hack/boilerplate/boilerplate.generated.go.txt \
     --output-file zz_generated.deepcopy.go \
     --bounding-dirs sigs.k8s.io/prow/pkg/apis,sigs.k8s.io/prow/pkg/config
@@ -105,7 +93,7 @@ gen-deepcopy() {
 
 gen-client() {
   echo "Generating client..." >&2
-  "$clientgen" \
+  go tool client-gen \
     --go-header-file hack/boilerplate/boilerplate.generated.go.txt \
     --clientset-name versioned \
     --input-base "" \
@@ -114,7 +102,7 @@ gen-client() {
     --output-pkg sigs.k8s.io/prow/pkg/client/clientset
 
   echo "Generating client for pipeline..." >&2
-  "$clientgen" \
+  go tool client-gen \
     --go-header-file hack/boilerplate/boilerplate.generated.go.txt \
     --clientset-name versioned \
     --input-base "" \
@@ -125,13 +113,13 @@ gen-client() {
 
 gen-lister() {
   echo "Generating lister..." >&2
-  "$listergen" sigs.k8s.io/prow/pkg/apis/prowjobs/v1 \
+  go tool lister-gen sigs.k8s.io/prow/pkg/apis/prowjobs/v1 \
     --go-header-file hack/boilerplate/boilerplate.generated.go.txt \
     --output-dir pkg/client/listers \
     --output-pkg sigs.k8s.io/prow/pkg/client/listers
 
   echo "Generating lister for pipeline..." >&2
-  "$listergen" github.com/tektoncd/pipeline/pkg/apis/pipeline/v1 \
+  go tool lister-gen github.com/tektoncd/pipeline/pkg/apis/pipeline/v1 \
     --go-header-file hack/boilerplate/boilerplate.generated.go.txt \
     --output-dir pkg/pipeline/listers \
     --output-pkg sigs.k8s.io/prow/pkg/pipeline/listers
@@ -139,7 +127,7 @@ gen-lister() {
 
 gen-informer() {
   echo "Generating informer..." >&2
-  "$informergen" sigs.k8s.io/prow/pkg/apis/prowjobs/v1 \
+  go tool informer-gen sigs.k8s.io/prow/pkg/apis/prowjobs/v1 \
     --go-header-file hack/boilerplate/boilerplate.generated.go.txt \
     --versioned-clientset-package sigs.k8s.io/prow/pkg/client/clientset/versioned \
     --listers-package sigs.k8s.io/prow/pkg/client/listers \
@@ -147,7 +135,7 @@ gen-informer() {
     --output-pkg sigs.k8s.io/prow/pkg/client/informers
 
   echo "Generating informer for pipeline..." >&2
-  "$informergen" github.com/tektoncd/pipeline/pkg/apis/pipeline/v1 \
+  go tool informer-gen github.com/tektoncd/pipeline/pkg/apis/pipeline/v1 \
     --go-header-file hack/boilerplate/boilerplate.generated.go.txt \
     --versioned-clientset-package sigs.k8s.io/prow/pkg/pipeline/clientset/versioned \
     --listers-package sigs.k8s.io/prow/pkg/pipeline/listers \
@@ -158,14 +146,14 @@ gen-informer() {
 gen-spyglass-bindata() {
   cd pkg/spyglass/lenses/common/
   echo "Generating spyglass bindata..." >&2
-  $go_bindata -pkg=common static/
+  go tool go-bindata -pkg=common static/
   gofmt -s -w ./
   cd - >/dev/null
 }
 
 gen-prowjob-crd() {
   echo "Generating prowjob crd..." >&2
-  "$controllergen" crd:crdVersions=v1 paths=./pkg/apis/prowjobs/v1 output:stdout \
+  go tool controller-gen crd:crdVersions=v1 paths=./pkg/apis/prowjobs/v1 output:stdout \
     | $SED '/^$/d' \
     | $SED '/^spec:.*/a  \  preserveUnknownFields: false' \
     | $SED '/^  annotations.*/a  \    api-approved.kubernetes.io: https://github.com/kubernetes/test-infra/pull/8669' \

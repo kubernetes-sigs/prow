@@ -210,5 +210,25 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.26.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.30.3 // indirect
 	github.com/aws/smithy-go v1.22.0 // indirect
+	github.com/fatih/color v1.16.0 // indirect
+	github.com/go-bindata/go-bindata/v3 v3.1.3 // indirect
+	github.com/gobuffalo/flect v1.0.2 // indirect
+	github.com/inconshreveable/mousetrap v1.1.0 // indirect
+	github.com/kisielk/errcheck v1.5.0 // indirect
+	github.com/mattn/go-colorable v0.1.13 // indirect
+	github.com/mattn/go-isatty v0.0.20 // indirect
+	github.com/spf13/cobra v1.8.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
+	k8s.io/code-generator v0.30.1 // indirect
+	k8s.io/gengo/v2 v2.0.0-20240228010128-51d4e06bde70 // indirect
+	sigs.k8s.io/controller-tools v0.15.0 // indirect
+)
+
+tool (
+	github.com/go-bindata/go-bindata/v3/go-bindata
+	k8s.io/code-generator/cmd/client-gen
+	k8s.io/code-generator/cmd/deepcopy-gen
+	k8s.io/code-generator/cmd/informer-gen
+	k8s.io/code-generator/cmd/lister-gen
+	sigs.k8s.io/controller-tools/cmd/controller-gen
 )
