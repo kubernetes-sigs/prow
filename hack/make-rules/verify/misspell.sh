@@ -68,8 +68,8 @@ find -L . -type f -not \( \
     -o -path './_output/*' \
     -o -path './_artifacts/*' \
     -o -path './bazel-*/*' \
-    -o -path './hack/tools/go.mod' \
-    -o -path './hack/tools/go.sum' \
+    -o -path './go.mod' \
+    -o -path './go.sum' \
     -o -path './.python_virtual_env/*' \
     \) -prune \
     \) | xargs go tool misspell --error
