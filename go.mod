@@ -66,7 +66,7 @@ require (
 	google.golang.org/genproto v0.0.0-20241118233622-e639e219e697
 	google.golang.org/genproto/googleapis/api v0.0.0-20250218202821-56aae31c358a
 	google.golang.org/grpc v1.72.0
-	google.golang.org/protobuf v1.36.5
+	google.golang.org/protobuf v1.36.6
 	gopkg.in/fsnotify.v1 v1.4.7
 	gopkg.in/ini.v1 v1.67.0
 	gopkg.in/robfig/cron.v2 v2.0.0-20150107220207-be2e0b0deed5
@@ -383,6 +383,7 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.34.0 // indirect
 	go.uber.org/automaxprocs v1.6.0 // indirect
 	golang.org/x/exp/typeparams v0.0.0-20250210185358-939b2ce775ac // indirect
+	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.3.0 // indirect
 	honnef.co/go/tools v0.6.1 // indirect
 	k8s.io/code-generator v0.30.1 // indirect
 	k8s.io/gengo/v2 v2.0.0-20240228010128-51d4e06bde70 // indirect
@@ -395,6 +396,8 @@ tool (
 	github.com/client9/misspell/cmd/misspell
 	github.com/go-bindata/go-bindata/v3/go-bindata
 	github.com/golangci/golangci-lint/cmd/golangci-lint
+	google.golang.org/grpc/cmd/protoc-gen-go-grpc
+	google.golang.org/protobuf/cmd/protoc-gen-go
 	k8s.io/code-generator/cmd/client-gen
 	k8s.io/code-generator/cmd/deepcopy-gen
 	k8s.io/code-generator/cmd/informer-gen

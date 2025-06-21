@@ -33,13 +33,6 @@ cd $REPO_ROOT
 echo "Ensuring go version."
 source ./hack/build/setup-go.sh
 
-# build codegen tools
-echo "Install codegen tools."
-cd "hack/tools"
-protoc_gen_go="${REPO_ROOT}/_bin/protoc-gen-go" # golang protobuf plugin
-GOBIN="${REPO_ROOT}/_bin" go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.32.0
-GOBIN="${REPO_ROOT}/_bin" go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.3.0
-
 cd "${REPO_ROOT}"
 ensure-protoc-deps() {
   # Install protoc
@@ -181,27 +174,27 @@ gen-proto-stubs() {
   # structure (so that the generated files can sit next to the .proto files,
   # instead of under a "k8.io/test-infra/prow/..." subfolder).
   "${REPO_ROOT}/_bin/protoc/bin/protoc" \
-    "--plugin=${protoc_gen_go}" \
-    "--proto_path=${REPO_ROOT}/_bin/protoc/include/google/protobuf" \
-    "--proto_path=${REPO_ROOT}/_bin/protoc/include/googleapis" \
-    "--proto_path=${dir}" \
-    --go_out="${dir}" --go_opt=paths=source_relative \
-    --go-grpc_out="${dir}" --go-grpc_opt=paths=source_relative \
+    --plugin=protoc-gen-go="$(go tool -n protoc-gen-go)" \
+    --plugin=protoc-gen-go-grpc="$(go tool -n protoc-gen-go-grpc)" \
+    --proto_path="${REPO_ROOT}/_bin/protoc/include/google/protobuf" \
+    --proto_path="${REPO_ROOT}/_bin/protoc/include/googleapis" \
+    --proto_path="$dir" \
+    --go_out="$dir" \
+    --go_opt=paths=source_relative \
+    --go-grpc_out="$dir" \
+    --go-grpc_opt=paths=source_relative \
     "$1"
 }
 
 gen-all-proto-stubs() {
   echo >&2 "Generating proto stubs"
 
-  # Expose the golang protobuf plugin binaries (protoc-gen-go,
-  # protoc-gen-go-grpc) to the PATH so that protoc can find it.
-  export PATH="${REPO_ROOT}/_bin:$PATH"
-
   while IFS= read -r -d '' proto; do
     echo >&2 "  $proto"
     gen-proto-stubs "$proto"
   done < <(find "${REPO_ROOT}" \
     -not '(' -path "${REPO_ROOT}/vendor" -prune ')' \
+    -not '(' -path "${REPO_ROOT}/hack/tools/vendor" -prune ')' \
     -not '(' -path "${REPO_ROOT}/node_modules" -prune ')' \
     -not '(' -path "${REPO_ROOT}/_bin" -prune ')' \
     -name '*.proto' \

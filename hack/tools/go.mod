@@ -7,7 +7,6 @@ go 1.24.0
 // packages: https://github.com/golang/go/issues/44840#issuecomment-1651863470
 
 require (
-	github.com/golang/protobuf v1.5.4
 	github.com/google/ko v0.14.1
 	gotest.tools/gotestsum v1.7.0
 )
@@ -140,7 +139,6 @@ require (
 	golang.org/x/text v0.23.0 // indirect
 	golang.org/x/time v0.6.0 // indirect
 	golang.org/x/tools v0.27.0 // indirect
-	google.golang.org/protobuf v1.36.5 // indirect
 	gopkg.in/go-jose/go-jose.v2 v2.6.3 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

@@ -24,9 +24,6 @@ https://github.com/golang/go/wiki/Modules#how-can-i-track-tool-dependencies-for-
 package tools
 
 import (
-	// proto generator
-	_ "github.com/golang/protobuf/protoc-gen-go"
-
 	// test runner
 	_ "gotest.tools/gotestsum"
 
