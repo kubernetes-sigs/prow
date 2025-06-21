@@ -230,8 +230,6 @@ function main() {
       -fakepubsub-node-port="${fakepubsub_node_port}"
   fi
 
-  build_gotestsum
-
   if [[ -n "${clear_args[*]}" ]]; then
     "${SCRIPT_ROOT}/clear.sh" "${clear_args[@]}"
   fi
@@ -246,21 +244,12 @@ function main() {
 
   # Run integration tests with junit output.
   mkdir -p "${JUNIT_RESULT_DIR}"
-  "${REPO_ROOT}/_bin/gotestsum" \
+  go tool gotestsum \
     --format "${summary_format}" \
     --junitfile="${JUNIT_RESULT_DIR}/junit-integration.xml" \
     -- "${SCRIPT_ROOT}/test" \
     --run-integration-test ${tests_to_run[@]:+"${tests_to_run[@]}"} \
     --fakepubsub-node-port "${fakepubsub_node_port}"
-}
-
-function build_gotestsum() {
-  log "Building gotestsum"
-  set -x
-  pushd "${REPO_ROOT}/hack/tools"
-  go build -o "${REPO_ROOT}/_bin/gotestsum" gotest.tools/gotestsum
-  popd
-  set +x
 }
 
 main "$@"

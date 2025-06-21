@@ -24,9 +24,6 @@ https://github.com/golang/go/wiki/Modules#how-can-i-track-tool-dependencies-for-
 package tools
 
 import (
-	// test runner
-	_ "gotest.tools/gotestsum"
-
 	// image builder
 	_ "github.com/google/ko"
 )

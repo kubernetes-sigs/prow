@@ -26,7 +26,7 @@ require (
 	github.com/djherbis/atime v1.0.0
 	github.com/evanphx/json-patch v5.6.0+incompatible
 	github.com/felixge/fgprof v0.9.1
-	github.com/fsnotify/fsnotify v1.7.0
+	github.com/fsnotify/fsnotify v1.8.0
 	github.com/fsouza/fake-gcs-server v1.19.4
 	github.com/go-git/go-git/v5 v5.14.0
 	github.com/go-test/deep v1.0.7
@@ -56,10 +56,10 @@ require (
 	go4.org v0.0.0-20201209231011-d4a079459e60
 	gocloud.dev v0.40.0
 	golang.org/x/lint v0.0.0-20241112194109-818c5a804067
-	golang.org/x/net v0.38.0
+	golang.org/x/net v0.41.0
 	golang.org/x/oauth2 v0.26.0
-	golang.org/x/sync v0.12.0
-	golang.org/x/text v0.23.0
+	golang.org/x/sync v0.15.0
+	golang.org/x/text v0.26.0
 	golang.org/x/time v0.10.0
 	gomodules.xyz/jsonpatch/v2 v2.4.0
 	google.golang.org/api v0.223.0
@@ -168,12 +168,12 @@ require (
 	go.opentelemetry.io/otel/metric v1.34.0 // indirect
 	go.opentelemetry.io/otel/trace v1.34.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/crypto v0.36.0 // indirect
+	golang.org/x/crypto v0.39.0 // indirect
 	golang.org/x/exp v0.0.0-20250207012021-f9890c6ad9f3 // indirect
-	golang.org/x/mod v0.24.0 // indirect
-	golang.org/x/sys v0.31.0 // indirect
-	golang.org/x/term v0.30.0 // indirect
-	golang.org/x/tools v0.31.0 // indirect
+	golang.org/x/mod v0.25.0 // indirect
+	golang.org/x/sys v0.33.0 // indirect
+	golang.org/x/term v0.32.0 // indirect
+	golang.org/x/tools v0.34.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250219182151-9fdb1cabc7b2 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
@@ -234,6 +234,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.26.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.30.3 // indirect
 	github.com/aws/smithy-go v1.22.0 // indirect
+	github.com/bitfield/gotestdox v0.2.2 // indirect
 	github.com/bkielbasa/cyclop v1.2.3 // indirect
 	github.com/blizzy78/varnamelen v0.8.0 // indirect
 	github.com/bombsimon/wsl/v4 v4.5.0 // indirect
@@ -251,6 +252,7 @@ require (
 	github.com/curioswitch/go-reassign v0.3.0 // indirect
 	github.com/daixiang0/gci v0.13.5 // indirect
 	github.com/denis-tingaikin/go-header v0.5.0 // indirect
+	github.com/dnephin/pflag v1.0.7 // indirect
 	github.com/envoyproxy/go-control-plane/envoy v1.32.4 // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.2.1 // indirect
 	github.com/ettle/strcase v0.2.0 // indirect
@@ -282,6 +284,7 @@ require (
 	github.com/golangci/plugin-module-register v0.1.1 // indirect
 	github.com/golangci/revgrep v0.8.0 // indirect
 	github.com/golangci/unconvert v0.0.0-20240309020433-c5143eacb3ed // indirect
+	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
 	github.com/gordonklaus/ineffassign v0.1.0 // indirect
 	github.com/gostaticanalysis/analysisutil v0.7.1 // indirect
 	github.com/gostaticanalysis/comment v1.5.0 // indirect
@@ -384,6 +387,7 @@ require (
 	go.uber.org/automaxprocs v1.6.0 // indirect
 	golang.org/x/exp/typeparams v0.0.0-20250210185358-939b2ce775ac // indirect
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.3.0 // indirect
+	gotest.tools/gotestsum v1.12.3 // indirect
 	honnef.co/go/tools v0.6.1 // indirect
 	k8s.io/code-generator v0.30.1 // indirect
 	k8s.io/gengo/v2 v2.0.0-20240228010128-51d4e06bde70 // indirect
@@ -398,6 +402,7 @@ tool (
 	github.com/golangci/golangci-lint/cmd/golangci-lint
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc
 	google.golang.org/protobuf/cmd/protoc-gen-go
+	gotest.tools/gotestsum
 	k8s.io/code-generator/cmd/client-gen
 	k8s.io/code-generator/cmd/deepcopy-gen
 	k8s.io/code-generator/cmd/informer-gen

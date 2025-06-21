@@ -26,12 +26,6 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd -P)"
 cd "${REPO_ROOT}"
 source hack/build/setup-go.sh
 
-# build gotestsum
-cd 'hack/tools'
-go build -o "${REPO_ROOT}/_bin/gotestsum" gotest.tools/gotestsum
-# Make sure the following is ran from root dir
-cd "${REPO_ROOT}"
-
 (
   set -x;
   go "$@"
