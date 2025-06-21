@@ -327,6 +327,8 @@ func TestBuildAndPush(t *testing.T) {
 			},
 			koDockerRepo: "local.test",
 			want: []string{
+				"tool",
+				"ko",
 				"publish",
 				"--tarball=_bin/awesome.tar",
 				"--push=false",
@@ -348,6 +350,8 @@ func TestBuildAndPush(t *testing.T) {
 			koDockerRepo: "local.test",
 			push:         true,
 			want: []string{
+				"tool",
+				"ko",
 				"publish",
 				"--push=true",
 				"--tags=latest",
@@ -368,6 +372,8 @@ func TestBuildAndPush(t *testing.T) {
 			koDockerRepo: "local.test",
 			push:         true,
 			want: []string{
+				"tool",
+				"ko",
 				"publish",
 				"--push=true",
 				"--tags=latest",
