@@ -23,13 +23,6 @@ cd $REPO_ROOT
 echo "Ensuring go version."
 source ./hack/build/setup-go.sh
 
-# build misspell
-echo "Install misspell."
-cd "hack/tools"
-go build -o "${REPO_ROOT}/_bin/misspell" github.com/client9/misspell/cmd/misspell
-MISSPELL="${REPO_ROOT}/_bin/misspell"
-cd "${REPO_ROOT}"
-
 find -L . -type f -not \( \
   \( \
     -path '*/vendor/*' \
@@ -43,8 +36,8 @@ find -L . -type f -not \( \
     -o -path './_output/*' \
     -o -path './_artifacts/*' \
     -o -path './bazel-*/*' \
-    -o -path './hack/tools/go.mod' \
-    -o -path './hack/tools/go.sum' \
+    -o -path './go.mod' \
+    -o -path './go.sum' \
     -o -path './.python_virtual_env/*' \
     \) -prune \
-    \) | xargs "${MISSPELL}" -w
+    \) | xargs go tool misspell -w

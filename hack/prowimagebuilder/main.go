@@ -71,11 +71,6 @@ func init() {
 		os.Exit(1)
 	}
 	rootDir = out
-
-	if _, err := runCmdInDirFunc(path.Join(rootDir, "hack/tools"), nil, "go", "build", "-o", path.Join(rootDir, "_bin/ko"), "github.com/google/ko"); err != nil {
-		logrus.WithError(err).Error("Failed ensure ko")
-		os.Exit(1)
-	}
 }
 
 type options struct {
@@ -129,6 +124,10 @@ func runCmdInDir(dir string, additionalEnv []string, cmd string, args ...string)
 
 func runCmd(additionalEnv []string, cmd string, args ...string) (string, error) {
 	return runCmdInDirFunc(rootDir, additionalEnv, cmd, args...)
+}
+
+func runGoToolCmd(additionalEnv []string, tool string, args ...string) (string, error) {
+	return runCmd(additionalEnv, "go", append([]string{"tool", tool}, args...)...)
 }
 
 type imageDef struct {
@@ -268,7 +267,7 @@ func buildAndPush(id *imageDef, dockerRepos []string, push bool) error {
 	// to subsequent identical docker repo(s) is relatively cheap.
 	for _, dockerRepo := range dockerRepos {
 		logger.WithField("args", publishArgs).Info("Running ko.")
-		if _, err = runCmd([]string{"KO_DOCKER_REPO=" + dockerRepo}, "_bin/ko", publishArgs...); err != nil {
+		if _, err = runGoToolCmd([]string{"KO_DOCKER_REPO=" + dockerRepo}, "ko", publishArgs...); err != nil {
 			return fmt.Errorf("running ko: %w", err)
 		}
 	}
