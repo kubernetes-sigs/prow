@@ -403,7 +403,6 @@ func TestBuildAndPush(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			var gotPublishArgs []string
 
@@ -414,7 +413,7 @@ func TestBuildAndPush(t *testing.T) {
 					return date, nil
 				case "git":
 					return gitHash, nil
-				case "_bin/ko":
+				case "go":
 					gotPublishArgs = args
 					return fmt.Sprintf("cmd: %s, args: %v", cmd, args), nil
 				default:
