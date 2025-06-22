@@ -71,7 +71,7 @@ func TestDiskCachePruning(t *testing.T) {
 		}
 	}
 
-	rsaKey, err := rsa.GenerateKey(rand.Reader, 512)
+	rsaKey, err := rsa.GenerateKey(rand.Reader, 1024)
 	if err != nil {
 		t.Fatalf("Failed to generate RSA key: %v", err)
 	}
