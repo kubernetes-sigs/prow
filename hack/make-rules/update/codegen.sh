@@ -33,7 +33,17 @@ cd $REPO_ROOT
 echo "Ensuring go version."
 source ./hack/build/setup-go.sh
 
-cd "${REPO_ROOT}"
+wrap-go-tool() {
+  local tool="$1"
+  local wrapper_name="${tool}-XXXX"
+  wrapper="$(mktemp --tmpdir $wrapper_name)"
+  printf '#!/usr/bin/bash\n\ngo tool %s $@\n' "$tool" >>"$wrapper"
+  chmod +x "$wrapper"
+  echo "$wrapper"
+}
+PROTOC_GEN_GO_WRAPPER="$(wrap-go-tool protoc-gen-go)"
+PROTOC_GEN_GO_GRPC_WRAPPER="$(wrap-go-tool protoc-gen-go-grpc)"
+
 ensure-protoc-deps() {
   # Install protoc
   if [[ ! -f "_bin/protoc/bin/protoc" ]]; then
@@ -174,8 +184,8 @@ gen-proto-stubs() {
   # structure (so that the generated files can sit next to the .proto files,
   # instead of under a "k8.io/test-infra/prow/..." subfolder).
   "${REPO_ROOT}/_bin/protoc/bin/protoc" \
-    --plugin=protoc-gen-go="$(go tool -n protoc-gen-go)" \
-    --plugin=protoc-gen-go-grpc="$(go tool -n protoc-gen-go-grpc)" \
+    --plugin=protoc-gen-go="$PROTOC_GEN_GO_WRAPPER" \
+    --plugin=protoc-gen-go-grpc="$PROTOC_GEN_GO_GRPC_WRAPPER" \
     --proto_path="${REPO_ROOT}/_bin/protoc/include/google/protobuf" \
     --proto_path="${REPO_ROOT}/_bin/protoc/include/googleapis" \
     --proto_path="$dir" \
