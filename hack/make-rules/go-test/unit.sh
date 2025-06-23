@@ -47,11 +47,6 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd -P)"
 cd "${REPO_ROOT}"
 source hack/build/setup-go.sh
 
-# build gotestsum
-cd 'hack/tools'
-go build -o "${REPO_ROOT}/_bin/gotestsum" gotest.tools/gotestsum
-cd "${REPO_ROOT}"
-
 JUNIT_RESULT_DIR="${REPO_ROOT}/_output"
 # if we are in CI, copy to the artifact upload location
 if [[ -n "${ARTIFACTS:-}" ]]; then
@@ -63,7 +58,7 @@ fi
   set -x;
   umask 0022
   mkdir -p "${JUNIT_RESULT_DIR}"
-  "${REPO_ROOT}/_bin/gotestsum" --junitfile="${JUNIT_RESULT_DIR}/junit-unit.xml" \
+  go tool gotestsum --junitfile="${JUNIT_RESULT_DIR}/junit-unit.xml" \
     -- \
     ${PROW_UNIT_TEST_EXTRA_FLAGS[@]+${PROW_UNIT_TEST_EXTRA_FLAGS[@]}} \
     "./${folder_to_test}"

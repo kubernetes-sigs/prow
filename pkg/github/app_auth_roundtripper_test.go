@@ -400,7 +400,7 @@ func TestAppsAuth(t *testing.T) {
 
 	// Generate it only once. Can not be smaller, otherwise the JWT signature generation
 	// fails with "message too long for RSA public key size"
-	rsaKey, err := rsa.GenerateKey(rand.Reader, 512)
+	rsaKey, err := rsa.GenerateKey(rand.Reader, 1024)
 	if err != nil {
 		t.Fatalf("Failed to generate RSA key: %v", err)
 	}
@@ -462,7 +462,7 @@ func TestAppsRoundTripperThreadSafety(t *testing.T) {
 	const appID = "13"
 	// Can not be smaller, otherwise the JWT signature generation
 	// fails with "message too long for RSA public key size"
-	rsaKey, err := rsa.GenerateKey(rand.Reader, 512)
+	rsaKey, err := rsa.GenerateKey(rand.Reader, 1024)
 	if err != nil {
 		t.Fatalf("Failed to generate RSA key: %v", err)
 	}
