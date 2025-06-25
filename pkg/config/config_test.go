@@ -1428,6 +1428,13 @@ func TestValidateAgent(t *testing.T) {
 			},
 			pass: true,
 		},
+		{
+			name: "error_on_termination allowed for kubernetes agent",
+			base: func(j *JobBase) {
+				j.ErrorOnTermination = true
+			},
+			pass: true,
+		},
 	}
 
 	for _, tc := range cases {
@@ -8430,6 +8437,9 @@ plank:
   pod_pending_timeout: 10m0s
   pod_running_timeout: 48h0m0s
   pod_unscheduled_timeout: 5m0s
+  termination_condition_reasons:
+  - DeletionByPodGC
+  - DeletionByGCPControllerManager
 pod_namespace: default
 prowjob_namespace: default
 push_gateway:
@@ -8515,6 +8525,9 @@ plank:
   pod_pending_timeout: 10m0s
   pod_running_timeout: 48h0m0s
   pod_unscheduled_timeout: 5m0s
+  termination_condition_reasons:
+  - DeletionByPodGC
+  - DeletionByGCPControllerManager
 pod_namespace: default
 prowjob_namespace: default
 push_gateway:
@@ -8593,6 +8606,9 @@ plank:
   pod_pending_timeout: 10m0s
   pod_running_timeout: 48h0m0s
   pod_unscheduled_timeout: 5m0s
+  termination_condition_reasons:
+  - DeletionByPodGC
+  - DeletionByGCPControllerManager
 pod_namespace: default
 prowjob_namespace: default
 push_gateway:
@@ -8676,6 +8692,9 @@ plank:
   pod_pending_timeout: 10m0s
   pod_running_timeout: 48h0m0s
   pod_unscheduled_timeout: 5m0s
+  termination_condition_reasons:
+  - DeletionByPodGC
+  - DeletionByGCPControllerManager
 pod_namespace: default
 prowjob_namespace: default
 push_gateway:
