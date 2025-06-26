@@ -49,6 +49,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/semaphore"
+	"sigs.k8s.io/prow/pkg/config/secret"
 	"sigs.k8s.io/prow/pkg/github/ghmetrics"
 )
 
@@ -537,8 +538,26 @@ func NewFromCache(roundTripper http.RoundTripper, cache CachePartitionCreator, m
 // Important note: The redis implementation does not support partitioning the cache
 // which means that requests to the same path from different tokens will invalidate
 // each other.
-func NewRedisCache(roundTripper http.RoundTripper, redisAddress string, maxConcurrency int, throttlingTimes RequestThrottlingTimes) http.RoundTripper {
-	conn, err := redis.Dial("tcp", redisAddress)
+func NewRedisCache(roundTripper http.RoundTripper, redisAddress string, redisUsername string, redisSecretFile string, maxConcurrency int, throttlingTimes RequestThrottlingTimes) http.RoundTripper {
+
+	var conn redis.Conn
+	var err error
+
+	// Build dial options based on provided credentials
+	dialOpts := []redis.DialOption{}
+
+	if redisUsername != "" {
+		dialOpts = append(dialOpts, redis.DialUsername(redisUsername))
+	}
+
+	if redisSecretFile != "" {
+		redisPassword := secret.GetSecret(redisSecretFile)
+		dialOpts = append(dialOpts, redis.DialPassword(string(redisPassword)))
+	}
+
+	// Connect with whatever options were added (could be none)
+	conn, err = redis.Dial("tcp", redisAddress, dialOpts...)
+
 	if err != nil {
 		logrus.WithError(err).Fatal("Error connecting to Redis")
 	}
