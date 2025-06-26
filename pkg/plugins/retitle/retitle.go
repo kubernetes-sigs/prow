@@ -91,7 +91,7 @@ func handleGenericCommentEvent(pc plugins.Agent, e github.GenericCommentEvent) e
 type githubClient interface {
 	CreateComment(owner, repo string, number int, comment string) error
 	GetPullRequest(org, repo string, number int) (*github.PullRequest, error)
-	EditPullRequest(org, repo string, number int, pr *github.PullRequest) (*github.PullRequest, error)
+	UpdatePullRequest(org, repo string, number int, title, body *string, open *bool, branch *string, canModify *bool) error
 	GetIssue(org, repo string, number int) (*github.Issue, error)
 	EditIssue(org, repo string, number int, issue *github.Issue) (*github.Issue, error)
 }
@@ -144,13 +144,7 @@ func handleGenericComment(gc githubClient, isTrusted func(string) (bool, error),
 	}
 
 	if gce.IsPR {
-		pr, err := gc.GetPullRequest(org, repo, number)
-		if err != nil {
-			return err
-		}
-		pr.Title = newTitle
-		_, err = gc.EditPullRequest(org, repo, number, pr)
-		return err
+		return gc.UpdatePullRequest(org, repo, number, &newTitle, nil, nil, nil, nil)
 	}
 	issue, err := gc.GetIssue(org, repo, number)
 	if err != nil {
