@@ -49,10 +49,11 @@ type document struct {
 // Config returns the lens's configuration.
 func (lens Lens) Config() lenses.LensConfig {
 	return lenses.LensConfig{
-		Name:      "html",
-		Title:     "HTML",
-		Priority:  3,
-		HideTitle: true,
+		Name:                     "html",
+		Title:                    "HTML",
+		Priority:                 3,
+		HideTitle:                true,
+		IframeSandboxPermissions: lenses.DefaultSandboxPermissions,
 	}
 }
 
