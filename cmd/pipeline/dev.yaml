@@ -15,7 +15,7 @@ spec:
       serviceAccount: prow-pipeline
       containers:
       - name: pipeline
-        image: gcr.io/k8s-testimages/pipeline:latest  # Note: not gcr.io/k8s-prow for dev
+        image: gcr.io/k8s-staging-test-infra/pipeline:latest  # Note: not gcr.io/k8s-prow for dev
         imagePullPolicy: Always  # Good practice for dev/debugging, bad for prod
         args:
         - --config=/etc/config/config.yaml
