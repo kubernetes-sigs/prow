@@ -290,43 +290,43 @@ func TestUpdateAllTags(t *testing.T) {
 		},
 		{
 			name:           "file that has only an image replaces the image",
-			content:        "gcr.io/k8s-testimages/some-image:v20190404-12345678",
-			expectedResult: "gcr.io/k8s-testimages/some-image:v20190405-123456789",
+			content:        "gcr.io/k8s-staging-test-infra/some-image:v20190404-12345678",
+			expectedResult: "gcr.io/k8s-staging-test-infra/some-image:v20190405-123456789",
 			newTags: map[string]string{
-				"gcr.io/k8s-testimages/some-image:v20190404-12345678": "v20190405-123456789",
+				"gcr.io/k8s-staging-test-infra/some-image:v20190404-12345678": "v20190405-123456789",
 			},
 		},
 		{
 			name:           "file that has content before and after an image still has it later",
-			content:        `{"image": "gcr.io/k8s-testimages/some-image:v20190404-12345678"}`,
-			expectedResult: `{"image": "gcr.io/k8s-testimages/some-image:v20190405-123456789"}`,
+			content:        `{"image": "gcr.io/k8s-staging-test-infra/some-image:v20190404-12345678"}`,
+			expectedResult: `{"image": "gcr.io/k8s-staging-test-infra/some-image:v20190405-123456789"}`,
 			newTags: map[string]string{
-				"gcr.io/k8s-testimages/some-image:v20190404-12345678": "v20190405-123456789",
+				"gcr.io/k8s-staging-test-infra/some-image:v20190404-12345678": "v20190405-123456789",
 			},
 		},
 		{
 			name:           "file that has multiple different images replaces both of them",
-			content:        `{"images": ["gcr.io/k8s-testimages/some-image:v20190404-12345678-master", "gcr.io/k8s-testimages/some-image:v20190404-12345678-experimental"]}`,
-			expectedResult: `{"images": ["gcr.io/k8s-testimages/some-image:v20190405-123456789-master", "gcr.io/k8s-testimages/some-image:v20190405-123456789-experimental"]}`,
+			content:        `{"images": ["gcr.io/k8s-staging-test-infra/some-image:v20190404-12345678-master", "gcr.io/k8s-staging-test-infra/some-image:v20190404-12345678-experimental"]}`,
+			expectedResult: `{"images": ["gcr.io/k8s-staging-test-infra/some-image:v20190405-123456789-master", "gcr.io/k8s-staging-test-infra/some-image:v20190405-123456789-experimental"]}`,
 			newTags: map[string]string{
-				"gcr.io/k8s-testimages/some-image:v20190404-12345678-master":       "v20190405-123456789-master",
-				"gcr.io/k8s-testimages/some-image:v20190404-12345678-experimental": "v20190405-123456789-experimental",
+				"gcr.io/k8s-staging-test-infra/some-image:v20190404-12345678-master":       "v20190405-123456789-master",
+				"gcr.io/k8s-staging-test-infra/some-image:v20190404-12345678-experimental": "v20190405-123456789-experimental",
 			},
 		},
 		{
 			name:           "file with an error image is still otherwise updated",
-			content:        `{"images": ["gcr.io/k8s-testimages/some-image:0.2", "gcr.io/k8s-testimages/some-image:v20190404-12345678"]}`,
-			expectedResult: `{"images": ["gcr.io/k8s-testimages/some-image:0.2", "gcr.io/k8s-testimages/some-image:v20190405-123456789"]}`,
+			content:        `{"images": ["gcr.io/k8s-staging-test-infra/some-image:0.2", "gcr.io/k8s-staging-test-infra/some-image:v20190404-12345678"]}`,
+			expectedResult: `{"images": ["gcr.io/k8s-staging-test-infra/some-image:0.2", "gcr.io/k8s-staging-test-infra/some-image:v20190405-123456789"]}`,
 			newTags: map[string]string{
-				"gcr.io/k8s-testimages/some-image:v20190404-12345678": "v20190405-123456789",
+				"gcr.io/k8s-staging-test-infra/some-image:v20190404-12345678": "v20190405-123456789",
 			},
 		},
 		{
 			name:           "gcr subdomains are supported",
-			content:        `{"images": ["eu.gcr.io/k8s-testimages/some-image:v20190404-12345678"]}`,
-			expectedResult: `{"images": ["eu.gcr.io/k8s-testimages/some-image:v20190405-123456789"]}`,
+			content:        `{"images": ["eu.gcr.io/k8s-staging-test-infra/some-image:v20190404-12345678"]}`,
+			expectedResult: `{"images": ["eu.gcr.io/k8s-staging-test-infra/some-image:v20190405-123456789"]}`,
 			newTags: map[string]string{
-				"eu.gcr.io/k8s-testimages/some-image:v20190404-12345678": "v20190405-123456789",
+				"eu.gcr.io/k8s-staging-test-infra/some-image:v20190404-12345678": "v20190405-123456789",
 			},
 		},
 		{
@@ -347,13 +347,13 @@ func TestUpdateAllTags(t *testing.T) {
 		},
 		{
 			name:           "images not matching the filter regex are not updated",
-			content:        `{"images": ["gcr.io/k8s-prow/pkg-thing:v20190404-12345678", "gcr.io/k8s-testimages/some-image:v20190404-12345678"]}`,
-			expectedResult: `{"images": ["gcr.io/k8s-prow/pkg-thing:v20190404-12345678", "gcr.io/k8s-testimages/some-image:v20190405-123456789"]}`,
+			content:        `{"images": ["gcr.io/k8s-prow/pkg-thing:v20190404-12345678", "gcr.io/k8s-staging-test-infra/some-image:v20190404-12345678"]}`,
+			expectedResult: `{"images": ["gcr.io/k8s-prow/pkg-thing:v20190404-12345678", "gcr.io/k8s-staging-test-infra/some-image:v20190405-123456789"]}`,
 			newTags: map[string]string{
-				"gcr.io/k8s-prow/pkg-thing:v20190404-12345678":        "v20190405-123456789",
-				"gcr.io/k8s-testimages/some-image:v20190404-12345678": "v20190405-123456789",
+				"gcr.io/k8s-prow/pkg-thing:v20190404-12345678":                "v20190405-123456789",
+				"gcr.io/k8s-staging-test-infra/some-image:v20190404-12345678": "v20190405-123456789",
 			},
-			imageFilter: regexp.MustCompile("gcr.io/k8s-testimages"),
+			imageFilter: regexp.MustCompile("gcr.io/k8s-staging-test-infra"),
 		},
 	}
 

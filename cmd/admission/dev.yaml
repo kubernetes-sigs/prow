@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: admission
-        image: gcr.io/k8s-testimages/admission:latest  # Note: not gcr.io/k8s-prow for dev
+        image: gcr.io/k8s-staging-test-infra/admission:latest  # Note: not gcr.io/k8s-prow for dev
         imagePullPolicy: Always  # Good practice for dev/debugging, bad for prod
         args:
         - --tls-cert-file=/etc/tls/tls.crt

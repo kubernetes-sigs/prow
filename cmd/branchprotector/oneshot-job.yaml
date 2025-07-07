@@ -10,7 +10,7 @@ spec:
     spec:
       containers:
       - name: branchprotector
-        image: gcr.io/k8s-testimages/branchprotector:latest  # Note: not gcr.io/k8s-prow for dev
+        image: us-docker.pkg.dev/k8s-infra-prow/images/branchprotector:v20250704-ef29ebbe9  # Note: not gcr.io/k8s-prow for dev
         imagePullPolicy: Always  # Good practice for dev/debugging, bad for prod
         args:
         - --config-path=/etc/config/config.yaml

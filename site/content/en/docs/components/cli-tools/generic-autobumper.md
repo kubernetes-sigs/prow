@@ -84,7 +84,7 @@ prefixes:
     summarise: false
     consistentImages: true
   - name: "Prow-Test-Images"
-    prefix: "gcr.io/k8s-testimages/"
+    prefix: "gcr.io/k8s-staging-test-infra/"
     repo: "https://github.com/kubernetes/test-infra"
     summarise: false
     consistentImages: false
