@@ -917,6 +917,7 @@ func Sidecar(config *prowapi.DecorationConfig, gcsOptions gcsupload.Options, blo
 		censoringOptions.CensoringBufferSize = config.CensoringOptions.CensoringBufferSize
 		censoringOptions.IncludeDirectories = config.CensoringOptions.IncludeDirectories
 		censoringOptions.ExcludeDirectories = config.CensoringOptions.ExcludeDirectories
+		censoringOptions.MinimumSecretLength = config.CensoringOptions.MinimumSecretLength
 	}
 	sidecarConfigEnv, err := sidecar.Encode(sidecar.Options{
 		GcsOptions:       &gcsOptions,
