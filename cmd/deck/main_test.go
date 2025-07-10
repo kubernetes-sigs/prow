@@ -979,6 +979,9 @@ func verifyCfgHasRemoteForLens(lensName string) func(*config.Config, error) erro
 			if lens.RemoteConfig.HideTitle == nil {
 				return errors.New("expected HideTitle to be set")
 			}
+			if lens.RemoteConfig.IframeSandboxPermissions == nil {
+				return errors.New("expected IFrameSandboxPermissions to be set")
+			}
 		}
 
 		if !found {
@@ -988,6 +991,11 @@ func verifyCfgHasRemoteForLens(lensName string) func(*config.Config, error) erro
 		return nil
 	}
 
+}
+
+// TODO norrs: catch https://github.com/kubernetes-sigs/prow/issues/369
+func TestSpyglassConfigNorrsCreatesDefaultIframeSandboxPermissions(t *testing.T) {
+	t.Fatalf("unfinished test")
 }
 
 func TestSpyglassConfigDefaulting(t *testing.T) {

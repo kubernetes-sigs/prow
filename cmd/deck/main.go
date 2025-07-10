@@ -1671,6 +1671,11 @@ func defaultLensRemoteConfig(lfc *config.LensFileConfig) error {
 		lfc.RemoteConfig.HideTitle = &hideTitle
 	}
 
+	if lfc.RemoteConfig.IframeSandboxPermissions == nil {
+		permissions := lens.Config().IframeSandboxPermissions
+		lfc.RemoteConfig.IframeSandboxPermissions = &permissions
+	}
+
 	return nil
 }
 
