@@ -143,6 +143,23 @@ func getLabelsFromGenericMatches(matches [][]string, labelFilter func(string) bo
 	return labels
 }
 
+// getCategoriesFromLabels extracts the categories from `labels` that are also in `needsLabels`.
+// Example:
+//
+//	labels 		:= []string{"triage/unresolved", "area/testing"}
+//	needsLabels := []string{"triage"}
+//	result 		:= []string{"triage"}
+func getCategoriesFromLabels(labels, needsLabels []string) sets.Set[string] {
+	needsLabelsSet := sets.New(needsLabels...)
+	categories := sets.New[string]()
+	for _, label := range labels {
+		if split := strings.Split(label, "/"); len(split) == 2 && needsLabelsSet.Has(split[0]) {
+			categories.Insert(split[0])
+		}
+	}
+	return categories
+}
+
 func handleComment(gc githubClient, log *logrus.Entry, config plugins.Label, e *github.GenericCommentEvent) error {
 	if e.Action != github.GenericCommentActionCreated {
 		return nil
@@ -201,6 +218,8 @@ func handleComment(gc githubClient, log *logrus.Entry, config plugins.Label, e *
 	// Get labels to add and labels to remove from regexp matches
 	labelsToAdd = append(getLabelsFromREMatches(labelMatches), getLabelsFromGenericMatches(customLabelMatches, labelFilter, &nonexistent)...)
 	labelsToRemove = append(getLabelsFromREMatches(removeLabelMatches), getLabelsFromGenericMatches(customRemoveLabelMatches, labelFilter, &nonexistent)...)
+	categoriesToAdd := getCategoriesFromLabels(labelsToAdd, needsLabels)
+	issueLabelsSet := sets.New(issueLabels...)
 
 	for _, needsCategory := range needsLabels {
 		needsLabel := fmt.Sprintf("needs-%s", needsCategory)
@@ -208,6 +227,13 @@ func handleComment(gc githubClient, log *logrus.Entry, config plugins.Label, e *
 			// Repo doesn't have the needs-* label.
 			continue
 		}
+
+		// Remove a category needs-* if any label is defining it. As an example:
+		// the issue has `needs-triage` and the user is commenting `/triage unresolved`
+		if issueLabelsSet.Has(needsLabel) && categoriesToAdd.Has(needsCategory) {
+			labelsToRemove = append(labelsToRemove, needsLabel)
+		}
+
 		removed := labelsWithCategory(labelsToRemove, needsCategory)
 		if removed.Len() == 0 || labelsWithCategory(labelsToAdd, needsCategory).Len() > 0 {
 			// If a category is not being removed, or also being added, don't add needs-* label.
