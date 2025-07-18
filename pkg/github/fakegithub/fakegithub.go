@@ -43,10 +43,12 @@ const (
 
 // FakeClient is like client, but fake.
 type FakeClient struct {
-	Issues                     map[int]*github.Issue
-	IssueID                    int
-	OrgMembers                 map[string][]string
-	Collaborators              []string
+	Issues        map[int]*github.Issue
+	IssueID       int
+	OrgMembers    map[string][]string
+	Collaborators []string
+	// Map of "org/repo" to map of username to permission level
+	CollaboratorPermissions    map[string]map[string]github.RepoPermissionLevel
 	IssueComments              map[int][]github.IssueComment
 	IssueCommentID             int
 	PullRequests               map[int]*github.PullRequest
@@ -176,17 +178,18 @@ func (f *FakeClient) BotUserChecker() (func(candidate string) bool, error) {
 
 func NewFakeClient() *FakeClient {
 	return &FakeClient{
-		Issues:              make(map[int]*github.Issue),
-		OrgMembers:          make(map[string][]string),
-		IssueComments:       make(map[int][]github.IssueComment),
-		PullRequests:        make(map[int]*github.PullRequest),
-		PullRequestChanges:  make(map[int][]github.PullRequestChange),
-		PullRequestComments: make(map[int][]github.ReviewComment),
-		Reviews:             make(map[int][]github.Review),
-		CombinedStatuses:    make(map[string]*github.CombinedStatus),
-		CreatedStatuses:     make(map[string][]github.Status),
-		IssueEvents:         make(map[int][]github.ListedIssueEvent),
-		Commits:             make(map[string]github.RepositoryCommit),
+		Issues:                  make(map[int]*github.Issue),
+		OrgMembers:              make(map[string][]string),
+		CollaboratorPermissions: make(map[string]map[string]github.RepoPermissionLevel),
+		IssueComments:           make(map[int][]github.IssueComment),
+		PullRequests:            make(map[int]*github.PullRequest),
+		PullRequestChanges:      make(map[int][]github.PullRequestChange),
+		PullRequestComments:     make(map[int][]github.ReviewComment),
+		Reviews:                 make(map[int][]github.Review),
+		CombinedStatuses:        make(map[string]*github.CombinedStatus),
+		CreatedStatuses:         make(map[string][]github.Status),
+		IssueEvents:             make(map[int][]github.ListedIssueEvent),
+		Commits:                 make(map[string]github.RepositoryCommit),
 
 		MilestoneMap: make(map[string]int),
 		CommitMap:    make(map[string][]github.RepositoryCommit),
@@ -797,6 +800,136 @@ func (f *FakeClient) ListCollaborators(org, repo string) ([]github.User, error) 
 		result = append(result, github.User{Login: login})
 	}
 	return result, nil
+}
+
+// ListRepoInvitations lists repository invitations (fake implementation).
+func (f *FakeClient) ListRepoInvitations(org, repo string) ([]github.RepoInvitation, error) {
+	f.lock.RLock()
+	defer f.lock.RUnlock()
+
+	// For testing, we can return an empty list or implement more sophisticated fake behavior if needed
+	return []github.RepoInvitation{}, nil
+}
+
+// AddCollaborator adds a user as a collaborator.
+func (f *FakeClient) AddCollaborator(org, repo, user string, permission github.RepoPermissionLevel) error {
+	f.lock.Lock()
+	defer f.lock.Unlock()
+
+	repoKey := fmt.Sprintf("%s/%s", org, repo)
+	if f.CollaboratorPermissions[repoKey] == nil {
+		f.CollaboratorPermissions[repoKey] = make(map[string]github.RepoPermissionLevel)
+	}
+
+	f.CollaboratorPermissions[repoKey][user] = permission
+
+	// Also add to legacy list for backward compatibility if not already present
+	normed := github.NormLogin(user)
+	found := false
+	for _, collab := range f.Collaborators {
+		if github.NormLogin(collab) == normed {
+			found = true
+			break
+		}
+	}
+	if !found {
+		f.Collaborators = append(f.Collaborators, user)
+	}
+
+	return nil
+}
+
+// RemoveCollaborator removes a user as a collaborator.
+func (f *FakeClient) RemoveCollaborator(org, repo, user string) error {
+	f.lock.Lock()
+	defer f.lock.Unlock()
+
+	repoKey := fmt.Sprintf("%s/%s", org, repo)
+	if f.CollaboratorPermissions[repoKey] != nil {
+		delete(f.CollaboratorPermissions[repoKey], user)
+	}
+
+	// Also remove from legacy list for backward compatibility
+	normed := github.NormLogin(user)
+	for i, collab := range f.Collaborators {
+		if github.NormLogin(collab) == normed {
+			// Remove the collaborator
+			f.Collaborators = append(f.Collaborators[:i], f.Collaborators[i+1:]...)
+			break
+		}
+	}
+
+	return nil
+}
+
+// UpdateCollaboratorPermission updates a collaborator's permission (in fake client, this is the same as AddCollaborator).
+func (f *FakeClient) UpdateCollaboratorPermission(org, repo, user string, permission github.RepoPermissionLevel) error {
+	return f.AddCollaborator(org, repo, user, permission)
+}
+
+// ListDirectCollaboratorsWithPermissions returns direct collaborators with permissions.
+// In the fake client, this returns the same as the regular collaborators since we simulate direct access.
+func (f *FakeClient) ListDirectCollaboratorsWithPermissions(org, repo string) (map[string]github.RepoPermissionLevel, error) {
+	f.lock.RLock()
+	defer f.lock.RUnlock()
+
+	repoKey := fmt.Sprintf("%s/%s", org, repo)
+	if perms, exists := f.CollaboratorPermissions[repoKey]; exists {
+		// Return a copy to avoid external modification
+		result := make(map[string]github.RepoPermissionLevel)
+		for user, perm := range perms {
+			result[user] = perm
+		}
+		return result, nil
+	}
+	return make(map[string]github.RepoPermissionLevel), nil
+}
+
+// UpdateCollaborator updates an existing repository invitation or collaborator permission.
+func (f *FakeClient) UpdateCollaborator(org, repo, user string, permission github.RepoPermissionLevel) error {
+	// For the fake client, this is the same as AddCollaborator
+	return f.AddCollaborator(org, repo, user, permission)
+}
+
+// UpdateRepoInvitation updates a pending repository invitation using the invitation ID.
+func (f *FakeClient) UpdateRepoInvitation(org, repo string, invitationID int, permission github.RepoPermissionLevel) error {
+	// For testing, simulate updating an invitation
+	return f.AddCollaborator(org, repo, fmt.Sprintf("invitation-%d", invitationID), permission)
+}
+
+// DeleteRepoInvitation deletes a pending repository invitation using the invitation ID.
+func (f *FakeClient) DeleteRepoInvitation(org, repo string, invitationID int) error {
+	f.lock.Lock()
+	defer f.lock.Unlock()
+
+	repoKey := fmt.Sprintf("%s/%s", org, repo)
+	if f.CollaboratorPermissions[repoKey] != nil {
+		delete(f.CollaboratorPermissions[repoKey], fmt.Sprintf("invitation-%d", invitationID))
+	}
+	return nil
+}
+
+// GetUserPermission returns the user's permission level for a repo
+func (f *FakeClient) GetUserPermission(org, repo, user string) (string, error) {
+	f.lock.RLock()
+	defer f.lock.RUnlock()
+
+	repoKey := fmt.Sprintf("%s/%s", org, repo)
+	if perms, exists := f.CollaboratorPermissions[repoKey]; exists {
+		if permission, hasPermission := perms[user]; hasPermission {
+			return string(permission), nil
+		}
+	}
+
+	// If not found in new permission system, check if they're in the legacy collaborators list
+	normed := github.NormLogin(user)
+	for _, collab := range f.Collaborators {
+		if github.NormLogin(collab) == normed {
+			return "write", nil // Default permission for legacy collaborators
+		}
+	}
+
+	return "", fmt.Errorf("user %s is not a collaborator of %s/%s", user, org, repo)
 }
 
 // ClearMilestone removes the milestone

@@ -185,11 +185,19 @@ type RepositoryClient interface {
 	GetDirectory(org, repo, dirpath, commit string) ([]DirectoryContent, error)
 	IsCollaborator(org, repo, user string) (bool, error)
 	ListCollaborators(org, repo string) ([]User, error)
+	ListDirectCollaboratorsWithPermissions(org, repo string) (map[string]RepoPermissionLevel, error)
+	AddCollaborator(org, repo, user string, permission RepoPermissionLevel) error
+	UpdateCollaborator(org, repo, user string, permission RepoPermissionLevel) error
+	UpdateRepoInvitation(org, repo string, invitationID int, permission RepoPermissionLevel) error
+	DeleteRepoInvitation(org, repo string, invitationID int) error
+	RemoveCollaborator(org, repo, user string) error
+	UpdateCollaboratorPermission(org, repo, user string, permission RepoPermissionLevel) error
 	CreateFork(owner, repo string) (string, error)
 	EnsureFork(forkingUser, org, repo string) (string, error)
 	ListRepoTeams(org, repo string) ([]Team, error)
 	CreateRepo(owner string, isUser bool, repo RepoCreateRequest) (*FullRepo, error)
 	UpdateRepo(owner, name string, repo RepoUpdateRequest) (*FullRepo, error)
+	ListRepoInvitations(org, repo string) ([]RepoInvitation, error)
 }
 
 // TeamClient interface for team related API actions
@@ -4062,6 +4070,211 @@ func (c *client) ListCollaborators(org, repo string) ([]User, error) {
 	return users, nil
 }
 
+// directCollaboratorsQuery defines the GraphQL query structure for fetching direct repository collaborators
+type directCollaboratorsQuery struct {
+	Repository struct {
+		Collaborators struct {
+			Edges []struct {
+				Permission githubql.String
+				Node       struct {
+					Login githubql.String
+				}
+			}
+			PageInfo struct {
+				HasNextPage githubql.Boolean
+				EndCursor   githubql.String
+			}
+		} `graphql:"collaborators(affiliation: DIRECT, first: $first, after: $after)"`
+	} `graphql:"repository(owner: $owner, name: $name)"`
+}
+
+// mapGraphQLPermissionToRepoLevel maps GraphQL permission strings to RepoPermissionLevel
+func mapGraphQLPermissionToRepoLevel(graphqlPerm string) RepoPermissionLevel {
+	switch graphqlPerm {
+	case "ADMIN":
+		return Admin
+	case "MAINTAIN":
+		return Maintain
+	case "WRITE":
+		return Write
+	case "TRIAGE":
+		return Triage
+	case "READ":
+		return Read
+	default:
+		return Read // Default fallback
+	}
+}
+
+// ListDirectCollaboratorsWithPermissions gets direct repository collaborators with their permissions using GraphQL.
+// This only returns users who were explicitly added as collaborators, not those with inherited org/team access.
+//
+// See GraphQL schema: repository.collaborators(affiliation: DIRECT)
+func (c *client) ListDirectCollaboratorsWithPermissions(org, repo string) (map[string]RepoPermissionLevel, error) {
+	durationLogger := c.log("ListDirectCollaboratorsWithPermissions", org, repo)
+	defer durationLogger()
+
+	if c.fake {
+		return nil, nil
+	}
+
+	result := make(map[string]RepoPermissionLevel)
+	vars := map[string]interface{}{
+		"owner": githubql.String(org),
+		"name":  githubql.String(repo),
+		"first": githubql.Int(100), // GitHub's max per page
+		"after": (*githubql.String)(nil),
+	}
+
+	for {
+		var query directCollaboratorsQuery
+		if err := c.QueryWithGitHubAppsSupport(context.Background(), &query, vars, org); err != nil {
+			return nil, fmt.Errorf("GraphQL query failed: %w", err)
+		}
+
+		// Process this page of results
+		for _, edge := range query.Repository.Collaborators.Edges {
+			login := string(edge.Node.Login)
+			permission := mapGraphQLPermissionToRepoLevel(string(edge.Permission))
+			result[login] = permission
+		}
+
+		// Check if there are more pages
+		if !bool(query.Repository.Collaborators.PageInfo.HasNextPage) {
+			break
+		}
+		vars["after"] = githubql.String(query.Repository.Collaborators.PageInfo.EndCursor)
+	}
+
+	return result, nil
+}
+
+// AddCollaborator adds a user as a collaborator to a repository with the specified permission level.
+//
+// See https://docs.github.com/en/rest/collaborators/collaborators#add-a-repository-collaborator
+func (c *client) AddCollaborator(org, repo, user string, permission RepoPermissionLevel) error {
+	c.log("AddCollaborator", org, repo, user, permission)
+
+	if c.dry {
+		return nil
+	}
+
+	requestBody := struct {
+		Permission string `json:"permission"`
+	}{
+		Permission: string(permission),
+	}
+
+	_, err := c.request(&request{
+		method:      http.MethodPut,
+		path:        fmt.Sprintf("/repos/%s/%s/collaborators/%s", org, repo, user),
+		org:         org,
+		requestBody: &requestBody,
+		exitCodes:   []int{201, 204},
+	}, nil)
+	return err
+}
+
+// UpdateCollaborator updates an existing repository invitation or collaborator permission.
+// This specifically handles updating pending invitations using the PATCH endpoint.
+//
+// See https://docs.github.com/en/rest/collaborators/invitations#update-a-repository-invitation
+func (c *client) UpdateCollaborator(org, repo, user string, permission RepoPermissionLevel) error {
+	c.log("UpdateCollaborator", org, repo, user, permission)
+
+	if c.dry {
+		return nil
+	}
+
+	requestBody := struct {
+		Permission string `json:"permission"`
+	}{
+		Permission: string(permission),
+	}
+
+	_, err := c.request(&request{
+		method:      http.MethodPatch,
+		path:        fmt.Sprintf("/repos/%s/%s/collaborators/%s", org, repo, user),
+		org:         org,
+		requestBody: &requestBody,
+		exitCodes:   []int{200, 204},
+	}, nil)
+	return err
+}
+
+// UpdateRepoInvitation updates a pending repository invitation using the invitation ID.
+// This is the correct method for updating pending invitations.
+//
+// See https://docs.github.com/en/rest/collaborators/invitations#update-a-repository-invitation
+func (c *client) UpdateRepoInvitation(org, repo string, invitationID int, permission RepoPermissionLevel) error {
+	c.log("UpdateRepoInvitation", org, repo, invitationID, permission)
+
+	if c.dry {
+		return nil
+	}
+
+	requestBody := struct {
+		Permission string `json:"permissions"`
+	}{
+		Permission: string(permission),
+	}
+
+	_, err := c.request(&request{
+		method:      http.MethodPatch,
+		path:        fmt.Sprintf("/repos/%s/%s/invitations/%d", org, repo, invitationID),
+		org:         org,
+		requestBody: &requestBody,
+		exitCodes:   []int{200, 204},
+	}, nil)
+	return err
+}
+
+// DeleteRepoInvitation deletes a pending repository invitation using the invitation ID.
+//
+// See https://docs.github.com/en/rest/collaborators/invitations#delete-a-repository-invitation
+func (c *client) DeleteRepoInvitation(org, repo string, invitationID int) error {
+	c.log("DeleteRepoInvitation", org, repo, invitationID)
+
+	if c.dry {
+		return nil
+	}
+
+	_, err := c.request(&request{
+		method:    http.MethodDelete,
+		path:      fmt.Sprintf("/repos/%s/%s/invitations/%d", org, repo, invitationID),
+		org:       org,
+		exitCodes: []int{204},
+	}, nil)
+	return err
+}
+
+// RemoveCollaborator removes a user as a collaborator from a repository.
+//
+// See https://docs.github.com/en/rest/collaborators/collaborators#remove-a-repository-collaborator
+func (c *client) RemoveCollaborator(org, repo, user string) error {
+	c.log("RemoveCollaborator", org, repo, user)
+
+	if c.dry {
+		return nil
+	}
+
+	_, err := c.request(&request{
+		method:    http.MethodDelete,
+		path:      fmt.Sprintf("/repos/%s/%s/collaborators/%s", org, repo, user),
+		org:       org,
+		exitCodes: []int{204},
+	}, nil)
+	return err
+}
+
+// UpdateCollaboratorPermission updates a collaborator's permission level for a repository.
+// This is essentially the same as AddCollaborator since the GitHub API uses PUT for both adding and updating.
+//
+// See https://docs.github.com/en/rest/collaborators/collaborators#add-a-repository-collaborator
+func (c *client) UpdateCollaboratorPermission(org, repo, user string, permission RepoPermissionLevel) error {
+	return c.AddCollaborator(org, repo, user, permission)
+}
+
 // CreateFork creates a fork for the authenticated user. Forking a repository
 // happens asynchronously. Therefore, we may have to wait a short period before
 // accessing the git objects. If this takes longer than 5 minutes, GitHub
@@ -4888,4 +5101,34 @@ func (c *client) CreatePullRequestReviewComment(org, repo string, number int, rc
 		exitCodes:   []int{201},
 	}, nil)
 	return err
+}
+
+// ListRepoInvitations returns a list of invitations for the repository.
+//
+// See https://docs.github.com/en/rest/reference/repos#list-repository-invitations
+func (c *client) ListRepoInvitations(org, repo string) ([]RepoInvitation, error) {
+	durationLogger := c.log("ListRepoInvitations", org, repo)
+	defer durationLogger()
+
+	if c.fake {
+		return nil, nil
+	}
+
+	path := fmt.Sprintf("/repos/%s/%s/invitations", org, repo)
+	var ret []RepoInvitation
+	err := c.readPaginatedResults(
+		path,
+		"application/vnd.github.v3+json",
+		org,
+		func() interface{} {
+			return &[]RepoInvitation{}
+		},
+		func(obj interface{}) {
+			ret = append(ret, *(obj.(*[]RepoInvitation))...)
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	return ret, nil
 }
