@@ -2177,6 +2177,18 @@ func (c fakeDumpClient) BotUser() (*github.UserData, error) {
 	return &github.UserData{Login: "admin"}, nil
 }
 
+func (c fakeDumpClient) ListCollaborators(org, repo string) ([]github.User, error) {
+	return []github.User{}, nil
+}
+
+func (c fakeDumpClient) GetUserPermission(org, repo, user string) (string, error) {
+	return "read", nil
+}
+
+func (c fakeDumpClient) ListRepoInvitations(org, repo string) ([]github.RepoInvitation, error) {
+	return []github.RepoInvitation{}, nil
+}
+
 func fixup(ret *org.Config) {
 	if ret == nil {
 		return
@@ -3139,4 +3151,263 @@ func TestNewRepoUpdateRequest(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestConfigureCollaborators(t *testing.T) {
+	testCases := []struct {
+		name                   string
+		repo                   org.Repo
+		existingCollaborators  map[string]github.RepoPermissionLevel
+		existingMembers        []string
+		failListCollaborators  bool
+		failGetUserPermission  bool
+		failIsMember           bool
+		failAddCollaborator    bool
+		failRemoveCollaborator bool
+		expectedCollaborators  map[string]github.RepoPermissionLevel
+		expectedErr            bool
+	}{
+		{
+			name: "no collaborators configured",
+			repo: org.Repo{},
+			existingCollaborators: map[string]github.RepoPermissionLevel{
+				"external-user": github.Read,
+			},
+			existingMembers:       []string{},
+			expectedCollaborators: map[string]github.RepoPermissionLevel{},
+		},
+		{
+			name: "add new external collaborator",
+			repo: org.Repo{
+				Collaborators: map[string]github.RepoPermissionLevel{
+					"new-user": github.Write,
+				},
+			},
+			existingCollaborators: map[string]github.RepoPermissionLevel{},
+			existingMembers:       []string{},
+			expectedCollaborators: map[string]github.RepoPermissionLevel{
+				"new-user": github.Write,
+			},
+		},
+		{
+			name: "update existing collaborator permission",
+			repo: org.Repo{
+				Collaborators: map[string]github.RepoPermissionLevel{
+					"existing-user": github.Admin,
+				},
+			},
+			existingCollaborators: map[string]github.RepoPermissionLevel{
+				"existing-user": github.Read,
+			},
+			existingMembers: []string{},
+			expectedCollaborators: map[string]github.RepoPermissionLevel{
+				"existing-user": github.Admin,
+			},
+		},
+		{
+			name: "remove external collaborator not in config",
+			repo: org.Repo{
+				Collaborators: map[string]github.RepoPermissionLevel{
+					"keep-user": github.Write,
+				},
+			},
+			existingCollaborators: map[string]github.RepoPermissionLevel{
+				"keep-user":   github.Write,
+				"remove-user": github.Read,
+			},
+			existingMembers: []string{},
+			expectedCollaborators: map[string]github.RepoPermissionLevel{
+				"keep-user": github.Write,
+			},
+		},
+		{
+			name: "preserve org member not in collaborators config",
+			repo: org.Repo{
+				Collaborators: map[string]github.RepoPermissionLevel{
+					"external-user": github.Write,
+				},
+			},
+			existingCollaborators: map[string]github.RepoPermissionLevel{
+				"external-user": github.Write,
+				"org-member":    github.Read,
+			},
+			existingMembers: []string{"org-member"},
+			expectedCollaborators: map[string]github.RepoPermissionLevel{
+				"external-user": github.Write,
+				"org-member":    github.Read, // Should be preserved
+			},
+		},
+		{
+			name: "org member in collaborators config gets updated",
+			repo: org.Repo{
+				Collaborators: map[string]github.RepoPermissionLevel{
+					"org-member": github.Admin,
+				},
+			},
+			existingCollaborators: map[string]github.RepoPermissionLevel{
+				"org-member": github.Read,
+			},
+			existingMembers: []string{"org-member"},
+			expectedCollaborators: map[string]github.RepoPermissionLevel{
+				"org-member": github.Admin,
+			},
+		},
+		{
+			name: "permission already correct - no change",
+			repo: org.Repo{
+				Collaborators: map[string]github.RepoPermissionLevel{
+					"user1": github.Write,
+					"user2": github.Read,
+				},
+			},
+			existingCollaborators: map[string]github.RepoPermissionLevel{
+				"user1": github.Write,
+				"user2": github.Read,
+			},
+			existingMembers: []string{},
+			expectedCollaborators: map[string]github.RepoPermissionLevel{
+				"user1": github.Write,
+				"user2": github.Read,
+			},
+		},
+		{
+			name: "ListCollaborators failure propagates",
+			repo: org.Repo{
+				Collaborators: map[string]github.RepoPermissionLevel{
+					"user": github.Write,
+				},
+			},
+			failListCollaborators: true,
+			expectedErr:           true,
+		},
+		{
+			name: "AddCollaborator failure propagates",
+			repo: org.Repo{
+				Collaborators: map[string]github.RepoPermissionLevel{
+					"user": github.Write,
+				},
+			},
+			existingCollaborators: map[string]github.RepoPermissionLevel{},
+			existingMembers:       []string{},
+			failAddCollaborator:   true,
+			expectedErr:           true,
+		},
+		{
+			name: "RemoveCollaborator failure propagates",
+			repo: org.Repo{
+				Collaborators: map[string]github.RepoPermissionLevel{},
+			},
+			existingCollaborators: map[string]github.RepoPermissionLevel{
+				"external-user": github.Read,
+			},
+			existingMembers:        []string{},
+			failRemoveCollaborator: true,
+			expectedErr:            true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			client := &fakeCollaboratorClient{
+				collaborators:          make(map[string]github.RepoPermissionLevel),
+				members:                sets.New(tc.existingMembers...),
+				failListCollaborators:  tc.failListCollaborators,
+				failGetUserPermission:  tc.failGetUserPermission,
+				failIsMember:           tc.failIsMember,
+				failAddCollaborator:    tc.failAddCollaborator,
+				failRemoveCollaborator: tc.failRemoveCollaborator,
+			}
+
+			// Set up existing collaborators
+			for user, permission := range tc.existingCollaborators {
+				client.collaborators[user] = permission
+			}
+
+			err := configureCollaborators(client, "test-org", "test-repo", tc.repo)
+
+			if tc.expectedErr && err == nil {
+				t.Errorf("Expected error but got none")
+			}
+			if !tc.expectedErr && err != nil {
+				t.Errorf("Unexpected error: %v", err)
+			}
+			if !tc.expectedErr {
+				if diff := cmp.Diff(client.collaborators, tc.expectedCollaborators); diff != "" {
+					t.Errorf("Collaborators mismatch (-want +got):\n%s", diff)
+				}
+			}
+		})
+	}
+}
+
+type fakeCollaboratorClient struct {
+	collaborators          map[string]github.RepoPermissionLevel
+	members                sets.Set[string]
+	failListCollaborators  bool
+	failGetUserPermission  bool
+	failIsMember           bool
+	failAddCollaborator    bool
+	failRemoveCollaborator bool
+}
+
+func (f *fakeCollaboratorClient) ListCollaborators(org, repo string) ([]github.User, error) {
+	if f.failListCollaborators {
+		return nil, fmt.Errorf("ListCollaborators failed")
+	}
+
+	var users []github.User
+	for username := range f.collaborators {
+		users = append(users, github.User{Login: username})
+	}
+	return users, nil
+}
+
+func (f *fakeCollaboratorClient) GetUserPermission(org, repo, user string) (string, error) {
+	if f.failGetUserPermission {
+		return "", fmt.Errorf("GetUserPermission failed")
+	}
+
+	if permission, exists := f.collaborators[user]; exists {
+		return string(permission), nil
+	}
+	return "", fmt.Errorf("user not found")
+}
+
+func (f *fakeCollaboratorClient) IsMember(org, user string) (bool, error) {
+	if f.failIsMember {
+		return false, fmt.Errorf("IsMember failed")
+	}
+
+	return f.members.Has(user), nil
+}
+
+func (f *fakeCollaboratorClient) AddCollaborator(org, repo, user string, permission github.RepoPermissionLevel) error {
+	if f.failAddCollaborator {
+		return fmt.Errorf("AddCollaborator failed")
+	}
+
+	f.collaborators[user] = permission
+	return nil
+}
+
+func (f *fakeCollaboratorClient) RemoveCollaborator(org, repo, user string) error {
+	if f.failRemoveCollaborator {
+		return fmt.Errorf("RemoveCollaborator failed")
+	}
+
+	delete(f.collaborators, user)
+	return nil
+}
+
+func (f *fakeCollaboratorClient) ListOrgMembers(org, role string) ([]github.TeamMember, error) {
+	var members []github.TeamMember
+	for member := range f.members {
+		members = append(members, github.TeamMember{Login: member})
+	}
+	return members, nil
+}
+
+func (f *fakeCollaboratorClient) ListRepoInvitations(org, repo string) ([]github.RepoInvitation, error) {
+	// For testing, return empty list
+	return []github.RepoInvitation{}, nil
 }
