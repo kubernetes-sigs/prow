@@ -1179,11 +1179,12 @@ func TestGetPusher(t *testing.T) {
 	}
 
 	testCases := []struct {
-		name     string
-		org      string
-		repo     string
-		expected pusher
-		errors   bool
+		name        string
+		org         string
+		repo        string
+		expected    pusher
+		expectedOrg string
+		errors      bool
 	}{
 		{
 			name: "Repo name does not change after ensured",
@@ -1192,7 +1193,8 @@ func TestGetPusher(t *testing.T) {
 			expected: &forkPusher{
 				forkName: "repo",
 			},
-			errors: false,
+			expectedOrg: "repo",
+			errors:      false,
 		},
 		{
 			name: "EnsureFork changes repo name",
@@ -1201,7 +1203,8 @@ func TestGetPusher(t *testing.T) {
 			expected: &forkPusher{
 				forkName: "changed",
 			},
-			errors: false,
+			expectedOrg: "changed",
+			errors:      false,
 		},
 		{
 			name:   "EnsureFork errors",
@@ -1210,16 +1213,17 @@ func TestGetPusher(t *testing.T) {
 			errors: true,
 		},
 		{
-			name:     "forking is forbidden",
-			org:      "whatever",
-			repo:     "forbidden",
-			expected: &centralPusher{},
-			errors:   false,
+			name:        "forking is forbidden",
+			org:         "whatever",
+			repo:        "forbidden",
+			expected:    &centralPusher{},
+			expectedOrg: "whatever",
+			errors:      false,
 		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			res, err := s.getPusher(l, tc.org, tc.repo)
+			res, pushOrg, err := s.getPusherAndOrg(l, tc.org, tc.repo)
 			if tc.errors && err == nil {
 				t.Errorf("expected error, but did not get one")
 			}
@@ -1227,6 +1231,7 @@ func TestGetPusher(t *testing.T) {
 				t.Errorf("expected no error, but got one")
 			}
 			assert.Equal(t, tc.expected, res)
+			assert.Equal(t, tc.org, pushOrg)
 		})
 	}
 }

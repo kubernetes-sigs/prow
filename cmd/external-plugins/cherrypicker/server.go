@@ -476,7 +476,7 @@ func (s *Server) handle(logger logrus.FieldLogger, requester string, comment *gi
 	lock.Lock()
 	defer lock.Unlock()
 
-	p, err := s.getPusher(logger, org, repo)
+	p, pushOrg, err := s.getPusherAndOrg(logger, org, repo)
 	if err != nil {
 		logger.WithError(err).Warn("failed get pusher")
 		resp := fmt.Sprintf("cannot decide how to push into %s/%s: %v", org, repo, err)
@@ -584,7 +584,12 @@ func (s *Server) handle(logger logrus.FieldLogger, requester string, comment *gi
 	} else {
 		cherryPickBody = cherrypicker.CreateCherrypickBody(num, "", releaseNoteFromParentPR(body), chainBranches)
 	}
-	head := fmt.Sprintf("%s:%s", s.botUser.Login, newBranch)
+
+	head := fmt.Sprintf("%s:%s", pushOrg, newBranch)
+	if pushOrg == org {
+		head = newBranch
+	}
+
 	createdNum, err := s.ghc.CreatePullRequest(org, repo, title, cherryPickBody, head, targetBranch, true)
 	if err != nil {
 		logger.WithError(err).Warn("failed to create new pull request")
@@ -660,22 +665,22 @@ func (s *Server) createIssue(l logrus.FieldLogger, org, repo, title, body string
 	return s.createComment(l, org, repo, num, comment, fmt.Sprintf("new issue created for failed cherrypick: #%d", issueNum))
 }
 
-func (s *Server) getPusher(l logrus.FieldLogger, org, repo string) (pusher, error) {
+func (s *Server) getPusherAndOrg(l logrus.FieldLogger, org, repo string) (pusher, string, error) {
 	// fork repo if it doesn't exist
 	forkName, err := s.ghc.EnsureFork(s.botUser.Login, org, repo)
 	if err != nil && !github.IsForbidden(err) {
-		return nil, fmt.Errorf("failed to ensure fork exists: %w", err)
+		return nil, "", fmt.Errorf("failed to ensure fork exists: %w", err)
 	}
 
 	// private repos cannot be forked because by default it's denied on org level.
 	// Push into the same org/repo as used for the cherry pick if it's forbidden
 	if github.IsForbidden(err) {
-		l.Warnf("forking repo %s/%s is forbidden, pushing cherrypick branch into the same repo")
-		return &centralPusher{}, nil
+		l.Warnf("forking repo %s/%s is forbidden, pushing cherrypick branch into the same repo", org, repo)
+		return &centralPusher{}, org, nil
 	}
 	return &forkPusher{
 		forkName: forkName,
-	}, nil
+	}, forkName, nil
 }
 
 // getPatch gets the patch for the provided PR and creates a local
