@@ -870,6 +870,26 @@ func IsNotFound(err error) bool {
 	return false
 }
 
+// NewForbidden returns a Forbidden error which may be useful for tests
+func NewForbidden() error {
+	return requestError{
+		StatusCode: http.StatusForbidden,
+	}
+}
+
+func IsForbidden(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	var requestErr requestError
+	if !errors.As(err, &requestErr) {
+		return false
+	}
+
+	return requestErr.StatusCode == http.StatusForbidden
+}
+
 // Make a request with retries. If ret is not nil, unmarshal the response body
 // into it. Returns an error if the exit code is not one of the provided codes.
 func (c *client) request(r *request, ret interface{}) (int, error) {
