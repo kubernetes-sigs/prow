@@ -276,6 +276,22 @@ func handle(ghc githubClient, gc git.ClientFactory, roc repoownersClient, log *l
 		return err
 	}
 
+	// Check if OWNERS_ALIASES has empty aliases, then add a warning comment
+	// suggesting users to not have empty aliases.
+	if len(repoAliases) > 0 {
+		numberOfEmptyAliases := 0
+		for _, owners := range repoAliases {
+			if len(owners) == 0 {
+				numberOfEmptyAliases++
+			}
+		}
+		if numberOfEmptyAliases > 0 {
+			if err := ghc.CreateComment(org, repo, number, "There are empty aliases in OWNER_ALIASES, cleanup is advised."); err != nil {
+				return err
+			}
+		}
+	}
+
 	// Check if OWNERS files have the correct config and if they do,
 	// check if all newly added owners are trusted users.
 	oc, err := roc.LoadRepoOwners(org, repo, pr.Base.Ref)
