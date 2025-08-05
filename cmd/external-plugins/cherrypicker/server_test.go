@@ -1186,28 +1186,28 @@ func TestGetPusher(t *testing.T) {
 		errors   bool
 	}{
 		{
-			name:     "Repo name does not change after ensured",
-			org:      "whatever",
-			repo:     "repo",
+			name: "Repo name does not change after ensured",
+			org:  "whatever",
+			repo: "repo",
 			expected: &forkPusher{
 				forkName: "repo",
 			},
-			errors:   false,
+			errors: false,
 		},
 		{
-			name:     "EnsureFork changes repo name",
-			org:      "whatever",
-			repo:     "changeme",
+			name: "EnsureFork changes repo name",
+			org:  "whatever",
+			repo: "changeme",
 			expected: &forkPusher{
 				forkName: "changed",
 			},
-			errors:   false,
+			errors: false,
 		},
 		{
-			name:     "EnsureFork errors",
-			org:      "whatever",
-			repo:     "error",
-			errors:   true,
+			name:   "EnsureFork errors",
+			org:    "whatever",
+			repo:   "error",
+			errors: true,
 		},
 		{
 			name:     "forking is forbidden",

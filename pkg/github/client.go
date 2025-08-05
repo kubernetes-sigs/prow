@@ -870,24 +870,25 @@ func IsNotFound(err error) bool {
 	return false
 }
 
-// NewForbidden returns a Forbidden error which may be useful for tests
+// NewForbidden returns a forbiddenError which may be useful for tests
 func NewForbidden() error {
-	return requestError{
-		StatusCode: http.StatusForbidden,
-	}
+	return forbiddenError{}
+}
+
+type forbiddenError struct {
+	body []byte
+}
+
+func (e forbiddenError) Error() string {
+	return fmt.Sprintf("the GitHub API request returns a 403 error: %s", e.body)
 }
 
 func IsForbidden(err error) bool {
 	if err == nil {
 		return false
 	}
-
-	var requestErr requestError
-	if !errors.As(err, &requestErr) {
-		return false
-	}
-
-	return requestErr.StatusCode == http.StatusForbidden
+	var forbiddenErr forbiddenError
+	return errors.As(err, &forbiddenErr)
 }
 
 // Make a request with retries. If ret is not nil, unmarshal the response body
@@ -1036,7 +1037,7 @@ func (c *client) requestRetryWithContext(ctx context.Context, method, path, acce
 						err = fmt.Errorf("the account is using %s oauth scopes, please make sure you are using at least one of the following oauth scopes: %s", authorizedScopes, acceptedScopes)
 					} else {
 						body, _ := io.ReadAll(resp.Body)
-						err = fmt.Errorf("the GitHub API request returns a 403 error: %s", string(body))
+						err = forbiddenError{body: body}
 					}
 					resp.Body.Close()
 					break
