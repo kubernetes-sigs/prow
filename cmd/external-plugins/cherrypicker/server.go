@@ -680,7 +680,7 @@ func (s *Server) getPusherAndOrg(l logrus.FieldLogger, org, repo string) (pusher
 	}
 	return &forkPusher{
 		forkName: forkName,
-	}, forkName, nil
+	}, s.botUser.Login, nil
 }
 
 // getPatch gets the patch for the provided PR and creates a local

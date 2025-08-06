@@ -1167,7 +1167,7 @@ func TestHandleLocks(t *testing.T) {
 	}
 }
 
-func TestGetPusher(t *testing.T) {
+func TestGetPusherAndOrg(t *testing.T) {
 	botUser := &github.UserData{Login: "ci-robot", Email: "ci-robot@users.noreply.github.com"}
 
 	l := logrus.WithField("test", t.Name())
@@ -1193,7 +1193,7 @@ func TestGetPusher(t *testing.T) {
 			expected: &forkPusher{
 				forkName: "repo",
 			},
-			expectedOrg: "repo",
+			expectedOrg: "ci-robot",
 			errors:      false,
 		},
 		{
@@ -1203,7 +1203,7 @@ func TestGetPusher(t *testing.T) {
 			expected: &forkPusher{
 				forkName: "changed",
 			},
-			expectedOrg: "changed",
+			expectedOrg: "ci-robot",
 			errors:      false,
 		},
 		{
@@ -1231,7 +1231,7 @@ func TestGetPusher(t *testing.T) {
 				t.Errorf("expected no error, but got one")
 			}
 			assert.Equal(t, tc.expected, res)
-			assert.Equal(t, tc.org, pushOrg)
+			assert.Equal(t, tc.expectedOrg, pushOrg)
 		})
 	}
 }
