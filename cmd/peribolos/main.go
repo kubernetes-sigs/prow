@@ -57,6 +57,7 @@ type options struct {
 	fixTeams          bool
 	fixTeamRepos      bool
 	fixRepos          bool
+	fixCollaborators  bool
 	ignoreInvitees    bool
 	ignoreSecretTeams bool
 	allowRepoArchival bool
@@ -92,6 +93,7 @@ func (o *options) parseArgs(flags *flag.FlagSet, args []string) error {
 	flags.BoolVar(&o.fixTeamMembers, "fix-team-members", false, "Add/remove team members if set")
 	flags.BoolVar(&o.fixTeamRepos, "fix-team-repos", false, "Add/remove team permissions on repos if set")
 	flags.BoolVar(&o.fixRepos, "fix-repos", false, "Create/update repositories if set")
+	flags.BoolVar(&o.fixCollaborators, "fix-collaborators", false, "Add/remove/update repository collaborators if set")
 	flags.BoolVar(&o.allowRepoArchival, "allow-repo-archival", false, "If set, archiving repos is allowed while updating repos")
 	flags.BoolVar(&o.allowRepoPublish, "allow-repo-publish", false, "If set, making private repos public is allowed while updating repos")
 	flags.StringVar(&o.logLevel, "log-level", logrus.InfoLevel.String(), fmt.Sprintf("Logging level, one of %v", logrus.AllLevels))
@@ -206,6 +208,8 @@ type dumpClient interface {
 	ListTeamReposBySlug(org, teamSlug string) ([]github.Repo, error)
 	GetRepo(owner, name string) (github.FullRepo, error)
 	GetRepos(org string, isUser bool) ([]github.Repo, error)
+	ListCollaborators(org, repo string) ([]github.User, error)
+	GetUserPermission(org, repo, user string) (string, error)
 	BotUser() (*github.UserData, error)
 }
 
@@ -357,7 +361,27 @@ func dumpOrgConfig(client dumpClient, orgName string, ignoreSecretTeams bool, ap
 			return nil, fmt.Errorf("failed to get repo: %w", err)
 		}
 		logrus.WithField("repo", full.FullName).Debug("Recording repo.")
-		out.Repos[full.Name] = org.PruneRepoDefaults(org.Repo{
+
+		// Get collaborators for this repository
+		var collaborators map[string]github.RepoPermissionLevel
+		collaboratorList, err := client.ListCollaborators(orgName, repo.Name)
+		if err != nil {
+			logrus.WithError(err).Warnf("Failed to list collaborators for %s/%s", orgName, repo.Name)
+		} else {
+			if len(collaboratorList) > 0 {
+				collaborators = make(map[string]github.RepoPermissionLevel)
+				for _, collaborator := range collaboratorList {
+					permission, err := client.GetUserPermission(orgName, repo.Name, collaborator.Login)
+					if err != nil {
+						logrus.WithError(err).Warnf("Failed to get permission for %s on %s/%s", collaborator.Login, orgName, repo.Name)
+						continue
+					}
+					collaborators[collaborator.Login] = github.RepoPermissionLevel(permission)
+				}
+			}
+		}
+
+		repoConfig := org.PruneRepoDefaults(org.Repo{
 			Description:      &full.Description,
 			HomePage:         &full.Homepage,
 			Private:          &full.Private,
@@ -369,7 +393,9 @@ func dumpOrgConfig(client dumpClient, orgName string, ignoreSecretTeams bool, ap
 			AllowRebaseMerge: &full.AllowRebaseMerge,
 			Archived:         &full.Archived,
 			DefaultBranch:    &full.DefaultBranch,
+			Collaborators:    collaborators,
 		})
+		out.Repos[full.Name] = repoConfig
 	}
 
 	return &out, nil
@@ -830,6 +856,17 @@ func configureOrg(opt options, client github.Client, orgName string, orgConfig o
 		return fmt.Errorf("failed to configure %s repos: %w", orgName, err)
 	}
 
+	// Configure repository collaborators
+	if !opt.fixCollaborators {
+		logrus.Info("Skipping repository collaborators configuration")
+	} else {
+		for repoName, repo := range orgConfig.Repos {
+			if err := configureCollaborators(client, orgName, repoName, repo); err != nil {
+				return fmt.Errorf("failed to configure %s/%s collaborators: %w", orgName, repoName, err)
+			}
+		}
+	}
+
 	if !opt.fixTeams {
 		logrus.Infof("Skipping team and team member configuration")
 		return nil
@@ -1060,6 +1097,142 @@ func configureRepos(opt options, client repoClient, orgName string, orgConfig or
 	return utilerrors.NewAggregate(allErrors)
 }
 
+type collaboratorClient interface {
+	ListCollaborators(org, repo string) ([]github.User, error)
+	AddCollaborator(org, repo, user string, permission github.RepoPermissionLevel) error
+	RemoveCollaborator(org, repo, user string) error
+	GetUserPermission(org, repo, user string) (string, error)
+	IsMember(org, user string) (bool, error)
+	ListOrgMembers(org, role string) ([]github.TeamMember, error)
+	ListRepoInvitations(org, repo string) ([]github.RepoInvitation, error)
+}
+
+// configureCollaborators updates the list of repository collaborators when necessary
+// This function treats the collaborators configuration as the source of truth for repository collaborators.
+// It will add/update/remove collaborators to match the config, managing both external collaborators and
+// org members who have direct repository permissions.
+func configureCollaborators(client collaboratorClient, orgName, repoName string, repo org.Repo) error {
+	want := repo.Collaborators
+	if want == nil {
+		want = map[string]github.RepoPermissionLevel{}
+	}
+
+	// Get all org members once for efficient membership checking
+	orgMembers := sets.Set[string]{}
+	if admins, err := client.ListOrgMembers(orgName, github.RoleAdmin); err != nil {
+		logrus.WithError(err).Warnf("Failed to list org admins for membership check")
+	} else {
+		for _, admin := range admins {
+			orgMembers.Insert(github.NormLogin(admin.Login))
+		}
+	}
+	if members, err := client.ListOrgMembers(orgName, github.RoleMember); err != nil {
+		logrus.WithError(err).Warnf("Failed to list org members for membership check")
+	} else {
+		for _, member := range members {
+			orgMembers.Insert(github.NormLogin(member.Login))
+		}
+	}
+
+	// Get pending repository invitations
+	invitees, err := repoInvitations(client, orgName, repoName)
+	if err != nil {
+		logrus.WithError(err).Warnf("Failed to list pending invitations for %s/%s", orgName, repoName)
+		invitees = sets.Set[string]{} // Continue with empty set if we can't get invitations
+	}
+
+	// Get current repository collaborators
+	allCollaborators, err := client.ListCollaborators(orgName, repoName)
+	if err != nil {
+		return fmt.Errorf("failed to list %s/%s collaborators: %w", orgName, repoName, err)
+	}
+
+	// Build map of current collaborators and their permissions
+	currentCollaborators := map[string]github.RepoPermissionLevel{}
+	for _, collaborator := range allCollaborators {
+		// Get their current permission level
+		permission, permErr := client.GetUserPermission(orgName, repoName, collaborator.Login)
+		if permErr != nil {
+			logrus.WithError(permErr).Warnf("Failed to get permission for collaborator %s, skipping", collaborator.Login)
+			continue
+		}
+		currentCollaborators[collaborator.Login] = github.RepoPermissionLevel(permission)
+		logrus.Debugf("Found collaborator %s with %s permission", collaborator.Login, permission)
+	}
+
+	// Determine what actions to take
+	actions := map[string]github.RepoPermissionLevel{}
+
+	// Add or update permissions for users in our config
+	for wantUser, wantPermission := range want {
+		if currentPermission, exists := currentCollaborators[wantUser]; exists && currentPermission == wantPermission {
+			// Permission is already correct
+			continue
+		}
+
+		// Check if this user already has a pending invitation
+		if invitees.Has(github.NormLogin(wantUser)) {
+			logrus.Infof("Skipping %s - already has pending invitation to %s/%s", wantUser, orgName, repoName)
+			continue
+		}
+
+		// Need to create or update this permission
+		actions[wantUser] = wantPermission
+		action := "add"
+		if _, exists := currentCollaborators[wantUser]; exists {
+			action = "update"
+		}
+		logrus.Infof("Will %s collaborator %s with %s permission", action, wantUser, wantPermission)
+	}
+
+	// Remove collaborators not in our config
+	// Only remove users who are not org members, to avoid removing legitimate org member access
+	for currentUser := range currentCollaborators {
+		if _, inConfig := want[currentUser]; !inConfig {
+			// Check if this user is an org member (using cached membership data)
+			if orgMembers.Has(github.NormLogin(currentUser)) {
+				logrus.Debugf("Skipping removal of org member %s (not managed by collaborators config)", currentUser)
+			} else {
+				// This is an external collaborator not in our config - remove them
+				actions[currentUser] = github.None
+				logrus.Infof("Will remove external collaborator %s (not in config)", currentUser)
+			}
+		}
+	}
+
+	// Execute the actions
+	var updateErrors []error
+	for user, permission := range actions {
+		var err error
+		switch permission {
+		case github.None:
+			err = client.RemoveCollaborator(orgName, repoName, user)
+			if err != nil {
+				logrus.WithError(err).Warnf("Failed to remove collaborator %s", user)
+			} else {
+				logrus.Infof("Removed collaborator %s from %s/%s", user, orgName, repoName)
+			}
+		case github.Admin, github.Maintain, github.Triage, github.Write, github.Read:
+			// Use AddCollaborator which handles both adding and updating via PUT
+			err = client.AddCollaborator(orgName, repoName, user, permission)
+			if err != nil {
+				logrus.WithError(err).Warnf("Failed to set %s permission for collaborator %s", permission, user)
+			} else {
+				logrus.Infof("Set %s as %s collaborator on %s/%s", user, permission, orgName, repoName)
+			}
+		default:
+			updateErrors = append(updateErrors, fmt.Errorf("invalid permission level %s for user %s", permission, user))
+			continue
+		}
+
+		if err != nil {
+			updateErrors = append(updateErrors, fmt.Errorf("failed to update %s/%s collaborator %s to %s: %w", orgName, repoName, user, permission, err))
+		}
+	}
+
+	return utilerrors.NewAggregate(updateErrors)
+}
+
 func configureTeamAndMembers(opt options, client github.Client, githubTeams map[string]github.Team, name, orgName string, team org.Team, parent *int) error {
 	gt, ok := githubTeams[name]
 	if !ok { // configureTeams is buggy if this is the case
@@ -1236,6 +1409,21 @@ func teamInvitations(client teamMembersClient, orgName, teamSlug string) (sets.S
 			continue
 		}
 		invitees.Insert(github.NormLogin(i.Login))
+	}
+	return invitees, nil
+}
+
+func repoInvitations(client collaboratorClient, orgName, repoName string) (sets.Set[string], error) {
+	invitees := sets.Set[string]{}
+	is, err := client.ListRepoInvitations(orgName, repoName)
+	if err != nil {
+		return nil, err
+	}
+	for _, i := range is {
+		if i.Invitee == nil || i.Invitee.Login == "" {
+			continue
+		}
+		invitees.Insert(github.NormLogin(i.Invitee.Login))
 	}
 	return invitees, nil
 }

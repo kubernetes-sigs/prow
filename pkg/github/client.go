@@ -186,11 +186,15 @@ type RepositoryClient interface {
 	GetDirectory(org, repo, dirpath, commit string) ([]DirectoryContent, error)
 	IsCollaborator(org, repo, user string) (bool, error)
 	ListCollaborators(org, repo string) ([]User, error)
+	AddCollaborator(org, repo, user string, permission RepoPermissionLevel) error
+	RemoveCollaborator(org, repo, user string) error
+	UpdateCollaboratorPermission(org, repo, user string, permission RepoPermissionLevel) error
 	CreateFork(owner, repo string) (string, error)
 	EnsureFork(forkingUser, org, repo string) (string, error)
 	ListRepoTeams(org, repo string) ([]Team, error)
 	CreateRepo(owner string, isUser bool, repo RepoCreateRequest) (*FullRepo, error)
 	UpdateRepo(owner, name string, repo RepoUpdateRequest) (*FullRepo, error)
+	ListRepoInvitations(org, repo string) ([]RepoInvitation, error)
 }
 
 // TeamClient interface for team related API actions
@@ -4073,6 +4077,55 @@ func (c *client) ListCollaborators(org, repo string) ([]User, error) {
 	return users, nil
 }
 
+// AddCollaborator adds a user as a collaborator to a repository with the specified permission level.
+//
+// See https://docs.github.com/en/rest/collaborators/collaborators#add-a-repository-collaborator
+func (c *client) AddCollaborator(org, repo, user string, permission RepoPermissionLevel) error {
+	c.log("AddCollaborator", org, repo, user, permission)
+
+	if c.dry {
+		return nil
+	}
+
+	requestBody := struct {
+		Permission string `json:"permission"`
+	}{
+		Permission: string(permission),
+	}
+
+	_, err := c.request(&request{
+		method:      http.MethodPut,
+		path:        fmt.Sprintf("/repos/%s/%s/collaborators/%s", org, repo, user),
+		org:         org,
+		requestBody: &requestBody,
+		exitCodes:   []int{201, 204},
+	}, nil)
+	return err
+}
+
+// RemoveCollaborator removes a user as a collaborator from a repository.
+//
+// See https://docs.github.com/en/rest/collaborators/collaborators#remove-a-repository-collaborator
+func (c *client) RemoveCollaborator(org, repo, user string) error {
+	c.log("RemoveCollaborator", org, repo, user)
+
+	_, err := c.request(&request{
+		method:    http.MethodDelete,
+		path:      fmt.Sprintf("/repos/%s/%s/collaborators/%s", org, repo, user),
+		org:       org,
+		exitCodes: []int{204},
+	}, nil)
+	return err
+}
+
+// UpdateCollaboratorPermission updates a collaborator's permission level for a repository.
+// This is essentially the same as AddCollaborator since the GitHub API uses PUT for both adding and updating.
+//
+// See https://docs.github.com/en/rest/collaborators/collaborators#add-a-repository-collaborator
+func (c *client) UpdateCollaboratorPermission(org, repo, user string, permission RepoPermissionLevel) error {
+	return c.AddCollaborator(org, repo, user, permission)
+}
+
 // CreateFork creates a fork for the authenticated user. Forking a repository
 // happens asynchronously. Therefore, we may have to wait a short period before
 // accessing the git objects. If this takes longer than 5 minutes, GitHub
@@ -4899,4 +4952,34 @@ func (c *client) CreatePullRequestReviewComment(org, repo string, number int, rc
 		exitCodes:   []int{201},
 	}, nil)
 	return err
+}
+
+// ListRepoInvitations returns a list of invitations for the repository.
+//
+// See https://docs.github.com/en/rest/reference/repos#list-repository-invitations
+func (c *client) ListRepoInvitations(org, repo string) ([]RepoInvitation, error) {
+	durationLogger := c.log("ListRepoInvitations", org, repo)
+	defer durationLogger()
+
+	if c.fake {
+		return nil, nil
+	}
+
+	path := fmt.Sprintf("/repos/%s/%s/invitations", org, repo)
+	var ret []RepoInvitation
+	err := c.readPaginatedResults(
+		path,
+		"application/vnd.github.v3+json",
+		org,
+		func() interface{} {
+			return &[]RepoInvitation{}
+		},
+		func(obj interface{}) {
+			ret = append(ret, *(obj.(*[]RepoInvitation))...)
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	return ret, nil
 }
