@@ -136,6 +136,7 @@ type testResourceGetter struct {
 	cluster   string
 	pod       *v1.Pod
 	events    []v1.Event
+	node      *v1.Node
 	patchData string
 	patchType types.PatchType
 	patchErr  error
@@ -155,6 +156,19 @@ func (rg testResourceGetter) GetPod(_ context.Context, cluster, namespace, name 
 		return nil, fmt.Errorf("expected name %q, but got name %q", rg.pod.ObjectMeta.Name, name)
 	}
 	return rg.pod, nil
+}
+
+func (rg testResourceGetter) GetNode(_ context.Context, cluster, name string) (*v1.Node, error) {
+	if rg.cluster != cluster {
+		return nil, fmt.Errorf("expected cluster %q but got cluster %q", rg.cluster, cluster)
+	}
+	if rg.node == nil {
+		return nil, errors.New("no such node")
+	}
+	if rg.node.ObjectMeta.Name != name {
+		return nil, fmt.Errorf("expected name %q, but got name %q", rg.node.ObjectMeta.Name, name)
+	}
+	return rg.node, nil
 }
 
 func (rg testResourceGetter) GetEvents(cluster, namespace string, pod *v1.Pod) ([]v1.Event, error) {
@@ -200,6 +214,7 @@ func TestReportPodInfo(t *testing.T) {
 		pod                     *v1.Pod
 		patchErr                error
 		events                  []v1.Event
+		node                    *v1.Node
 		dryRun                  bool
 		expectReport            bool
 		expectErr               bool
@@ -216,11 +231,19 @@ func TestReportPodInfo(t *testing.T) {
 					Namespace: "test-pods",
 					Labels:    map[string]string{"created-by-prow": "true"},
 				},
+				Spec: v1.PodSpec{
+					NodeName: "test-node",
+				},
 			},
 			events: []v1.Event{
 				{
 					Type:    "Warning",
 					Message: "Some event",
+				},
+			},
+			node: &v1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-node",
 				},
 			},
 			expectReport: true,
@@ -399,6 +422,7 @@ func TestReportPodInfo(t *testing.T) {
 				cluster:   "the-build-cluster",
 				pod:       tc.pod,
 				events:    tc.events,
+				node:      tc.node,
 				patchErr:  tc.patchErr,
 				patchData: tc.expectedPatch,
 				patchType: types.MergePatchType,
@@ -448,6 +472,9 @@ func TestReportPodInfo(t *testing.T) {
 			}
 			if !cmp.Equal(result.Events, tc.events) {
 				t.Errorf("Got mismatching events:\n%s", cmp.Diff(tc.events, result.Events))
+			}
+			if !cmp.Equal(result.Node, tc.node) {
+				t.Errorf("Got mismatching node:\n%s", cmp.Diff(tc.node, result.Node))
 			}
 		})
 	}
