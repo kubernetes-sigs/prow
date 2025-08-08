@@ -200,6 +200,76 @@ func defaultTempDir() *string {
 // ClientFactoryOpts allows to manipulate the options for a ClientFactory
 type ClientFactoryOpt func(*ClientFactoryOpts)
 
+// WithHost sets the Host option.
+func WithHost(host string) ClientFactoryOpt {
+	return func(o *ClientFactoryOpts) {
+		o.Host = host
+	}
+}
+
+// WithInsecureHTTP sets the UseInsecureHTTP option.
+func WithInsecureHTTP(useHTTP bool) ClientFactoryOpt {
+	return func(o *ClientFactoryOpts) {
+		o.UseInsecureHTTP = &useHTTP
+	}
+}
+
+// WithSSH sets the UseSSH option.
+func WithSSH(useSSH bool) ClientFactoryOpt {
+	return func(o *ClientFactoryOpts) {
+		o.UseSSH = &useSSH
+	}
+}
+
+// WithCacheDirBase sets the CacheDirBase option.
+func WithCacheDirBase(dir string) ClientFactoryOpt {
+	return func(o *ClientFactoryOpts) {
+		o.CacheDirBase = &dir
+	}
+}
+
+// WithUsername sets the Username option.
+func WithUsername(getter LoginGetter) ClientFactoryOpt {
+	return func(o *ClientFactoryOpts) {
+		o.Username = getter
+	}
+}
+
+// WithToken sets the Token option.
+func WithToken(getter TokenGetter) ClientFactoryOpt {
+	return func(o *ClientFactoryOpts) {
+		o.Token = getter
+	}
+}
+
+// WithGitUser sets the GitUser option.
+func WithGitUser(getter GitUserGetter) ClientFactoryOpt {
+	return func(o *ClientFactoryOpts) {
+		o.GitUser = getter
+	}
+}
+
+// WithCensor sets the Censor option.
+func WithCensor(censor Censor) ClientFactoryOpt {
+	return func(o *ClientFactoryOpts) {
+		o.Censor = censor
+	}
+}
+
+// WithCookieFile sets the CookieFilePath option.
+func WithCookieFile(path string) ClientFactoryOpt {
+	return func(o *ClientFactoryOpts) {
+		o.CookieFilePath = path
+	}
+}
+
+// WithPersist sets the Persist option.
+func WithPersist(persist bool) ClientFactoryOpt {
+	return func(o *ClientFactoryOpts) {
+		o.Persist = &persist
+	}
+}
+
 func defaultClientFactoryOpts(cfo *ClientFactoryOpts) {
 	if cfo.Host == "" {
 		cfo.Host = "github.com"
