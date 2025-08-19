@@ -57,10 +57,12 @@ type gcsK8sReporter struct {
 type PodReport struct {
 	Pod    *v1.Pod    `json:"pod,omitempty"`
 	Events []v1.Event `json:"events,omitempty"`
+	Node   *v1.Node   `json:"node,omitempty"`
 }
 
 type resourceGetter interface {
 	GetPod(ctx context.Context, cluster, namespace, name string) (*v1.Pod, error)
+	GetNode(ctx context.Context, cluster, name string) (*v1.Node, error)
 	GetEvents(cluster, namespace string, pod *v1.Pod) ([]v1.Event, error)
 	PatchPod(ctx context.Context, cluster, namespace, name string, pt types.PatchType, data []byte) error
 }
@@ -78,6 +80,13 @@ func (rg k8sResourceGetter) GetPod(ctx context.Context, cluster, namespace, name
 		return nil, fmt.Errorf("couldn't find cluster %q", cluster)
 	}
 	return rg.podClientSets[cluster].Pods(namespace).Get(ctx, name, metav1.GetOptions{})
+}
+
+func (rg k8sResourceGetter) GetNode(ctx context.Context, cluster, name string) (*v1.Node, error) {
+	if _, ok := rg.podClientSets[cluster]; !ok {
+		return nil, fmt.Errorf("couldn't find cluster %q", cluster)
+	}
+	return rg.podClientSets[cluster].Nodes().Get(ctx, name, metav1.GetOptions{})
 }
 
 func (rg k8sResourceGetter) PatchPod(ctx context.Context, cluster, namespace, name string, pt types.PatchType, data []byte) error {
@@ -183,10 +192,17 @@ func (gr *gcsK8sReporter) reportPodInfo(ctx context.Context, log *logrus.Entry, 
 	}
 
 	var events []v1.Event
+	var node *v1.Node
 	if pod != nil {
 		events, err = gr.rg.GetEvents(pj.Spec.Cluster, gr.cfg().PodNamespace, pod)
 		if err != nil {
 			log.WithError(err).Info("Couldn't fetch events for pod")
+		}
+
+		node, err = gr.rg.GetNode(ctx, pj.Spec.Cluster, pod.Spec.NodeName)
+		if err != nil {
+			log.WithError(err).Info("Couldn't fetch node of the pod")
+			node = nil
 		}
 	}
 
@@ -198,6 +214,7 @@ func (gr *gcsK8sReporter) reportPodInfo(ctx context.Context, log *logrus.Entry, 
 	report := PodReport{
 		Pod:    pod,
 		Events: events,
+		Node:   node,
 	}
 
 	output, err := json.MarshalIndent(report, "", "\t")
