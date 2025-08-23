@@ -427,7 +427,34 @@ func (l Label) RestrictedLabelsFor(org, repo string) map[string]RestrictedLabel 
 	result := map[string]RestrictedLabel{}
 	for _, orgRepoKey := range []string{"*", org, org + "/" + repo} {
 		for _, restrictedLabel := range l.RestrictedLabels[orgRepoKey] {
-			result[strings.ToLower(restrictedLabel.Label)] = restrictedLabel
+			labelKey := strings.ToLower(restrictedLabel.Label)
+			existing, exists := result[labelKey]
+			if !exists {
+				result[labelKey] = restrictedLabel
+			} else {
+				merged := existing
+				// Merge allowed users
+				allUsers := sets.New(existing.AllowedUsers...)
+				allUsers.Insert(restrictedLabel.AllowedUsers...)
+				merged.AllowedUsers = sets.List(allUsers)
+				// Merge allowed teams
+				allTeams := sets.New(existing.AllowedTeams...)
+				allTeams.Insert(restrictedLabel.AllowedTeams...)
+				merged.AllowedTeams = sets.List(allTeams)
+				// Merge assign_on
+				assignOnMap := make(map[string]AssignOnLabel)
+				for _, ao := range existing.AssignOn {
+					assignOnMap[ao.Label] = ao
+				}
+				for _, ao := range restrictedLabel.AssignOn {
+					assignOnMap[ao.Label] = ao
+				}
+				merged.AssignOn = make([]AssignOnLabel, 0, len(assignOnMap))
+				for _, ao := range assignOnMap {
+					merged.AssignOn = append(merged.AssignOn, ao)
+				}
+				result[labelKey] = merged
+			}
 		}
 	}
 

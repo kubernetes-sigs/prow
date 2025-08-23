@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	fuzz "github.com/google/gofuzz"
 
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
@@ -2411,6 +2412,177 @@ func TestValidatePluginsDupes(t *testing.T) {
 			if err != nil {
 				if diff := cmp.Diff(tc.expectedErrMsg, err.Error()); diff != "" {
 					t.Fatalf("expected error differs from result: %s", diff)
+				}
+			}
+		})
+	}
+}
+
+func TestRestrictedLabelsFor(t *testing.T) {
+	tests := []struct {
+		name     string
+		config   Label
+		org      string
+		repo     string
+		expected map[string]RestrictedLabel
+	}{
+		{
+			name: "simple case - no overrides",
+			config: Label{
+				RestrictedLabels: map[string][]RestrictedLabel{
+					"*": {
+						{
+							Label:        "global-label",
+							AllowedTeams: []string{"team1"},
+							AllowedUsers: []string{"user1"},
+						},
+					},
+				},
+			},
+			org:  "testorg",
+			repo: "testrepo",
+			expected: map[string]RestrictedLabel{
+				"global-label": {
+					Label:        "global-label",
+					AllowedTeams: []string{"team1"},
+					AllowedUsers: []string{"user1"},
+				},
+			},
+		},
+		{
+			name: "org-level override merges with global",
+			config: Label{
+				RestrictedLabels: map[string][]RestrictedLabel{
+					"*": {
+						{
+							Label:        "backport-risk-assessed",
+							AllowedTeams: []string{"global-team1", "global-team2"},
+							AllowedUsers: []string{"global-user1"},
+						},
+					},
+					"testorg": {
+						{
+							Label:        "backport-risk-assessed",
+							AllowedTeams: []string{"org-team1"},
+							AllowedUsers: []string{"org-user1", "org-user2"},
+						},
+					},
+				},
+			},
+			org:  "testorg",
+			repo: "testrepo",
+			expected: map[string]RestrictedLabel{
+				"backport-risk-assessed": {
+					Label:        "backport-risk-assessed",
+					AllowedTeams: []string{"global-team1", "global-team2", "org-team1"},
+					AllowedUsers: []string{"global-user1", "org-user1", "org-user2"},
+				},
+			},
+		},
+		{
+			name: "org config with only users preserves global teams",
+			config: Label{
+				RestrictedLabels: map[string][]RestrictedLabel{
+					"*": {
+						{
+							Label:        "backport-risk-assessed",
+							AllowedTeams: []string{"openshift-patch-managers", "openshift-staff-engineers"},
+						},
+					},
+					"openshift": {
+						{
+							Label:        "backport-risk-assessed",
+							AllowedUsers: []string{"user1", "user2"}, // No teams specified - the bug was here
+						},
+					},
+				},
+			},
+			org:  "openshift",
+			repo: "api",
+			expected: map[string]RestrictedLabel{
+				"backport-risk-assessed": {
+					Label:        "backport-risk-assessed",
+					AllowedTeams: []string{"openshift-patch-managers", "openshift-staff-engineers"}, // Should preserve global teams
+					AllowedUsers: []string{"user1", "user2"},
+				},
+			},
+		},
+		{
+			name: "deduplication works correctly",
+			config: Label{
+				RestrictedLabels: map[string][]RestrictedLabel{
+					"*": {
+						{
+							Label:        "test-label",
+							AllowedTeams: []string{"team1", "team2"},
+							AllowedUsers: []string{"user1", "user2"},
+							AssignOn:     []AssignOnLabel{{Label: "trigger1"}},
+						},
+					},
+					"testorg": {
+						{
+							Label:        "test-label",
+							AllowedTeams: []string{"team2", "team3"},           // team2 is duplicate
+							AllowedUsers: []string{"user2", "user3"},           // user2 is duplicate
+							AssignOn:     []AssignOnLabel{{Label: "trigger1"}}, // trigger1 is duplicate
+						},
+					},
+				},
+			},
+			org:  "testorg",
+			repo: "testrepo",
+			expected: map[string]RestrictedLabel{
+				"test-label": {
+					Label:        "test-label",
+					AllowedTeams: []string{"team1", "team2", "team3"},
+					AllowedUsers: []string{"user1", "user2", "user3"},
+					AssignOn:     []AssignOnLabel{{Label: "trigger1"}},
+				},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := tc.config.RestrictedLabelsFor(tc.org, tc.repo)
+
+			if len(result) != len(tc.expected) {
+				t.Errorf("Expected %d labels, got %d", len(tc.expected), len(result))
+			}
+
+			for labelKey, expectedLabel := range tc.expected {
+				actualLabel, found := result[labelKey]
+				if !found {
+					t.Errorf("Expected label %s not found", labelKey)
+					continue
+				}
+
+				if actualLabel.Label != expectedLabel.Label {
+					t.Errorf("Label name mismatch for %s: expected %s, got %s", labelKey, expectedLabel.Label, actualLabel.Label)
+				}
+
+				expectedTeams := sets.List(sets.New(expectedLabel.AllowedTeams...))
+				actualTeams := sets.List(sets.New(actualLabel.AllowedTeams...))
+				if !cmp.Equal(expectedTeams, actualTeams, cmpopts.SortSlices(func(a, b string) bool { return a < b })) {
+					t.Errorf("Teams mismatch for %s:\nexpected: %v\ngot: %v", labelKey, expectedTeams, actualTeams)
+				}
+
+				expectedUsers := sets.List(sets.New(expectedLabel.AllowedUsers...))
+				actualUsers := sets.List(sets.New(actualLabel.AllowedUsers...))
+				if !cmp.Equal(expectedUsers, actualUsers, cmpopts.SortSlices(func(a, b string) bool { return a < b })) {
+					t.Errorf("Users mismatch for %s:\nexpected: %v\ngot: %v", labelKey, expectedUsers, actualUsers)
+				}
+
+				expectedTriggers := sets.New[string]()
+				for _, ao := range expectedLabel.AssignOn {
+					expectedTriggers.Insert(ao.Label)
+				}
+				actualTriggers := sets.New[string]()
+				for _, ao := range actualLabel.AssignOn {
+					actualTriggers.Insert(ao.Label)
+				}
+				if !expectedTriggers.Equal(actualTriggers) {
+					t.Errorf("AssignOn triggers mismatch for %s:\nexpected: %v\ngot: %v", labelKey, sets.List(expectedTriggers), sets.List(actualTriggers))
 				}
 			}
 		})
