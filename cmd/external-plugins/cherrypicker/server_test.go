@@ -25,9 +25,11 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	"sigs.k8s.io/prow/pkg/git/localgit"
+	"sigs.k8s.io/prow/pkg/git/v2"
 	v2 "sigs.k8s.io/prow/pkg/git/v2"
 	"sigs.k8s.io/prow/pkg/github"
 )
@@ -129,6 +131,9 @@ func (f *fghc) EnsureFork(forkingUser, org, repo string) (string, error) {
 	if repo == "error" {
 		return repo, errors.New("errors")
 	}
+	if repo == "forbidden" {
+		return repo, github.NewForbidden()
+	}
 	return repo, nil
 }
 
@@ -219,6 +224,12 @@ func (f *fghc) ListOrgMembers(org, role string) ([]github.TeamMember, error) {
 
 func (f *fghc) CreateFork(org, repo string) (string, error) {
 	return repo, nil
+}
+
+type fakePusher struct{}
+
+func (f fakePusher) Push(r git.RepoClient, newBranch string, force bool) error {
+	return nil
 }
 
 var initialFiles = map[string][]byte{
@@ -340,11 +351,10 @@ func testCherryPickIC(clients localgit.Clients, t *testing.T) {
 	s := &Server{
 		botUser:        botUser,
 		gc:             c,
-		push:           func(forkName, newBranch string, force bool) error { return nil },
+		pusher:         fakePusher{},
 		ghc:            ghc,
 		tokenGenerator: getSecret,
 		log:            logrus.StandardLogger().WithField("client", "cherrypicker"),
-		repos:          []github.Repo{{Fork: true, FullName: "ci-robot/bar"}},
 
 		prowAssignments: true,
 	}
@@ -482,11 +492,10 @@ func testCherryPickPR(clients localgit.Clients, t *testing.T) {
 	s := &Server{
 		botUser:        botUser,
 		gc:             c,
-		push:           func(forkName, newBranch string, force bool) error { return nil },
+		pusher:         fakePusher{},
 		ghc:            ghc,
 		tokenGenerator: getSecret,
 		log:            logrus.StandardLogger().WithField("client", "cherrypicker"),
-		repos:          []github.Repo{{Fork: true, FullName: "ci-robot/bar"}},
 
 		prowAssignments: false,
 	}
@@ -495,7 +504,7 @@ func testCherryPickPR(clients localgit.Clients, t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	var expectedFn = func(branch string) string {
+	expectedFn := func(branch string) string {
 		expectedTitle := fmt.Sprintf("[%s] This is a fix for Y", branch)
 		expectedBody := fmt.Sprintf("This is an automated cherry-pick of #%d", prNumber)
 		if branch == "release-1.3" {
@@ -618,10 +627,9 @@ func testCherryPickPRAfterMerge(clients localgit.Clients, t *testing.T) {
 		gc:             c,
 		ghc:            ghc,
 		botUser:        &github.UserData{Login: "ci-robot", Email: "ci-robot@users.noreply.github.com"},
-		push:           func(forkName, newBranch string, force bool) error { return nil },
+		pusher:         fakePusher{},
 		tokenGenerator: func() []byte { return []byte("sha=abcdefg") },
 		log:            logger.WithField("client", "cherrypicker"),
-		repos:          []github.Repo{{Fork: true, FullName: "ci-robot/" + githubRepo}},
 
 		prowAssignments: false,
 	}
@@ -709,11 +717,10 @@ func testCherryPickOfCherryPickPR(clients localgit.Clients, t *testing.T) {
 	s := &Server{
 		botUser:        botUser,
 		gc:             c,
-		push:           func(forkName, newBranch string, force bool) error { return nil },
+		pusher:         fakePusher{},
 		ghc:            ghc,
 		tokenGenerator: getSecret,
 		log:            logrus.StandardLogger().WithField("client", "cherrypicker"),
-		repos:          []github.Repo{{Fork: true, FullName: "ci-robot/bar"}},
 
 		prowAssignments: false,
 	}
@@ -739,7 +746,7 @@ func testCherryPickOfCherryPickPR(clients localgit.Clients, t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	var expectedFn = func(branch string) string {
+	expectedFn := func(branch string) string {
 		expectedTitle := fmt.Sprintf("[%s] This is a fix for Y", branch)
 		expectedBody := fmt.Sprintf("This is an automated cherry-pick of #%d", prNumber)
 		expectedHead := fmt.Sprintf(botUser.Login+":"+cherryPickBranchFmt, prNumber, branch)
@@ -896,11 +903,10 @@ func testCherryPickPRWithLabels(clients localgit.Clients, t *testing.T) {
 					s := &Server{
 						botUser:        botUser,
 						gc:             c,
-						push:           func(forkName, newBranch string, force bool) error { return nil },
+						pusher:         fakePusher{},
 						ghc:            ghc,
 						tokenGenerator: getSecret,
 						log:            logrus.StandardLogger().WithField("client", "cherrypicker"),
-						repos:          []github.Repo{{Fork: true, FullName: "ci-robot/bar"}},
 
 						labels:          []string{"cla: yes"},
 						prowAssignments: false,
@@ -1104,11 +1110,10 @@ func testCherryPickPRAssignments(clients localgit.Clients, t *testing.T) {
 		s := &Server{
 			botUser:        botUser,
 			gc:             c,
-			push:           func(forkName, newBranch string, force bool) error { return nil },
+			pusher:         fakePusher{},
 			ghc:            ghc,
 			tokenGenerator: getSecret,
 			log:            logrus.StandardLogger().WithField("client", "cherrypicker"),
-			repos:          []github.Repo{{Fork: true, FullName: "ci-robot/bar"}},
 
 			prowAssignments: prowAssignments,
 		}
@@ -1162,61 +1167,73 @@ func TestHandleLocks(t *testing.T) {
 	}
 }
 
-func TestEnsureForkExists(t *testing.T) {
+func TestGetPusherAndOrg(t *testing.T) {
 	botUser := &github.UserData{Login: "ci-robot", Email: "ci-robot@users.noreply.github.com"}
 
+	l := logrus.WithField("test", t.Name())
 	ghc := &fghc{}
 
 	s := &Server{
 		botUser: botUser,
 		ghc:     ghc,
-		repos:   []github.Repo{{Fork: true, FullName: "ci-robot/bar"}},
 	}
 
 	testCases := []struct {
-		name     string
-		org      string
-		repo     string
-		expected string
-		errors   bool
+		name        string
+		org         string
+		repo        string
+		expected    pusher
+		expectedOrg string
+		errors      bool
 	}{
 		{
-			name:     "Repo name does not change after ensured",
-			org:      "whatever",
-			repo:     "repo",
-			expected: "repo",
-			errors:   false,
+			name: "Repo name does not change after ensured",
+			org:  "whatever",
+			repo: "repo",
+			expected: &forkPusher{
+				forkName: "repo",
+			},
+			expectedOrg: "ci-robot",
+			errors:      false,
 		},
 		{
-			name:     "EnsureFork changes repo name",
-			org:      "whatever",
-			repo:     "changeme",
-			expected: "changed",
-			errors:   false,
+			name: "EnsureFork changes repo name",
+			org:  "whatever",
+			repo: "changeme",
+			expected: &forkPusher{
+				forkName: "changed",
+			},
+			expectedOrg: "ci-robot",
+			errors:      false,
 		},
 		{
-			name:     "EnsureFork errors",
-			org:      "whatever",
-			repo:     "error",
-			expected: "error",
-			errors:   true,
+			name:   "EnsureFork errors",
+			org:    "whatever",
+			repo:   "error",
+			errors: true,
+		},
+		{
+			name:        "forking is forbidden",
+			org:         "whatever",
+			repo:        "forbidden",
+			expected:    &centralPusher{},
+			expectedOrg: "whatever",
+			errors:      false,
 		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			res, err := s.ensureForkExists(tc.org, tc.repo)
+			res, pushOrg, err := s.getPusherAndOrg(l, tc.org, tc.repo)
 			if tc.errors && err == nil {
 				t.Errorf("expected error, but did not get one")
 			}
 			if !tc.errors && err != nil {
 				t.Errorf("expected no error, but got one")
 			}
-			if res != tc.expected {
-				t.Errorf("expected %s but got %s", tc.expected, res)
-			}
+			assert.Equal(t, tc.expected, res)
+			assert.Equal(t, tc.expectedOrg, pushOrg)
 		})
 	}
-
 }
 
 type threadUnsafeFGHC struct {

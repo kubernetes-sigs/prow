@@ -121,10 +121,6 @@ func main() {
 	if err != nil {
 		logrus.WithError(err).Fatal("Error getting bot name.")
 	}
-	repos, err := githubClient.GetRepos(botUser.Login, true)
-	if err != nil {
-		log.WithError(err).Fatal("Error listing bot repositories.")
-	}
 
 	server := &Server{
 		tokenGenerator: secret.GetTokenGenerator(o.webhookSecretFile),
@@ -143,8 +139,6 @@ func main() {
 
 		bare:     &http.Client{},
 		patchURL: "https://patch-diff.githubusercontent.com",
-
-		repos: repos,
 	}
 
 	health := pjutil.NewHealthOnPort(o.instrumentationOptions.HealthPort)
