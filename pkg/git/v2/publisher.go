@@ -80,7 +80,7 @@ func (p *publisher) PushToNamedFork(forkName, branch string, force bool) error {
 	}
 	args = append(args, []string{remote, branch}...)
 
-	p.logger.Infof("Pushing branch %q to %q", branch, remote)
+	p.logger.Infof("Pushing branch %q to %q", branch, censorURLCredentials(remote))
 	if out, err := p.executor.Run(args...); err != nil {
 		return fmt.Errorf("error pushing %q: %w %v", branch, err, string(out))
 	}
@@ -105,7 +105,7 @@ func (p *publisher) PushToCentral(branch string, force bool) error {
 	}
 	args = append(args, []string{remote, branch}...)
 
-	p.logger.Infof("Pushing branch %q to %q", branch, remote)
+	p.logger.Infof("Pushing branch %q to %q", branch, censorURLCredentials(remote))
 	if out, err := p.executor.Run(args...); err != nil {
 		return fmt.Errorf("error pushing %q: %w %v", branch, err, string(out))
 	}
