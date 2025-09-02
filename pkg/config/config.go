@@ -85,10 +85,10 @@ const (
 	ProwIgnoreFileName = ".prowignore"
 )
 
-var (
-	DefaultDiffOpts []cmp.Option = []cmp.Option{cmpopts.IgnoreFields(TideBranchMergeType{}, "Regexpr"),
-		cmpopts.IgnoreUnexported(Gerrit{})}
-)
+var DefaultDiffOpts []cmp.Option = []cmp.Option{
+	cmpopts.IgnoreFields(TideBranchMergeType{}, "Regexpr"),
+	cmpopts.IgnoreUnexported(Gerrit{}),
+}
 
 // Config is a read-only snapshot of the config.
 type Config struct {
@@ -413,8 +413,8 @@ func (rg *RefGetterForGitHubPullRequest) BaseSHA() (string, error) {
 // retrieval of a *ProwYAML.
 func GetAndCheckRefs(
 	baseSHAGetter RefGetter,
-	headSHAGetters ...RefGetter) (string, []string, error) {
-
+	headSHAGetters ...RefGetter,
+) (string, []string, error) {
 	// Parse "baseSHAGetter".
 	baseSHA, err := baseSHAGetter()
 	if err != nil {
@@ -2063,6 +2063,7 @@ func setPeriodicProwJobDefaults(c *Config, ps *Periodic) {
 
 	ps.ProwJobDefault = c.mergeProwJobDefault(repo, ps.Cluster, ps.ProwJobDefault)
 }
+
 func setPresubmitDecorationDefaults(c *Config, ps *Presubmit, repo string) {
 	if shouldDecorate(&c.JobConfig, &ps.JobBase.UtilityConfig) {
 		ps.DecorationConfig = c.Plank.mergeDefaultDecorationConfig(repo, ps.Cluster, ps.DecorationConfig)
@@ -2465,7 +2466,6 @@ func (c Config) validatePeriodics(periodics []Periodic) error {
 // ValidateJobConfig validates if all the jobspecs/presets are valid
 // if you are mutating the jobs, please add it to finalizeJobConfig above.
 func (c *Config) ValidateJobConfig() error {
-
 	var errs []error
 
 	// Validate presubmits.
@@ -2740,7 +2740,6 @@ func parseProwConfig(c *Config) error {
 	for name, templates := range c.Tide.MergeTemplate {
 		if templates.TitleTemplate != "" {
 			titleTemplate, err := template.New("CommitTitle").Parse(templates.TitleTemplate)
-
 			if err != nil {
 				return fmt.Errorf("parsing template for commit title: %w", err)
 			}
@@ -2750,7 +2749,6 @@ func parseProwConfig(c *Config) error {
 
 		if templates.BodyTemplate != "" {
 			bodyTemplate, err := template.New("CommitBody").Parse(templates.BodyTemplate)
-
 			if err != nil {
 				return fmt.Errorf("parsing template for commit body: %w", err)
 			}
@@ -3002,8 +3000,15 @@ func validatePodSpec(jobType prowapi.ProwJobType, spec *v1.PodSpec, decorationCo
 
 	var errs []error
 
-	if len(spec.InitContainers) != 0 {
-		errs = append(errs, errors.New("pod spec may not use init containers"))
+	var unspported []string
+	for i := range spec.InitContainers {
+		c := &spec.InitContainers[i]
+		if c.RestartPolicy == nil || *c.RestartPolicy != v1.ContainerRestartPolicyAlways {
+			unspported = append(unspported, c.Name)
+		}
+	}
+	if len(unspported) > 0 {
+		errs = append(errs, fmt.Errorf("pod spec may not use init containers(sidecar container is supported): %v", unspported))
 	}
 
 	if n := len(spec.Containers); n < 1 {
