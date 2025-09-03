@@ -54,6 +54,27 @@ type OrgRepoBranch struct {
 	Org, Repo, Branch string
 }
 
+type OrgError struct {
+	Orgs  sets.Set[string]
+	inner error
+}
+
+func (e *OrgError) Error() string {
+	return e.inner.Error()
+}
+
+func (e *OrgError) Unwrap() error {
+	return e.inner
+}
+
+func (e *OrgError) Is(other error) bool {
+	if other == nil {
+		return false
+	}
+	_, ok := other.(*OrgError)
+	return ok
+}
+
 // Blockers holds maps of issues that are blocking various repos/branches.
 type Blockers struct {
 	Repo   map[OrgRepo][]Blocker       `json:"repo,omitempty"`
@@ -77,7 +98,7 @@ func FindAll(ghc githubClient, log *logrus.Entry, label string, orgRepoTokensByO
 	queries := map[string]sets.Set[string]{}
 	for org, query := range orgRepoTokensByOrg {
 		if splitQueryByOrg {
-			queries[org] = sets.New[string](blockerQuery(label, query)...)
+			queries[org] = sets.New(blockerQuery(label, query)...)
 		} else {
 			if queries[""] == nil {
 				queries[""] = sets.Set[string]{}
@@ -90,6 +111,7 @@ func FindAll(ghc githubClient, log *logrus.Entry, label string, orgRepoTokensByO
 	var errs []error
 	var lock sync.Mutex
 	var wg sync.WaitGroup
+	var orgErrs = sets.New[string]()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
@@ -110,6 +132,7 @@ func FindAll(ghc githubClient, log *logrus.Entry, label string, orgRepoTokensByO
 			defer lock.Unlock()
 			if err != nil {
 				errs = append(errs, err)
+				orgErrs.Insert(org)
 				return
 			}
 			issues = append(issues, result...)
@@ -119,11 +142,16 @@ func FindAll(ghc githubClient, log *logrus.Entry, label string, orgRepoTokensByO
 	}
 	wg.Wait()
 
+	var orgErr error
 	if err := utilerrors.NewAggregate(errs); err != nil {
-		return Blockers{}, fmt.Errorf("error searching for blocker issues: %w", err)
+		if splitQueryByOrg {
+			orgErr = &OrgError{Orgs: orgErrs, inner: fmt.Errorf("error searching for blocker issues: %w", err)}
+		} else {
+			return Blockers{}, fmt.Errorf("error searching for blocker issues: %w", err)
+		}
 	}
 
-	return fromIssues(issues, log), nil
+	return fromIssues(issues, log), orgErr
 }
 
 func fromIssues(issues []Issue, log *logrus.Entry) Blockers {

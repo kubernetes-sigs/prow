@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"sort"
 	"strconv"
@@ -500,7 +501,18 @@ func (c *syncController) Sync() error {
 	var blocks blockers.Blockers
 	if len(prs) > 0 {
 		blocks, err = c.provider.blockers()
-		if err != nil {
+
+		// When the GitHubApp authentication is enabled, the blocker issues query is split by organization.
+		// Each query might fail individually, and if this happens, we continue with the rest of the work
+		// but we remove all PRs that belong to any of the affected organizations. This is why we don't
+		// want to take into account PRs for which we don't have all the necessary information to process them.
+		if orgBlockersErr := (&blockers.OrgError{}); errors.As(err, &orgBlockersErr) {
+			failedBlockerOrgs := orgBlockersErr.Orgs.UnsortedList()
+			c.logger.Warnf("failed getting blockers for organizations %q - won't merge any PR coming from those", strings.Join(failedBlockerOrgs, ","))
+			maps.DeleteFunc(prs, func(_ string, pr CodeReviewCommon) bool {
+				return orgBlockersErr.Orgs.Has(pr.Org)
+			})
+		} else if err != nil {
 			return fmt.Errorf("failed getting blockers: %v", err)
 		}
 	}
