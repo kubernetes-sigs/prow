@@ -18,6 +18,7 @@ package blockers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -435,11 +436,18 @@ func TestBlockers(t *testing.T) {
 }
 
 type fakeGitHubClient struct {
-	lock    sync.Mutex
-	queries map[string][]string
+	lock      sync.Mutex
+	queries   map[string][]string
+	injectErr func(ctx context.Context, q interface{}, vars map[string]interface{}, org string) error
 }
 
 func (fghc *fakeGitHubClient) QueryWithGitHubAppsSupport(ctx context.Context, q interface{}, vars map[string]interface{}, org string) error {
+	if fghc.injectErr != nil {
+		if err := fghc.injectErr(ctx, q, vars, org); err != nil {
+			return err
+		}
+	}
+
 	if query := vars["query"]; query == nil || string(query.(githubql.String)) == "" {
 		return fmt.Errorf("query variable was unset, variables: %+v", vars)
 	}
@@ -461,13 +469,15 @@ func TestBlockersFindAll(t *testing.T) {
 	orgRepoTokensByOrg := map[string]string{
 		"org-a": `org:"org-a" -repo:"org-a/repo-b"`,
 		"org-b": `org:"org-b" -repo:"org-b/repo-b"`,
+		"org-c": `org:"org-c" -repo:"org-c/repo-c"`,
 	}
 	const blockerLabel = "tide/merge-blocker"
 	testCases := []struct {
-		name         string
-		usesAppsAuth bool
-
+		name            string
+		usesAppsAuth    bool
+		injectQueryErr  func(ctx context.Context, q interface{}, vars map[string]interface{}, org string) error
 		expectedQueries map[string][]string
+		expectedErr     error
 	}{
 		{
 			name:         "Apps auth, query is split by org",
@@ -475,23 +485,45 @@ func TestBlockersFindAll(t *testing.T) {
 			expectedQueries: map[string][]string{
 				"org-a": {`-repo:"org-a/repo-b" is:issue label:"tide/merge-blocker" org:"org-a" state:open`},
 				"org-b": {`-repo:"org-b/repo-b" is:issue label:"tide/merge-blocker" org:"org-b" state:open`},
+				"org-c": {`-repo:"org-c/repo-c" is:issue label:"tide/merge-blocker" org:"org-c" state:open`},
 			},
 		},
 		{
 			name:         "No apps auth, one query",
 			usesAppsAuth: false,
 			expectedQueries: map[string][]string{
-				"": {`-repo:"org-a/repo-b" -repo:"org-b/repo-b" is:issue label:"tide/merge-blocker" org:"org-a" org:"org-b" state:open`},
+				"": {`-repo:"org-a/repo-b" -repo:"org-b/repo-b" -repo:"org-c/repo-c" is:issue label:"tide/merge-blocker" org:"org-a" org:"org-b" org:"org-c" state:open`},
 			},
+		},
+		{
+			name:         "One org query fails, the other succeed",
+			usesAppsAuth: true,
+			injectQueryErr: func(ctx context.Context, q interface{}, vars map[string]interface{}, org string) error {
+				if org == "org-c" {
+					return errors.New("fault")
+				}
+				return nil
+			},
+			expectedQueries: map[string][]string{
+				"org-a": {`-repo:"org-a/repo-b" is:issue label:"tide/merge-blocker" org:"org-a" state:open`},
+				"org-b": {`-repo:"org-b/repo-b" is:issue label:"tide/merge-blocker" org:"org-b" state:open`},
+			},
+			expectedErr: &OrgError{},
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			ghc := &fakeGitHubClient{}
+			ghc := &fakeGitHubClient{injectErr: tc.injectQueryErr}
 
 			if _, err := FindAll(ghc, logrus.WithField("tc", tc.name), blockerLabel, orgRepoTokensByOrg, tc.usesAppsAuth); err != nil {
-				t.Fatalf("FindAll: %v", err)
+				if tc.expectedErr != nil {
+					if !errors.Is(err, tc.expectedErr) {
+						t.Errorf("want error %T but got %T", tc.expectedErr, err)
+					}
+				} else {
+					t.Fatalf("FindAll: %v", err)
+				}
 			}
 
 			if diff := cmp.Diff(ghc.queries, tc.expectedQueries, cmpopts.SortSlices(func(a, b string) bool { return a < b })); diff != "" {

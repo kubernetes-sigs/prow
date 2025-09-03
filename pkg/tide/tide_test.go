@@ -696,6 +696,102 @@ func TestAccumulate(t *testing.T) {
 	}
 }
 
+type githubClientFuncs struct {
+	GetRepo                    func(ghc githubClient, o, r string) (github.FullRepo, error)
+	GetRef                     func(ghc githubClient, o, r, ref string) (string, error)
+	QueryWithGitHubAppsSupport func(ghc githubClient, ctx context.Context, q interface{}, vars map[string]interface{}, org string) error
+	Merge                      func(ghc githubClient, org, repo string, number int, details github.MergeDetails) error
+	CreateStatus               func(ghc githubClient, org, repo, ref string, s github.Status) error
+	GetCombinedStatus          func(ghc githubClient, org, repo, ref string) (*github.CombinedStatus, error)
+	ListCheckRuns              func(ghc githubClient, org, repo, ref string) (*github.CheckRunList, error)
+	GetPullRequestChanges      func(ghc githubClient, org, repo string, number int) ([]github.PullRequestChange, error)
+	ListIssueComments          func(ghc githubClient, org, repo string, number int) ([]github.IssueComment, error)
+	BotUserChecker             func(ghc githubClient) (func(candidate string) bool, error)
+	DeleteComment              func(ghc githubClient, org, repo string, id int) error
+}
+
+type ghcInterceptor struct {
+	c            githubClient
+	interceptors githubClientFuncs
+}
+
+func (f *ghcInterceptor) GetRepo(o, r string) (github.FullRepo, error) {
+	if f.interceptors.GetRepo != nil {
+		return f.interceptors.GetRepo(f.c, o, r)
+	}
+	return f.c.GetRepo(o, r)
+}
+
+func (f *ghcInterceptor) GetRef(o, r, ref string) (string, error) {
+	if f.interceptors.GetRef != nil {
+		return f.interceptors.GetRef(f.c, o, r, ref)
+	}
+	return f.c.GetRef(o, r, ref)
+}
+
+func (f *ghcInterceptor) QueryWithGitHubAppsSupport(ctx context.Context, q interface{}, vars map[string]interface{}, org string) error {
+	if f.interceptors.QueryWithGitHubAppsSupport != nil {
+		return f.interceptors.QueryWithGitHubAppsSupport(f.c, ctx, q, vars, org)
+	}
+	return f.c.QueryWithGitHubAppsSupport(ctx, q, vars, org)
+}
+
+func (f *ghcInterceptor) Merge(org, repo string, number int, details github.MergeDetails) error {
+	if f.interceptors.Merge != nil {
+		return f.interceptors.Merge(f.c, org, repo, number, details)
+	}
+	return f.c.Merge(org, repo, number, details)
+}
+
+func (f *ghcInterceptor) CreateStatus(org, repo, ref string, s github.Status) error {
+	if f.interceptors.CreateStatus != nil {
+		return f.interceptors.CreateStatus(f.c, org, repo, ref, s)
+	}
+	return f.c.CreateStatus(org, repo, ref, s)
+}
+
+func (f *ghcInterceptor) GetCombinedStatus(org, repo, ref string) (*github.CombinedStatus, error) {
+	if f.interceptors.GetCombinedStatus != nil {
+		return f.interceptors.GetCombinedStatus(f.c, org, repo, ref)
+	}
+	return f.c.GetCombinedStatus(org, repo, ref)
+}
+
+func (f *ghcInterceptor) ListCheckRuns(org, repo, ref string) (*github.CheckRunList, error) {
+	if f.interceptors.ListCheckRuns != nil {
+		return f.interceptors.ListCheckRuns(f.c, org, repo, ref)
+	}
+	return f.c.ListCheckRuns(org, repo, ref)
+}
+
+func (f *ghcInterceptor) GetPullRequestChanges(org, repo string, number int) ([]github.PullRequestChange, error) {
+	if f.interceptors.GetPullRequestChanges != nil {
+		return f.interceptors.GetPullRequestChanges(f.c, org, repo, number)
+	}
+	return f.c.GetPullRequestChanges(org, repo, number)
+}
+
+func (f *ghcInterceptor) ListIssueComments(org, repo string, number int) ([]github.IssueComment, error) {
+	if f.interceptors.ListIssueComments != nil {
+		return f.interceptors.ListIssueComments(f.c, org, repo, number)
+	}
+	return f.c.ListIssueComments(org, repo, number)
+}
+
+func (f *ghcInterceptor) BotUserChecker() (func(candidate string) bool, error) {
+	if f.interceptors.BotUserChecker != nil {
+		return f.interceptors.BotUserChecker(f.c)
+	}
+	return f.c.BotUserChecker()
+}
+
+func (f *ghcInterceptor) DeleteComment(org, repo string, id int) error {
+	if f.interceptors.DeleteComment != nil {
+		return f.interceptors.DeleteComment(f.c, org, repo, id)
+	}
+	return f.c.DeleteComment(org, repo, id)
+}
+
 type fgc struct {
 	err  error
 	lock sync.Mutex
@@ -2148,6 +2244,13 @@ func testPRWithLabels(org, repo, branch string, number int, mergeable githubql.M
 }
 
 func TestSync(t *testing.T) {
+	isBlockersSearchQueryType := func(iface any) bool {
+		ifaceType := reflect.TypeOf(iface)
+		return ifaceType.Kind().String() == "ptr" &&
+			ifaceType.Elem().PkgPath() == "sigs.k8s.io/prow/pkg/tide/blockers" &&
+			ifaceType.Elem().Name() == "searchQuery"
+	}
+
 	sleep = func(time.Duration) {}
 	defer func() { sleep = time.Sleep }()
 
@@ -2155,21 +2258,25 @@ func TestSync(t *testing.T) {
 	unmergeableA := *testPR("org", "repo", "A", 6, githubql.MergeableStateConflicting)
 	unmergeableB := *testPR("org", "repo", "B", 7, githubql.MergeableStateConflicting)
 	unknownA := *testPR("org", "repo", "A", 8, githubql.MergeableStateUnknown)
+	faultyOrg := *testPR("faulty-org", "repo", "A", 8, githubql.MergeableStateUnknown)
 
 	testcases := []struct {
-		name string
-		prs  []PullRequest
+		name               string
+		prs                map[string][]PullRequest
+		ghcFuncs           githubClientFuncs
+		tideConfig         *config.Tide
+		usesGitHubAppsAuth bool
 
 		expectedPools []Pool
 	}{
 		{
 			name:          "no PRs",
-			prs:           []PullRequest{},
+			prs:           map[string][]PullRequest{},
 			expectedPools: []Pool{},
 		},
 		{
 			name: "1 mergeable PR",
-			prs:  []PullRequest{mergeableA},
+			prs:  map[string][]PullRequest{"": {mergeableA}},
 			expectedPools: []Pool{{
 				Org:        "org",
 				Repo:       "repo",
@@ -2182,12 +2289,12 @@ func TestSync(t *testing.T) {
 		},
 		{
 			name:          "1 unmergeable PR",
-			prs:           []PullRequest{unmergeableA},
+			prs:           map[string][]PullRequest{"": {unmergeableA}},
 			expectedPools: []Pool{},
 		},
 		{
 			name: "1 unknown PR",
-			prs:  []PullRequest{unknownA},
+			prs:  map[string][]PullRequest{"": {unknownA}},
 			expectedPools: []Pool{{
 				Org:        "org",
 				Repo:       "repo",
@@ -2200,7 +2307,7 @@ func TestSync(t *testing.T) {
 		},
 		{
 			name: "1 mergeable, 1 unmergeable (different pools)",
-			prs:  []PullRequest{mergeableA, unmergeableB},
+			prs:  map[string][]PullRequest{"": {mergeableA, unmergeableB}},
 			expectedPools: []Pool{{
 				Org:        "org",
 				Repo:       "repo",
@@ -2213,7 +2320,7 @@ func TestSync(t *testing.T) {
 		},
 		{
 			name: "1 mergeable, 1 unmergeable (same pool)",
-			prs:  []PullRequest{mergeableA, unmergeableA},
+			prs:  map[string][]PullRequest{"": {mergeableA, unmergeableA}},
 			expectedPools: []Pool{{
 				Org:        "org",
 				Repo:       "repo",
@@ -2226,7 +2333,46 @@ func TestSync(t *testing.T) {
 		},
 		{
 			name: "1 mergeable PR (satisfies multiple queries)",
-			prs:  []PullRequest{mergeableA, mergeableA},
+			prs:  map[string][]PullRequest{"": {mergeableA, mergeableA}},
+			expectedPools: []Pool{{
+				Org:        "org",
+				Repo:       "repo",
+				Branch:     "A",
+				SuccessPRs: []CodeReviewCommon{*CodeReviewCommonFromPullRequest(&mergeableA)},
+				Action:     Merge,
+				Target:     []CodeReviewCommon{*CodeReviewCommonFromPullRequest(&mergeableA)},
+				TenantIDs:  []string{},
+			}},
+		},
+		{
+			name: "PR gets removed from the list because blockers query failed",
+			prs: map[string][]PullRequest{
+				string(mergeableA.Repository.Owner.Login): {mergeableA},
+				string(faultyOrg.Repository.Owner.Login):  {faultyOrg},
+			},
+			ghcFuncs: githubClientFuncs{
+				QueryWithGitHubAppsSupport: func(c githubClient, ctx context.Context, q interface{}, vars map[string]interface{}, org string) error {
+					if isBlockersSearchQueryType(q) {
+						if org == string(faultyOrg.Repository.Owner.Login) {
+							return errors.New("gh app is not installed on this organization")
+						}
+						return nil
+					}
+					return c.QueryWithGitHubAppsSupport(ctx, q, vars, org)
+				},
+			},
+			tideConfig: &config.Tide{
+				MaxGoroutines: 4,
+				TideGitHubConfig: config.TideGitHubConfig{
+					Queries: []config.TideQuery{{
+						Orgs:  []string{string(mergeableA.Repository.Owner.Login), string(faultyOrg.Repository.Owner.Login)},
+						Repos: []string{string(mergeableA.Repository.Name), string(faultyOrg.Repository.Name)},
+					}},
+					StatusUpdatePeriod: &metav1.Duration{Duration: time.Second * 0},
+					BlockerLabel:       "merge-blocker",
+				},
+			},
+			usesGitHubAppsAuth: true,
 			expectedPools: []Pool{{
 				Org:        "org",
 				Repo:       "repo",
@@ -2241,39 +2387,45 @@ func TestSync(t *testing.T) {
 
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
-			fgc := &fgc{
-				prs: map[string][]PullRequest{"": tc.prs},
-				refs: map[string]string{
-					"org/repo heads/A": "SHA",
-					"org/repo A":       "SHA",
-					"org/repo heads/B": "SHA",
-					"org/repo B":       "SHA",
-				},
-			}
-			ca := &config.Agent{}
-			ca.Set(&config.Config{
-				ProwConfig: config.ProwConfig{
-					Tide: config.Tide{
-						MaxGoroutines: 4,
-						TideGitHubConfig: config.TideGitHubConfig{
-							Queries:            []config.TideQuery{{}},
-							StatusUpdatePeriod: &metav1.Duration{Duration: time.Second * 0},
-						},
+			ghc := &ghcInterceptor{
+				interceptors: tc.ghcFuncs,
+				c: &fgc{
+					prs: tc.prs,
+					refs: map[string]string{
+						"org/repo heads/A": "SHA",
+						"org/repo A":       "SHA",
+						"org/repo heads/B": "SHA",
+						"org/repo B":       "SHA",
 					},
 				},
-			})
+			}
+
+			tideConfig := config.Tide{
+				MaxGoroutines: 4,
+				TideGitHubConfig: config.TideGitHubConfig{
+					Queries:            []config.TideQuery{{}},
+					StatusUpdatePeriod: &metav1.Duration{Duration: time.Second * 0},
+					BlockerLabel:       "merge-blocker",
+				},
+			}
+			if tc.tideConfig != nil {
+				tideConfig = *tc.tideConfig
+			}
+
+			ca := &config.Agent{}
+			ca.Set(&config.Config{ProwConfig: config.ProwConfig{Tide: tideConfig}})
 			hist, err := history.New(100, nil, "")
 			if err != nil {
 				t.Fatalf("Failed to create history client: %v", err)
 			}
-			mergeChecker := newMergeChecker(ca.Config, fgc)
+			mergeChecker := newMergeChecker(ca.Config, ghc)
 
 			ctx := context.Background()
 			mgr := newFakeManager(t, ctx)
 			sc := &statusController{
 				pjClient: mgr.GetClient(),
 				logger:   logrus.WithField("controller", "status-update"),
-				ghc:      fgc,
+				ghc:      ghc,
 				gc:       nil,
 				config:   ca.Config,
 				shutDown: make(chan bool),
@@ -2285,7 +2437,7 @@ func TestSync(t *testing.T) {
 			go sc.run()
 			defer sc.shutdown()
 			log := logrus.WithField("controller", "sync")
-			ghProvider := newGitHubProvider(log, fgc, nil, ca.Config, mergeChecker, false)
+			ghProvider := newGitHubProvider(log, ghc, nil, ca.Config, mergeChecker, tc.usesGitHubAppsAuth)
 			c := &syncController{
 				config:        ca.Config,
 				provider:      ghProvider,
