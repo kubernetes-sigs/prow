@@ -146,6 +146,12 @@ var ownerAliasesFiles = map[string][]byte{
   not-yet-existing-alias:
   - bob
 `),
+	"invalidOwnersAliases": []byte(`aliases:
+  approvers:
+  - alice
+  - bob
+  -
+`),
 }
 
 func IssueLabelsContain(arr []string, str string) bool {
@@ -450,6 +456,12 @@ func testHandle(clients localgit.Clients, t *testing.T) {
 			filesChangedAfterPR: []string{"OWNERS_ALIASES"},
 			addedContent:        "toBeAddedAlias",
 			shouldLabel:         false,
+		},
+		{
+			name:         "invalid OWNERS_ALIASES",
+			filesChanged: []string{"OWNERS_ALIASES"},
+			ownersFile:   "invalidOwnersAliases",
+			shouldLabel:  true,
 		},
 	}
 	lg, c, err := clients()

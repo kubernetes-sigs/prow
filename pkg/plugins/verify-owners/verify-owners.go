@@ -273,7 +273,17 @@ func handle(ghc githubClient, gc git.ClientFactory, roc repoownersClient, log *l
 	// If the file was modified, check for non trusted users in the newly added owners.
 	nonTrustedUsers, trustedUsers, repoAliases, err := nonTrustedUsersInOwnersAliases(ghc, log, triggerConfig, org, repo, r.Directory(), modifiedOwnerAliasesFile.Patch, ownerAliasesModified, skipTrustedUserCheck, filenames)
 	if err != nil {
-		return err
+		// if OWNERS_ALIASES file exists and is not parseable
+		// attach invalid owners label and add message to PR
+		if !hasInvalidOwnersLabel {
+			if err := ghc.AddLabel(org, repo, number, labels.InvalidOwners); err != nil {
+				return err
+			}
+		}
+		if err := ghc.CreateComment(org, repo, number, "The content of OWNERS_ALIASES is invalid."); err != nil {
+			return err
+		}
+		return nil
 	}
 
 	// Check if OWNERS_ALIASES has empty aliases, then add a warning comment
