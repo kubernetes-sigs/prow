@@ -146,10 +146,6 @@ func (o *options) validate() error {
 	if (o.redisUsername != "" || o.redisSecretFile != "") && o.redisAddress == "" {
 		return errors.New("redis credentials must be specified together with redis address")
 	}
-	// Start the secret agent.
-	if err := secret.Add(o.redisSecretFile); err != nil {
-		logrus.WithError(err).Fatal("Error starting secrets agent.")
-	}
 
 	o.upstreamParsed = upstreamURL
 	return nil
@@ -187,6 +183,12 @@ func main() {
 	flag.Parse()
 	if err := o.validate(); err != nil {
 		logrus.WithError(err).Fatal("Invalid arguments.")
+	}
+
+	if o.redisSecretFile != "" {
+		if err := secret.Add(o.redisSecretFile); err != nil {
+			logrus.WithError(err).Fatal("Error starting secrets agent.")
+		}
 	}
 
 	if o.diskCacheDisableAuthHeaderPartitioning {
