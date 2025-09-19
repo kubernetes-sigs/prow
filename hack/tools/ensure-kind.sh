@@ -21,6 +21,6 @@
 # TODO: consider enforcing a particular version locally as well to avoid confusion
 if ! command -v kind; then
     local repo_gobin="${REPO_ROOT}/_bin"
-    GOBIN="${repo_gobin}" go install sigs.k8s.io/kind@v0.25.0
+    GOBIN="${repo_gobin}" go install sigs.k8s.io/kind@v0.30.0
     export PATH="${repo_gobin}:${PATH}"
 fi

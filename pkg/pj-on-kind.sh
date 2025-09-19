@@ -84,9 +84,9 @@ function ensureInstall() {
     echo "Installing kind..."
     if [[ $go_minor_version -ge 18 ]]; then
       # `go get` is fully deprecated in Go 1.18, so use `go install` for version >= 18.
-      GO111MODULE="on" go install sigs.k8s.io/kind@v0.17.0
+      GO111MODULE="on" go install sigs.k8s.io/kind@v0.30.0
     else
-      GO111MODULE="on" go get sigs.k8s.io/kind@v0.17.0
+      GO111MODULE="on" go get sigs.k8s.io/kind@v0.30.0
     fi
   fi
   local found="false"
