@@ -354,7 +354,7 @@ $ kubectl -n prow create secret generic gcs-credentials --from-file=service-acco
 Before we can update plank's `default_decoration_config_entries[]` we'll need to retrieve the version of plank. Check the deployment file or use the following:
 
 ```sh
-$ kubectl get pod -n prow -l app=plank -o jsonpath='{.items[0].spec.containers[0].image}' | cut -d: -f2
+$ kubectl get pod -n prow -l app=prow-controller-manager -o jsonpath='{.items[0].spec.containers[0].image}' | cut -d: -f2
 v20191108-08fbf64ac
 ```
 Then, we can use that tag to retrieve the corresponding utility images in `default_decoration_config_entries[]` in `config.yaml`:
