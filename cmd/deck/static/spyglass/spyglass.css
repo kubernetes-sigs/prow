@@ -1,5 +1,5 @@
 #announcement {
-  background-color: #424242;
+  background-color: #222222;
   padding: 10px;
   text-align: center;
   font-size: 16px;
@@ -8,7 +8,7 @@
 .lens-card.mdl-card {
   width: calc(100% - 30px);
   align-content: center;
-  background-color: #424242;
+  background-color: #222222;
   margin-left: 15px;
   margin-bottom: 30px;
 }
@@ -22,7 +22,7 @@
 }
 
 body {
-  background-color: #303030;
+  background-color: #111111;
   color: #fff;
 }
 
@@ -55,11 +55,11 @@ body {
 
 .mdl-layout__content a:link {
   text-decoration: underline;
-  color: #ff8caa;
+  color: #FF5277;
 }
 
 a:visited {
-  color: #ff8caa;
+  color: #FF5277;
 }
 
 .mdl-card.lens-card {

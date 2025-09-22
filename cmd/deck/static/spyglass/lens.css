@@ -47,7 +47,7 @@ table.mdl-data-table {
 .expander {
   cursor: pointer;
   user-select: none;
-  background-color: #505050;
+  background-color: #222222;
 }
 
 .expander .icon-button {
@@ -55,9 +55,9 @@ table.mdl-data-table {
 }
 
 a:link {
-  color: #ff8caa;
+  color: #FF9999;
 }
 
 a:visited {
-  color: #ff8caa;
+  color: #FF9999;
 }

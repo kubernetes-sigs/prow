@@ -13,7 +13,7 @@ div#report-brief {
 
 span#report-expander{
     cursor: pointer;
-    color: #ff8caa;
+    color: #FF9999;
     text-decoration: underline;
 }
 
@@ -58,5 +58,5 @@ ul#paths ul.methods li.method {
 }
 
 .error {
-    color: #ff7676;
+    color: #FF9999;
 }

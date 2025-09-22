@@ -91,7 +91,7 @@ html {
     color: rgba(255, 224, 0, 1.0);
 }
 .match-highlighted {
-    color: rgba(255, 0, 0, 1.0);
+    color: #ff4423;
 }
 .skipped {
     display: none;
