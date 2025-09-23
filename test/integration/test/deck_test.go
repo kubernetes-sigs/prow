@@ -274,7 +274,7 @@ func TestDeckTenantIDs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			//Give them new names to prevent conflict
+			// Give them new names to prevent conflict
 			name := RandomString(t)
 			prowjobs := renamePJs(tt.prowjobs, name)
 			expected := renamePJs(tt.expected, name)
@@ -504,11 +504,19 @@ func TestRerun(t *testing.T) {
 	if !passed {
 		t.Fatal("Expected updated job.")
 	}
-
+	passed = false
 	// Deck scheduled job from latest configuration, rerun with "original"
 	// should still go with original configuration.
-	rerun(t, jobToRerun.Name, "original")
-	if latestRun := getLatestJob(t, jobName, &latestRun.CreationTimestamp); latestRun.Labels["foo"] != "foo" {
+	// check every 30s interval three times for it update
+	for i := 0; i < 3; i++ {
+		time.Sleep(30 * time.Second)
+		rerun(t, jobToRerun.Name, "original")
+		if latestRun = getLatestJob(t, jobName, &latestRun.CreationTimestamp); latestRun.Labels["foo"] == "foo" {
+			passed = true
+			break
+		}
+	}
+	if !passed {
 		t.Fatalf("Job label mismatch. Want: 'foo', got: '%s'", latestRun.Labels["foo"])
 	}
 }
