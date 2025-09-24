@@ -26,7 +26,7 @@
 }
 
 td.failed {
-  color: #ff4040;
+  color: #FF9999;
 }
 
 td.flaky {
