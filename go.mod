@@ -10,7 +10,7 @@ require (
 	github.com/GoogleCloudPlatform/testgrid v0.0.123
 	github.com/NYTimes/gziphandler v1.1.1
 	github.com/andygrunwald/go-gerrit v0.0.0-20210709065208-9d38b0be0268
-	github.com/andygrunwald/go-jira v1.14.0
+	github.com/andygrunwald/go-jira v1.17.0
 	github.com/aws/aws-sdk-go v1.55.5 // indirect
 	github.com/bazelbuild/buildtools v0.0.0-20200922170545-10384511ce98
 	github.com/blang/semver/v4 v4.0.0
@@ -22,7 +22,6 @@ require (
 	github.com/cjwagner/httpcache v0.0.0-20230907212505-d4841bbad466
 	github.com/clarketm/json v1.13.4
 	github.com/denormal/go-gitignore v0.0.0-20180930084346-ae8ad1d07817
-	github.com/dgrijalva/jwt-go/v4 v4.0.0-preview1
 	github.com/djherbis/atime v1.0.0
 	github.com/evanphx/json-patch v5.6.0+incompatible
 	github.com/felixge/fgprof v0.9.1
@@ -30,6 +29,7 @@ require (
 	github.com/fsouza/fake-gcs-server v1.19.4
 	github.com/go-git/go-git/v5 v5.14.0
 	github.com/go-test/deep v1.1.0
+	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/golang/glog v1.2.4
 	github.com/gomodule/redigo v1.8.5
 	github.com/google/go-cmp v0.7.0
@@ -119,7 +119,6 @@ require (
 	github.com/go-openapi/jsonreference v0.20.2 // indirect
 	github.com/go-openapi/swag v0.22.3 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
-	github.com/golang-jwt/jwt v3.2.1+incompatible // indirect
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
 	github.com/golang/protobuf v1.5.4
 	github.com/google/btree v1.0.1 // indirect
@@ -313,7 +312,6 @@ require (
 	github.com/gobuffalo/flect v1.0.2 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/gofrs/flock v0.12.1 // indirect
-	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
 	github.com/golangci/dupl v0.0.0-20250308024227-f665c8d69b32 // indirect
 	github.com/golangci/go-printf-func-name v0.1.0 // indirect
 	github.com/golangci/gofmt v0.0.0-20250106114630-d62b90e6713d // indirect
