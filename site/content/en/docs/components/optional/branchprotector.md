@@ -6,7 +6,10 @@ description: >
 ---
 
 branchprotector configures [github branch protection] according to a specified
-policy.
+policy. This component manages the "Required" tests that appear in GitHub PRs.
+
+For an overview of how branch protection fits into Prow's architecture, see the
+[Architecture documentation](/docs/overview/architecture/#required-tests-and-branch-protection).
 
 ## Policy configuration
 
