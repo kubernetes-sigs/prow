@@ -39,7 +39,7 @@ const (
 var (
 	projectRegex              = regexp.MustCompile(`(?m)^/project\s(.*?)$`)
 	notTeamConfigMsg          = "There is no maintainer team for this repo or org."
-	notATeamMemberMsg         = "You must be a member of the [%s/%s](https://github.com/orgs/%s/teams/%s/members) github team to set the project and column."
+	notATeamMemberMsg         = "You must be a member of the [%s/%s](https://%s/orgs/%s/teams/%s/members) github team to set the project and column."
 	invalidProject            = "The provided project is not valid for this organization. Projects in Kubernetes orgs and repositories: [%s]."
 	invalidColumn             = "A column is not provided or it's not valid for the project %s. Please provide one of the following columns in the command:\n%v"
 	invalidNumArgs            = "Please provide 1 or more arguments. Example usage: /project 0.5.0, /project 0.5.0 To do, /project clear 0.4.0"
@@ -218,7 +218,7 @@ func handle(gc githubClient, log *logrus.Entry, e *github.GenericCommentEvent, p
 	}
 	if !isAMember {
 		// not in the project maintainers team
-		msg = fmt.Sprintf(notATeamMemberMsg, org, repo, org, repo)
+		msg = fmt.Sprintf(notATeamMemberMsg, org, repo, github.DefaultHost, org, repo)
 		return gc.CreateComment(org, repo, e.Number, plugins.FormatResponseRaw(e.Body, e.HTMLURL, e.User.Login, msg))
 	}
 
@@ -333,7 +333,7 @@ func handle(gc githubClient, log *logrus.Entry, e *github.GenericCommentEvent, p
 	var foundColumnID int
 	for _, colID := range projectColumns {
 		// make issue URL in the form of card content URL
-		issueURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/issues/%v", org, repo, e.Number)
+		issueURL := fmt.Sprintf("%s/repos/%s/%s/issues/%v", github.DefaultAPIEndpoint, org, repo, e.Number)
 		existingProjectCard, err = gc.GetColumnProjectCard(org, colID.ID, issueURL)
 		if err != nil {
 			return err

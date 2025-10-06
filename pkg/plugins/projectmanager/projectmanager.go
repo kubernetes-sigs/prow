@@ -205,7 +205,7 @@ func getMatchingColumnIDs(gc githubClient, orgRepos map[string]plugins.ManagedOr
 		}
 	}
 
-	issueURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/issues/%v", e.org, e.repo, e.number)
+	issueURL := fmt.Sprintf("%s/repos/%s/%s/issues/%v", github.DefaultAPIEndpoint, e.org, e.repo, e.number)
 	for orgRepoName, managedOrgRepo := range orgRepos {
 		for projectName, managedProject := range managedOrgRepo.Projects {
 			for _, managedColumn := range managedProject.Columns {

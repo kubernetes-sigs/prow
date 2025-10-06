@@ -996,7 +996,7 @@ func handleMerge(e event, gc githubClient, bc bugzilla.Client, options plugins.B
 			pr, err := gc.GetPullRequest(item.Org, item.Repo, item.Num)
 			if err != nil {
 				log.WithError(err).Warn("Unexpected error checking merge state of related pull request.")
-				return comment(formatError(fmt.Sprintf("checking the state of a related pull request at https://github.com/%s/%s/pull/%d", item.Org, item.Repo, item.Num), bc.Endpoint(), e.bugId, err))
+				return comment(formatError(fmt.Sprintf("checking the state of a related pull request at https://%s/%s/%s/pull/%d", github.DefaultHost, item.Org, item.Repo, item.Num), bc.Endpoint(), e.bugId, err))
 			}
 			merged = pr.Merged
 			state = pr.State
@@ -1017,7 +1017,7 @@ func handleMerge(e event, gc githubClient, bc bugzilla.Client, options plugins.B
 	}
 
 	link := func(bug bugzilla.ExternalBug) string {
-		return fmt.Sprintf("[%s/%s#%d](https://github.com/%s/%s/pull/%d)", bug.Org, bug.Repo, bug.Num, bug.Org, bug.Repo, bug.Num)
+		return fmt.Sprintf("[%s/%s#%d](https://%s/%s/%s/pull/%d)", bug.Org, bug.Repo, bug.Num, bug.Org, bug.Repo, github.DefaultHost, bug.Num)
 	}
 
 	mergedMessage := func(statement string) string {
@@ -1068,7 +1068,7 @@ func handleCherrypick(e event, gc githubClient, bc bugzilla.Client, options plug
 	pr, err := gc.GetPullRequest(e.org, e.repo, e.cherrypickFromPRNum)
 	if err != nil {
 		log.WithError(err).Warn("Unexpected error getting title of pull request being cherrypicked from.")
-		return comment(fmt.Sprintf("Error creating a cherry-pick bug in Bugzilla: failed to check the state of cherrypicked pull request at https://github.com/%s/%s/pull/%d: %v.\nPlease contact an administrator to resolve this issue, then request a bug refresh with <code>/bugzilla refresh</code>.", e.org, e.repo, e.cherrypickFromPRNum, err))
+		return comment(fmt.Sprintf("Error creating a cherry-pick bug in Bugzilla: failed to check the state of cherrypicked pull request at https://%s/%s/%s/pull/%d: %v.\nPlease contact an administrator to resolve this issue, then request a bug refresh with <code>/bugzilla refresh</code>.", github.DefaultHost, e.org, e.repo, e.cherrypickFromPRNum, err))
 	}
 	// Attempt to identify bug from PR title
 	bugID, bugMissing, err := bugIDFromTitle(pr.Title)
@@ -1239,7 +1239,7 @@ func handleClose(e event, gc githubClient, bc bugzilla.Client, options plugins.B
 						}
 						response += fmt.Sprintf(" All external bug links have been closed. The bug has been moved to the %s state.", options.StateAfterClose)
 					}
-					bzComment := &bugzilla.CommentCreate{ID: bug.ID, Comment: fmt.Sprintf("Bug status changed to %s as previous linked PR https://github.com/%s/%s/pull/%d has been closed", options.StateAfterClose.Status, e.org, e.repo, e.number), IsPrivate: true}
+					bzComment := &bugzilla.CommentCreate{ID: bug.ID, Comment: fmt.Sprintf("Bug status changed to %s as previous linked PR https://%s/%s/%s/pull/%d has been closed", options.StateAfterClose.Status, github.DefaultHost, e.org, e.repo, e.number), IsPrivate: true}
 					if _, err := bc.CreateComment(bzComment); err != nil {
 						response += "\nWarning: Failed to comment on Bugzilla bug with reason for changed state."
 					}
