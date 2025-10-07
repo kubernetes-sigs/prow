@@ -254,7 +254,7 @@ func welcomeMsg(ghc githubClient, trigger plugins.Trigger, pr github.PullRequest
 	encodedRepoFullName := url.QueryEscape(pr.Base.Repo.FullName)
 	var more string
 	if trigger.TrustedOrg != "" && trigger.TrustedOrg != org {
-		more = fmt.Sprintf("or [%s](https://%s/orgs/%s/people) ", github.DefaultHost, trigger.TrustedOrg, trigger.TrustedOrg)
+		more = fmt.Sprintf("or [%s](https://%s/orgs/%s/people) ", trigger.TrustedOrg, github.DefaultHost, trigger.TrustedOrg)
 	}
 
 	var joinOrgURL string
@@ -290,7 +290,7 @@ I understand the commands that are listed [here](https://go.k8s.io/bot-commands?
 
 %s
 </details>
-`, author, org, github.DefaultHost, org, more, joinOrgURL, labels.OkToTest, encodedRepoFullName, plugins.AboutThisBotWithoutCommands)
+`, author, github.DefaultHost, org, org, more, joinOrgURL, labels.OkToTest, encodedRepoFullName, plugins.AboutThisBotWithoutCommands)
 
 		l, err := ghc.GetIssueLabels(org, repo, pr.Number)
 		if err != nil {
