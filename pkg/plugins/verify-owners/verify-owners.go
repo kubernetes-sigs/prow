@@ -364,7 +364,7 @@ func handle(ghc githubClient, gc git.ClientFactory, roc repoownersClient, log *l
 	if triggerConfig.JoinOrgURL != "" {
 		joinOrgURL = triggerConfig.JoinOrgURL
 	} else {
-		joinOrgURL = fmt.Sprintf("https://github.com/orgs/%s/people", org)
+		joinOrgURL = fmt.Sprintf("https://%s/orgs/%s/people", github.DefaultHost, org)
 	}
 
 	if len(nonTrustedUsers) > 0 {

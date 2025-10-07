@@ -145,7 +145,7 @@ func PathForRefs(baseDir string, refs prowapi.Refs) string {
 		parts := strings.Split(refs.RepoLink, "://")
 		clonePath = parts[len(parts)-1]
 	} else {
-		clonePath = fmt.Sprintf("github.com/%s/%s", refs.Org, refs.Repo)
+		clonePath = fmt.Sprintf("%s/%s/%s", github.DefaultHost, refs.Org, refs.Repo)
 	}
 	return path.Join(baseDir, "src", clonePath)
 }
@@ -163,7 +163,7 @@ func gitCtxForRefs(refs prowapi.Refs, baseDir string, env []string, user, token 
 	if refs.RepoLink != "" {
 		repoURI = fmt.Sprintf("%s.git", refs.RepoLink)
 	} else {
-		repoURI = fmt.Sprintf("https://github.com/%s/%s.git", refs.Org, refs.Repo)
+		repoURI = fmt.Sprintf("https://%s/%s/%s.git", github.DefaultHost, refs.Org, refs.Repo)
 	}
 
 	g := gitCtx{

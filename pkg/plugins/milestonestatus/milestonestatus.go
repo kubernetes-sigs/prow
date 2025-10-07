@@ -35,7 +35,7 @@ const pluginName = "milestonestatus"
 
 var (
 	statusRegex      = regexp.MustCompile(`(?m)^/status\s+(.+)$`)
-	mustBeAuthorized = "You must be a member of the [%s/%s](https://github.com/orgs/%s/teams/%s/members) GitHub team to add status labels. If you believe you should be able to issue the /status command, please contact your %s and have them propose you as an additional delegate for this responsibility."
+	mustBeAuthorized = "You must be a member of the [%s/%s](https://%s/orgs/%s/teams/%s/members) GitHub team to add status labels. If you believe you should be able to issue the /status command, please contact your %s and have them propose you as an additional delegate for this responsibility."
 	milestoneTeamMsg = "The milestone maintainers team is the GitHub team %q"
 	statusMap        = map[string]string{
 		"approved-for-milestone": "status/approved-for-milestone",
@@ -121,7 +121,7 @@ func handle(gc githubClient, log *logrus.Entry, e *github.GenericCommentEvent, r
 	}
 	if !found {
 		// not in the milestone maintainers team
-		msg := fmt.Sprintf(mustBeAuthorized, org, milestone.MaintainersTeam, org, milestone.MaintainersTeam, milestone.MaintainersFriendlyName)
+		msg := fmt.Sprintf(mustBeAuthorized, org, milestone.MaintainersTeam, github.DefaultHost, org, milestone.MaintainersTeam, milestone.MaintainersFriendlyName)
 		return gc.CreateComment(org, repo, e.Number, msg)
 	}
 

@@ -332,7 +332,7 @@ func handle(config plugins.Dco, gc gitHubClient, cp commentPruner, log *logrus.E
 		contributingPath = config.ContributingPath
 	}
 
-	contributingUrl := fmt.Sprintf("https://github.com/%s/blob/%s/%s", contributingRepo, contributingBranch, contributingPath)
+	contributingUrl := fmt.Sprintf("https://%s/%s/blob/%s/%s", github.DefaultHost, contributingRepo, contributingBranch, contributingPath)
 
 	return takeAction(gc, cp, l, org, repo, pr, commitsMissingDCO, existingStatus, contributingUrl, hasYesLabel, hasNoLabel, addComment)
 }
@@ -340,7 +340,7 @@ func handle(config plugins.Dco, gc gitHubClient, cp commentPruner, log *logrus.E
 // MarkdownSHAList prints the list of commits in a markdown-friendly way.
 func MarkdownSHAList(org, repo string, list []github.RepositoryCommit) string {
 	lines := make([]string, len(list))
-	lineFmt := "- [%s](https://github.com/%s/%s/commits/%s) %s"
+	lineFmt := "- [%s](https://%s/%s/%s/commits/%s) %s"
 	for i, commit := range list {
 		if commit.SHA == "" {
 			continue
@@ -355,7 +355,7 @@ func MarkdownSHAList(org, repo string, list []github.RepositoryCommit) string {
 		// get the first line of the commit
 		message := strings.Split(commit.Commit.Message, "\n")[0]
 
-		lines[i] = fmt.Sprintf(lineFmt, shortSHA, org, repo, commit.SHA, message)
+		lines[i] = fmt.Sprintf(lineFmt, shortSHA, github.DefaultHost, org, repo, commit.SHA, message)
 	}
 	return strings.Join(lines, "\n")
 }
