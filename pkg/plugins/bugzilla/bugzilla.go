@@ -1017,7 +1017,7 @@ func handleMerge(e event, gc githubClient, bc bugzilla.Client, options plugins.B
 	}
 
 	link := func(bug bugzilla.ExternalBug) string {
-		return fmt.Sprintf("[%s/%s#%d](https://%s/%s/%s/pull/%d)", bug.Org, bug.Repo, bug.Num, bug.Org, bug.Repo, github.DefaultHost, bug.Num)
+		return fmt.Sprintf("[%s/%s#%d](https://%s/%s/%s/pull/%d)", bug.Org, bug.Repo, bug.Num, github.DefaultHost, bug.Org, bug.Repo, bug.Num)
 	}
 
 	mergedMessage := func(statement string) string {
