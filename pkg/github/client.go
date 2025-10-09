@@ -4140,10 +4140,10 @@ func (c *client) ListDirectCollaboratorsWithPermissions(org, repo string) (map[s
 		}
 
 		// Check if there are more pages
-		if !bool(query.Repository.Collaborators.PageInfo.HasNextPage) {
+		if !query.Repository.Collaborators.PageInfo.HasNextPage {
 			break
 		}
-		vars["after"] = githubql.String(query.Repository.Collaborators.PageInfo.EndCursor)
+		vars["after"] = query.Repository.Collaborators.PageInfo.EndCursor
 	}
 
 	return result, nil
