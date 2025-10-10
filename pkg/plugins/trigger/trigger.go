@@ -210,7 +210,11 @@ func handlePullRequest(pc plugins.Agent, pr github.PullRequestEvent) error {
 }
 
 func handleGenericCommentEvent(pc plugins.Agent, gc github.GenericCommentEvent) error {
-	return handleGenericComment(getClient(pc), pc.PluginConfig.TriggerFor(gc.Repo.Owner.Login, gc.Repo.Name), gc)
+	cp, err := pc.CommentPruner()
+	if err != nil {
+		return err
+	}
+	return handleGenericComment(getClient(pc), cp, pc.PluginConfig.TriggerFor(gc.Repo.Owner.Login, gc.Repo.Name), gc)
 }
 
 func handlePush(pc plugins.Agent, pe github.PushEvent) error {

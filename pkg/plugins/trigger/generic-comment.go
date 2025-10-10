@@ -31,7 +31,11 @@ import (
 	"sigs.k8s.io/prow/pkg/plugins"
 )
 
-func handleGenericComment(c Client, trigger plugins.Trigger, gc github.GenericCommentEvent) error {
+type commentPruner interface {
+	PruneComments(shouldPrune func(github.IssueComment) bool)
+}
+
+func handleGenericComment(c Client, cp commentPruner, trigger plugins.Trigger, gc github.GenericCommentEvent) error {
 	org := gc.Repo.Owner.Login
 	repo := gc.Repo.Name
 	number := gc.Number
@@ -174,6 +178,15 @@ func handleGenericComment(c Client, trigger plugins.Trigger, gc github.GenericCo
 			}
 		}
 	}
+
+	if pjutil.ShouldRespondByPruningHelp(textToCheck) {
+		// The run was triggered by a "/test" or "/retest" (and not by
+		// "/ok-to-test" for example), so prune any previous help message.
+		cp.PruneComments(func(comment github.IssueComment) bool {
+			return pjutil.IsHelpComment(comment.Body)
+		})
+	}
+
 	return RunRequestedWithLabels(c, pr, baseSHA, toTest, gc.GUID, additionalLabels)
 }
 
