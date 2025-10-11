@@ -1087,7 +1087,7 @@ func TestHandleGenericComment(t *testing.T) {
 			AddedComment: pjutil.TestWithoutTargetNote + helpComment + helpTestAllWithJobsComment,
 		},
 		{
-			name:         "ignore `/test` with no target results in a code block",
+			name:         "ignore `/test` with no target in a code block",
 			Author:       "trusted-member",
 			Body:         "```\n/test\n```",
 			State:        "open",
@@ -1095,7 +1095,7 @@ func TestHandleGenericComment(t *testing.T) {
 			AddedComment: shouldNotAddComment,
 		},
 		{
-			name:         "ignore `/test` with no target results in a tilda code block",
+			name:         "ignore `/test` with no target in a tilde code block",
 			Author:       "trusted-member",
 			Body:         "~~~\n/test\n~~~",
 			State:        "open",
@@ -1119,7 +1119,7 @@ func TestHandleGenericComment(t *testing.T) {
 			AddedComment: pjutil.RetestWithTargetNote + helpComment + helpTestAllWithJobsComment,
 		},
 		{
-			name:         "/retest with trailing words results in a code block",
+			name:         "/retest with trailing words in a code block",
 			Author:       "trusted-member",
 			Body:         produceCodeBlock("/retest FOO", false),
 			State:        "open",
@@ -1144,7 +1144,7 @@ func TestHandleGenericComment(t *testing.T) {
 			AddedComment: pjutil.TargetNotFoundNote + helpComment + helpTestAllWithJobsComment,
 		},
 		{
-			name:         "/test with unknown target results in code block. Should be ignored",
+			name:         "/test with unknown target in code block. Should be ignored",
 			Author:       "trusted-member",
 			Body:         produceCodeBlock("/test FOO", false),
 			State:        "open",
@@ -1152,7 +1152,7 @@ func TestHandleGenericComment(t *testing.T) {
 			AddedComment: shouldNotAddComment,
 		},
 		{
-			name:         "two `/test` with unknown target results. One in a code block, and one is not.",
+			name:         "two `/test` with unknown target. One in a code block, and one is not.",
 			Author:       "trusted-member",
 			Body:         produceCodeBlock("/test FOO", true) + "/test BAR",
 			State:        "open",
@@ -1160,7 +1160,7 @@ func TestHandleGenericComment(t *testing.T) {
 			AddedComment: pjutil.TargetNotFoundNote + helpComment + helpTestAllWithJobsComment,
 		},
 		{
-			name:         "two `/test` with unknown target results. One out of a code block, and one is inside.",
+			name:         "two `/test` with unknown target. One out of a code block, and one is inside.",
 			Author:       "trusted-member",
 			Body:         "/test FOO\n" + produceCodeBlock("/test BAR", false),
 			State:        "open",
