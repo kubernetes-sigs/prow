@@ -803,12 +803,12 @@ func (f *FakeClient) ListCollaborators(org, repo string) ([]github.User, error) 
 }
 
 // ListRepoInvitations lists repository invitations (fake implementation).
-func (f *FakeClient) ListRepoInvitations(org, repo string) ([]github.RepoInvitation, error) {
+func (f *FakeClient) ListRepoInvitations(org, repo string) ([]github.CollaboratorRepoInvitation, error) {
 	f.lock.RLock()
 	defer f.lock.RUnlock()
 
 	// For testing, we can return an empty list or implement more sophisticated fake behavior if needed
-	return []github.RepoInvitation{}, nil
+	return []github.CollaboratorRepoInvitation{}, nil
 }
 
 // AddCollaborator adds a user as a collaborator.

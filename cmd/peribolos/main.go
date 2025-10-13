@@ -361,15 +361,6 @@ func dumpOrgConfig(client dumpClient, orgName string, ignoreSecretTeams bool, ap
 		}
 		logrus.WithField("repo", full.FullName).Debug("Recording repo.")
 
-		// Get direct collaborators (explicitly added) via GraphQL
-		var collaborators map[string]github.RepoPermissionLevel
-		directCollabs, err := client.ListDirectCollaboratorsWithPermissions(orgName, repo.Name)
-		if err != nil {
-			logrus.WithError(err).Warnf("Failed to list direct collaborators for %s/%s", orgName, repo.Name)
-		} else if len(directCollabs) > 0 {
-			collaborators = directCollabs
-		}
-
 		repoConfig := org.PruneRepoDefaults(org.Repo{
 			Description:      &full.Description,
 			HomePage:         &full.Homepage,
@@ -382,8 +373,15 @@ func dumpOrgConfig(client dumpClient, orgName string, ignoreSecretTeams bool, ap
 			AllowRebaseMerge: &full.AllowRebaseMerge,
 			Archived:         &full.Archived,
 			DefaultBranch:    &full.DefaultBranch,
-			Collaborators:    collaborators,
+			// Collaborators will be set conditionally below
 		})
+
+		// Get direct collaborators (explicitly added) via GraphQL
+		if directCollabs, err := client.ListDirectCollaboratorsWithPermissions(orgName, repo.Name); err != nil {
+			logrus.WithError(err).Warnf("Failed to list direct collaborators for %s/%s", orgName, repo.Name)
+		} else if len(directCollabs) > 0 {
+			repoConfig.Collaborators = directCollabs
+		}
 		out.Repos[full.Name] = repoConfig
 	}
 
@@ -532,41 +530,35 @@ func normalize(s sets.Set[string]) sets.Set[string] {
 	return out
 }
 
+// collaboratorInfo holds permission and original username for a normalized user
+type collaboratorInfo struct {
+	permission   github.RepoPermissionLevel
+	originalName string
+}
+
 // collaboratorMap manages collaborator usernames to permissions with normalization support
 type collaboratorMap struct {
-	permissions map[string]github.RepoPermissionLevel // normalized_username -> permission
-	origNames   map[string]string                     // normalized_username -> original_username
+	collaborators map[string]collaboratorInfo // normalized_username -> collaborator info
 }
 
 // newCollaboratorMap creates a collaborator map from a raw username->permission map
 func newCollaboratorMap(raw map[string]github.RepoPermissionLevel) collaboratorMap {
 	cm := collaboratorMap{
-		permissions: make(map[string]github.RepoPermissionLevel, len(raw)),
-		origNames:   make(map[string]string, len(raw)),
+		collaborators: make(map[string]collaboratorInfo, len(raw)),
 	}
 	for username, permission := range raw {
 		normalized := github.NormLogin(username)
-		cm.permissions[normalized] = permission
-		cm.origNames[normalized] = username
+		cm.collaborators[normalized] = collaboratorInfo{
+			permission:   permission,
+			originalName: username,
+		}
 	}
 	return cm
 }
 
-// has checks if a normalized username exists in the map
-func (cm collaboratorMap) has(normalizedUser string) bool {
-	_, exists := cm.permissions[normalizedUser]
-	return exists
-}
-
-// get returns the permission for a normalized username
-func (cm collaboratorMap) get(normalizedUser string) (github.RepoPermissionLevel, bool) {
-	perm, exists := cm.permissions[normalizedUser]
-	return perm, exists
-}
-
 // originalName returns the original casing for a normalized username
 func (cm collaboratorMap) originalName(normalizedUser string) string {
-	return cm.origNames[normalizedUser]
+	return cm.collaborators[normalizedUser].originalName
 }
 
 func (m *memberships) normalize() {
@@ -574,36 +566,26 @@ func (m *memberships) normalize() {
 	m.super = normalize(m.super)
 }
 
-// repoInvitationsWithPermissions returns pending repository invitations with their permission levels
-func repoInvitationsWithPermissions(client collaboratorClient, orgName, repoName string) (map[string]github.RepoPermissionLevel, error) {
-	invitations := map[string]github.RepoPermissionLevel{}
-	is, err := client.ListRepoInvitations(orgName, repoName)
-	if err != nil {
-		return nil, err
-	}
-	for _, i := range is {
-		if i.Invitee == nil || i.Invitee.Login == "" {
-			continue
-		}
-		invitations[github.NormLogin(i.Invitee.Login)] = i.Permission
-	}
-	return invitations, nil
-}
-
-// repoInvitationIDs returns a mapping of normalized usernames to invitation IDs
-func repoInvitationIDs(client collaboratorClient, orgName, repoName string) (map[string]int, error) {
+// repoInvitationsData returns pending repository invitations with both permissions and IDs
+func repoInvitationsData(client collaboratorClient, orgName, repoName string) (map[string]github.RepoPermissionLevel, map[string]int, error) {
+	permissions := map[string]github.RepoPermissionLevel{}
 	invitationIDs := map[string]int{}
+
 	is, err := client.ListRepoInvitations(orgName, repoName)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+
 	for _, i := range is {
 		if i.Invitee == nil || i.Invitee.Login == "" {
 			continue
 		}
-		invitationIDs[github.NormLogin(i.Invitee.Login)] = i.ID
+		normalizedLogin := github.NormLogin(i.Invitee.Login)
+		permissions[normalizedLogin] = i.Permission
+		invitationIDs[normalizedLogin] = i.InvitationID
 	}
-	return invitationIDs, nil
+
+	return permissions, invitationIDs, nil
 }
 
 func configureMembers(have, want memberships, invitees sets.Set[string], adder func(user string, super bool) error, remover func(user string) error) error {
@@ -1160,11 +1142,11 @@ type collaboratorClient interface {
 	ListDirectCollaboratorsWithPermissions(org, repo string) (map[string]github.RepoPermissionLevel, error)
 	AddCollaborator(org, repo, user string, permission github.RepoPermissionLevel) error
 	UpdateCollaborator(org, repo, user string, permission github.RepoPermissionLevel) error
-	UpdateRepoInvitation(org, repo string, invitationID int, permission github.RepoPermissionLevel) error
-	DeleteRepoInvitation(org, repo string, invitationID int) error
+	UpdateCollaboratorRepoInvitation(org, repo string, invitationID int, permission github.RepoPermissionLevel) error
+	DeleteCollaboratorRepoInvitation(org, repo string, invitationID int) error
 	RemoveCollaborator(org, repo, user string) error
 	UpdateCollaboratorPermission(org, repo, user string, permission github.RepoPermissionLevel) error
-	ListRepoInvitations(org, repo string) ([]github.RepoInvitation, error)
+	ListRepoInvitations(org, repo string) ([]github.CollaboratorRepoInvitation, error)
 }
 
 // configureCollaborators updates the list of repository collaborators when necessary
@@ -1183,18 +1165,12 @@ func configureCollaborators(client collaboratorClient, orgName, repoName string,
 	}
 	logrus.Debugf("Found %d direct collaborators", len(currentCollaboratorsRaw))
 
-	// Get pending repository invitations with their permission levels
-	pendingInvitations, err := repoInvitationsWithPermissions(client, orgName, repoName)
+	// Get pending repository invitations with their permission levels and IDs
+	pendingInvitations, pendingInvitationIDs, err := repoInvitationsData(client, orgName, repoName)
 	if err != nil {
 		logrus.WithError(err).Warnf("Failed to list repository invitations for %s/%s, may send duplicate invitations", orgName, repoName)
 		pendingInvitations = map[string]github.RepoPermissionLevel{} // Continue with empty map
-	}
-
-	// Get pending repository invitation IDs for updating invitations
-	pendingInvitationIDs, err := repoInvitationIDs(client, orgName, repoName)
-	if err != nil {
-		logrus.WithError(err).Warnf("Failed to get repository invitation IDs for %s/%s, invitation updates may fail", orgName, repoName)
-		pendingInvitationIDs = map[string]int{} // Continue with empty map
+		pendingInvitationIDs = map[string]int{}                      // Continue with empty map
 	}
 
 	// Create combined map of current direct collaborators + pending invitations
@@ -1220,10 +1196,11 @@ func configureCollaborators(client collaboratorClient, orgName, repoName string,
 	wantedCollaborators := newCollaboratorMap(want)
 
 	// Add or update permissions for users in our config
-	for normalizedUser, wantPermission := range wantedCollaborators.permissions {
+	for normalizedUser, collaboratorInfo := range wantedCollaborators.collaborators {
+		wantPermission := collaboratorInfo.permission
 		wantUser := wantedCollaborators.originalName(normalizedUser)
 
-		if currentPermission, exists := currentCollaborators.get(normalizedUser); exists && currentPermission == wantPermission {
+		if currentInfo, exists := currentCollaborators.collaborators[normalizedUser]; exists && currentInfo.permission == wantPermission {
 			// Permission is already correct
 			continue
 		}
@@ -1238,7 +1215,7 @@ func configureCollaborators(client collaboratorClient, orgName, repoName string,
 		actions[wantUser] = wantPermission
 
 		// Determine the appropriate action and log message
-		if currentCollaborators.has(normalizedUser) {
+		if _, exists := currentCollaborators.collaborators[normalizedUser]; exists {
 			logrus.Infof("Will update collaborator %s with %s permission", wantUser, wantPermission)
 		} else if pendingPermission, hasPendingInvitation := pendingInvitations[normalizedUser]; hasPendingInvitation {
 			logrus.Infof("Will update pending invitation for %s from %s to %s permission", wantUser, pendingPermission, wantPermission)
@@ -1249,9 +1226,9 @@ func configureCollaborators(client collaboratorClient, orgName, repoName string,
 
 	// Remove direct collaborators not in our config (including those with pending invitations)
 	// Since we only get direct collaborators via GraphQL, we can safely remove anyone not in config
-	for normalizedCurrentUser := range combinedCollaborators.permissions {
+	for normalizedCurrentUser := range combinedCollaborators.collaborators {
 		// Check if this user (normalized) is in our wanted config
-		if !wantedCollaborators.has(normalizedCurrentUser) {
+		if _, exists := wantedCollaborators.collaborators[normalizedCurrentUser]; !exists {
 			originalName := combinedCollaborators.originalName(normalizedCurrentUser)
 			actions[originalName] = github.None
 
@@ -1274,7 +1251,7 @@ func configureCollaborators(client collaboratorClient, orgName, repoName string,
 			normalizedUser := github.NormLogin(user)
 			if invitationID, hasPendingInvitation := pendingInvitationIDs[normalizedUser]; hasPendingInvitation {
 				// Use DeleteRepoInvitation (DELETE) for pending invitations with invitation ID
-				err = client.DeleteRepoInvitation(orgName, repoName, invitationID)
+				err = client.DeleteCollaboratorRepoInvitation(orgName, repoName, invitationID)
 				if err != nil {
 					logrus.WithError(err).Warnf("Failed to delete pending invitation for %s", user)
 				} else {
@@ -1294,7 +1271,7 @@ func configureCollaborators(client collaboratorClient, orgName, repoName string,
 			normalizedUser := github.NormLogin(user)
 			if invitationID, hasPendingInvitation := pendingInvitationIDs[normalizedUser]; hasPendingInvitation {
 				// Use UpdateRepoInvitation (PATCH) for pending invitations with invitation ID
-				err = client.UpdateRepoInvitation(orgName, repoName, invitationID, permission)
+				err = client.UpdateCollaboratorRepoInvitation(orgName, repoName, invitationID, permission)
 				if err != nil {
 					logrus.WithError(err).Warnf("Failed to update pending invitation for %s to %s permission", user, permission)
 				} else {

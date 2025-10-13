@@ -2190,8 +2190,8 @@ func (c fakeDumpClient) GetUserPermission(org, repo, user string) (string, error
 	return "read", nil
 }
 
-func (c fakeDumpClient) ListRepoInvitations(org, repo string) ([]github.RepoInvitation, error) {
-	return []github.RepoInvitation{}, nil
+func (c fakeDumpClient) ListRepoInvitations(org, repo string) ([]github.CollaboratorRepoInvitation, error) {
+	return []github.CollaboratorRepoInvitation{}, nil
 }
 
 func fixup(ret *org.Config) {
@@ -3403,9 +3403,9 @@ func (f *fakeCollaboratorClient) UpdateCollaborator(org, repo, user string, perm
 	return nil
 }
 
-func (f *fakeCollaboratorClient) UpdateRepoInvitation(org, repo string, invitationID int, permission github.RepoPermissionLevel) error {
+func (f *fakeCollaboratorClient) UpdateCollaboratorRepoInvitation(org, repo string, invitationID int, permission github.RepoPermissionLevel) error {
 	if f.failAddCollaborator { // Reuse the same failure flag for simplicity
-		return fmt.Errorf("UpdateRepoInvitation failed")
+		return fmt.Errorf("UpdateCollaboratorRepoInvitation failed")
 	}
 
 	// For testing, we need to find the user by invitation ID
@@ -3414,9 +3414,9 @@ func (f *fakeCollaboratorClient) UpdateRepoInvitation(org, repo string, invitati
 	return nil
 }
 
-func (f *fakeCollaboratorClient) DeleteRepoInvitation(org, repo string, invitationID int) error {
+func (f *fakeCollaboratorClient) DeleteCollaboratorRepoInvitation(org, repo string, invitationID int) error {
 	if f.failRemoveCollaborator { // Reuse the same failure flag for simplicity
-		return fmt.Errorf("DeleteRepoInvitation failed")
+		return fmt.Errorf("DeleteCollaboratorRepoInvitation failed")
 	}
 
 	// For testing, remove the invitation by ID
@@ -3446,9 +3446,9 @@ func (f *fakeCollaboratorClient) ListOrgMembers(org, role string) ([]github.Team
 	return members, nil
 }
 
-func (f *fakeCollaboratorClient) ListRepoInvitations(org, repo string) ([]github.RepoInvitation, error) {
+func (f *fakeCollaboratorClient) ListRepoInvitations(org, repo string) ([]github.CollaboratorRepoInvitation, error) {
 	// For testing, return empty list
-	return []github.RepoInvitation{}, nil
+	return []github.CollaboratorRepoInvitation{}, nil
 }
 
 func TestConfigureCollaboratorsRemovePendingInvitations(t *testing.T) {
@@ -3459,16 +3459,16 @@ func TestConfigureCollaboratorsRemovePendingInvitations(t *testing.T) {
 			collaborators: make(map[string]github.RepoPermissionLevel),
 			members:       sets.Set[string]{},
 		},
-		pendingInvitations: []github.RepoInvitation{
+		pendingInvitations: []github.CollaboratorRepoInvitation{
 			{
-				ID:         1001,
-				Invitee:    &github.User{Login: "remove-pending"},
-				Permission: github.Read, // Has pending invitation but not in config - should be removed
+				InvitationID: 1001,
+				Invitee:      &github.User{Login: "remove-pending"},
+				Permission:   github.Read, // Has pending invitation but not in config - should be removed
 			},
 			{
-				ID:         1002,
-				Invitee:    &github.User{Login: "keep-pending"},
-				Permission: github.Write, // Has pending invitation and is in config - should be kept
+				InvitationID: 1002,
+				Invitee:      &github.User{Login: "keep-pending"},
+				Permission:   github.Write, // Has pending invitation and is in config - should be kept
 			},
 		},
 	}
@@ -3535,21 +3535,21 @@ func TestConfigureCollaboratorsInvitationManagement(t *testing.T) {
 			},
 			members: sets.Set[string]{},
 		},
-		pendingInvitations: []github.RepoInvitation{
+		pendingInvitations: []github.CollaboratorRepoInvitation{
 			{
-				ID:         2001,
-				Invitee:    &github.User{Login: "pending-correct"},
-				Permission: github.Write, // Correct permission - should wait
+				InvitationID: 2001,
+				Invitee:      &github.User{Login: "pending-correct"},
+				Permission:   github.Write, // Correct permission - should wait
 			},
 			{
-				ID:         2002,
-				Invitee:    &github.User{Login: "pending-wrong"},
-				Permission: github.Read, // Wrong permission - should update
+				InvitationID: 2002,
+				Invitee:      &github.User{Login: "pending-wrong"},
+				Permission:   github.Read, // Wrong permission - should update
 			},
 			{
-				ID:         2003,
-				Invitee:    &github.User{Login: "pending-remove"},
-				Permission: github.Admin, // Not in config - should remove
+				InvitationID: 2003,
+				Invitee:      &github.User{Login: "pending-remove"},
+				Permission:   github.Admin, // Not in config - should remove
 			},
 		},
 	}
@@ -3605,16 +3605,16 @@ func TestConfigureCollaboratorsInvitationPermissionChecking(t *testing.T) {
 			collaborators: make(map[string]github.RepoPermissionLevel),
 			members:       sets.Set[string]{},
 		},
-		pendingInvitations: []github.RepoInvitation{
+		pendingInvitations: []github.CollaboratorRepoInvitation{
 			{
-				ID:         3001,
-				Invitee:    &github.User{Login: "pending-user"},
-				Permission: github.Read, // Has pending invitation with READ permission
+				InvitationID: 3001,
+				Invitee:      &github.User{Login: "pending-user"},
+				Permission:   github.Read, // Has pending invitation with READ permission
 			},
 			{
-				ID:         3002,
-				Invitee:    &github.User{Login: "Another-Pending"},
-				Permission: github.Write, // Has pending invitation with WRITE permission
+				InvitationID: 3002,
+				Invitee:      &github.User{Login: "Another-Pending"},
+				Permission:   github.Write, // Has pending invitation with WRITE permission
 			},
 		},
 	}
@@ -3656,7 +3656,7 @@ func TestConfigureCollaboratorsInvitationPermissionChecking(t *testing.T) {
 // fakeCollaboratorClientWithInvitations extends the fake client to track API calls
 type fakeCollaboratorClientWithInvitations struct {
 	*fakeCollaboratorClient
-	pendingInvitations      []github.RepoInvitation
+	pendingInvitations      []github.CollaboratorRepoInvitation
 	apiCallsUsers           []string // Track which users had API calls made
 	removedUsers            []string // Track which users were removed
 	updateInvitationCalls   []int    // Track invitation IDs that were updated
@@ -3665,7 +3665,7 @@ type fakeCollaboratorClientWithInvitations struct {
 	updateCollaboratorCalls []string // Track users that were updated via UpdateCollaborator
 }
 
-func (c *fakeCollaboratorClientWithInvitations) ListRepoInvitations(org, repo string) ([]github.RepoInvitation, error) {
+func (c *fakeCollaboratorClientWithInvitations) ListRepoInvitations(org, repo string) ([]github.CollaboratorRepoInvitation, error) {
 	return c.pendingInvitations, nil
 }
 
@@ -3685,15 +3685,15 @@ func (c *fakeCollaboratorClientWithInvitations) UpdateCollaborator(org, repo, us
 	return c.fakeCollaboratorClient.UpdateCollaborator(org, repo, user, permission)
 }
 
-func (c *fakeCollaboratorClientWithInvitations) UpdateRepoInvitation(org, repo string, invitationID int, permission github.RepoPermissionLevel) error {
+func (c *fakeCollaboratorClientWithInvitations) UpdateCollaboratorRepoInvitation(org, repo string, invitationID int, permission github.RepoPermissionLevel) error {
 	c.apiCallsUsers = append(c.apiCallsUsers, fmt.Sprintf("invitation-%d", invitationID))
 	c.updateInvitationCalls = append(c.updateInvitationCalls, invitationID)
-	return c.fakeCollaboratorClient.UpdateRepoInvitation(org, repo, invitationID, permission)
+	return c.fakeCollaboratorClient.UpdateCollaboratorRepoInvitation(org, repo, invitationID, permission)
 }
 
-func (c *fakeCollaboratorClientWithInvitations) DeleteRepoInvitation(org, repo string, invitationID int) error {
+func (c *fakeCollaboratorClientWithInvitations) DeleteCollaboratorRepoInvitation(org, repo string, invitationID int) error {
 	c.deleteInvitationCalls = append(c.deleteInvitationCalls, invitationID)
-	return c.fakeCollaboratorClient.DeleteRepoInvitation(org, repo, invitationID)
+	return c.fakeCollaboratorClient.DeleteCollaboratorRepoInvitation(org, repo, invitationID)
 }
 
 func (c *fakeCollaboratorClientWithInvitations) UpdateCollaboratorPermission(org, repo, user string, permission github.RepoPermissionLevel) error {
@@ -3717,12 +3717,12 @@ func TestConfigureCollaboratorsLargeSet(t *testing.T) {
 		existing[fmt.Sprintf("existing-%04d", i)] = github.Read
 	}
 
-	var invites []github.RepoInvitation
+	var invites []github.CollaboratorRepoInvitation
 	for i := 0; i < numInvites; i++ {
-		invites = append(invites, github.RepoInvitation{
-			ID:         10000 + i,
-			Invitee:    &github.User{Login: fmt.Sprintf("invite-%04d", i)},
-			Permission: github.Read,
+		invites = append(invites, github.CollaboratorRepoInvitation{
+			InvitationID: 10000 + i,
+			Invitee:      &github.User{Login: fmt.Sprintf("invite-%04d", i)},
+			Permission:   github.Read,
 		})
 	}
 
@@ -3776,11 +3776,11 @@ func TestConfigureCollaboratorsCorrectAPIEndpoints(t *testing.T) {
 			},
 			members: sets.Set[string]{},
 		},
-		pendingInvitations: []github.RepoInvitation{
+		pendingInvitations: []github.CollaboratorRepoInvitation{
 			{
-				ID:         4001,
-				Invitee:    &github.User{Login: "pending-update"},
-				Permission: github.Read, // Will be updated to Write
+				InvitationID: 4001,
+				Invitee:      &github.User{Login: "pending-update"},
+				Permission:   github.Read, // Will be updated to Write
 			},
 		},
 	}
@@ -3830,11 +3830,11 @@ func TestConfigureCollaboratorsInvitationVsCollaboratorRemoval(t *testing.T) {
 			},
 			members: sets.Set[string]{},
 		},
-		pendingInvitations: []github.RepoInvitation{
+		pendingInvitations: []github.CollaboratorRepoInvitation{
 			{
-				ID:         5001,
-				Invitee:    &github.User{Login: "pending-invitation"},
-				Permission: github.Write, // This is a pending invitation, should use DeleteRepoInvitation
+				InvitationID: 5001,
+				Invitee:      &github.User{Login: "pending-invitation"},
+				Permission:   github.Write, // This is a pending invitation, should use DeleteRepoInvitation
 			},
 		},
 	}
@@ -3872,7 +3872,7 @@ func TestConfigureCollaborators_Idempotent_NoChangeForDirectCollaborator(t *test
 			},
 			members: sets.Set[string]{},
 		},
-		pendingInvitations: []github.RepoInvitation{},
+		pendingInvitations: []github.CollaboratorRepoInvitation{},
 	}
 
 	repo := org.Repo{
@@ -3907,7 +3907,7 @@ func TestConfigureCollaborators_PermissionMatrix_TransitionsExistingCollaborator
 						},
 						members: sets.Set[string]{},
 					},
-					pendingInvitations: []github.RepoInvitation{},
+					pendingInvitations: []github.CollaboratorRepoInvitation{},
 				}
 
 				repo := org.Repo{Collaborators: map[string]github.RepoPermissionLevel{"user": to}}
@@ -3947,8 +3947,8 @@ func TestConfigureCollaborators_PermissionMatrix_PendingInvitationUpdates(t *tes
 						collaborators: map[string]github.RepoPermissionLevel{},
 						members:       sets.Set[string]{},
 					},
-					pendingInvitations: []github.RepoInvitation{
-						{ID: 9001, Invitee: &github.User{Login: "user"}, Permission: from},
+					pendingInvitations: []github.CollaboratorRepoInvitation{
+						{InvitationID: 9001, Invitee: &github.User{Login: "user"}, Permission: from},
 					},
 				}
 

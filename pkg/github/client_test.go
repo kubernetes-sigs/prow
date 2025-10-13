@@ -3574,13 +3574,13 @@ func TestCollaboratorMethodsDryRun(t *testing.T) {
 	}
 
 	// Test UpdateRepoInvitation in dry-run mode
-	err = c.UpdateRepoInvitation("org", "repo", 12345, Triage)
+	err = c.UpdateCollaboratorRepoInvitation("org", "repo", 12345, Triage)
 	if err != nil {
 		t.Errorf("UpdateRepoInvitation in dry-run mode should not return error, got: %v", err)
 	}
 
 	// Test DeleteRepoInvitation in dry-run mode
-	err = c.DeleteRepoInvitation("org", "repo", 12345)
+	err = c.DeleteCollaboratorRepoInvitation("org", "repo", 12345)
 	if err != nil {
 		t.Errorf("DeleteRepoInvitation in dry-run mode should not return error, got: %v", err)
 	}

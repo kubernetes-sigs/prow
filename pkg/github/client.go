@@ -188,8 +188,8 @@ type RepositoryClient interface {
 	ListDirectCollaboratorsWithPermissions(org, repo string) (map[string]RepoPermissionLevel, error)
 	AddCollaborator(org, repo, user string, permission RepoPermissionLevel) error
 	UpdateCollaborator(org, repo, user string, permission RepoPermissionLevel) error
-	UpdateRepoInvitation(org, repo string, invitationID int, permission RepoPermissionLevel) error
-	DeleteRepoInvitation(org, repo string, invitationID int) error
+	UpdateCollaboratorRepoInvitation(org, repo string, invitationID int, permission RepoPermissionLevel) error
+	DeleteCollaboratorRepoInvitation(org, repo string, invitationID int) error
 	RemoveCollaborator(org, repo, user string) error
 	UpdateCollaboratorPermission(org, repo, user string, permission RepoPermissionLevel) error
 	CreateFork(owner, repo string) (string, error)
@@ -197,7 +197,7 @@ type RepositoryClient interface {
 	ListRepoTeams(org, repo string) ([]Team, error)
 	CreateRepo(owner string, isUser bool, repo RepoCreateRequest) (*FullRepo, error)
 	UpdateRepo(owner, name string, repo RepoUpdateRequest) (*FullRepo, error)
-	ListRepoInvitations(org, repo string) ([]RepoInvitation, error)
+	ListRepoInvitations(org, repo string) ([]CollaboratorRepoInvitation, error)
 }
 
 // TeamClient interface for team related API actions
@@ -4202,12 +4202,12 @@ func (c *client) UpdateCollaborator(org, repo, user string, permission RepoPermi
 	return err
 }
 
-// UpdateRepoInvitation updates a pending repository invitation using the invitation ID.
+// UpdateCollaboratorRepoInvitation updates a pending repository invitation using the invitation ID.
 // This is the correct method for updating pending invitations.
 //
 // See https://docs.github.com/en/rest/collaborators/invitations#update-a-repository-invitation
-func (c *client) UpdateRepoInvitation(org, repo string, invitationID int, permission RepoPermissionLevel) error {
-	c.log("UpdateRepoInvitation", org, repo, invitationID, permission)
+func (c *client) UpdateCollaboratorRepoInvitation(org, repo string, invitationID int, permission RepoPermissionLevel) error {
+	c.log("UpdateCollaboratorRepoInvitation", org, repo, invitationID, permission)
 
 	if c.dry {
 		return nil
@@ -4229,11 +4229,11 @@ func (c *client) UpdateRepoInvitation(org, repo string, invitationID int, permis
 	return err
 }
 
-// DeleteRepoInvitation deletes a pending repository invitation using the invitation ID.
+// DeleteCollaboratorRepoInvitation deletes a pending repository invitation using the invitation ID.
 //
 // See https://docs.github.com/en/rest/collaborators/invitations#delete-a-repository-invitation
-func (c *client) DeleteRepoInvitation(org, repo string, invitationID int) error {
-	c.log("DeleteRepoInvitation", org, repo, invitationID)
+func (c *client) DeleteCollaboratorRepoInvitation(org, repo string, invitationID int) error {
+	c.log("DeleteCollaboratorRepoInvitation", org, repo, invitationID)
 
 	if c.dry {
 		return nil
@@ -5106,7 +5106,7 @@ func (c *client) CreatePullRequestReviewComment(org, repo string, number int, rc
 // ListRepoInvitations returns a list of invitations for the repository.
 //
 // See https://docs.github.com/en/rest/reference/repos#list-repository-invitations
-func (c *client) ListRepoInvitations(org, repo string) ([]RepoInvitation, error) {
+func (c *client) ListRepoInvitations(org, repo string) ([]CollaboratorRepoInvitation, error) {
 	durationLogger := c.log("ListRepoInvitations", org, repo)
 	defer durationLogger()
 
@@ -5115,16 +5115,16 @@ func (c *client) ListRepoInvitations(org, repo string) ([]RepoInvitation, error)
 	}
 
 	path := fmt.Sprintf("/repos/%s/%s/invitations", org, repo)
-	var ret []RepoInvitation
+	var ret []CollaboratorRepoInvitation
 	err := c.readPaginatedResults(
 		path,
 		"application/vnd.github.v3+json",
 		org,
 		func() interface{} {
-			return &[]RepoInvitation{}
+			return &[]CollaboratorRepoInvitation{}
 		},
 		func(obj interface{}) {
-			ret = append(ret, *(obj.(*[]RepoInvitation))...)
+			ret = append(ret, *(obj.(*[]CollaboratorRepoInvitation))...)
 		},
 	)
 	if err != nil {
