@@ -131,21 +131,25 @@ func copyAction(origContext, newContext string) func(statuses []github.Status, s
 // retireAction creates a function that returns a retire action.
 // Specifically the returned function returns a RepoStatus that will update the origContext status
 // to 'success' and set it's description to mark it as retired and replaced by newContext.
+// If no replacement context is provided (newContext is empty), the status is set to 'failure'
+// to indicate the job never ran.
 // If a non-empty URL is provided to describe why the context was retired, it will be
 // set as the target URL for the context.
 func retireAction(origContext, newContext, targetURL string) func(statuses []github.Status, sha string) []github.Status {
-	stateSuccess := "success"
+	var state string
 	var desc string
 	if newContext == "" {
+		state = "failure"
 		desc = "Context retired without replacement."
 	} else {
+		state = "success"
 		desc = fmt.Sprintf("Context retired. Status moved to \"%s\".", newContext)
 	}
 	return func(statuses []github.Status, sha string) []github.Status {
 		return []github.Status{
 			{
 				Context:     origContext,
-				State:       stateSuccess,
+				State:       state,
 				TargetURL:   targetURL,
 				Description: desc,
 			},

@@ -319,7 +319,7 @@ func TestRetireModeNoReplacement(t *testing.T) {
 				makeStatus(contextA, "failure", "description 1", "url 1"),
 			},
 			expectedDiffs: []github.Status{
-				makeStatus(contextA, "success", desc, ""),
+				makeStatus(contextA, "failure", desc, ""), // Updated: should be failure when no replacement
 			},
 		},
 		{
@@ -330,7 +330,7 @@ func TestRetireModeNoReplacement(t *testing.T) {
 				makeStatus("also not related", "error", "description 4", "url 4"),
 			},
 			expectedDiffs: []github.Status{
-				makeStatus(contextA, "success", desc, ""),
+				makeStatus(contextA, "failure", desc, ""), // Updated: should be failure when no replacement
 			},
 		},
 		{
