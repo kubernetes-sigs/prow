@@ -1202,6 +1202,19 @@ type UserRepoInvitation struct {
 	Permission   RepoPermissionLevel `json:"permissions"`
 }
 
+// CollaboratorRepoInvitation contains details about repository invitations returned by list repository invitations endpoint.
+//
+// See https://docs.github.com/en/rest/collaborators/invitations#list-repository-invitations
+type CollaboratorRepoInvitation struct {
+	InvitationID int                 `json:"id"`
+	Repository   *Repo               `json:"repository,omitempty"`
+	Invitee      *User               `json:"invitee,omitempty"`
+	Inviter      *User               `json:"inviter,omitempty"`
+	Permission   RepoPermissionLevel `json:"permissions"`
+	CreatedAt    string              `json:"created_at"`
+	URL          string              `json:"url"`
+}
+
 // OrgPermissionLevel is admin, and member
 //
 // See https://docs.github.com/en/rest/reference/orgs#set-organization-membership-for-a-user

@@ -73,6 +73,9 @@ type Repo struct {
 
 	Previously []string `json:"previously,omitempty"`
 
+	// Collaborators is a map of username to their permission level for this repository
+	Collaborators map[string]github.RepoPermissionLevel `json:"collaborators,omitempty"`
+
 	OnCreate *RepoCreateOptions `json:"on_create,omitempty"`
 }
 

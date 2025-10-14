@@ -3647,3 +3647,59 @@ func TestIsAppInstalled(t *testing.T) {
 		})
 	}
 }
+
+func TestCollaboratorMethodsDryRun(t *testing.T) {
+	// Test that collaborator methods respect dry-run mode
+	callCount := 0
+	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		t.Errorf("Unexpected API call in dry-run mode: %s %s", r.Method, r.URL.Path)
+	}))
+	defer ts.Close()
+
+	c := getClient(ts.URL)
+	c.dry = true // Enable dry-run mode
+
+	// Test AddCollaborator in dry-run mode
+	err := c.AddCollaborator("org", "repo", "user", Read)
+	if err != nil {
+		t.Errorf("AddCollaborator in dry-run mode should not return error, got: %v", err)
+	}
+
+	// Test RemoveCollaborator in dry-run mode
+	err = c.RemoveCollaborator("org", "repo", "user")
+	if err != nil {
+		t.Errorf("RemoveCollaborator in dry-run mode should not return error, got: %v", err)
+	}
+
+	// Test UpdateCollaboratorPermission in dry-run mode
+	err = c.UpdateCollaboratorPermission("org", "repo", "user", Admin)
+	if err != nil {
+		t.Errorf("UpdateCollaboratorPermission in dry-run mode should not return error, got: %v", err)
+	}
+
+	// Test UpdateCollaborator in dry-run mode
+	err = c.UpdateCollaborator("org", "repo", "user", Write)
+	if err != nil {
+		t.Errorf("UpdateCollaborator in dry-run mode should not return error, got: %v", err)
+	}
+
+	// Test UpdateRepoInvitation in dry-run mode
+	err = c.UpdateCollaboratorRepoInvitation("org", "repo", 12345, Triage)
+	if err != nil {
+		t.Errorf("UpdateRepoInvitation in dry-run mode should not return error, got: %v", err)
+	}
+
+	// Test DeleteRepoInvitation in dry-run mode
+	err = c.DeleteCollaboratorRepoInvitation("org", "repo", 12345)
+	if err != nil {
+		t.Errorf("DeleteRepoInvitation in dry-run mode should not return error, got: %v", err)
+	}
+
+	// Note: ListDirectCollaboratorsWithPermissions is a read operation and wouldn't be affected by dry-run mode
+
+	// Verify no API calls were made
+	if callCount > 0 {
+		t.Errorf("Expected 0 API calls in dry-run mode, but got %d", callCount)
+	}
+}
