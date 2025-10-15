@@ -145,6 +145,8 @@ func TranslateProwJobStatus(prowJobStatus *prowcrd.ProwJobStatus) JobExecutionSt
 	var jobStatus JobExecutionStatus
 
 	switch prowJobStatus.State {
+	case prowcrd.SchedulingState:
+		jobStatus = JobExecutionStatus_SCHEDULING
 	case prowcrd.TriggeredState:
 		jobStatus = JobExecutionStatus_TRIGGERED
 	case prowcrd.PendingState:
