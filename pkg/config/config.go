@@ -714,6 +714,14 @@ type Plank struct {
 	// limit. An example use case would be easier scheduling of jobs using boskos resources.
 	// This mechanism is separate from ProwJob's MaxConcurrency setting.
 	JobQueueCapacities map[string]int `json:"job_queue_capacities,omitempty"`
+
+	// AllowConcurrentPostsubmitJobs controls the duplicate job abort behavior for Tekton PipelineRuns.
+	// When disabled (default): all duplicate jobs (presubmit and postsubmit) are aborted when a newer
+	// job with the same identifier is detected.
+	// When enabled: only presubmit jobs are aborted; postsubmit jobs are allowed to run concurrently
+	// even if duplicates exist.
+	// This flag only affects jobs using the Tekton agent (agent: tekton-pipeline).
+	AllowConcurrentPostsubmitJobs bool `json:"allow_concurrent_postsubmit_jobs,omitempty"`
 }
 
 type ProwJobDefaultEntry struct {
