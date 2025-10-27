@@ -148,7 +148,7 @@ K8s-bot updates comment:
 	This pull-request has been approved by: *approver1, approver3, PRAuthor* 
 	We suggest the following additional approvers: **approver2**
 
-	If they are not already assigned, you can assign the PR to them by writing /assign @approver1 @approver2 in a comment when ready.
+	If they are not already assigned, you can assign the PR to them by writing /assign @approver2 in a comment when ready.
 	
 	∇ Details
 	Needs approval from an approver in each of these OWNERS Files:
