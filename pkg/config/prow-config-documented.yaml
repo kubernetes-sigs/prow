@@ -565,6 +565,13 @@ owners_dir_denylist:
     repos:
         "": null
 plank:
+    # AllowConcurrentPostsubmitJobs controls the duplicate job abort behavior for Tekton PipelineRuns.
+    # When disabled (default): all duplicate jobs (presubmit and postsubmit) are aborted when a newer
+    # job with the same identifier is detected.
+    # When enabled: only presubmit jobs are aborted; postsubmit jobs are allowed to run concurrently
+    # even if duplicates exist.
+    # This flag only affects jobs using the Tekton agent (agent: tekton-pipeline).
+    allow_concurrent_postsubmit_jobs: true
     # BuildClusterStatusFile is an optional field used to specify the blob storage location
     # to publish cluster status information.
     # e.g. gs://my-bucket/cluster-status.json

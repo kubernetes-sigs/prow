@@ -54,9 +54,9 @@ const (
 )
 
 type fakeReconciler struct {
-	jobs                           map[string]prowjobv1.ProwJob
-	pipelines                      map[string]pipelinev1.PipelineRun
-	nows                           metav1.Time
+	jobs                          map[string]prowjobv1.ProwJob
+	pipelines                     map[string]pipelinev1.PipelineRun
+	nows                          metav1.Time
 	allowConcurrentPostsubmitFlag bool
 }
 
@@ -957,10 +957,10 @@ func TestReconcileWithAllowConcurrentPostsubmitJobs(t *testing.T) {
 	pipelineSpec := pipelinev1.PipelineRunSpec{}
 
 	cases := []struct {
-		name                string
-		duplicateStartTime  *metav1.Time
-		observedJob         *prowjobv1.ProwJob
-		expectedJob         func(prowjobv1.ProwJob, pipelinev1.PipelineRun) prowjobv1.ProwJob
+		name               string
+		duplicateStartTime *metav1.Time
+		observedJob        *prowjobv1.ProwJob
+		expectedJob        func(prowjobv1.ProwJob, pipelinev1.PipelineRun) prowjobv1.ProwJob
 	}{
 		{
 			name:               "feature flag enabled: presubmit duplicate jobs are still aborted",
@@ -1059,9 +1059,9 @@ func TestReconcileWithAllowConcurrentPostsubmitJobs(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			name := "the-object-name"
 			r := &fakeReconciler{
-				jobs:                           map[string]prowjobv1.ProwJob{},
-				pipelines:                      map[string]pipelinev1.PipelineRun{},
-				nows:                           now,
+				jobs:                          map[string]prowjobv1.ProwJob{},
+				pipelines:                     map[string]pipelinev1.PipelineRun{},
+				nows:                          now,
 				allowConcurrentPostsubmitFlag: true, // Feature flag enabled
 			}
 
