@@ -934,6 +934,33 @@ func pickHighestPriorityPR(log *logrus.Entry, prs []CodeReviewCommon, cc map[int
 	return false, smallestPR
 }
 
+// pickLowestPriorityPR returns the PR with the highest number (newest, lowest
+// priority in Tide's ordering) from the list. Used to select which PR to
+// exclude when bisecting a failed batch.
+func pickLowestPriorityPR(prs []CodeReviewCommon) (bool, CodeReviewCommon) {
+	if len(prs) == 0 {
+		return false, CodeReviewCommon{}
+	}
+	result := prs[0]
+	for _, pr := range prs[1:] {
+		if pr.Number > result.Number {
+			result = pr
+		}
+	}
+	return true, result
+}
+
+// withoutPR returns a copy of prs excluding the PR with the given number.
+func withoutPR(prs []CodeReviewCommon, excludeNumber int) []CodeReviewCommon {
+	result := make([]CodeReviewCommon, 0, len(prs))
+	for _, pr := range prs {
+		if pr.Number != excludeNumber {
+			result = append(result, pr)
+		}
+	}
+	return result
+}
+
 // accumulateBatch looks at existing batch ProwJobs and, if applicable, returns:
 // * A list of PRs that are part of a batch test that finished successfully
 // * A list of PRs that are part of a batch test that hasn't finished yet but
@@ -943,7 +970,7 @@ func pickHighestPriorityPR(log *logrus.Entry, prs []CodeReviewCommon, cc map[int
 // successBatch, it's possible that these jobs haven't run yet, and in the case
 // we should consider this batch as failed so that takeAction can trigger a new
 // batch.
-func (c *syncController) accumulateBatch(sp subpool) (successBatch []CodeReviewCommon, pendingBatch []CodeReviewCommon) {
+func (c *syncController) accumulateBatch(sp subpool) (successBatch, pendingBatch, failedBatch []CodeReviewCommon) {
 	sp.log.Debug("accumulating PRs for batch testing")
 	prNums := make(map[int]CodeReviewCommon)
 	for _, pr := range sp.prs {
@@ -1032,9 +1059,11 @@ func (c *syncController) accumulateBatch(sp subpool) (successBatch []CodeReviewC
 			pendingBatch = state.prs
 		case successState:
 			successBatch = state.prs
+		case failureState:
+			failedBatch = state.prs
 		}
 	}
-	return successBatch, pendingBatch
+	return successBatch, pendingBatch, failedBatch
 }
 
 // prowJobsFromContexts constructs ProwJob objects from all successful presubmit contexts that include a baseSHA.
@@ -1539,7 +1568,7 @@ func (c *syncController) nonFailedBatchForJobAndRefsExists(jobName string, refs 
 	return len(pjs.Items) > 0
 }
 
-func (c *syncController) takeAction(sp subpool, batchPending, successes, pendings, missings, batchMerges []CodeReviewCommon, missingSerialTests map[int][]config.Presubmit) (Action, []CodeReviewCommon, error) {
+func (c *syncController) takeAction(sp subpool, batchPending, batchFailed, successes, pendings, missings, batchMerges []CodeReviewCommon, missingSerialTests map[int][]config.Presubmit) (Action, []CodeReviewCommon, error) {
 	var merged []CodeReviewCommon
 	var err error
 	defer func() {
@@ -1565,9 +1594,19 @@ func (c *syncController) takeAction(sp subpool, batchPending, successes, pending
 	if len(sp.presubmits) == 0 {
 		return Wait, nil, nil
 	}
-	// If we have no batch, trigger one.
+	// If we have no batch, trigger one. If a batch just failed CI, bisect by
+	// excluding the lowest-priority PR from the failed set and testing a
+	// smaller batch, rather than re-triggering the same failing combination.
 	if len(sp.prs) > 1 && len(batchPending) == 0 {
-		batch, presubmits, err := c.pickBatch(sp, sp.cc, c.pickNewBatch)
+		batchSP := sp
+		if len(batchFailed) > 0 {
+			if ok, pr := pickLowestPriorityPR(batchFailed); ok {
+				sp.log.WithField("excluded_pr", pr.Number).Info(
+					"Bisecting failed batch by excluding lowest-priority PR")
+				batchSP.prs = withoutPR(sp.prs, pr.Number)
+			}
+		}
+		batch, presubmits, err := c.pickBatch(batchSP, sp.cc, c.pickNewBatch)
 		if err != nil {
 			return Wait, nil, err
 		}
@@ -1778,13 +1817,14 @@ func (c *syncController) presubmitsForBatch(prs []CodeReviewCommon, org, repo, b
 func (c *syncController) syncSubpool(sp subpool, blocks []blockers.Blocker) (Pool, error) {
 	sp.log.WithField("num_prs", len(sp.prs)).WithField("num_prowjobs", len(sp.pjs)).Info("Syncing subpool")
 	successes, pendings, missings, missingSerialTests := c.accumulate(sp.presubmits, sp.prs, sp.pjs, sp.sha)
-	batchMerge, batchPending := c.accumulateBatch(sp)
+	batchMerge, batchPending, batchFailed := c.accumulateBatch(sp)
 	sp.log.WithFields(logrus.Fields{
 		"prs-passing":   prNumbers(successes),
 		"prs-pending":   prNumbers(pendings),
 		"prs-missing":   prNumbers(missings),
 		"batch-passing": prNumbers(batchMerge),
 		"batch-pending": prNumbers(batchPending),
+		"batch-failed":  prNumbers(batchFailed),
 	}).Info("Subpool accumulated.")
 
 	tenantIDs := sp.TenantIDs()
@@ -1795,7 +1835,7 @@ func (c *syncController) syncSubpool(sp subpool, blocks []blockers.Blocker) (Poo
 	if len(blocks) > 0 {
 		act = PoolBlocked
 	} else {
-		act, targets, err = c.takeAction(sp, batchPending, successes, pendings, missings, batchMerge, missingSerialTests)
+		act, targets, err = c.takeAction(sp, batchPending, batchFailed, successes, pendings, missings, batchMerge, missingSerialTests)
 		if err != nil {
 			if mf, ok := err.(*mergeFailure); ok {
 				errorString = mf.historyMessage()
