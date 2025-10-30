@@ -621,6 +621,11 @@ func (m *mergeChecker) isAllowedToMerge(crc *CodeReviewCommon) (string, error) {
 	} else if !allowed {
 		return fmt.Sprintf("Merge type %q disallowed by repo settings", *mergeMethod), nil
 	}
+	// Check GitHub's mergeStateStatus which reflects all GitHub-side merge blocking conditions
+	// including branch protection rules, rulesets, required reviews, status checks, etc.
+	if pr.MergeStateStatus == "BLOCKED" {
+		return "PR is blocked from merging by GitHub (check branch protection, required reviews, or rulesets)", nil
+	}
 	return "", nil
 }
 
