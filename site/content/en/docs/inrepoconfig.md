@@ -54,7 +54,7 @@ in `deck.additional_allowed_buckets`.
 
 ### Config verification job
 
-Afterwards, you need to add a config verification job to make sure people people get told about
+Afterwards, you need to add a config verification job to make sure people get told about
 mistakes in their Inrepoconfig rather than the PR being stuck. It makes sense to define this
 job in the central repository rather than the code repository, so the `checkconfig` version used
 stays in sync with the Prow version used. It looks like this:
