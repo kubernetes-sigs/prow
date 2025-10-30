@@ -54,14 +54,19 @@ const (
 )
 
 type fakeReconciler struct {
-	jobs      map[string]prowjobv1.ProwJob
-	pipelines map[string]pipelinev1.PipelineRun
-	nows      metav1.Time
+	jobs                          map[string]prowjobv1.ProwJob
+	pipelines                     map[string]pipelinev1.PipelineRun
+	nows                          metav1.Time
+	allowConcurrentPostsubmitFlag bool
 }
 
 func (r *fakeReconciler) now() metav1.Time {
 	fmt.Println(r.nows)
 	return r.nows
+}
+
+func (r *fakeReconciler) allowConcurrentPostsubmitJobs() bool {
+	return r.allowConcurrentPostsubmitFlag
 }
 
 const fakePJCtx = "prow-context"
@@ -802,6 +807,76 @@ func TestReconcile(t *testing.T) {
 				})
 				return p
 			}(),
+		},
+		{
+			name:               "feature flag disabled: presubmit duplicate jobs are aborted",
+			duplicateStartTime: &future,
+			observedJob: &prowjobv1.ProwJob{
+				Status: prowjobv1.ProwJobStatus{
+					State:     prowjobv1.PendingState,
+					BuildID:   pipelineID,
+					StartTime: now,
+				},
+				Spec: prowjobv1.ProwJobSpec{
+					Agent:           prowjobv1.TektonAgent,
+					Type:            prowjobv1.PresubmitJob,
+					PipelineRunSpec: &pipelineSpec,
+					Job:             "foobar",
+				},
+			},
+			expectedJob: func(pj prowjobv1.ProwJob, _ pipelinev1.PipelineRun) prowjobv1.ProwJob {
+				if !strings.Contains(pj.Name, duplicateAppendix) {
+					pj.Status = prowjobv1.ProwJobStatus{
+						StartTime:      now,
+						State:          prowjobv1.AbortedState,
+						Description:    descAborted,
+						BuildID:        pipelineID,
+						CompletionTime: &now,
+					}
+					return pj
+				}
+				pj.Status = prowjobv1.ProwJobStatus{
+					StartTime: future,
+					State:     prowjobv1.PendingState,
+					BuildID:   pipelineID + duplicateAppendix,
+				}
+				return pj
+			},
+		},
+		{
+			name:               "feature flag disabled: postsubmit duplicate jobs are aborted",
+			duplicateStartTime: &future,
+			observedJob: &prowjobv1.ProwJob{
+				Status: prowjobv1.ProwJobStatus{
+					State:     prowjobv1.PendingState,
+					BuildID:   pipelineID,
+					StartTime: now,
+				},
+				Spec: prowjobv1.ProwJobSpec{
+					Agent:           prowjobv1.TektonAgent,
+					Type:            prowjobv1.PostsubmitJob,
+					PipelineRunSpec: &pipelineSpec,
+					Job:             "foobar",
+				},
+			},
+			expectedJob: func(pj prowjobv1.ProwJob, _ pipelinev1.PipelineRun) prowjobv1.ProwJob {
+				if !strings.Contains(pj.Name, duplicateAppendix) {
+					pj.Status = prowjobv1.ProwJobStatus{
+						StartTime:      now,
+						State:          prowjobv1.AbortedState,
+						Description:    descAborted,
+						BuildID:        pipelineID,
+						CompletionTime: &now,
+					}
+					return pj
+				}
+				pj.Status = prowjobv1.ProwJobStatus{
+					StartTime: future,
+					State:     prowjobv1.PendingState,
+					BuildID:   pipelineID + duplicateAppendix,
+				}
+				return pj
+			},
 		}}
 
 	for _, tc := range cases {
@@ -869,6 +944,158 @@ func TestReconcile(t *testing.T) {
 				t.Errorf("prowjobs do not match:\n%s", diff.ObjectReflectDiff(expectedJobs, r.jobs))
 			case !equality.Semantic.DeepEqual(r.pipelines, expectedPipelineRuns):
 				t.Errorf("pipelineruns do not match:\n%s", diff.ObjectReflectDiff(expectedPipelineRuns, r.pipelines))
+			}
+		})
+	}
+}
+
+func TestReconcileWithAllowConcurrentPostsubmitJobs(t *testing.T) {
+	duplicateAppendix := "-duplicate"
+	logrus.SetLevel(logrus.DebugLevel)
+	now := metav1.Now()
+	future := metav1.Time{Time: time.Now().Add(time.Minute)}
+	pipelineSpec := pipelinev1.PipelineRunSpec{}
+
+	cases := []struct {
+		name               string
+		duplicateStartTime *metav1.Time
+		observedJob        *prowjobv1.ProwJob
+		expectedJob        func(prowjobv1.ProwJob, pipelinev1.PipelineRun) prowjobv1.ProwJob
+	}{
+		{
+			name:               "feature flag enabled: presubmit duplicate jobs are still aborted",
+			duplicateStartTime: &future,
+			observedJob: &prowjobv1.ProwJob{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: fakePJNS,
+				},
+				Status: prowjobv1.ProwJobStatus{
+					State:     prowjobv1.TriggeredState,
+					BuildID:   pipelineID,
+					StartTime: now,
+				},
+				Spec: prowjobv1.ProwJobSpec{
+					Agent:           prowjobv1.TektonAgent,
+					Type:            prowjobv1.PresubmitJob,
+					PipelineRunSpec: &pipelineSpec,
+					Job:             "foobar",
+					Namespace:       "namespace",
+					Refs: &prowjobv1.Refs{
+						Org:  "org",
+						Repo: "repo",
+					},
+				},
+			},
+			expectedJob: func(pj prowjobv1.ProwJob, _ pipelinev1.PipelineRun) prowjobv1.ProwJob {
+				if !strings.Contains(pj.Name, duplicateAppendix) {
+					// Older job should be aborted
+					pj.Status = prowjobv1.ProwJobStatus{
+						StartTime:      now,
+						State:          prowjobv1.AbortedState,
+						Description:    descAborted,
+						BuildID:        pipelineID,
+						CompletionTime: &now,
+					}
+					return pj
+				}
+				// Newer job should remain triggered
+				pj.Status = prowjobv1.ProwJobStatus{
+					StartTime: future,
+					State:     prowjobv1.TriggeredState,
+					BuildID:   pipelineID + duplicateAppendix,
+				}
+				return pj
+			},
+		},
+		{
+			name:               "feature flag enabled: postsubmit duplicate jobs are NOT aborted",
+			duplicateStartTime: &future,
+			observedJob: &prowjobv1.ProwJob{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: fakePJNS,
+				},
+				Status: prowjobv1.ProwJobStatus{
+					State:     prowjobv1.TriggeredState,
+					BuildID:   pipelineID,
+					StartTime: now,
+				},
+				Spec: prowjobv1.ProwJobSpec{
+					Agent:           prowjobv1.TektonAgent,
+					Type:            prowjobv1.PostsubmitJob,
+					PipelineRunSpec: &pipelineSpec,
+					Job:             "foobar",
+					Namespace:       "namespace",
+					Refs: &prowjobv1.Refs{
+						Org:  "org",
+						Repo: "repo",
+					},
+				},
+			},
+			expectedJob: func(pj prowjobv1.ProwJob, _ pipelinev1.PipelineRun) prowjobv1.ProwJob {
+				// Both jobs should not be aborted, original job will be scheduled
+				if !strings.Contains(pj.Name, duplicateAppendix) {
+					// Original job gets scheduled (PipelineRun created)
+					pj.Status = prowjobv1.ProwJobStatus{
+						StartTime:   now,
+						PendingTime: &now,
+						State:       prowjobv1.PendingState,
+						Description: descScheduling,
+						BuildID:     pipelineID,
+					}
+					return pj
+				}
+				// Duplicate job remains triggered (not aborted, not scheduled yet)
+				pj.Status = prowjobv1.ProwJobStatus{
+					StartTime: future,
+					State:     prowjobv1.TriggeredState,
+					BuildID:   pipelineID + duplicateAppendix,
+				}
+				return pj
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			name := "the-object-name"
+			r := &fakeReconciler{
+				jobs:                          map[string]prowjobv1.ProwJob{},
+				pipelines:                     map[string]pipelinev1.PipelineRun{},
+				nows:                          now,
+				allowConcurrentPostsubmitFlag: true, // Feature flag enabled
+			}
+
+			jk := toKey(fakePJCtx, fakePJNS, name)
+			jkDuplicate := toKey(fakePJCtx, fakePJNS, name+duplicateAppendix)
+			if j := tc.observedJob; j != nil {
+				j.Name = name
+				j.Namespace = fakePJNS
+				if tc.duplicateStartTime != nil {
+					duplicate := j.DeepCopy()
+					duplicate.Name = name + duplicateAppendix
+					duplicate.Namespace = fakePJNS
+					duplicate.Status.StartTime = *tc.duplicateStartTime
+					duplicate.Status.BuildID = j.Status.BuildID + duplicateAppendix
+					r.jobs[jkDuplicate] = *duplicate
+				}
+				r.jobs[jk] = *j
+			}
+
+			expectedJobs := map[string]prowjobv1.ProwJob{}
+			if j := tc.expectedJob; j != nil {
+				expectedJobs[jk] = j(r.jobs[jk], pipelinev1.PipelineRun{})
+				if tc.duplicateStartTime != nil {
+					expectedJobs[jkDuplicate] = j(r.jobs[jkDuplicate], pipelinev1.PipelineRun{})
+				}
+			}
+
+			tk := toKey(kube.DefaultClusterAlias, "", name)
+			err := reconcile(r, tk)
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+			if !equality.Semantic.DeepEqual(r.jobs, expectedJobs) {
+				t.Errorf("prowjobs do not match:\n%s", diff.ObjectReflectDiff(expectedJobs, r.jobs))
 			}
 		})
 	}
