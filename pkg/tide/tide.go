@@ -61,6 +61,7 @@ type githubClient interface {
 	GetPullRequestChanges(org, repo string, number int) ([]github.PullRequestChange, error)
 	GetRef(string, string, string) (string, error)
 	GetRepo(owner, name string) (github.FullRepo, error)
+	GetBranchProtection(org, repo, branch string) (*github.BranchProtection, error)
 	Merge(string, string, int, github.MergeDetails) error
 	QueryWithGitHubAppsSupport(ctx context.Context, q interface{}, vars map[string]interface{}, org string) error
 	ListIssueComments(org, repo string, number int) ([]github.IssueComment, error)

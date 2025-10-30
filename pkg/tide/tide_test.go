@@ -705,6 +705,7 @@ type githubClientFuncs struct {
 	GetCombinedStatus          func(ghc githubClient, org, repo, ref string) (*github.CombinedStatus, error)
 	ListCheckRuns              func(ghc githubClient, org, repo, ref string) (*github.CheckRunList, error)
 	GetPullRequestChanges      func(ghc githubClient, org, repo string, number int) ([]github.PullRequestChange, error)
+	GetBranchProtection        func(ghc githubClient, org, repo, branch string) (*github.BranchProtection, error)
 	ListIssueComments          func(ghc githubClient, org, repo string, number int) ([]github.IssueComment, error)
 	BotUserChecker             func(ghc githubClient) (func(candidate string) bool, error)
 	DeleteComment              func(ghc githubClient, org, repo string, id int) error
@@ -790,6 +791,13 @@ func (f *ghcInterceptor) DeleteComment(org, repo string, id int) error {
 		return f.interceptors.DeleteComment(f.c, org, repo, id)
 	}
 	return f.c.DeleteComment(org, repo, id)
+}
+
+func (f *ghcInterceptor) GetBranchProtection(org, repo, branch string) (*github.BranchProtection, error) {
+	if f.interceptors.GetBranchProtection != nil {
+		return f.interceptors.GetBranchProtection(f.c, org, repo, branch)
+	}
+	return f.c.GetBranchProtection(org, repo, branch)
 }
 
 type fgc struct {
@@ -926,6 +934,10 @@ func (f *fgc) DeleteComment(org, repo string, id int) error {
 		}
 	}
 	return nil
+}
+
+func (f *fgc) GetBranchProtection(org, repo, branch string) (*github.BranchProtection, error) {
+	return nil, nil
 }
 
 // TestDividePool ensures that subpools returned by dividePool satisfy a few
