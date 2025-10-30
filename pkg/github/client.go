@@ -822,6 +822,12 @@ type request struct {
 	org         string
 	requestBody interface{}
 	exitCodes   []int
+	// allowInDryRun allows this request even in dry-run mode.
+	// WARNING: This should ONLY be used for read-only operations that enable other reads,
+	// such as GitHub App installation token acquisition. NEVER use this for actual mutations
+	// (creating/updating/deleting org members, teams, repos, etc.) as it would defeat the
+	// purpose of dry-run mode. Currently only used for: /app/installations/{id}/access_tokens
+	allowInDryRun bool
 }
 
 type requestError struct {
@@ -923,12 +929,35 @@ func (c *client) requestWithContext(ctx context.Context, r *request, ret interfa
 
 // requestRaw makes a request with retries and returns the response body.
 // Returns an error if the exit code is not one of the provided codes.
+// isDryRunAllowed returns true if this request should be allowed in dry-run mode.
+// This enforces an allowlist of read-only operations that enable other reads.
+// Currently only allows GitHub App installation token acquisition.
+func isDryRunAllowed(r *request) bool {
+	if !r.allowInDryRun {
+		return false
+	}
+
+	// Hardcoded allowlist: ONLY allow GitHub App token acquisition
+	// Pattern: POST /app/installations/{installation_id}/access_tokens
+	if r.method == http.MethodPost &&
+		strings.Contains(r.path, "/app/installations/") &&
+		strings.HasSuffix(r.path, "/access_tokens") {
+		return true
+	}
+
+	// If allowInDryRun is set but doesn't match the allowlist, this is a bug
+	// Log an error to catch misuse during development
+	logrus.Errorf("SECURITY: allowInDryRun=true set for non-allowed endpoint: %s %s. This is a bug - allowInDryRun should ONLY be used for GitHub App token acquisition.", r.method, r.path)
+	return false
+}
+
 func (c *client) requestRaw(r *request) (int, []byte, error) {
 	return c.requestRawWithContext(context.Background(), r)
 }
 
 func (c *client) requestRawWithContext(ctx context.Context, r *request) (int, []byte, error) {
-	if c.fake || (c.dry && r.method != http.MethodGet) {
+	// In dry-run mode, block all non-GET requests except for explicitly allowed read-only operations
+	if c.fake || (c.dry && r.method != http.MethodGet && !isDryRunAllowed(r)) {
 		return r.exitCodes[0], nil, nil
 	}
 	resp, err := c.requestRetryWithContext(ctx, r.method, r.path, r.accept, r.org, r.requestBody)
@@ -5036,15 +5065,21 @@ func (c *client) getAppInstallationToken(installationId int64) (*AppInstallation
 	durationLogger := c.log("AppInstallationToken")
 	defer durationLogger()
 
-	if c.dry {
-		return nil, fmt.Errorf("not requesting GitHub App access_token in dry-run mode")
-	}
+	// Note: We allow token fetching even in dry-run mode because:
+	// 1. Fetching a token is effectively a read-only operation - it has no side effects on the org/repos
+	// 2. The token is required to make any subsequent API calls (even GET requests)
+	// 3. All actual mutations (POST/PUT/PATCH/DELETE to org/repo resources) are still blocked by dry-run mode
+	// 4. This allows tools to run in dry-run mode with GitHub Apps
 
 	var token AppInstallationToken
 	if _, err := c.request(&request{
 		method:    http.MethodPost,
 		path:      fmt.Sprintf("/app/installations/%d/access_tokens", installationId),
 		exitCodes: []int{201},
+		// allowInDryRun: This is the ONLY place this flag should be set to true.
+		// Token acquisition is read-only and enables subsequent reads. Do not use
+		// this flag for actual mutations to org/repo resources.
+		allowInDryRun: true,
 	}, &token); err != nil {
 		return nil, err
 	}
