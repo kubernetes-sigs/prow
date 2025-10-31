@@ -529,16 +529,18 @@ type mergeChecker struct {
 	ghc    githubClient
 
 	sync.Mutex
-	cache map[config.OrgRepo]map[types.PullRequestMergeType]bool
+	cache                        map[config.OrgRepo]map[types.PullRequestMergeType]bool
+	branchProtectionReviewsCache map[string]bool
 }
 
 // newMergeChecker creates a mergeChecker for GitHub, and should be used only by
 // GitHubProvider.
 func newMergeChecker(cfg config.Getter, ghc githubClient) *mergeChecker {
 	m := &mergeChecker{
-		config: cfg,
-		ghc:    ghc,
-		cache:  map[config.OrgRepo]map[types.PullRequestMergeType]bool{},
+		config:                       cfg,
+		ghc:                          ghc,
+		cache:                        map[config.OrgRepo]map[types.PullRequestMergeType]bool{},
+		branchProtectionReviewsCache: map[string]bool{},
 	}
 
 	go m.clearCache()
@@ -554,6 +556,7 @@ func (m *mergeChecker) clearCache() {
 		<-ticker.C
 		m.Lock()
 		m.cache = make(map[config.OrgRepo]map[types.PullRequestMergeType]bool)
+		m.branchProtectionReviewsCache = map[string]bool{}
 		m.Unlock()
 	}
 }
@@ -588,6 +591,36 @@ func (m *mergeChecker) repoMethods(orgRepo config.OrgRepo) (map[types.PullReques
 	return repoMethods, nil
 }
 
+// branchRequiresReviews checks if branch protection requires pull request reviews.
+func (m *mergeChecker) branchRequiresReviews(org, repo, branch string) (bool, error) {
+	cacheKey := fmt.Sprintf("%s/%s:%s", org, repo, branch)
+	m.Lock()
+	cached, ok := m.branchProtectionReviewsCache[cacheKey]
+	m.Unlock()
+	if ok {
+		return cached, nil
+	}
+
+	bp, err := m.ghc.GetBranchProtection(org, repo, branch)
+	if err != nil {
+		// If branch protection is not configured or we can't access it,
+		// assume reviews are not required (GitHub's default).
+		// Cache the result to avoid repeated API calls for the same branch.
+		m.Lock()
+		m.branchProtectionReviewsCache[cacheKey] = false
+		m.Unlock()
+		return false, nil
+	}
+
+	requiresReviews := bp.RequiredPullRequestReviews != nil &&
+		bp.RequiredPullRequestReviews.RequiredApprovingReviewCount > 0
+
+	m.Lock()
+	m.branchProtectionReviewsCache[cacheKey] = requiresReviews
+	m.Unlock()
+	return requiresReviews, nil
+}
+
 // isAllowed checks if a PR does not have merge conflicts and requests an
 // allowed merge method. If there is no error it returns a string explanation if
 // not allowed or "" if allowed.
@@ -620,6 +653,19 @@ func (m *mergeChecker) isAllowedToMerge(crc *CodeReviewCommon) (string, error) {
 		return "", fmt.Errorf("Programmer error! PR requested the unrecognized merge type %q", *mergeMethod)
 	} else if !allowed {
 		return fmt.Sprintf("Merge type %q disallowed by repo settings", *mergeMethod), nil
+	}
+	// Check if PR has "changes requested" review state and branch protection requires reviews.
+	if pr.ReviewDecision == githubql.PullRequestReviewDecisionChangesRequested {
+		requiresReviews, err := m.branchRequiresReviews(crc.Org, crc.Repo, crc.BaseRefName)
+		if err != nil {
+			logrus.WithError(err).WithFields(logrus.Fields{
+				"org":    crc.Org,
+				"repo":   crc.Repo,
+				"branch": crc.BaseRefName,
+			}).Debug("Error checking if branch requires reviews, allowing GitHub to enforce")
+		} else if requiresReviews {
+			return "PR has changes requested in reviews and branch protection requires reviews", nil
+		}
 	}
 	return "", nil
 }
