@@ -376,7 +376,7 @@ func (c *controller) pipelineID(pj prowjobv1.ProwJob) (string, string, error) {
 }
 
 func (c *controller) allowConcurrentPostsubmitJobs() bool {
-	return c.config().Plank.AllowConcurrentPostsubmitJobs
+	return c.config().Pipeline.AllowConcurrentPostsubmitJobs
 }
 
 func createProwJobIdentifier(pj *prowjobv1.ProwJob) string {
@@ -409,17 +409,8 @@ func getFilteredProwJobs(id string, pjsToFilter []*prowjobv1.ProwJob) []*prowjob
 // it can also abort the given if it is running and has the same identifier as the detected
 // newer prowjob. The function returns the updated prowjob if it was aborted, otherwise the
 // original prowjob is returned.
-//
-// When AllowConcurrentPostsubmitJobs feature flag is enabled, postsubmit jobs are allowed
-// to run concurrently and will not be aborted. Presubmit jobs will still be aborted.
 func abortDuplicatedProwJobs(c reconciler, pj *prowjobv1.ProwJob) (*prowjobv1.ProwJob, error) {
 	if !runningState(pj.Status.State) || pj.Spec.Agent != prowjobv1.TektonAgent {
-		return pj, nil
-	}
-
-	// Check feature flag: if enabled and this is a postsubmit, skip abort logic
-	if c.allowConcurrentPostsubmitJobs() && pj.Spec.Type == prowjobv1.PostsubmitJob {
-		logrus.WithFields(pjutil.ProwJobFields(pj)).Infof("Skipping abort for postsubmit job because AllowConcurrentPostsubmitJobs is enabled")
 		return pj, nil
 	}
 
@@ -431,12 +422,6 @@ func abortDuplicatedProwJobs(c reconciler, pj *prowjobv1.ProwJob) (*prowjobv1.Pr
 	pjs := getFilteredProwJobs(id, prowJobsToFilter)
 	// do not abort the newest prowjob
 	for i := 0; i < len(pjs)-1; i++ {
-		// If feature flag is enabled, skip aborting postsubmit jobs
-		if c.allowConcurrentPostsubmitJobs() && pjs[i].Spec.Type == prowjobv1.PostsubmitJob {
-			logrus.WithFields(pjutil.ProwJobFields(pjs[i])).Infof("Skipping abort for postsubmit job %s because AllowConcurrentPostsubmitJobs is enabled", pjs[i].Name)
-			continue
-		}
-
 		newpj := pjs[i].DeepCopy()
 		now := c.now()
 		newpj.Status.State = prowjobv1.AbortedState
@@ -482,9 +467,17 @@ func reconcile(c reconciler, key string) error {
 		wantPipelineRun = true
 	}
 	if !apierrors.IsNotFound(err) {
-		pj, err = abortDuplicatedProwJobs(c, pj)
-		if err != nil {
-			return fmt.Errorf("abort duplicated prowjobs: %w", err)
+		// Check if we should abort duplicates based on the feature flag and job type.
+		// When AllowConcurrentPostsubmitJobs is enabled, postsubmit jobs are allowed
+		// to run concurrently and should not be aborted.
+		shouldAbortDuplicates := !c.allowConcurrentPostsubmitJobs() || pj.Spec.Type != prowjobv1.PostsubmitJob
+		if shouldAbortDuplicates {
+			pj, err = abortDuplicatedProwJobs(c, pj)
+			if err != nil {
+				return fmt.Errorf("abort duplicated prowjobs: %w", err)
+			}
+		} else {
+			logrus.WithFields(pjutil.ProwJobFields(pj)).Info("Skipping abort for postsubmit job because AllowConcurrentPostsubmitJobs is enabled")
 		}
 	}
 	newpj := pj.DeepCopy()
