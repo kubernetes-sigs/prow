@@ -408,21 +408,32 @@ func (gi *GitHubProvider) GetChangedFiles(org, repo string, number int) ([]strin
 }
 
 func (gi *GitHubProvider) refsForJob(sp subpool, prs []CodeReviewCommon) (prowapi.Refs, error) {
+	// Get the configured GitHub host URL (defaults to https://github.com if not set)
+	githubHost := "https://" + github.DefaultHost
+	if gi.cfg().GitHubOptions.LinkURL != nil {
+		githubHost = gi.cfg().GitHubOptions.LinkURL.String()
+	}
+
 	refs := prowapi.Refs{
-		Org:     sp.org,
-		Repo:    sp.repo,
-		BaseRef: sp.branch,
-		BaseSHA: sp.sha,
+		Org:      sp.org,
+		Repo:     sp.repo,
+		BaseRef:  sp.branch,
+		BaseSHA:  sp.sha,
+		RepoLink: fmt.Sprintf("%s/%s/%s", githubHost, sp.org, sp.repo),
+		BaseLink: fmt.Sprintf("%s/%s/%s/tree/%s", githubHost, sp.org, sp.repo, sp.sha),
 	}
 	for _, pr := range prs {
 		refs.Pulls = append(
 			refs.Pulls,
 			prowapi.Pull{
-				Number:  pr.Number,
-				Title:   pr.Title,
-				Author:  string(pr.AuthorLogin),
-				SHA:     pr.HeadRefOID,
-				HeadRef: pr.HeadRefName,
+				Number:     pr.Number,
+				Title:      pr.Title,
+				Author:     string(pr.AuthorLogin),
+				SHA:        pr.HeadRefOID,
+				HeadRef:    pr.HeadRefName,
+				Link:       fmt.Sprintf("%s/%s/%s/pull/%d", githubHost, sp.org, sp.repo, pr.Number),
+				CommitLink: fmt.Sprintf("%s/%s/%s/commit/%s", githubHost, sp.org, sp.repo, pr.HeadRefOID),
+				AuthorLink: fmt.Sprintf("%s/%s", githubHost, pr.AuthorLogin),
 			},
 		)
 	}
