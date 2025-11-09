@@ -18,6 +18,7 @@ package label
 
 import (
 	"fmt"
+	"math/rand/v2"
 	"regexp"
 	"strings"
 
@@ -332,7 +333,18 @@ func canUserSetLabel(ghc githubClient, org string, user string, label string, re
 		}
 	}
 
-	return false, fmt.Sprintf("Can not set label %s: Must be member in one of these teams: %v", label, config.AllowedTeams), nil
+	msg := fmt.Sprintf("The label(s) `%s` cannot be applied or removed, because you are not in one of the allowed teams and are not an allowed user.", label)
+	if len(config.AllowedTeams) > 0 {
+		msg += fmt.Sprintf(" Must be a member of one of these teams: %s", strings.Join(config.AllowedTeams, ", "))
+	} else if len(config.AllowedUsers) > 0 {
+		randomUsers := []string{}
+		// Just in case we have some very large teams, we only show up to 20 users.
+		for userIdx := range rand.Perm(len(config.AllowedUsers))[:min(len(config.AllowedUsers), 20)] {
+			randomUsers = append(randomUsers, config.AllowedUsers[userIdx])
+		}
+		msg += fmt.Sprintf(" Consider assigning one of the following members: %s", strings.Join(randomUsers, ","))
+	}
+	return false, msg, nil
 }
 
 func handleLabelAdd(gc githubClient, log *logrus.Entry, config plugins.Label, e *github.PullRequestEvent) error {
