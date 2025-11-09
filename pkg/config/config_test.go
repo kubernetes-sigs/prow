@@ -8424,6 +8424,7 @@ managed_webhooks:
   respect_legacy_global_token: false
 moonraker:
   client_timeout: 10m0s
+pipeline: {}
 plank:
   max_goroutines: 20
   max_revivals: 3
@@ -8509,6 +8510,7 @@ managed_webhooks:
   respect_legacy_global_token: false
 moonraker:
   client_timeout: 10m0s
+pipeline: {}
 plank:
   max_goroutines: 20
   max_revivals: 3
@@ -8587,6 +8589,7 @@ managed_webhooks:
   respect_legacy_global_token: false
 moonraker:
   client_timeout: 10m0s
+pipeline: {}
 plank:
   max_goroutines: 20
   max_revivals: 3
@@ -8670,6 +8673,7 @@ managed_webhooks:
   respect_legacy_global_token: false
 moonraker:
   client_timeout: 10m0s
+pipeline: {}
 plank:
   max_goroutines: 20
   max_revivals: 3
