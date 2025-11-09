@@ -125,7 +125,9 @@ func (sc *statusController) shutdown() {
 // Note: an empty diff can be returned if the reason that the PR does not match
 // the TideQuery is unknown. This can happen if this function's logic
 // does not match GitHub's and does not indicate that the PR matches the query.
-func requirementDiff(pr *PullRequest, q *config.TideQuery, cc contextChecker) (string, int) {
+// branchRequiresReviews is an optional function that checks if branch protection
+// requires reviews. If nil, "changes requested" will always be treated as not blocking.
+func requirementDiff(pr *PullRequest, q *config.TideQuery, cc contextChecker, branchRequiresReviews func(string, string, string) (bool, error)) (string, int) {
 	const maxLabelChars = 50
 	var desc string
 	var diff int
@@ -254,7 +256,21 @@ func requirementDiff(pr *PullRequest, q *config.TideQuery, cc contextChecker) (s
 		}
 	}
 
-	if q.ReviewApprovedRequired && pr.ReviewDecision != githubql.PullRequestReviewDecisionApproved {
+	// PullRequestReviewDecisionChangesRequested blocks merging only if branch protection requires reviews.
+	if pr.ReviewDecision == githubql.PullRequestReviewDecisionChangesRequested {
+		shouldBlock := false
+		if branchRequiresReviews != nil {
+			if requiresReviews, err := branchRequiresReviews(string(pr.Repository.Owner.Login), string(pr.Repository.Name), string(pr.BaseRef.Name)); err == nil {
+				shouldBlock = requiresReviews
+			}
+		}
+		if shouldBlock {
+			diff += 50
+			if desc == "" {
+				desc = " PR has changes requested in reviews"
+			}
+		}
+	} else if q.ReviewApprovedRequired && pr.ReviewDecision != githubql.PullRequestReviewDecisionApproved {
 		diff += 50
 		if desc == "" {
 			desc = " PullRequest is missing sufficient approving GitHub review(s)"
@@ -314,8 +330,11 @@ func (sc *statusController) expectedStatus(log *logrus.Entry, queryMap *config.Q
 
 		minDiffCount := -1
 		var minDiff string
+		branchRequiresReviewsFunc := func(org, repo, branch string) (bool, error) {
+			return sc.ghProvider.mergeChecker.branchRequiresReviews(org, repo, branch)
+		}
 		for _, q := range queryMap.ForRepo(repo) {
-			diff, diffCount := requirementDiff(pr, &q, cc)
+			diff, diffCount := requirementDiff(pr, &q, cc, branchRequiresReviewsFunc)
 			if diffCount == 0 {
 				hasFulfilledQuery = true
 				break
