@@ -139,9 +139,9 @@ kubectl create secret -n prow generic github-token --from-file=cert=/path/to/git
 ### Update the sample manifest
 
 There are three sample manifests to get you started:
-* [`starter-s3.yaml`](https://github.com/kubernetes/test-infra/blob/master/config/prow/cluster/starter/starter-s3.yaml) sets up a minio as blob storage for logs and is particularly well suited to quickly get something working. NOTE: this method requires 2 PVs of 100Gi each.
-* [`starter-gcs.yaml`](https://github.com/kubernetes/test-infra/blob/master/config/prow/cluster/starter/starter-gcs.yaml) uses GCS as blob storage and requires additional configuration to set up the bucket and ServiceAccounts. See [this](#configure-a-gcs-bucket) for details.
-* [`starter-azure.yaml`](https://github.com/kubernetes/test-infra/blob/master/config/prow/cluster/starter/starter-azure.yaml) uses Azure as blob storage and requires MinIO deployment. See [this](#configure-an-azure-blob-storage) for details.
+* [`starter-s3.yaml`](https://github.com/kubernetes-sigs/prow/blob/main/config/prow/cluster/starter/starter-s3.yaml) sets up a minio as blob storage for logs and is particularly well suited to quickly get something working. NOTE: this method requires 2 PVs of 100Gi each.
+* [`starter-gcs.yaml`](https://github.com/kubernetes-sigs/prow/blob/main/config/prow/cluster/starter/starter-gcs.yaml) uses GCS as blob storage and requires additional configuration to set up the bucket and ServiceAccounts. See [this](#configure-a-gcs-bucket) for details.
+* [`starter-azure.yaml`](https://github.com/kubernetes-sigs/prow/blob/main/config/prow/cluster/starter/starter-azure.yaml) uses Azure as blob storage and requires MinIO deployment. See [this](#configure-an-azure-blob-storage) for details.
 
 **Note**: It will deploy prow in the `prow` namespace of the cluster.
 
@@ -304,7 +304,7 @@ In order to configure the Azure storage, follow the following steps:
     - `prow-logs`
     - `status-reconciler`
     - `tide`
-1. apply [starter-azure.yaml](https://github.com/kubernetes/test-infra/blob/master/config/prow/cluster/starter/starter-azure.yaml).
+1. apply [starter-azure.yaml](https://github.com/kubernetes-sigs/prow/blob/main/config/prow/cluster/starter/starter-azure.yaml).
 
 ### Configure a GCS bucket
 
@@ -336,7 +336,7 @@ In order to configure the bucket, follow the following steps:
 After [downloading](https://cloud.google.com/sdk/gcloud/) the `gcloud` tool and authenticating,
 the following collection of commands will execute the above steps for you:
 
-> You will need to change the bucket name from `gs://your-bucket-name/` to a globally unique one and use that instead in [`starter-gcs.yaml`](https://github.com/kubernetes/test-infra/blob/master/config/prow/cluster/starter/starter-gcs.yaml) too.
+> You will need to change the bucket name from `gs://your-bucket-name/` to a globally unique one and use that instead in [`starter-gcs.yaml`](https://github.com/kubernetes-sigs/prow/blob/main/config/prow/cluster/starter/starter-gcs.yaml) too.
 
 ```sh
 $ gcloud iam service-accounts create prow-gcs-publisher
