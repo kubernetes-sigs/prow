@@ -54,12 +54,12 @@ tackle
 2. Once your cluster is created, you'll get a prompt to apply a `starter.yaml`. Before you do that open another terminal and apply the prow CRDs using:
 
 ```sh
-kubectl apply --server-side=true -f https://raw.githubusercontent.com/kubernetes/test-infra/master/config/prow/cluster/prowjob-crd/prowjob_customresourcedefinition.yaml
+kubectl apply --server-side=true -f https://raw.githubusercontent.com/kubernetes/test-infra/main/config/prow/cluster/prowjob-crd/prowjob_customresourcedefinition.yaml
 ```
 
 3. After that specify the `starter.yaml` you want to use (please make sure to replace the values mentioned [here](/docs/getting-started-deploy/#update-the-sample-manifest)). Once that is done some pods still won't be in the `Running` state because we haven't created the secret containing the credentials needed for our GCS bucket. To do that follow the steps in [Configure a GCS bucket](/docs/getting-started-deploy/#configure-a-gcs-bucket).
 
-4. Once that is done, `tackle` should show you the URL where you can access the prow dashboard. To use it with your repositories head over to the settings of the GitHub app you created and there under webhook secret, supply the HMAC token you specified in the [`starter.yaml`](https://github.com/kubernetes/test-infra/blob/master/config/prow/cluster/starter/starter-gcs.yaml#L51).
+4. Once that is done, `tackle` should show you the URL where you can access the prow dashboard. To use it with your repositories head over to the settings of the GitHub app you created and there under webhook secret, supply the HMAC token you specified in the [`starter.yaml`](https://github.com/kubernetes-sigs/prow/blob/main/config/prow/cluster/starter/starter-gcs.yaml#L51).
 
 5. Once that is done, install the GitHub app on the repositories you want (this is only needed if you ran `tackle` with the `--skip-github` flag) and you should now be able to use Prow :)
 
