@@ -179,7 +179,9 @@ func TestAdd(t *testing.T) {
 				predicateResultChan <- !b
 			}
 			var errMsg string
-			if err := add(mgr, buildMgrs, nil, cfg, nil, "", tc.additionalSelector, reconcile, predicateCallBack, 1); err != nil {
+			// Use unique controller name per test to avoid conflicts in controller-runtime v0.20.1
+			controllerName := "plank-test-" + tc.name
+			if err := add(mgr, buildMgrs, nil, cfg, nil, "", tc.additionalSelector, reconcile, predicateCallBack, 1, controllerName); err != nil {
 				errMsg = err.Error()
 			}
 			if errMsg != tc.expectedError {

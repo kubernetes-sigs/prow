@@ -46,6 +46,7 @@ declare -ra PROW_COMPONENTS=(
   hook
   horologium
   moonraker
+  pipeline
   prow-controller-manager
   sinker
   sub
@@ -65,6 +66,7 @@ declare -rA PROW_IMAGES=(
   [hook]=cmd/hook
   [horologium]=cmd/horologium
   [moonraker]=cmd/moonraker
+  [pipeline]=cmd/pipeline
   [prow-controller-manager]=cmd/prow-controller-manager
   [sinker]=cmd/sinker
   [sub]=cmd/sub
@@ -95,6 +97,7 @@ declare -rA PROW_IMAGES_TO_COMPONENTS=(
   [hook]=hook
   [horologium]=horologium
   [moonraker]=moonraker
+  [pipeline]=pipeline
   [prow-controller-manager]=prow-controller-manager
   [sinker]=sinker
   [sub]=sub
@@ -254,6 +257,16 @@ declare -ra PROW_DEPLOYMENT_ORDER=(
   WAIT_FOR_RESOURCE_roles,gangway,default
   WAIT_FOR_RESOURCE_rolebindings,gangway,default
   WAIT_FOR_RESOURCE_serviceaccounts,gangway,default
+
+  pipeline_rbac.yaml
+  pipeline_service.yaml
+  pipeline_deployment.yaml
+  WAIT_FOR_RESOURCE_roles,pipeline,default
+  WAIT_FOR_RESOURCE_rolebindings,pipeline,default
+  WAIT_FOR_RESOURCE_clusterroles,pipeline,default
+  WAIT_FOR_RESOURCE_clusterrolebindings,pipeline,default
+  WAIT_FOR_RESOURCE_serviceaccounts,pipeline,default
+  WAIT_pipeline
   WAIT_gangway
 
   sub.yaml
