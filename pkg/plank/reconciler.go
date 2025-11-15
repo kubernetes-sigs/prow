@@ -105,7 +105,7 @@ func Add(
 	totURL string,
 	additionalSelector string,
 ) error {
-	return add(mgr, buildClusters, knownClusters, cfg, opener, totURL, additionalSelector, nil, nil, 10)
+	return add(mgr, buildClusters, knownClusters, cfg, opener, totURL, additionalSelector, nil, nil, 10, "")
 }
 
 func add(
@@ -119,6 +119,7 @@ func add(
 	overwriteReconcile reconcile.Func,
 	predicateCallback func(bool),
 	numWorkers int,
+	controllerName string,
 ) error {
 	pjPredicate := prowJobPredicate(predicateCallback)
 
@@ -132,8 +133,13 @@ func add(
 		return fmt.Errorf("failed to add indexer: %w", err)
 	}
 
+	// Use provided controller name, or default to ControllerName
+	if controllerName == "" {
+		controllerName = ControllerName
+	}
+
 	blder := controllerruntime.NewControllerManagedBy(mgr).
-		Named(ControllerName).
+		Named(controllerName).
 		For(&prowv1.ProwJob{}).
 		WithEventFilter(pjPredicate).
 		WithOptions(controller.Options{MaxConcurrentReconciles: numWorkers})
@@ -998,7 +1004,7 @@ func podPredicate(additionalSelector string, callback func(bool)) (predicate.Typ
 	}), nil
 }
 
-func podEventRequestMapper(prowJobNamespace string) handler.TypedEventHandler[*corev1.Pod] {
+func podEventRequestMapper(prowJobNamespace string) handler.TypedEventHandler[*corev1.Pod, reconcile.Request] {
 	return handler.TypedEnqueueRequestsFromMapFunc(func(_ context.Context, pod *corev1.Pod) []reconcile.Request {
 		return []reconcile.Request{{NamespacedName: ctrlruntimeclient.ObjectKey{
 			Namespace: prowJobNamespace,

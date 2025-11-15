@@ -147,7 +147,7 @@ exit 3
 }
 trap cleanup SIGINT SIGTERM EXIT
 echo process started
-sleep infinity &
+sleep 9999 &
 wait`},
 			expectedLog:    "process started\nlevel=error msg=\"Entrypoint received interrupt: terminated\"\nlevel=error msg=\"Process gracefully exited before 15s grace period\"\n",
 			expectedMarker: "3",
@@ -166,7 +166,7 @@ exit 3
 }
 trap cleanup SIGINT SIGTERM EXIT
 echo process started
-sleep infinity &
+sleep 9999 &
 wait`},
 			expectedLog:    "process started\nlevel=error msg=\"Entrypoint received interrupt: terminated\"\nlevel=error msg=\"Process gracefully exited before 15s grace period\"\n",
 			expectedMarker: "130",

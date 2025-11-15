@@ -19,24 +19,24 @@ limitations under the License.
 package v1
 
 import (
-	"context"
+	context "context"
 	time "time"
 
-	pipelinev1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
+	apispipelinev1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
 	cache "k8s.io/client-go/tools/cache"
 	versioned "sigs.k8s.io/prow/pkg/pipeline/clientset/versioned"
 	internalinterfaces "sigs.k8s.io/prow/pkg/pipeline/informers/externalversions/internalinterfaces"
-	v1 "sigs.k8s.io/prow/pkg/pipeline/listers/pipeline/v1"
+	pipelinev1 "sigs.k8s.io/prow/pkg/pipeline/listers/pipeline/v1"
 )
 
 // PipelineInformer provides access to a shared informer and lister for
 // Pipelines.
 type PipelineInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1.PipelineLister
+	Lister() pipelinev1.PipelineLister
 }
 
 type pipelineInformer struct {
@@ -71,7 +71,7 @@ func NewFilteredPipelineInformer(client versioned.Interface, namespace string, r
 				return client.TektonV1().Pipelines(namespace).Watch(context.TODO(), options)
 			},
 		},
-		&pipelinev1.Pipeline{},
+		&apispipelinev1.Pipeline{},
 		resyncPeriod,
 		indexers,
 	)
@@ -82,9 +82,9 @@ func (f *pipelineInformer) defaultInformer(client versioned.Interface, resyncPer
 }
 
 func (f *pipelineInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&pipelinev1.Pipeline{}, f.defaultInformer)
+	return f.factory.InformerFor(&apispipelinev1.Pipeline{}, f.defaultInformer)
 }
 
-func (f *pipelineInformer) Lister() v1.PipelineLister {
-	return v1.NewPipelineLister(f.Informer().GetIndexer())
+func (f *pipelineInformer) Lister() pipelinev1.PipelineLister {
+	return pipelinev1.NewPipelineLister(f.Informer().GetIndexer())
 }

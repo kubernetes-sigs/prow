@@ -1,0 +1,18 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: test-task
+  namespace: test-pods
+spec:
+  steps:
+    - name: echo
+      image: localhost:5001/alpine
+      command:
+        - sh
+      args:
+        - -c
+        - |
+          echo "Hello from Pipeline Controller!"
+          echo "Sleeping for 30 seconds..."
+          sleep 30
+          echo "Done!"

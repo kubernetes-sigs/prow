@@ -24,10 +24,12 @@ import (
 )
 
 // RateLimiter creates a ratelimiting queue for a given prow controller.
-func RateLimiter(controllerName string) workqueue.RateLimitingInterface {
-	rl := workqueue.NewMaxOfRateLimiter(
-		workqueue.NewItemExponentialFailureRateLimiter(5*time.Millisecond, 120*time.Second),
-		&workqueue.BucketRateLimiter{Limiter: rate.NewLimiter(rate.Limit(1000), 50000)},
+func RateLimiter(controllerName string) workqueue.TypedRateLimitingInterface[any] {
+	rl := workqueue.NewTypedMaxOfRateLimiter(
+		workqueue.NewTypedItemExponentialFailureRateLimiter[any](5*time.Millisecond, 120*time.Second),
+		&workqueue.TypedBucketRateLimiter[any]{Limiter: rate.NewLimiter(rate.Limit(1000), 50000)},
 	)
-	return workqueue.NewNamedRateLimitingQueue(rl, controllerName)
+	return workqueue.NewTypedRateLimitingQueueWithConfig(rl, workqueue.TypedRateLimitingQueueConfig[any]{
+		Name: controllerName,
+	})
 }

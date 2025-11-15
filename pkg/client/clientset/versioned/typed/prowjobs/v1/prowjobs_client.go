@@ -19,11 +19,11 @@ limitations under the License.
 package v1
 
 import (
-	"net/http"
+	http "net/http"
 
 	rest "k8s.io/client-go/rest"
-	v1 "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
-	"sigs.k8s.io/prow/pkg/client/clientset/versioned/scheme"
+	prowjobsv1 "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
+	scheme "sigs.k8s.io/prow/pkg/client/clientset/versioned/scheme"
 )
 
 type ProwV1Interface interface {
@@ -85,10 +85,10 @@ func New(c rest.Interface) *ProwV1Client {
 }
 
 func setConfigDefaults(config *rest.Config) error {
-	gv := v1.SchemeGroupVersion
+	gv := prowjobsv1.SchemeGroupVersion
 	config.GroupVersion = &gv
 	config.APIPath = "/apis"
-	config.NegotiatedSerializer = scheme.Codecs.WithoutConversion()
+	config.NegotiatedSerializer = rest.CodecFactoryForGeneratedClient(scheme.Scheme, scheme.Codecs).WithoutConversion()
 
 	if config.UserAgent == "" {
 		config.UserAgent = rest.DefaultKubernetesUserAgent()

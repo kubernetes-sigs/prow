@@ -27,8 +27,10 @@ import (
 	"sync"
 	"testing"
 
+	pipelinev1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
 	coreapi "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/oidc"
@@ -36,6 +38,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/remotecommand"
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
+	prowjobv1 "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 )
 
 const (
@@ -59,7 +62,26 @@ func NewClients(configPath, clusterName string) (ctrlruntimeclient.Client, error
 	if err != nil {
 		return nil, err
 	}
-	return ctrlruntimeclient.New(cfg, ctrlruntimeclient.Options{})
+
+	// Create a scheme with all required types
+	clientScheme := runtime.NewScheme()
+
+	// Add standard Kubernetes types
+	if err := scheme.AddToScheme(clientScheme); err != nil {
+		return nil, fmt.Errorf("failed to add k8s scheme: %w", err)
+	}
+
+	// Add ProwJob types
+	if err := prowjobv1.AddToScheme(clientScheme); err != nil {
+		return nil, fmt.Errorf("failed to add prowjob scheme: %w", err)
+	}
+
+	// Add Tekton Pipeline types
+	if err := pipelinev1.AddToScheme(clientScheme); err != nil {
+		return nil, fmt.Errorf("failed to add tekton pipeline scheme: %w", err)
+	}
+
+	return ctrlruntimeclient.New(cfg, ctrlruntimeclient.Options{Scheme: clientScheme})
 }
 
 func NewRestConfig(configPath, clusterName string) (*rest.Config, error) {
