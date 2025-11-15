@@ -70,6 +70,8 @@ function install_tekton_pipeline() {
   log "Fetching Tekton Pipeline from ${tekton_release_url}"
   do_kubectl apply -f "${tekton_release_url}"
 
+  log "Sleeping for 30s as pods may be in pending state before they get scheduled"
+  sleep 30
   log "Waiting for Tekton Pipeline controller to be ready"
   if ! do_kubectl wait --for=condition=ready pod \
     -l app=tekton-pipelines-controller \

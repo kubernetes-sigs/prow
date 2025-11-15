@@ -195,7 +195,7 @@ require (
 	github.com/google/ko v0.14.1
 	gotest.tools/gotestsum v1.12.3
 	k8s.io/code-generator v0.32.9
-	sigs.k8s.io/controller-tools v0.15.0
+	sigs.k8s.io/controller-tools v0.17.3
 )
 
 require (

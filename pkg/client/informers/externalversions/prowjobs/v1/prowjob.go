@@ -19,24 +19,24 @@ limitations under the License.
 package v1
 
 import (
-	"context"
+	context "context"
 	time "time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
 	cache "k8s.io/client-go/tools/cache"
-	prowjobsv1 "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
+	apisprowjobsv1 "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 	versioned "sigs.k8s.io/prow/pkg/client/clientset/versioned"
 	internalinterfaces "sigs.k8s.io/prow/pkg/client/informers/externalversions/internalinterfaces"
-	v1 "sigs.k8s.io/prow/pkg/client/listers/prowjobs/v1"
+	prowjobsv1 "sigs.k8s.io/prow/pkg/client/listers/prowjobs/v1"
 )
 
 // ProwJobInformer provides access to a shared informer and lister for
 // ProwJobs.
 type ProwJobInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1.ProwJobLister
+	Lister() prowjobsv1.ProwJobLister
 }
 
 type prowJobInformer struct {
@@ -71,7 +71,7 @@ func NewFilteredProwJobInformer(client versioned.Interface, namespace string, re
 				return client.ProwV1().ProwJobs(namespace).Watch(context.TODO(), options)
 			},
 		},
-		&prowjobsv1.ProwJob{},
+		&apisprowjobsv1.ProwJob{},
 		resyncPeriod,
 		indexers,
 	)
@@ -82,9 +82,9 @@ func (f *prowJobInformer) defaultInformer(client versioned.Interface, resyncPeri
 }
 
 func (f *prowJobInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&prowjobsv1.ProwJob{}, f.defaultInformer)
+	return f.factory.InformerFor(&apisprowjobsv1.ProwJob{}, f.defaultInformer)
 }
 
-func (f *prowJobInformer) Lister() v1.ProwJobLister {
-	return v1.NewProwJobLister(f.Informer().GetIndexer())
+func (f *prowJobInformer) Lister() prowjobsv1.ProwJobLister {
+	return prowjobsv1.NewProwJobLister(f.Informer().GetIndexer())
 }
