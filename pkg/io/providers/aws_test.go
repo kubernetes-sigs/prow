@@ -27,6 +27,11 @@ import (
 )
 
 func Test_newS3Client(t *testing.T) {
+	// Prevent AWS SDK from loading config from ~/.aws/config or ~/.aws/credentials
+	// which would set a default region from the user's environment
+	t.Setenv("AWS_CONFIG_FILE", "/dev/null")
+	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", "/dev/null")
+
 	tests := []struct {
 		name  string
 		creds S3Credentials

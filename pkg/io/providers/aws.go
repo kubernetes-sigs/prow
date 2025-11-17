@@ -62,9 +62,10 @@ func newS3Client(ctx context.Context, creds *S3Credentials) (*s3.Client, error) 
 			creds.SessionToken,
 		)))
 	}
-	opts = append(opts,
-		config.WithRegion(creds.Region),
-	)
+	// Only set region if explicitly provided, otherwise use AWS SDK default
+	if creds.Region != "" {
+		opts = append(opts, config.WithRegion(creds.Region))
+	}
 
 	cfg, err := config.LoadDefaultConfig(ctx, opts...)
 	if err != nil {

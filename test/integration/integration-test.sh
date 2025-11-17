@@ -59,17 +59,18 @@ Examples:
 
 Options:
     -no-setup:
-        Skip setup of the KIND cluster and Prow installation. That is, only run
-        gotestsum. This is useful if you already have the cluster and components
-        set up, and only want to run some tests without setting up the cluster
-        or recompiling Prow images.
+        Skip setup of the KIND cluster, Tekton Pipeline, and Prow installation.
+        That is, only run gotestsum. This is useful if you already have the
+        cluster and components set up, and only want to run some tests without
+        setting up the cluster or recompiling Prow images.
 
     -no-setup-kind-cluster:
-        Skip setup of the KIND cluster, but still (re-)install Prow to the
-        cluster. Flag "-build=..." implies this flag. This is useful if you want
-        to skip KIND setup. Most of the time, you will want to use this flag
-        when rerunning tests after initially setting up the cluster (because
-        most of the time your changes will not impact the KIND cluster itself).
+        Skip setup of the KIND cluster, but still (re-)install Tekton and Prow
+        to the cluster. Flag "-build=..." implies this flag. This is useful if
+        you want to skip KIND setup. Most of the time, you will want to use
+        this flag when rerunning tests after initially setting up the cluster
+        (because most of the time your changes will not impact the KIND cluster
+        itself).
 
     -build='':
         Build only the comma-separated list of Prow components with
@@ -121,16 +122,18 @@ function main() {
   declare -a setup_args
   declare -a clear_args
   declare -a teardown_args
-  setup_args=(-setup-kind-cluster -setup-prow-components -build=ALL)
+  setup_args=(-setup-kind-cluster -setup-tekton-components -setup-prow-components -build=ALL)
   local summary_format
   summary_format=pkgname
   local setup_kind_cluster
+  local setup_tekton_components
   local setup_prow_components
   local build_images
   local resource
   local resources_val
   local fakepubsub_node_port
   setup_kind_cluster=0
+  setup_tekton_components=0
   setup_prow_components=0
 
   for arg in "$@"; do
@@ -139,6 +142,7 @@ function main() {
         unset 'setup_args[0]'
         unset 'setup_args[1]'
         unset 'setup_args[2]'
+        unset 'setup_args[3]'
         ;;
       -no-setup-kind-cluster)
         unset 'setup_args[0]'
@@ -148,7 +152,7 @@ function main() {
         unset 'setup_args[0]'
         # Because we specified a "-build=..." flag explicitly, drop the default
         # "-build=ALL" option.
-        unset 'setup_args[2]'
+        unset 'setup_args[3]'
         setup_args+=("${arg}")
         ;;
       -clear=*)
@@ -211,6 +215,7 @@ function main() {
   for arg in "${setup_args[@]}"; do
     case "${arg}" in
       -setup-kind-cluster) setup_kind_cluster=1 ;;
+      -setup-tekton-components) setup_tekton_components=1 ;;
       -setup-prow-components) setup_prow_components=1 ;;
       -build=*)
         build_images="${arg#-build=}"
@@ -222,6 +227,12 @@ function main() {
     source "${REPO_ROOT}"/hack/tools/ensure-kind.sh
     "${SCRIPT_ROOT}"/setup-kind-cluster.sh \
       -fakepubsub-node-port="${fakepubsub_node_port}"
+  fi
+
+  # Setup Tekton before Prow to avoid race condition where pipeline controller
+  # starts before Tekton CRDs are available
+  if ((setup_tekton_components)); then
+    "${SCRIPT_ROOT}"/setup-tekton-components.sh
   fi
 
   if ((setup_prow_components)); then

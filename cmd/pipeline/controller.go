@@ -67,7 +67,7 @@ type controller struct {
 	pjLister   prowjoblisters.ProwJobLister
 	pjInformer cache.SharedIndexInformer
 
-	workqueue workqueue.RateLimitingInterface
+	workqueue workqueue.TypedRateLimitingInterface[any]
 
 	recorder record.EventRecorder
 
@@ -83,7 +83,7 @@ type controllerOptions struct {
 	pipelineConfigs map[string]pipelineConfig
 	totURL          string
 	prowConfig      config.Getter
-	rl              workqueue.RateLimitingInterface
+	rl              workqueue.TypedRateLimitingInterface[any]
 }
 
 // pjNamespace returns the prow namespace from configuration

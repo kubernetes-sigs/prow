@@ -54,18 +54,25 @@ type fakeTracker struct {
 	errors map[string]error
 }
 
-func (ft *fakeTracker) Get(gvr schema.GroupVersionResource, ns, name string) (runtime.Object, error) {
+func (ft *fakeTracker) Get(gvr schema.GroupVersionResource, ns, name string, opts ...v1.GetOptions) (runtime.Object, error) {
 	if err, exists := ft.errors["GET"]; exists {
 		return nil, err
 	}
-	return ft.ObjectTracker.Get(gvr, ns, name)
+	return ft.ObjectTracker.Get(gvr, ns, name, opts...)
 }
 
-func (ft *fakeTracker) Update(gvr schema.GroupVersionResource, obj runtime.Object, ns string) error {
+func (ft *fakeTracker) Update(gvr schema.GroupVersionResource, obj runtime.Object, ns string, opts ...v1.UpdateOptions) error {
 	if err, exists := ft.errors["UPDATE"]; exists {
 		return err
 	}
-	return ft.ObjectTracker.Update(gvr, obj, ns)
+	return ft.ObjectTracker.Update(gvr, obj, ns, opts...)
+}
+
+func (ft *fakeTracker) Patch(gvr schema.GroupVersionResource, obj runtime.Object, ns string, opts ...v1.PatchOptions) error {
+	if err, exists := ft.errors["PATCH"]; exists {
+		return err
+	}
+	return ft.ObjectTracker.Patch(gvr, obj, ns, opts...)
 }
 
 func TestReconcile(t *testing.T) {
@@ -130,7 +137,7 @@ func TestReconcile(t *testing.T) {
 				Spec:       prowv1.ProwJobSpec{Cluster: "foo"},
 				Status:     prowv1.ProwJobStatus{State: prowv1.TriggeredState},
 			},
-			clientErrors: map[string]error{"UPDATE": errors.New("expected")},
+			clientErrors: map[string]error{"PATCH": errors.New("expected")},
 			wantError:    errors.New("patch prowjob: expected"),
 		},
 		{
