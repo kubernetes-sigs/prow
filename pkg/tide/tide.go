@@ -216,6 +216,13 @@ var (
 
 		// Per controller
 		syncHeartbeat *prometheus.CounterVec
+
+		// Retesting metrics
+		retests             *prometheus.CounterVec
+		poolMissingPRs      *prometheus.GaugeVec
+		poolPendingPRs      *prometheus.GaugeVec
+		poolSuccessfulPRs   *prometheus.GaugeVec
+		poolBatchPendingPRs *prometheus.GaugeVec
 	}{
 		pooledPRs: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "pooledprs",
@@ -280,6 +287,47 @@ var (
 		}, []string{
 			"controller",
 		}),
+		retests: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "tide_retests_total",
+			Help: "Total number of test retriggers by org, repo, branch, and action. Incremented when Tide triggers tests for PRs that need retesting. Action is either TRIGGER (serial) or TRIGGER_BATCH (batch).",
+		}, []string{
+			"org",
+			"repo",
+			"branch",
+			"action",
+		}),
+		poolMissingPRs: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "tide_pool_missing_prs",
+			Help: "Number of PRs with missing or failed tests in each pool. High values indicate testing bottlenecks.",
+		}, []string{
+			"org",
+			"repo",
+			"branch",
+		}),
+		poolPendingPRs: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "tide_pool_pending_prs",
+			Help: "Number of PRs with pending tests in each pool.",
+		}, []string{
+			"org",
+			"repo",
+			"branch",
+		}),
+		poolSuccessfulPRs: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "tide_pool_successful_prs",
+			Help: "Number of PRs with all tests passing in each pool.",
+		}, []string{
+			"org",
+			"repo",
+			"branch",
+		}),
+		poolBatchPendingPRs: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "tide_pool_batch_pending_prs",
+			Help: "Number of PRs in a pending batch test in each pool.",
+		}, []string{
+			"org",
+			"repo",
+			"branch",
+		}),
 	}
 )
 
@@ -292,6 +340,11 @@ func init() {
 	prometheus.MustRegister(tideMetrics.syncHeartbeat)
 	prometheus.MustRegister(tideMetrics.poolErrors)
 	prometheus.MustRegister(tideMetrics.queryResults)
+	prometheus.MustRegister(tideMetrics.retests)
+	prometheus.MustRegister(tideMetrics.poolMissingPRs)
+	prometheus.MustRegister(tideMetrics.poolPendingPRs)
+	prometheus.MustRegister(tideMetrics.poolSuccessfulPRs)
+	prometheus.MustRegister(tideMetrics.poolBatchPendingPRs)
 }
 
 type manager interface {
@@ -1705,8 +1758,16 @@ func (c *syncController) syncSubpool(sp subpool, blocks []blockers.Blocker) (Poo
 		"action":  string(act),
 		"targets": prNumbers(targets),
 	}).Info("Subpool synced.")
+
 	tideMetrics.pooledPRs.WithLabelValues(sp.org, sp.repo, sp.branch).Set(float64(len(sp.prs)))
 	tideMetrics.updateTime.WithLabelValues(sp.org, sp.repo, sp.branch).Set(float64(time.Now().Unix()))
+	tideMetrics.poolMissingPRs.WithLabelValues(sp.org, sp.repo, sp.branch).Set(float64(len(missings)))
+	tideMetrics.poolPendingPRs.WithLabelValues(sp.org, sp.repo, sp.branch).Set(float64(len(pendings)))
+	tideMetrics.poolSuccessfulPRs.WithLabelValues(sp.org, sp.repo, sp.branch).Set(float64(len(successes)))
+	tideMetrics.poolBatchPendingPRs.WithLabelValues(sp.org, sp.repo, sp.branch).Set(float64(len(batchPending)))
+	if act == Trigger || act == TriggerBatch {
+		tideMetrics.retests.WithLabelValues(sp.org, sp.repo, sp.branch, string(act)).Add(float64(len(targets)))
+	}
 	return Pool{
 			Org:    sp.org,
 			Repo:   sp.repo,
