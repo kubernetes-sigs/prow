@@ -30,6 +30,7 @@ import (
 	"net/url"
 	"os"
 	"reflect"
+	"slices"
 	"strconv"
 	"testing"
 	"time"
@@ -424,6 +425,185 @@ func TestProwJob(t *testing.T) {
 	if res.Status.State != prowapi.PendingState {
 		t.Errorf("Wrong state, expected \"%v\", got \"%v\"", prowapi.PendingState, res.Status.State)
 	}
+}
+
+// TestHandleProwJobsWithFilter checks if, given a list of prowjobs, the filters
+// are respected and just a subset of jobs are returned.
+func TestHandleProwJobsWithFilter(t *testing.T) {
+	kc := fkc{
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "fullref",
+				Labels: map[string]string{
+					"goodbye": "world",
+				},
+			},
+			Spec: prowapi.ProwJobSpec{
+				Agent: prowapi.KubernetesAgent,
+				Job:   "job",
+				Refs: &prowapi.Refs{
+					Org:  "amazingk8s",
+					Repo: "pizzacontroller",
+					Pulls: []prowapi.Pull{
+						{
+							Author: "someone",
+						},
+					},
+				},
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "differentorg",
+				Labels: map[string]string{
+					"goodbye": "world",
+				},
+			},
+			Spec: prowapi.ProwJobSpec{
+				Agent: prowapi.KubernetesAgent,
+				Job:   "job",
+				Refs: &prowapi.Refs{
+					Org:  "otherk8s",
+					Repo: "pizzacontroller",
+					Pulls: []prowapi.Pull{
+						{
+							Author: "someone",
+						},
+					},
+				},
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "nullref",
+			},
+			Spec: prowapi.ProwJobSpec{
+				Agent: prowapi.KubernetesAgent,
+				Job:   "job",
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "noowner",
+			},
+			Spec: prowapi.ProwJobSpec{
+				Agent: prowapi.KubernetesAgent,
+				Job:   "job",
+				Refs: &prowapi.Refs{
+					Org:  "amazingk8s",
+					Repo: "pizzacontroller",
+				},
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "multiowner",
+			},
+			Spec: prowapi.ProwJobSpec{
+				Agent: prowapi.KubernetesAgent,
+				Job:   "job",
+				Refs: &prowapi.Refs{
+					Org:  "amazingk8s",
+					Repo: "pizzacontroller",
+					Pulls: []prowapi.Pull{
+						{
+							Author: "someone",
+						},
+						{
+							Author: "anotherone",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	type testCase struct {
+		Name         string
+		Owner        string
+		Org          string
+		Repo         string
+		ExpectedJobs []string
+	}
+
+	testCases := []testCase{
+		{
+			Name:         "no filter should return all the tests",
+			ExpectedJobs: []string{"fullref", "nullref", "noowner", "multiowner", "differentorg"},
+		},
+		{
+			Name:         "owner filter should return just jobs with the right owner",
+			Owner:        "anotherone",
+			ExpectedJobs: []string{"multiowner"},
+		},
+		{
+			Name:         "owner and org filter should return just jobs with the right owner and org",
+			Owner:        "someone",
+			Org:          "amazingk8s",
+			ExpectedJobs: []string{"fullref", "multiowner"},
+		},
+		{
+			Name:         "owner, org and repo filter should return just jobs the right job",
+			Owner:        "someone",
+			Org:          "otherk8s",
+			Repo:         "pizzacontroller",
+			ExpectedJobs: []string{"differentorg"},
+		},
+	}
+
+	fakeJa := jobs.NewJobAgent(context.Background(), kc, false, true, []string{}, map[string]jobs.PodLogClient{}, fca{}.Config)
+	fakeJa.Start()
+
+	handler := handleProwJobs(fakeJa, logrus.WithField("handler", "/prowjobs.js"))
+
+	for _, tc := range testCases {
+
+		queryS := make(url.Values)
+		if tc.Org != "" {
+			queryS.Add("org", tc.Org)
+		}
+		if tc.Repo != "" {
+			queryS.Add("repo", tc.Repo)
+		}
+		if tc.Owner != "" {
+			queryS.Add("owner", tc.Owner)
+		}
+
+		req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("/prowjobs.js?%s", queryS.Encode()), nil)
+		if err != nil {
+			t.Errorf("Error making request: %v", err)
+		}
+
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+		if rr.Code != http.StatusOK {
+			t.Errorf("Bad error code: %d", rr.Code)
+		}
+		resp := rr.Result()
+		defer resp.Body.Close()
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Errorf("Error reading response body: %v", err)
+		}
+		type prowjobItems struct {
+			Items []prowapi.ProwJob `json:"items"`
+		}
+		var res prowjobItems
+		if err := json.Unmarshal(body, &res); err != nil {
+			t.Errorf("Error unmarshalling: %v", err)
+		}
+		slices.Sort(tc.ExpectedJobs)
+		returnedJobs := make([]string, len(res.Items))
+		for i := range res.Items {
+			returnedJobs[i] = res.Items[i].Name
+		}
+		slices.Sort(returnedJobs)
+		if !slices.Equal(tc.ExpectedJobs, returnedJobs) {
+			t.Errorf("TEST %s: returned invalid jobs, expecting %+v returned %+v", tc.Name, tc.ExpectedJobs, returnedJobs)
+		}
+
+	}
+
 }
 
 type fakeAuthenticatedUserIdentifier struct {
