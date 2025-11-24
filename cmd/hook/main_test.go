@@ -77,6 +77,19 @@ func Test_gatherOptions(t *testing.T) {
 				o.webhookPath = "/random/hook"
 			},
 		},
+		{
+			name: "explicitly set enableSSL",
+			args: map[string]string{
+				"--enable-ssl":       "true",
+				"--server-cert-file": "/test/path/cert.pem",
+				"--server-key-file":  "/test/path/key.pem",
+			},
+			expected: func(o *options) {
+				o.sslEnablement.EnableSSL = true
+				o.sslEnablement.ServerCertFile = "/test/path/cert.pem"
+				o.sslEnablement.ServerKeyFile = "/test/path/key.pem"
+			},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

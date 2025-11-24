@@ -17,9 +17,13 @@ limitations under the License.
 package main
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
+	"os"
 	"sync"
 	"time"
 
@@ -29,19 +33,47 @@ import (
 // cacheLife is the time that we keep a pluginhelp.Help struct before considering it stale.
 // We consider help valid for a minute to prevent excessive calls to hook.
 const cacheLife = time.Minute
+const sslEnabledSchema = "https"
 
 type helpAgent struct {
-	path string
+	path   string
+	cert   string
+	client *http.Client
 
 	sync.Mutex
 	help   *pluginhelp.Help
 	expiry time.Time
 }
 
-func newHelpAgent(path string) *helpAgent {
-	return &helpAgent{
-		path: path,
+func newHelpAgent(path string, cert string) (*helpAgent, error) {
+	//Set custom http client if ssl is enabled
+	var client *http.Client
+	hookPath, err := url.Parse(path)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing hook path: %w", err)
 	}
+	if hookPath.Scheme == sslEnabledSchema {
+		caCert, err := os.ReadFile(cert)
+		if err != nil {
+			return nil, fmt.Errorf("error decoding cert file: %w", err)
+		}
+		caCertPool := x509.NewCertPool()
+		caCertPool.AppendCertsFromPEM(caCert)
+		client = &http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{
+					RootCAs: caCertPool,
+				},
+			},
+		}
+	} else {
+		client = http.DefaultClient
+	}
+	return &helpAgent{
+		path:   path,
+		cert:   cert,
+		client: client,
+	}, nil
 }
 
 // TODO: this function sets the plugin help for ts somehow
@@ -53,7 +85,7 @@ func (ha *helpAgent) getHelp() (*pluginhelp.Help, error) {
 	}
 
 	var help pluginhelp.Help
-	resp, err := http.Get(ha.path)
+	resp, err := ha.client.Get(ha.path)
 	if err != nil {
 		return nil, fmt.Errorf("error Getting plugin help: %w", err)
 	}
