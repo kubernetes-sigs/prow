@@ -29,7 +29,7 @@ type FakeProwV1 struct {
 }
 
 func (c *FakeProwV1) ProwJobs(namespace string) v1.ProwJobInterface {
-	return &FakeProwJobs{c, namespace}
+	return newFakeProwJobs(c, namespace)
 }
 
 // RESTClient returns a RESTClient that is used to communicate

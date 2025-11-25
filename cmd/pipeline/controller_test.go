@@ -164,7 +164,7 @@ func (r *fakeReconciler) cancelPipelineRun(context string, pr *pipelinev1.Pipeli
 }
 
 type fakeLimiter struct {
-	workqueue.RateLimitingInterface
+	workqueue.TypedRateLimitingInterface[any]
 	added string
 }
 
