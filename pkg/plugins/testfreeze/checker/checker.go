@@ -31,15 +31,28 @@ import (
 	"github.com/go-git/go-git/v5/plumbing"
 	gitmemory "github.com/go-git/go-git/v5/storage/memory"
 	"github.com/sirupsen/logrus"
+	"gopkg.in/yaml.v3"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 )
 
 const (
-	prowjobsURL = "https://prow.k8s.io/prowjobs.js?omit=annotations,labels,decoration_config,pod_spec"
-	jobName     = "ci-fast-forward"
-	unknownTime = "unknown"
+	prowjobsURL    = "https://prow.k8s.io/prowjobs.js?omit=annotations,labels,decoration_config,pod_spec"
+	prowConfigURL  = "https://raw.githubusercontent.com/kubernetes/test-infra/master/config/prow/config.yaml"
+	jobName        = "ci-fast-forward"
+	unknownTime    = "unknown"
+	kubernetesRepo = "kubernetes/kubernetes"
 )
+
+// ProwConfig represents a simplified Prow configuration.
+type ProwConfig struct {
+	Tide struct {
+		Queries []struct {
+			Repos            []string `yaml:"repos"`
+			ExcludedBranches []string `yaml:"excludedBranches"`
+		} `yaml:"queries"`
+	} `yaml:"tide"`
+}
 
 // Checker is the main structure of checking if we're in Test Freeze.
 type Checker struct {
@@ -49,6 +62,9 @@ type Checker struct {
 
 // Result is the result returned by `InTestFreeze`.
 type Result struct {
+	// InCodeFreeze is true if we're in Code Freeze.
+	InCodeFreeze bool
+
 	// InTestFreeze is true if we're in Test Freeze.
 	InTestFreeze bool
 
@@ -71,6 +87,7 @@ type checker interface {
 	CloseBody(*http.Response) error
 	ReadAllBody(*http.Response) ([]byte, error)
 	UnmarshalProwJobs([]byte) (*v1.ProwJobList, error)
+	UnmarshalProwConfig([]byte) (interface{}, error)
 }
 
 type defaultChecker struct{}
@@ -83,8 +100,49 @@ func New(log *logrus.Entry) *Checker {
 	}
 }
 
+// inCodeFreeze checks if the given branch is excluded in the Prow Tide configuration,
+// which indicates Code Freeze is active.
+func (c *Checker) inCodeFreeze(branch string) (bool, error) {
+	resp, err := c.checker.HttpGet(prowConfigURL)
+	if err != nil {
+		return false, fmt.Errorf("get prow config: %w", err)
+	}
+	defer c.checker.CloseBody(resp)
+
+	body, err := c.checker.ReadAllBody(resp)
+	if err != nil {
+		return false, fmt.Errorf("read response body: %w", err)
+	}
+
+	configInterface, err := c.checker.UnmarshalProwConfig(body)
+	if err != nil {
+		return false, fmt.Errorf("unmarshal prow config: %w", err)
+	}
+
+	prowConfig, ok := configInterface.(*ProwConfig)
+	if !ok {
+		return false, errors.New("failed to type assert prow config")
+	}
+
+	// Check if the branch is excluded in any Tide query for kubernetes/kubernetes
+	for _, query := range prowConfig.Tide.Queries {
+		for _, repo := range query.Repos {
+			if repo == kubernetesRepo {
+				for _, excludedBranch := range query.ExcludedBranches {
+					if excludedBranch == branch {
+						return true, nil
+					}
+				}
+			}
+		}
+	}
+
+	return false, nil
+}
+
 // InTestFreeze returns if we're in Test Freeze:
 // https://github.com/kubernetes/sig-release/blob/2d8a1cc/releases/release_phases.md#test-freeze
+// It also checks for Code Freeze by examining the Prow Tide configuration.
 // It errors in case of any issue.
 func (c *Checker) InTestFreeze() (*Result, error) {
 	remote := git.NewRemote(gitmemory.NewStorage(), &gitconfig.RemoteConfig{
@@ -146,7 +204,14 @@ func (c *Checker) InTestFreeze() (*Result, error) {
 			// Found the latest minor version on the latest release branch,
 			// which means we're not in Test Freeze.
 			if latestSemver.EQ(parsed) {
+				// Check if we're still in Code Freeze
+				inCodeFreeze, err := c.inCodeFreeze(latestBranch)
+				if err != nil {
+					c.log.WithError(err).Error("Unable to check Code Freeze status.")
+				}
+
 				return &Result{
+					InCodeFreeze: inCodeFreeze,
 					InTestFreeze: false,
 					Branch:       latestBranch,
 					Tag:          "v" + tag,
@@ -165,7 +230,14 @@ func (c *Checker) InTestFreeze() (*Result, error) {
 
 	// Latest minor version not found in latest release branch,
 	// we're in Test Freeze.
+	// Check if we're also in Code Freeze
+	inCodeFreeze, err := c.inCodeFreeze(latestBranch)
+	if err != nil {
+		c.log.WithError(err).Error("Unable to check Code Freeze status.")
+	}
+
 	return &Result{
+		InCodeFreeze:    inCodeFreeze,
 		InTestFreeze:    true,
 		Branch:          latestBranch,
 		Tag:             "v" + latestSemver.String(),
@@ -221,4 +293,12 @@ func (*defaultChecker) UnmarshalProwJobs(data []byte) (*v1.ProwJobList, error) {
 		return nil, err
 	}
 	return prowJobs, nil
+}
+
+func (*defaultChecker) UnmarshalProwConfig(data []byte) (interface{}, error) {
+	prowConfig := &ProwConfig{}
+	if err := yaml.Unmarshal(data, prowConfig); err != nil {
+		return nil, err
+	}
+	return prowConfig, nil
 }
