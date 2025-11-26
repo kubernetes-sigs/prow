@@ -74,7 +74,13 @@ type RepoMetadata struct {
 
 // Repo declares a repository and its configuration.
 type Repo struct {
+	// RepoMetadata contains fields that map directly to the GitHub Repos API.
+	// See https://docs.github.com/en/rest/repos/repos#update-a-repository
 	RepoMetadata
+
+	//
+	// Peribolos-specific fields (not part of any GitHub API)
+	//
 
 	// Previously allows handling repo renames. Peribolos will use the first
 	// entry in previously that exists on GitHub as the source for the rename.
@@ -84,9 +90,25 @@ type Repo struct {
 	// See https://docs.github.com/en/rest/repos/repos#create-an-organization-repository
 	OnCreate *RepoCreateOptions `json:"on_create,omitempty"`
 
-	// Collaborators is a map of username to their permission level for this repository.
-	// Managed via the Collaborators API, not the Repos API.
+	//
+	// GitHub Forks API fields
+	// See https://docs.github.com/en/rest/repos/forks
+	//
+
+	// ForkFrom specifies an upstream repository to fork from, in the format "owner/repo".
+	// When set, Peribolos will create this repository as a fork of the upstream.
+	ForkFrom *string `json:"fork_from,omitempty"`
+
+	// DefaultBranchOnly specifies whether to fork only the default branch.
+	// Only applicable when ForkFrom is set.
+	DefaultBranchOnly *bool `json:"default_branch_only,omitempty"`
+
+	//
+	// GitHub Collaborators API fields
 	// See https://docs.github.com/en/rest/collaborators/collaborators
+	//
+
+	// Collaborators is a map of username to their permission level for this repository.
 	Collaborators map[string]github.RepoPermissionLevel `json:"collaborators,omitempty"`
 }
 
