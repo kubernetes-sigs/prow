@@ -2135,32 +2135,38 @@ func TestDumpOrgConfig(t *testing.T) {
 				Admins:  []string{"admin", "james", "giant", "peach"},
 				Repos: map[string]org.Repo{
 					"project": {
-						Description:      &repoDescription,
-						HomePage:         &repoHomepage,
-						HasProjects:      &yes,
-						AllowMergeCommit: &no,
-						AllowRebaseMerge: &no,
-						AllowSquashMerge: &no,
-						Archived:         &yes,
-						DefaultBranch:    &master,
+						RepoMetadata: org.RepoMetadata{
+							Description:      &repoDescription,
+							HomePage:         &repoHomepage,
+							HasProjects:      &yes,
+							AllowMergeCommit: &no,
+							AllowRebaseMerge: &no,
+							AllowSquashMerge: &no,
+							Archived:         &yes,
+							DefaultBranch:    &master,
+						},
 					},
 					// Non-public visibilities survive PruneRepoDefaults, so they
 					// must round-trip into the dumped config.
 					"internal-project": {
-						Visibility:       new(github.RepoVisibilityInternal),
-						HasProjects:      &no,
-						AllowMergeCommit: &no,
-						AllowRebaseMerge: &no,
-						AllowSquashMerge: &no,
-						DefaultBranch:    &master,
+						RepoMetadata: org.RepoMetadata{
+							Visibility:       new(github.RepoVisibilityInternal),
+							HasProjects:      &no,
+							AllowMergeCommit: &no,
+							AllowRebaseMerge: &no,
+							AllowSquashMerge: &no,
+							DefaultBranch:    &master,
+						},
 					},
 					"private-project": {
-						Visibility:       new(github.RepoVisibilityPrivate),
-						HasProjects:      &no,
-						AllowMergeCommit: &no,
-						AllowRebaseMerge: &no,
-						AllowSquashMerge: &no,
-						DefaultBranch:    &master,
+						RepoMetadata: org.RepoMetadata{
+							Visibility:       new(github.RepoVisibilityPrivate),
+							HasProjects:      &no,
+							AllowMergeCommit: &no,
+							AllowRebaseMerge: &no,
+							AllowSquashMerge: &no,
+							DefaultBranch:    &master,
+						},
 					},
 				},
 			},
@@ -3055,7 +3061,9 @@ func TestConfigureRepos(t *testing.T) {
 	newName := "new"
 	newDescription := "A new repository."
 	newConfigRepo := org.Repo{
-		Description: &newDescription,
+		RepoMetadata: org.RepoMetadata{
+			Description: &newDescription,
+		},
 	}
 	newRepo := github.Repo{
 		Name:        newName,
@@ -3179,7 +3187,7 @@ func TestConfigureRepos(t *testing.T) {
 			description: "request to unarchive a repo fails, repo is read-only",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
-					oldName: {Archived: &no, Description: &updated},
+					oldName: {RepoMetadata: org.RepoMetadata{Archived: &no, Description: &updated}},
 				},
 			},
 			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Archived: true, Description: "OLD"}}},
@@ -3194,7 +3202,7 @@ func TestConfigureRepos(t *testing.T) {
 			description: "no field changes on archived repo",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
-					oldName: {Archived: &yes, Description: &updated},
+					oldName: {RepoMetadata: org.RepoMetadata{Archived: &yes, Description: &updated}},
 				},
 			},
 			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Archived: true, Description: "OLD"}}},
@@ -3205,7 +3213,7 @@ func TestConfigureRepos(t *testing.T) {
 			description: "request to archive repo fails when not allowed, but updates other fields",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
-					oldName: {Archived: &yes, Description: &updated},
+					oldName: {RepoMetadata: org.RepoMetadata{Archived: &yes, Description: &updated}},
 				},
 			},
 			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Archived: false, Description: "OLD"}}},
@@ -3219,7 +3227,7 @@ func TestConfigureRepos(t *testing.T) {
 			},
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
-					oldName: {Archived: &yes},
+					oldName: {RepoMetadata: org.RepoMetadata{Archived: &yes}},
 				},
 			},
 			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Archived: false}}},
@@ -3229,7 +3237,7 @@ func TestConfigureRepos(t *testing.T) {
 			description: "request to make a private repo public fails when not allowed, but updates other fields",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
-					oldName: {Visibility: new(github.RepoVisibilityPublic), Description: &updated},
+					oldName: {RepoMetadata: org.RepoMetadata{Visibility: new(github.RepoVisibilityPublic), Description: &updated}},
 				},
 			},
 			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Visibility: github.RepoVisibilityPrivate, Description: "OLD"}}},
@@ -3243,7 +3251,7 @@ func TestConfigureRepos(t *testing.T) {
 			},
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
-					oldName: {Visibility: new(github.RepoVisibilityPublic)},
+					oldName: {RepoMetadata: org.RepoMetadata{Visibility: new(github.RepoVisibilityPublic)}},
 				},
 			},
 			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Visibility: github.RepoVisibilityPrivate}}},
@@ -3253,7 +3261,7 @@ func TestConfigureRepos(t *testing.T) {
 			description: "request to make an internal repo public fails when not allowed",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
-					oldName: {Visibility: new(github.RepoVisibilityPublic)},
+					oldName: {RepoMetadata: org.RepoMetadata{Visibility: new(github.RepoVisibilityPublic)}},
 				},
 			},
 			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Visibility: github.RepoVisibilityInternal}}},
@@ -3264,7 +3272,7 @@ func TestConfigureRepos(t *testing.T) {
 			description: "transitioning private to internal is allowed without flag",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
-					oldName: {Visibility: new(github.RepoVisibilityInternal)},
+					oldName: {RepoMetadata: org.RepoMetadata{Visibility: new(github.RepoVisibilityInternal)}},
 				},
 			},
 			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Visibility: github.RepoVisibilityPrivate}}},
@@ -3274,7 +3282,7 @@ func TestConfigureRepos(t *testing.T) {
 			description: "transitioning internal to private is allowed without flag",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
-					oldName: {Visibility: new(github.RepoVisibilityPrivate)},
+					oldName: {RepoMetadata: org.RepoMetadata{Visibility: new(github.RepoVisibilityPrivate)}},
 				},
 			},
 			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Visibility: github.RepoVisibilityInternal}}},
@@ -3305,7 +3313,7 @@ func TestConfigureRepos(t *testing.T) {
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
 					newName: {Previously: []string{oldName}},
-					oldName: {Description: &newDescription},
+					oldName: {RepoMetadata: org.RepoMetadata{Description: &newDescription}},
 				},
 			},
 			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Description: "this repo shall not be touched"}}},
@@ -3316,8 +3324,8 @@ func TestConfigureRepos(t *testing.T) {
 			description: "dup between two previous names is detected",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
-					"wants-projects": {Previously: []string{oldName}, HasProjects: &yes, HasWiki: &no},
-					"wants-wiki":     {Previously: []string{oldName}, HasProjects: &no, HasWiki: &yes},
+					"wants-projects": {Previously: []string{oldName}, RepoMetadata: org.RepoMetadata{HasProjects: &yes, HasWiki: &no}},
+					"wants-wiki":     {Previously: []string{oldName}, RepoMetadata: org.RepoMetadata{HasProjects: &no, HasWiki: &yes}},
 				},
 			},
 			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Description: "this repo shall not be touched"}}},
@@ -3328,7 +3336,7 @@ func TestConfigureRepos(t *testing.T) {
 			description: "error detected when both a repo and a repo of its previous name exist",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
-					newName: {Previously: []string{oldName}, Description: &newDescription},
+					newName: {Previously: []string{oldName}, RepoMetadata: org.RepoMetadata{Description: &newDescription}},
 				},
 			},
 			repos: []github.FullRepo{
@@ -3345,7 +3353,7 @@ func TestConfigureRepos(t *testing.T) {
 			description: "error detected when multiple previous repos exist",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
-					newName: {Previously: []string{oldName, "even-older"}, Description: &newDescription},
+					newName: {Previously: []string{oldName, "even-older"}, RepoMetadata: org.RepoMetadata{Description: &newDescription}},
 				},
 			},
 			repos: []github.FullRepo{
@@ -3362,7 +3370,7 @@ func TestConfigureRepos(t *testing.T) {
 			description: "repos are renamed to defined case even without explicit `previously` field",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
-					"CamelCase": {Description: &newDescription},
+					"CamelCase": {RepoMetadata: org.RepoMetadata{Description: &newDescription}},
 				},
 			},
 			repos:         []github.FullRepo{{Repo: github.Repo{Name: "CAMELCASE", Description: newDescription}}},
@@ -3372,7 +3380,7 @@ func TestConfigureRepos(t *testing.T) {
 			description: "avoid creating archived repo",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
-					oldName: {Archived: &yes},
+					oldName: {RepoMetadata: org.RepoMetadata{Archived: &yes}},
 				},
 			},
 			repos:         []github.FullRepo{},
@@ -3424,14 +3432,14 @@ func TestValidateRepos(t *testing.T) {
 		{
 			description: "handles valid config",
 			config: map[string]org.Repo{
-				"repo": {Description: &description},
+				"repo": {RepoMetadata: org.RepoMetadata{Description: &description}},
 			},
 		},
 		{
 			description: "finds repo names duplicate when normalized",
 			config: map[string]org.Repo{
-				"repo": {Description: &description},
-				"Repo": {Description: &description},
+				"repo": {RepoMetadata: org.RepoMetadata{Description: &description}},
+				"Repo": {RepoMetadata: org.RepoMetadata{Description: &description}},
 			},
 			expectError: true,
 		},
@@ -3439,7 +3447,7 @@ func TestValidateRepos(t *testing.T) {
 			description: "finds name conflict between previous and current names",
 			config: map[string]org.Repo{
 				"repo":     {Previously: []string{"conflict"}},
-				"conflict": {Description: &description},
+				"conflict": {RepoMetadata: org.RepoMetadata{Description: &description}},
 			},
 			expectError: true,
 		},
@@ -3501,8 +3509,10 @@ func TestNewRepoUpdateRequest(t *testing.T) {
 			},
 			name: repoName,
 			newState: org.Repo{
-				Description:   &description,
-				DefaultBranch: &branch,
+				RepoMetadata: org.RepoMetadata{
+					Description:   &description,
+					DefaultBranch: &branch,
+				},
 			},
 			expected: github.RepoUpdateRequest{
 				DefaultBranch: &branch,
@@ -3516,7 +3526,9 @@ func TestNewRepoUpdateRequest(t *testing.T) {
 			}},
 			name: repoName,
 			newState: org.Repo{
-				Description: &description,
+				RepoMetadata: org.RepoMetadata{
+					Description: &description,
+				},
 			},
 		},
 		{
@@ -3526,7 +3538,9 @@ func TestNewRepoUpdateRequest(t *testing.T) {
 			}},
 			name: newRepoName,
 			newState: org.Repo{
-				Description: &description,
+				RepoMetadata: org.RepoMetadata{
+					Description: &description,
+				},
 			},
 			expected: github.RepoUpdateRequest{
 				RepoRequest: github.RepoRequest{
@@ -3546,9 +3560,11 @@ func TestNewRepoUpdateRequest(t *testing.T) {
 			},
 			name: newRepoName,
 			newState: org.Repo{
-				Description:              &description,
-				SquashMergeCommitTitle:   &squashMergeCommitTitle,
-				SquashMergeCommitMessage: &squashMergeCommitMessage,
+				RepoMetadata: org.RepoMetadata{
+					Description:              &description,
+					SquashMergeCommitTitle:   &squashMergeCommitTitle,
+					SquashMergeCommitMessage: &squashMergeCommitMessage,
+				},
 			},
 			expected: github.RepoUpdateRequest{
 				RepoRequest: github.RepoRequest{
@@ -3569,7 +3585,9 @@ func TestNewRepoUpdateRequest(t *testing.T) {
 			},
 			name: repoName,
 			newState: org.Repo{
-				Visibility: new(github.RepoVisibilityPrivate),
+				RepoMetadata: org.RepoMetadata{
+					Visibility: new(github.RepoVisibilityPrivate),
+				},
 			},
 			expected: github.RepoUpdateRequest{
 				RepoRequest: github.RepoRequest{
@@ -3587,7 +3605,9 @@ func TestNewRepoUpdateRequest(t *testing.T) {
 			},
 			name: repoName,
 			newState: org.Repo{
-				Visibility: new(github.RepoVisibilityPublic),
+				RepoMetadata: org.RepoMetadata{
+					Visibility: new(github.RepoVisibilityPublic),
+				},
 			},
 		},
 		{
