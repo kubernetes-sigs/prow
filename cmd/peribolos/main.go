@@ -362,17 +362,19 @@ func dumpOrgConfig(client dumpClient, orgName string, ignoreSecretTeams bool, ap
 		logrus.WithField("repo", full.FullName).Debug("Recording repo.")
 
 		repoConfig := org.PruneRepoDefaults(org.Repo{
-			Description:      &full.Description,
-			HomePage:         &full.Homepage,
-			Private:          &full.Private,
-			HasIssues:        &full.HasIssues,
-			HasProjects:      &full.HasProjects,
-			HasWiki:          &full.HasWiki,
-			AllowMergeCommit: &full.AllowMergeCommit,
-			AllowSquashMerge: &full.AllowSquashMerge,
-			AllowRebaseMerge: &full.AllowRebaseMerge,
-			Archived:         &full.Archived,
-			DefaultBranch:    &full.DefaultBranch,
+			RepoMetadata: org.RepoMetadata{
+				Description:      &full.Description,
+				HomePage:         &full.Homepage,
+				Private:          &full.Private,
+				HasIssues:        &full.HasIssues,
+				HasProjects:      &full.HasProjects,
+				HasWiki:          &full.HasWiki,
+				AllowMergeCommit: &full.AllowMergeCommit,
+				AllowSquashMerge: &full.AllowSquashMerge,
+				AllowRebaseMerge: &full.AllowRebaseMerge,
+				Archived:         &full.Archived,
+				DefaultBranch:    &full.DefaultBranch,
+			},
 			// Collaborators will be set conditionally below
 		})
 
