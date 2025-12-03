@@ -41,13 +41,14 @@ func TestHandle(t *testing.T) {
 		assert            func(*testfreezefakes.FakeVerifier, error)
 	}{
 		{
-			name:   "success in test freeze",
+			name:   "success in both code and test freeze",
 			action: github.PullRequestActionOpened,
 			org:    defaultKubernetesRepoAndOrg,
 			repo:   defaultKubernetesRepoAndOrg,
 			branch: defaultKubernetesBranch,
 			prepare: func(mock *testfreezefakes.FakeVerifier) {
 				mock.CheckInTestFreezeReturns(&checker.Result{
+					InCodeFreeze:    true,
 					InTestFreeze:    true,
 					Tag:             "v1.23.0",
 					Branch:          "release-1.23",
@@ -58,19 +59,78 @@ func TestHandle(t *testing.T) {
 				assert.Nil(t, err)
 				assert.Equal(t, 1, mock.CreateCommentCallCount())
 				_, _, _, _, comment := mock.CreateCommentArgsForCall(0)
-				assert.Contains(t, comment, "Please note that we're already")
+				assert.Contains(t, comment, "Please note that we're already in")
+				assert.Contains(t, comment, "Code Freeze")
+				assert.Contains(t, comment, "Adding the milestone to this PR is strictly prohibited")
+				assert.Contains(t, comment, "Technical review")
+				assert.Contains(t, comment, "Inclusion in release")
+				assert.Contains(t, comment, "#sig-release Slack channel")
+				assert.Contains(t, comment, "Test Freeze")
 				assert.Contains(t, comment, "for the `release-1.23` branch")
 				assert.Contains(t, comment, "Fast forwards are scheduled to happen every 6 hours, whereas the most recent run was: Wed May  4 16:15:37 CEST 2022")
 			},
 		},
 		{
-			name:   "success not in test freeze",
+			name:   "success in code freeze only",
 			action: github.PullRequestActionOpened,
 			org:    defaultKubernetesRepoAndOrg,
 			repo:   defaultKubernetesRepoAndOrg,
 			branch: defaultKubernetesBranch,
 			prepare: func(mock *testfreezefakes.FakeVerifier) {
-				mock.CheckInTestFreezeReturns(&checker.Result{}, nil)
+				mock.CheckInTestFreezeReturns(&checker.Result{
+					InCodeFreeze:    true,
+					InTestFreeze:    false,
+					Tag:             "v1.23.0",
+					Branch:          "release-1.23",
+					LastFastForward: "",
+				}, nil)
+			},
+			assert: func(mock *testfreezefakes.FakeVerifier, err error) {
+				assert.Nil(t, err)
+				assert.Equal(t, 1, mock.CreateCommentCallCount())
+				_, _, _, _, comment := mock.CreateCommentArgsForCall(0)
+				assert.Contains(t, comment, "Code Freeze")
+				assert.Contains(t, comment, "Adding the milestone to this PR is strictly prohibited")
+				assert.NotContains(t, comment, "Test Freeze")
+				assert.NotContains(t, comment, "Fast forwards")
+			},
+		},
+		{
+			name:   "success in test freeze only (after code thaw)",
+			action: github.PullRequestActionOpened,
+			org:    defaultKubernetesRepoAndOrg,
+			repo:   defaultKubernetesRepoAndOrg,
+			branch: defaultKubernetesBranch,
+			prepare: func(mock *testfreezefakes.FakeVerifier) {
+				mock.CheckInTestFreezeReturns(&checker.Result{
+					InCodeFreeze:    false,
+					InTestFreeze:    true,
+					Tag:             "v1.23.0",
+					Branch:          "release-1.23",
+					LastFastForward: "Wed May  4 16:15:37 CEST 2022",
+				}, nil)
+			},
+			assert: func(mock *testfreezefakes.FakeVerifier, err error) {
+				assert.Nil(t, err)
+				assert.Equal(t, 1, mock.CreateCommentCallCount())
+				_, _, _, _, comment := mock.CreateCommentArgsForCall(0)
+				assert.Contains(t, comment, "Test Freeze")
+				assert.Contains(t, comment, "Fast forwards")
+				assert.NotContains(t, comment, "Code Freeze")
+				assert.NotContains(t, comment, "Adding the milestone to this PR is strictly prohibited")
+			},
+		},
+		{
+			name:   "success not in code or test freeze",
+			action: github.PullRequestActionOpened,
+			org:    defaultKubernetesRepoAndOrg,
+			repo:   defaultKubernetesRepoAndOrg,
+			branch: defaultKubernetesBranch,
+			prepare: func(mock *testfreezefakes.FakeVerifier) {
+				mock.CheckInTestFreezeReturns(&checker.Result{
+					InCodeFreeze: false,
+					InTestFreeze: false,
+				}, nil)
 			},
 			assert: func(mock *testfreezefakes.FakeVerifier, err error) {
 				assert.Nil(t, err)
@@ -146,6 +206,7 @@ func TestHandle(t *testing.T) {
 			branch: defaultKubernetesBranch,
 			prepare: func(mock *testfreezefakes.FakeVerifier) {
 				mock.CheckInTestFreezeReturns(&checker.Result{
+					InCodeFreeze: true,
 					InTestFreeze: true,
 				}, nil)
 				mock.CreateCommentReturns(errTest)
