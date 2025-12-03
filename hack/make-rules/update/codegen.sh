@@ -158,7 +158,7 @@ gen-informer() {
 gen-spyglass-bindata() {
   cd pkg/spyglass/lenses/common/
   echo "Generating spyglass bindata..." >&2
-  $go_bindata -pkg=common static/
+  $go_bindata -modtime 1 -pkg=common static/
   gofmt -s -w ./
   cd - >/dev/null
 }

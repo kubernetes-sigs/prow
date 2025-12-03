@@ -93,7 +93,7 @@ func staticSpyglassLensHtml() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "static/spyglass-lens.html", size: 616, mode: os.FileMode(420), modTime: time.Unix(1757524878, 0)}
+	info := bindataFileInfo{name: "static/spyglass-lens.html", size: 616, mode: os.FileMode(420), modTime: time.Unix(1, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
