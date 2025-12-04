@@ -406,6 +406,7 @@ func NewController(
 	statusUpdate := &statusUpdate{
 		dontUpdateStatus: &threadSafePRSet{},
 		newPoolPending:   make(chan bool),
+		contextHistory:   newContextHistory(),
 	}
 
 	sc, err := newStatusController(ctx, logger, ghcStatus, mgr, gc, cfg, opener, statusURI, mergeChecker, usesGitHubAppsAuth, statusUpdate)
@@ -582,6 +583,10 @@ func (c *syncController) Sync() error {
 	c.statusUpdate.poolPRs = poolPRMap(filteredPools)
 	c.statusUpdate.baseSHAs = baseSHAMap(filteredPools)
 	c.statusUpdate.requiredContexts = requiredContextsMap(filteredPools)
+	// Prune old PR entries from context history to prevent memory leak
+	if c.statusUpdate.contextHistory != nil {
+		c.statusUpdate.contextHistory.prune(c.statusUpdate.poolPRs)
+	}
 	select {
 	case c.statusUpdate.newPoolPending <- true:
 		c.statusUpdate.dontUpdateStatus.reset()
@@ -675,7 +680,11 @@ func (c *syncController) filterSubpools(mergeAllowed func(*CodeReviewCommon) (st
 				return
 			}
 			key := poolKey(sp.org, sp.repo, sp.branch)
-			if spFiltered := filterSubpool(c.provider, mergeAllowed, sp); spFiltered != nil {
+			var ch *contextHistory
+			if c.statusUpdate != nil {
+				ch = c.statusUpdate.contextHistory
+			}
+			if spFiltered := filterSubpool(c.provider, mergeAllowed, sp, ch); spFiltered != nil {
 				sp.log.WithField("key", key).WithField("pool", spFiltered).Debug("filtered sub-pool")
 
 				lock.Lock()
@@ -727,10 +736,10 @@ func (c *syncController) initSubpoolData(sp *subpool) error {
 // should be deleted.
 //
 // This function works for any source code provider.
-func filterSubpool(provider provider, mergeAllowed func(*CodeReviewCommon) (string, error), sp *subpool) *subpool {
+func filterSubpool(provider provider, mergeAllowed func(*CodeReviewCommon) (string, error), sp *subpool, ch *contextHistory) *subpool {
 	var toKeep []CodeReviewCommon
 	for _, pr := range sp.prs {
-		if !filterPR(provider, mergeAllowed, sp, &pr) {
+		if !filterPR(provider, mergeAllowed, sp, &pr, ch) {
 			toKeep = append(toKeep, pr)
 		}
 	}
@@ -752,7 +761,7 @@ func filterSubpool(provider provider, mergeAllowed func(*CodeReviewCommon) (stri
 //     retesting them.)
 //
 // This function works for any source code provider.
-func filterPR(provider provider, mergeAllowed func(*CodeReviewCommon) (string, error), sp *subpool, pr *CodeReviewCommon) bool {
+func filterPR(provider provider, mergeAllowed func(*CodeReviewCommon) (string, error), sp *subpool, pr *CodeReviewCommon, ch *contextHistory) bool {
 	log := sp.log.WithFields(pr.logFields())
 	// Skip PRs that are known to be unmergeable.
 	if reason, err := mergeAllowed(pr); err != nil {
@@ -778,7 +787,7 @@ func filterPR(provider provider, mergeAllowed func(*CodeReviewCommon) (string, e
 		}
 		return false
 	}
-	for _, ctx := range unsuccessfulContexts(contexts, sp.cc[pr.Number], log) {
+	for _, ctx := range unsuccessfulContexts(contexts, sp.cc[pr.Number], pr, ch, log) {
 		if ctx.State != githubql.StatusStatePending {
 			log.WithField("context", ctx.Context).Debug("filtering out PR as unsuccessful context is not pending")
 			return true
@@ -853,7 +862,11 @@ func (c *syncController) isPassingTests(log *logrus.Entry, pr *CodeReviewCommon,
 		// If we can't get the status of the commit, assume that it is failing.
 		return false
 	}
-	unsuccessful := unsuccessfulContexts(contexts, cc, log)
+	var ch *contextHistory
+	if c.statusUpdate != nil {
+		ch = c.statusUpdate.contextHistory
+	}
+	unsuccessful := unsuccessfulContexts(contexts, cc, pr, ch, log)
 	return len(unsuccessful) == 0
 }
 
@@ -862,8 +875,12 @@ func (c *syncController) isPassingTests(log *logrus.Entry, pr *CodeReviewCommon,
 // If the branchProtection is set to only check for required checks, we will skip
 // all non-required tests. If required tests are missing from the list, they will be
 // added to the list of failed contexts.
-func unsuccessfulContexts(contexts []Context, cc contextChecker, log *logrus.Entry) []Context {
+// It also detects when required contexts disappear (e.g., when GitHub Actions are re-triggered)
+// and treats them as PENDING to prevent premature merging (addresses issue #337).
+func unsuccessfulContexts(contexts []Context, cc contextChecker, pr *CodeReviewCommon, ch *contextHistory, log *logrus.Entry) []Context {
 	var failed []Context
+	contextNames := contextsToStrings(contexts)
+
 	for _, ctx := range contexts {
 		if string(ctx.Context) == statusContext {
 			continue
@@ -875,13 +892,45 @@ func unsuccessfulContexts(contexts []Context, cc contextChecker, log *logrus.Ent
 			failed = append(failed, ctx)
 		}
 	}
-	for _, c := range cc.MissingRequiredContexts(contextsToStrings(contexts)) {
-		failed = append(failed, newExpectedContext(c))
+
+	// Track which contexts are added as failed to avoid duplicates
+	failedSet := sets.New[string]()
+	for _, ctx := range failed {
+		failedSet.Insert(string(ctx.Context))
+	}
+
+	// Add missing required contexts
+	for _, c := range cc.MissingRequiredContexts(contextNames) {
+		if !failedSet.Has(c) {
+			failed = append(failed, newExpectedContext(c))
+			failedSet.Insert(c)
+		}
+	}
+
+	// Check for disappeared contexts (race condition fix)
+	// When a GitHub Action is re-triggered, the check may temporarily disappear
+	// from the status before the new run starts. Detect this and treat disappeared
+	// required contexts as non-passing to prevent premature merging.
+	if ch != nil && pr != nil {
+		disappeared := ch.checkAndUpdate(pr, contextNames)
+		if len(disappeared) > 0 {
+			log.WithField("disappeared_contexts", disappeared).
+				Info("Detected disappeared contexts - likely due to re-triggered checks")
+		}
+		for _, c := range disappeared {
+			if !cc.IsOptional(c) && !failedSet.Has(c) {
+				failed = append(failed, Context{
+					Context:     githubql.String(c),
+					State:       githubql.StatusStatePending,
+					Description: githubql.String("Context disappeared - likely re-triggered"),
+				})
+			}
+		}
 	}
 
 	log.WithFields(logrus.Fields{
 		"total_context_count":  len(contexts),
-		"context_names":        contextsToStrings(contexts),
+		"context_names":        contextNames,
 		"failed_context_count": len(failed),
 		"failed_context_names": contextsToStrings(failed),
 	}).Debug("Filtered out failed contexts")
