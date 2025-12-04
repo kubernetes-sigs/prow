@@ -17,6 +17,7 @@ limitations under the License.
 package githuboauth
 
 import (
+	"context"
 	"encoding/gob"
 	"encoding/hex"
 	"net/http"
@@ -28,7 +29,6 @@ import (
 	"github.com/gorilla/securecookie"
 	"github.com/gorilla/sessions"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/net/context"
 	"golang.org/x/net/xsrftoken"
 	"golang.org/x/oauth2"
 )
