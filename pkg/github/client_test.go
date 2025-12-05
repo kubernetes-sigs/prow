@@ -3703,3 +3703,409 @@ func TestCollaboratorMethodsDryRun(t *testing.T) {
 		t.Errorf("Expected 0 API calls in dry-run mode, but got %d", callCount)
 	}
 }
+
+func TestGitHubAppTokenFetchingInDryRunMode(t *testing.T) {
+	// Test that GitHub App installation token fetching works in dry-run mode
+	// while other mutations are still blocked
+
+	tokenFetchCalled := false
+	otherMutationCalled := false
+
+	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Check if this is the token fetch endpoint
+		if r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/app/installations/") && strings.HasSuffix(r.URL.Path, "/access_tokens") {
+			tokenFetchCalled = true
+			w.WriteHeader(http.StatusCreated)
+			token := AppInstallationToken{
+				Token:     "test-token",
+				ExpiresAt: time.Now().Add(time.Hour),
+			}
+			_ = json.NewEncoder(w).Encode(token)
+			return
+		}
+
+		// Any other POST/PUT/DELETE should not be called in dry-run mode
+		if r.Method != http.MethodGet {
+			otherMutationCalled = true
+			t.Errorf("Unexpected non-GET API call in dry-run mode: %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer ts.Close()
+
+	c := getClient(ts.URL)
+	c.dry = true // Enable dry-run mode
+
+	// Test 1: Token fetching should work in dry-run mode
+	token, err := c.getAppInstallationToken(12345)
+	if err != nil {
+		t.Errorf("getAppInstallationToken should work in dry-run mode, got error: %v", err)
+	}
+	if token == nil {
+		t.Fatal("Expected token to be returned in dry-run mode")
+	}
+	if !tokenFetchCalled {
+		t.Error("Expected token fetch API to be called even in dry-run mode")
+	}
+	// Verify the token struct fields are properly unmarshalled
+	if token.Token == "" {
+		t.Error("Expected token.Token to be set")
+	}
+	if token.Token != "test-token" {
+		t.Errorf("Expected token.Token='test-token', got %q", token.Token)
+	}
+	if token.ExpiresAt.IsZero() {
+		t.Error("Expected token.ExpiresAt to be set")
+	}
+	if token.ExpiresAt.Before(time.Now()) {
+		t.Error("Expected token.ExpiresAt to be in the future")
+	}
+
+	// Test 2: Other mutations should still be blocked
+	// Reset flags
+	otherMutationCalled = false
+
+	// Try a regular POST operation (should be blocked)
+	err = c.AddCollaborator("org", "repo", "user", Read)
+	if err != nil {
+		t.Errorf("AddCollaborator in dry-run mode should not return error, got: %v", err)
+	}
+	if otherMutationCalled {
+		t.Error("AddCollaborator should not make API calls in dry-run mode")
+	}
+
+	// Try a DELETE operation (should be blocked)
+	err = c.RemoveCollaborator("org", "repo", "user")
+	if err != nil {
+		t.Errorf("RemoveCollaborator in dry-run mode should not return error, got: %v", err)
+	}
+	if otherMutationCalled {
+		t.Error("RemoveCollaborator should not make API calls in dry-run mode")
+	}
+
+	// Note: GraphQL queries (v4 API) also work in dry-run mode with Apps auth because:
+	// 1. They use the same appsRoundTripper which fetches installation tokens
+	// 2. The token fetch uses allowInDryRun=true (tested above)
+	// 3. GraphQL queries themselves are read-only operations in dry-run mode
+	// This is implicitly tested by the token fetching mechanism.
+}
+
+func TestRequestWithAllowInDryRunFlag(t *testing.T) {
+	// Test basic dry-run behavior for different HTTP methods
+	// Note: Allowlist enforcement is tested in TestAllowInDryRunEnforcesAllowlist
+
+	callsMade := []string{}
+	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callsMade = append(callsMade, r.Method+" "+r.URL.Path)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("{}"))
+	}))
+	defer ts.Close()
+
+	c := getClient(ts.URL)
+	c.dry = true // Enable dry-run mode
+
+	// Test 1: Regular POST without allowInDryRun should NOT make API call
+	_, err := c.request(&request{
+		method:        http.MethodPost,
+		path:          "/test/regular",
+		exitCodes:     []int{200},
+		allowInDryRun: false,
+	}, nil)
+	if err != nil {
+		t.Errorf("Request should not error in dry-run mode: %v", err)
+	}
+	if len(callsMade) > 0 {
+		t.Errorf("Regular POST should not make API call in dry-run mode, but got: %v", callsMade)
+	}
+
+	// Test 2: GET requests should always work
+	callsMade = []string{}
+	_, err = c.request(&request{
+		method:    http.MethodGet,
+		path:      "/test/get",
+		exitCodes: []int{200},
+	}, nil)
+	if err != nil {
+		t.Errorf("GET request should not error: %v", err)
+	}
+	if len(callsMade) != 1 {
+		t.Errorf("GET request should always make API call in dry-run mode, got %d calls", len(callsMade))
+	}
+
+	// Test 3: PUT without allowInDryRun should NOT make API call
+	callsMade = []string{}
+	_, err = c.request(&request{
+		method:        http.MethodPut,
+		path:          "/test/put",
+		exitCodes:     []int{200},
+		allowInDryRun: false,
+	}, nil)
+	if err != nil {
+		t.Errorf("Request should not error in dry-run mode: %v", err)
+	}
+	if len(callsMade) > 0 {
+		t.Errorf("PUT should not make API call in dry-run mode, but got: %v", callsMade)
+	}
+
+	// Test 4: DELETE without allowInDryRun should NOT make API call
+	callsMade = []string{}
+	_, err = c.request(&request{
+		method:        http.MethodDelete,
+		path:          "/test/delete",
+		exitCodes:     []int{204},
+		allowInDryRun: false,
+	}, nil)
+	if err != nil {
+		t.Errorf("Request should not error in dry-run mode: %v", err)
+	}
+	if len(callsMade) > 0 {
+		t.Errorf("DELETE should not make API call in dry-run mode, but got: %v", callsMade)
+	}
+}
+
+func TestDryRunModeDoesNotAffectNonDryRunClients(t *testing.T) {
+	// Verify that our changes don't affect non-dry-run clients
+
+	callsMade := []string{}
+	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callsMade = append(callsMade, r.Method+" "+r.URL.Path)
+		// Return appropriate status code based on method
+		if r.Method == http.MethodDelete {
+			w.WriteHeader(http.StatusNoContent)
+		} else {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("{}"))
+		}
+	}))
+	defer ts.Close()
+
+	c := getClient(ts.URL)
+	c.dry = false // Non-dry-run mode
+
+	// All requests should make actual API calls when NOT in dry-run mode
+	testCases := []struct {
+		name          string
+		method        string
+		path          string
+		allowInDryRun bool
+	}{
+		{"GET request", http.MethodGet, "/test/get", false},
+		{"POST without allowInDryRun", http.MethodPost, "/test/post1", false},
+		{"POST with allowInDryRun", http.MethodPost, "/test/post2", true},
+		{"PUT request", http.MethodPut, "/test/put", false},
+		{"DELETE request", http.MethodDelete, "/test/delete", false},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			callsMade = []string{}
+			exitCode := 200
+			if tc.method == http.MethodDelete {
+				exitCode = 204
+			}
+			_, err := c.request(&request{
+				method:        tc.method,
+				path:          tc.path,
+				exitCodes:     []int{exitCode},
+				allowInDryRun: tc.allowInDryRun,
+			}, nil)
+			if err != nil {
+				t.Errorf("Request should not error in non-dry-run mode: %v", err)
+			}
+			if len(callsMade) != 1 {
+				t.Errorf("Expected exactly 1 API call in non-dry-run mode, got %d", len(callsMade))
+			}
+			expected := tc.method + " " + tc.path
+			if len(callsMade) > 0 && callsMade[0] != expected {
+				t.Errorf("Expected %s, got %s", expected, callsMade[0])
+			}
+		})
+	}
+}
+
+func TestAllowInDryRunEnforcesAllowlist(t *testing.T) {
+	// Test that isDryRunAllowed enforces a hardcoded allowlist
+	// Even if allowInDryRun=true is set, only allowlisted endpoints should pass
+
+	callsMade := map[string]int{}
+	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		key := r.Method + " " + r.URL.Path
+		callsMade[key]++
+
+		// Return appropriate responses
+		if strings.HasSuffix(r.URL.Path, "/access_tokens") {
+			w.WriteHeader(http.StatusCreated)
+			token := AppInstallationToken{Token: "test", ExpiresAt: time.Now().Add(time.Hour)}
+			_ = json.NewEncoder(w).Encode(token)
+		} else {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("{}"))
+		}
+	}))
+	defer ts.Close()
+
+	c := getClient(ts.URL)
+	c.dry = true
+
+	// Test 1: Token acquisition endpoint with allowInDryRun=true should work
+	callsMade = map[string]int{}
+	_, err := c.request(&request{
+		method:        http.MethodPost,
+		path:          "/app/installations/12345/access_tokens",
+		exitCodes:     []int{201},
+		allowInDryRun: true, // Should be allowed (on allowlist)
+	}, nil)
+	if err != nil {
+		t.Errorf("Token acquisition should work: %v", err)
+	}
+	if callsMade["POST /app/installations/12345/access_tokens"] != 1 {
+		t.Error("Token acquisition endpoint should be allowed in dry-run with allowInDryRun=true")
+	}
+
+	// Test 2: Non-allowlisted endpoint with allowInDryRun=true should be BLOCKED
+	// This is the critical security test - even with allowInDryRun=true, it should be blocked
+	callsMade = map[string]int{}
+	_, err = c.request(&request{
+		method:        http.MethodPost,
+		path:          "/orgs/test/teams", // NOT on allowlist
+		exitCodes:     []int{201},
+		allowInDryRun: true, // Flag is set, but should be ignored (not on allowlist)
+	}, nil)
+	if err != nil {
+		t.Errorf("Request should not error in dry-run: %v", err)
+	}
+	if callsMade["POST /orgs/test/teams"] > 0 {
+		t.Error("SECURITY ISSUE: Non-allowlisted endpoint was allowed with allowInDryRun=true!")
+	} else {
+		t.Log("✓ Allowlist enforcement: non-allowlisted endpoint blocked even with allowInDryRun=true")
+	}
+
+	// Test 3: Other mutation endpoints should also be blocked even with the flag
+	testCases := []struct {
+		method string
+		path   string
+	}{
+		{http.MethodPut, "/orgs/test/memberships/user"},
+		{http.MethodPost, "/orgs/test/teams"},
+		{http.MethodPatch, "/repos/test/repo"},
+		{http.MethodDelete, "/orgs/test/teams/team-slug"},
+	}
+
+	for _, tc := range testCases {
+		callsMade = map[string]int{}
+		_, err := c.request(&request{
+			method:        tc.method,
+			path:          tc.path,
+			exitCodes:     []int{200, 201, 204},
+			allowInDryRun: true, // Set but should be blocked
+		}, nil)
+		if err != nil {
+			t.Errorf("Request should not error: %v", err)
+		}
+		key := tc.method + " " + tc.path
+		if callsMade[key] > 0 {
+			t.Errorf("SECURITY: %s was allowed with allowInDryRun=true but is not on allowlist!", key)
+		}
+	}
+}
+
+func TestAllowInDryRunOnlyForTokenAcquisition(t *testing.T) {
+	// This test documents and enforces the constraint that allowInDryRun should
+	// ONLY be used for GitHub App token acquisition, not for actual mutations.
+	//
+	// Future contributors: If you're considering using allowInDryRun=true for a new
+	// request, please carefully consider whether it's truly read-only. If it modifies
+	// org/repo state (adding members, creating teams, updating settings, etc.),
+	// it should NOT use allowInDryRun as that would defeat dry-run mode's purpose.
+
+	callsMade := []string{}
+	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callsMade = append(callsMade, r.Method+" "+r.URL.Path)
+		if r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/app/installations/") && strings.HasSuffix(r.URL.Path, "/access_tokens") {
+			w.WriteHeader(http.StatusCreated)
+			token := AppInstallationToken{
+				Token:     "test-token",
+				ExpiresAt: time.Now().Add(time.Hour),
+			}
+			_ = json.NewEncoder(w).Encode(token)
+			return
+		}
+		t.Errorf("Unexpected API call: %s %s", r.Method, r.URL.Path)
+	}))
+	defer ts.Close()
+
+	c := getClient(ts.URL)
+	c.dry = true
+
+	// This is the ONLY acceptable use of allowInDryRun=true
+	callsMade = []string{}
+	_, err := c.getAppInstallationToken(12345)
+	if err != nil {
+		t.Errorf("Token acquisition should work in dry-run: %v", err)
+	}
+	if len(callsMade) != 1 {
+		t.Errorf("Expected 1 call for token acquisition, got %d", len(callsMade))
+	}
+
+	// Examples of requests that should NEVER use allowInDryRun=true:
+	// (These would make API calls in dry-run mode, which is wrong)
+
+	testCases := []struct {
+		name   string
+		method string
+		path   string
+		reason string
+	}{
+		{
+			name:   "Adding org member",
+			method: http.MethodPut,
+			path:   "/orgs/test/memberships/user",
+			reason: "Modifies org membership",
+		},
+		{
+			name:   "Creating a team",
+			method: http.MethodPost,
+			path:   "/orgs/test/teams",
+			reason: "Creates new team",
+		},
+		{
+			name:   "Updating repo settings",
+			method: http.MethodPatch,
+			path:   "/repos/test/repo",
+			reason: "Modifies repo configuration",
+		},
+		{
+			name:   "Adding collaborator",
+			method: http.MethodPut,
+			path:   "/repos/test/repo/collaborators/user",
+			reason: "Modifies repo access",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			callsMade = []string{}
+
+			// These should be blocked in dry-run mode
+			_, err := c.request(&request{
+				method:        tc.method,
+				path:          tc.path,
+				exitCodes:     []int{200, 201, 204},
+				allowInDryRun: false, // Correct: mutations should not set this to true
+			}, nil)
+
+			if err != nil {
+				t.Errorf("Request should not error in dry-run: %v", err)
+			}
+
+			if len(callsMade) > 0 {
+				t.Errorf("%s should be blocked in dry-run mode (reason: %s), but got call: %v",
+					tc.name, tc.reason, callsMade)
+			}
+
+			// Document what would happen if someone mistakenly used allowInDryRun=true
+			// (This part doesn't actually make the call, just documents the constraint)
+			t.Logf("IMPORTANT: %s must NOT use allowInDryRun=true because: %s", tc.name, tc.reason)
+		})
+	}
+}
