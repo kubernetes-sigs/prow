@@ -1614,6 +1614,13 @@ spec:
                   If this field is unspecified or false, a new pod will be created to replace
                   the evicted one.
                 type: boolean
+              error_on_termination:
+                description: |-
+                  ErrorOnTermination indicates that the ProwJob should be completed and given
+                  the ErrorState status if the pod that is executing the job is terminated.
+                  If this field is unspecified or false, a new pod will be created to replace
+                  the terminated one.
+                type: boolean
               extra_refs:
                 description: |-
                   ExtraRefs are auxiliary repositories that
