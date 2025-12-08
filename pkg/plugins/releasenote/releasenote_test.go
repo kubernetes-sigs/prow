@@ -481,6 +481,13 @@ func TestReleaseNotePR(t *testing.T) {
 			initialLabels:    []string{},
 			IssueLabelsAdded: []string{},
 		},
+		{
+			name:               "do-not-merge/release-note-label-needed, converted from draft to ready for review",
+			body:               "```release-note\nnone\n```",
+			initialLabels:      []string{labels.ReleaseNoteLabelNeeded},
+			IssueLabelsAdded:   []string{labels.ReleaseNoteNone},
+			IssueLabelsRemoved: []string{labels.ReleaseNoteLabelNeeded},
+		},
 	}
 	for _, test := range tests {
 		if test.branch == "" {
@@ -643,6 +650,12 @@ func TestShouldHandlePR(t *testing.T) {
 			action:         github.PullRequestActionLabeled,
 			label:          "do-not-merge/cherry-pick-not-approved",
 			expectedResult: false,
+		},
+		{
+			name:           "Pull Request Action: Ready for review",
+			action:         github.PullRequestActionReadyForReview,
+			label:          labels.ReleaseNoteLabelNeeded,
+			expectedResult: true,
 		},
 	}
 
