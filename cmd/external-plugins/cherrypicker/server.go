@@ -293,7 +293,10 @@ func (s *Server) handleIssueComment(log logrus.FieldLogger, ic github.IssueComme
 		}
 	}
 
-	// Handle all other, valid immediate branches.
+	// A failure in one cherry-pick must NOT prevent processing of the remaining
+	// targets, so we collect errors and continue the loop.
+	var errs []error
+
 	for _, targetBranch := range sets.List(sets.KeySet(commands)) {
 		branchLog := log.WithFields(logrus.Fields{
 			"requester":     ic.Comment.User.Login,
@@ -302,8 +305,14 @@ func (s *Server) handleIssueComment(log logrus.FieldLogger, ic github.IssueComme
 		branchLog.Debug("Cherrypick request.")
 
 		if err := s.handle(branchLog, ic.Comment.User.Login, &ic.Comment, org, repo, targetBranch, baseBranch, commands[targetBranch], title, body, num); err != nil {
-			return log, fmt.Errorf("failed to handle cherrypick for %s: %w", targetBranch, err)
+			branchLog.WithError(err).Error("Cherrypick failed")
+			errs = append(errs, fmt.Errorf("failed to handle cherrypick for %s: %w", targetBranch, err))
+        	continue 
 		}
+	}
+
+	if len(errs) > 0 {
+    return log, utilerrors.NewAggregate(errs) 
 	}
 
 	return log, nil
