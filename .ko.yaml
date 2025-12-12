@@ -4,49 +4,49 @@
 # git-custom-k8s-auth which the same alpine image with kubernetes auth clients installed for AWS/GCP
 # git-custom-k8s-auth should only be used for components that talk to Kubernetes Clusters.
 baseImageOverrides:
-  sigs.k8s.io/prow/cmd/branchprotector: gcr.io/k8s-staging-test-infra/alpine:v20240719-47a381b1df
-  sigs.k8s.io/prow/cmd/checkconfig: gcr.io/k8s-prow/git:v20240729-4f255edb07
-  sigs.k8s.io/prow/cmd/clonerefs: gcr.io/k8s-prow/git:v20240729-4f255edb07
-  sigs.k8s.io/prow/cmd/config-bootstrapper: gcr.io/k8s-staging-test-infra/git-custom-k8s-auth:v20240719-47a381b1df
-  sigs.k8s.io/prow/cmd/deck: gcr.io/k8s-staging-test-infra/git-custom-k8s-auth:v20240719-47a381b1df
-  sigs.k8s.io/prow/cmd/exporter: gcr.io/k8s-staging-test-infra/alpine:v20240719-47a381b1df
-  sigs.k8s.io/prow/cmd/crier: gcr.io/k8s-staging-test-infra/git-custom-k8s-auth:v20240719-47a381b1df
-  sigs.k8s.io/prow/cmd/entrypoint: gcr.io/k8s-prow/git:v20240729-4f255edb07
-  sigs.k8s.io/prow/cmd/gangway: gcr.io/k8s-prow/git:v20240729-4f255edb07
-  sigs.k8s.io/prow/cmd/generic-autobumper: gcr.io/k8s-prow/git:v20240729-4f255edb07
-  sigs.k8s.io/prow/cmd/gerrit: gcr.io/k8s-prow/git:v20240729-4f255edb07
-  sigs.k8s.io/prow/cmd/gcsupload: gcr.io/k8s-staging-test-infra/alpine:v20240719-47a381b1df
-  sigs.k8s.io/prow/cmd/hook: gcr.io/k8s-staging-test-infra/git-custom-k8s-auth:v20240719-47a381b1df
-  sigs.k8s.io/prow/cmd/hmac: gcr.io/k8s-staging-test-infra/alpine:v20240719-47a381b1df
-  sigs.k8s.io/prow/cmd/horologium: gcr.io/k8s-staging-test-infra/alpine:v20240719-47a381b1df
-  sigs.k8s.io/prow/cmd/initupload: gcr.io/k8s-prow/git:v20240729-4f255edb07
-  sigs.k8s.io/prow/cmd/invitations-accepter: gcr.io/k8s-staging-test-infra/alpine:v20240719-47a381b1df
-  sigs.k8s.io/prow/cmd/jenkins-operator: gcr.io/k8s-prow/git:v20240729-4f255edb07
-  sigs.k8s.io/prow/cmd/moonraker: gcr.io/k8s-prow/git:v20240729-4f255edb07
-  sigs.k8s.io/prow/cmd/peribolos: gcr.io/k8s-staging-test-infra/alpine:v20240719-47a381b1df
-  sigs.k8s.io/prow/cmd/sidecar: gcr.io/k8s-prow/git:v20240729-4f255edb07
-  sigs.k8s.io/prow/cmd/sinker: gcr.io/k8s-staging-test-infra/git-custom-k8s-auth:v20240719-47a381b1df
-  sigs.k8s.io/prow/cmd/status-reconciler: gcr.io/k8s-staging-test-infra/alpine:v20240719-47a381b1df
-  sigs.k8s.io/prow/cmd/sub: gcr.io/k8s-prow/git:v20240729-4f255edb07
-  sigs.k8s.io/prow/cmd/tide: gcr.io/k8s-prow/git:v20240729-4f255edb07
-  sigs.k8s.io/prow/cmd/tot: gcr.io/k8s-staging-test-infra/alpine:v20240719-47a381b1df
-  sigs.k8s.io/prow/cmd/prow-controller-manager: gcr.io/k8s-staging-test-infra/git-custom-k8s-auth:v20240719-47a381b1df
-  sigs.k8s.io/prow/cmd/admission: gcr.io/k8s-staging-test-infra/alpine:v20240719-47a381b1df
+  sigs.k8s.io/prow/cmd/branchprotector: gcr.io/k8s-staging-test-infra/alpine:v20251206-8481528a19
+  sigs.k8s.io/prow/cmd/checkconfig: gcr.io/k8s-staging-test-infra/git:v20251206-8481528a19
+  sigs.k8s.io/prow/cmd/clonerefs: gcr.io/k8s-staging-test-infra/git:v20251206-8481528a19
+  sigs.k8s.io/prow/cmd/config-bootstrapper: gcr.io/k8s-staging-test-infra/git-custom-k8s-auth:v20251206-8481528a19
+  sigs.k8s.io/prow/cmd/deck: gcr.io/k8s-staging-test-infra/git-custom-k8s-auth:v20251206-8481528a19
+  sigs.k8s.io/prow/cmd/exporter: gcr.io/k8s-staging-test-infra/alpine:v20251206-8481528a19
+  sigs.k8s.io/prow/cmd/crier: gcr.io/k8s-staging-test-infra/git-custom-k8s-auth:v20251206-8481528a19
+  sigs.k8s.io/prow/cmd/entrypoint: gcr.io/k8s-staging-test-infra/git:v20251206-8481528a19
+  sigs.k8s.io/prow/cmd/gangway: gcr.io/k8s-staging-test-infra/git:v20251206-8481528a19
+  sigs.k8s.io/prow/cmd/generic-autobumper: gcr.io/k8s-staging-test-infra/git:v20251206-8481528a19
+  sigs.k8s.io/prow/cmd/gerrit: gcr.io/k8s-staging-test-infra/git:v20251206-8481528a19
+  sigs.k8s.io/prow/cmd/gcsupload: gcr.io/k8s-staging-test-infra/alpine:v20251206-8481528a19
+  sigs.k8s.io/prow/cmd/hook: gcr.io/k8s-staging-test-infra/git-custom-k8s-auth:v20251206-8481528a19
+  sigs.k8s.io/prow/cmd/hmac: gcr.io/k8s-staging-test-infra/alpine:v20251206-8481528a19
+  sigs.k8s.io/prow/cmd/horologium: gcr.io/k8s-staging-test-infra/alpine:v20251206-8481528a19
+  sigs.k8s.io/prow/cmd/initupload: gcr.io/k8s-staging-test-infra/git:v20251206-8481528a19
+  sigs.k8s.io/prow/cmd/invitations-accepter: gcr.io/k8s-staging-test-infra/alpine:v20251206-8481528a19
+  sigs.k8s.io/prow/cmd/jenkins-operator: gcr.io/k8s-staging-test-infra/git:v20251206-8481528a19
+  sigs.k8s.io/prow/cmd/moonraker: gcr.io/k8s-staging-test-infra/git:v20251206-8481528a19
+  sigs.k8s.io/prow/cmd/peribolos: gcr.io/k8s-staging-test-infra/alpine:v20251206-8481528a19
+  sigs.k8s.io/prow/cmd/sidecar: gcr.io/k8s-staging-test-infra/git:v20251206-8481528a19
+  sigs.k8s.io/prow/cmd/sinker: gcr.io/k8s-staging-test-infra/git-custom-k8s-auth:v20251206-8481528a19
+  sigs.k8s.io/prow/cmd/status-reconciler: gcr.io/k8s-staging-test-infra/alpine:v20251206-8481528a19
+  sigs.k8s.io/prow/cmd/sub: gcr.io/k8s-staging-test-infra/git:v20251206-8481528a19
+  sigs.k8s.io/prow/cmd/tide: gcr.io/k8s-staging-test-infra/git:v20251206-8481528a19
+  sigs.k8s.io/prow/cmd/tot: gcr.io/k8s-staging-test-infra/alpine:v20251206-8481528a19
+  sigs.k8s.io/prow/cmd/prow-controller-manager: gcr.io/k8s-staging-test-infra/git-custom-k8s-auth:v20251206-8481528a19
+  sigs.k8s.io/prow/cmd/admission: gcr.io/k8s-staging-test-infra/alpine:v20251206-8481528a19
   sigs.k8s.io/prow/cmd/webhook-server: gcr.io/distroless/static:nonroot@sha256:9ecc53c269509f63c69a266168e4a687c7eb8c0cfd753bd8bfcaa4f58a90876f
-  sigs.k8s.io/prow/cmd/mkpj: gcr.io/k8s-staging-test-infra/alpine:v20240719-47a381b1df
-  sigs.k8s.io/prow/cmd/mkpod: gcr.io/k8s-staging-test-infra/alpine:v20240719-47a381b1df
-  sigs.k8s.io/prow/cmd/pipeline: gcr.io/k8s-staging-test-infra/alpine:v20240719-47a381b1df
+  sigs.k8s.io/prow/cmd/mkpj: gcr.io/k8s-staging-test-infra/alpine:v20251206-8481528a19
+  sigs.k8s.io/prow/cmd/mkpod: gcr.io/k8s-staging-test-infra/alpine:v20251206-8481528a19
+  sigs.k8s.io/prow/cmd/pipeline: gcr.io/k8s-staging-test-infra/alpine:v20251206-8481528a19
   # external
-  sigs.k8s.io/prow/cmd/external-plugins/needs-rebase: gcr.io/k8s-staging-test-infra/alpine:v20240719-47a381b1df
-  sigs.k8s.io/prow/cmd/external-plugins/cherrypicker: gcr.io/k8s-prow/git:v20240729-4f255edb07
-  sigs.k8s.io/prow/cmd/external-plugins/refresh: gcr.io/k8s-staging-test-infra/alpine:v20240719-47a381b1df
-  sigs.k8s.io/prow/cmd/ghproxy: gcr.io/k8s-staging-test-infra/alpine:v20240719-47a381b1df
+  sigs.k8s.io/prow/cmd/external-plugins/needs-rebase: gcr.io/k8s-staging-test-infra/alpine:v20251206-8481528a19
+  sigs.k8s.io/prow/cmd/external-plugins/cherrypicker: gcr.io/k8s-staging-test-infra/git:v20251206-8481528a19
+  sigs.k8s.io/prow/cmd/external-plugins/refresh: gcr.io/k8s-staging-test-infra/alpine:v20251206-8481528a19
+  sigs.k8s.io/prow/cmd/ghproxy: gcr.io/k8s-staging-test-infra/alpine:v20251206-8481528a19
 
   # prow integration test
-  sigs.k8s.io/prow/test/integration/cmd/fakeghserver: gcr.io/k8s-staging-test-infra/alpine:v20240719-47a381b1df
-  sigs.k8s.io/prow/test/integration/cmd/fakegitserver: gcr.io/k8s-prow/git:v20240729-4f255edb07
+  sigs.k8s.io/prow/test/integration/cmd/fakeghserver: gcr.io/k8s-staging-test-infra/alpine:v20251206-8481528a19
+  sigs.k8s.io/prow/test/integration/cmd/fakegitserver: gcr.io/k8s-staging-test-infra/git:v20251206-8481528a19
   sigs.k8s.io/prow/test/integration/cmd/fakepubsub: google/cloud-sdk:389.0.0
-  sigs.k8s.io/prow/test/integration/cmd/fakegcsserver: gcr.io/k8s-staging-test-infra/alpine:v20240719-47a381b1df
+  sigs.k8s.io/prow/test/integration/cmd/fakegcsserver: gcr.io/k8s-staging-test-infra/alpine:v20251206-8481528a19
 
 # https://pkg.go.dev/cmd/link
 # -s: omit symbol/debug info
