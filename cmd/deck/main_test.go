@@ -710,6 +710,7 @@ func Test_gatherOptions(t *testing.T) {
 				staticFilesLocation:   "/static",
 				templateFilesLocation: "/template",
 				spyglassFilesLocation: "/lenses",
+				basePath:              "/",
 				github:                ghoptions,
 				instrumentation:       flagutil.DefaultInstrumentationOptions(),
 			}
