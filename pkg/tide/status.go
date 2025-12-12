@@ -253,17 +253,11 @@ func requirementDiff(pr *PullRequest, q *config.TideQuery, cc contextChecker) (s
 			desc = fmt.Sprintf(" Jobs %s have not succeeded.", strings.Join(trunced, ", "))
 		}
 	}
+
 	if q.ReviewApprovedRequired && pr.ReviewDecision != githubql.PullRequestReviewDecisionApproved {
 		diff += 50
 		if desc == "" {
 			desc = " PullRequest is missing sufficient approving GitHub review(s)"
-		}
-	}
-	// Check GitHub's mergeStateStatus which reflects all GitHub-side blocking conditions
-	if pr.MergeStateStatus == "BLOCKED" {
-		diff += 100
-		if desc == "" {
-			desc = " Blocked by GitHub (branch rulesets or protection)"
 		}
 	}
 	return desc, diff
