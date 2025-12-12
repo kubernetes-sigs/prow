@@ -222,7 +222,8 @@ func shouldHandlePR(pr *github.PullRequestEvent) bool {
 	// Only consider events that edit the PR body or add a label
 	if pr.Action != github.PullRequestActionOpened &&
 		pr.Action != github.PullRequestActionEdited &&
-		pr.Action != github.PullRequestActionLabeled {
+		pr.Action != github.PullRequestActionLabeled &&
+		pr.Action != github.PullRequestActionReadyForReview {
 		return false
 	}
 
