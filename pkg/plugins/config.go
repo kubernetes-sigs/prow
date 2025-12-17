@@ -601,14 +601,14 @@ type ConfigMapSpec struct {
 // 3. If allow lists are specified, the repo must match an entry in the allowed list.
 // 4. If no allow lists are specified, it's allowed (unless denied).
 func (cm ConfigMapSpec) IsAllowed(repo string) bool {
-	org, _, _ := config.SplitRepoName(repo)
+	or := config.NewOrgRepo(repo)
 
 	// Check denied list first
 	for _, denied := range cm.DeniedRepos {
 		if denied == repo {
 			return false
 		}
-		if denied == org {
+		if denied == or.Org {
 			return false
 		}
 	}
@@ -622,7 +622,7 @@ func (cm ConfigMapSpec) IsAllowed(repo string) bool {
 		if allowed == repo {
 			return true
 		}
-		if allowed == org {
+		if allowed == or.Org {
 			return true
 		}
 	}
