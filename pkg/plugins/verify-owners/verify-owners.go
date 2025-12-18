@@ -45,7 +45,7 @@ import (
 const (
 	// PluginName defines this plugin's registered name.
 	PluginName              = "verify-owners"
-	untrustedResponseFormat = `The following users are mentioned in %s file(s) but are untrusted for the following reasons. One way to make the user trusted is to add them as [members](%s) of the %s org. You can then trigger verification by writing ` + "`/verify-owners`" + ` in a comment.`
+	untrustedResponseFormat = `The OWNERS file contains untrusted users, which makes it INVALID. The following users are mentioned in %s file(s) but are untrusted for the following reasons. One way to make the user trusted is to add them as [members](%s) of the %s org. You can then trigger verification by writing ` + "`/verify-owners`" + ` in a comment.`
 )
 
 type nonTrustedReasons struct {
