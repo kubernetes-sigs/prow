@@ -632,6 +632,18 @@ func (m *mergeChecker) isAllowedToMerge(crc *CodeReviewCommon) (string, error) {
 	} else if !allowed {
 		return fmt.Sprintf("Merge type %q disallowed by repo settings", *mergeMethod), nil
 	}
+	if pr.MergeStateStatus == MergeStateStatusBlocked {
+		switch policy := m.config().Tide.GitHubMergeBlocksPolicy(orgRepo); policy {
+		case config.GitHubMergeBlocksBlock:
+			return "PR is blocked from merging by GitHub (check branch protection, required reviews, or rulesets)", nil
+		case config.GitHubMergeBlocksPermit:
+			// Allow merge but the warning will be surfaced in PR status by requirementDiff
+		case config.GitHubMergeBlocksIgnore:
+			// Ignore BLOCKED status entirely
+		default:
+			return "", fmt.Errorf("unexpected github_merge_blocks_policy value %q", policy)
+		}
+	}
 	return "", nil
 }
 
