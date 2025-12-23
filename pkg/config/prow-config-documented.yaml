@@ -1548,6 +1548,14 @@ tide:
     # creates. The default is to only mention the one to which we are closest (Calculated
     # by total number of requirements - fulfilled number of requirements).
     display_all_tide_queries_in_status: true
+    # EnforceGitHubMergeBlocksMap configures on org or org/repo level if Tide should check
+    # GitHub's mergeStateStatus to prevent merging PRs that are blocked by GitHub (due to
+    # branch protection rules, rulesets, required reviews, etc.).
+    # Use '*' as key to set this globally. Defaults to false for backwards compatibility.
+    # Note: This may cause issues with repos using GitHub Rulesets that restrict updates
+    # but have Tide on the bypass list.
+    enforce_github_merge_blocks:
+        "": false
     gerrit:
         queries:
             - filters:

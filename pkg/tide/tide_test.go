@@ -1523,6 +1523,176 @@ func TestRebaseMergeMethodIsAllowed(t *testing.T) {
 	}
 }
 
+func TestIsAllowedToMerge_ReviewDecision(t *testing.T) {
+	orgName := "test-org"
+	repoName := "test-repo"
+
+	testCases := []struct {
+		name                 string
+		mergeStateStatus     string
+		enforceConfig        map[string]bool
+		expectedMergeOutput  string
+		expectedMergeAllowed bool
+	}{
+		{
+			name:             "BLOCKED status with enforce enabled globally",
+			mergeStateStatus: "BLOCKED",
+			enforceConfig: map[string]bool{
+				"*": true,
+			},
+			expectedMergeOutput:  "PR is blocked from merging by GitHub (check branch protection, required reviews, or rulesets)",
+			expectedMergeAllowed: false,
+		},
+		{
+			name:             "BLOCKED status with enforce disabled globally",
+			mergeStateStatus: "BLOCKED",
+			enforceConfig: map[string]bool{
+				"*": false,
+			},
+			expectedMergeOutput:  "",
+			expectedMergeAllowed: true,
+		},
+		{
+			name:             "BLOCKED status with enforce not configured (default)",
+			mergeStateStatus: "BLOCKED",
+			enforceConfig:    map[string]bool{},
+			expectedMergeOutput:  "",
+			expectedMergeAllowed: true,
+		},
+		{
+			name:             "BLOCKED status with enforce enabled for specific org",
+			mergeStateStatus: "BLOCKED",
+			enforceConfig: map[string]bool{
+				orgName: true,
+			},
+			expectedMergeOutput:  "PR is blocked from merging by GitHub (check branch protection, required reviews, or rulesets)",
+			expectedMergeAllowed: false,
+		},
+		{
+			name:             "BLOCKED status with enforce enabled for different org",
+			mergeStateStatus: "BLOCKED",
+			enforceConfig: map[string]bool{
+				"other-org": true,
+			},
+			expectedMergeOutput:  "",
+			expectedMergeAllowed: true,
+		},
+		{
+			name:             "BLOCKED status with enforce enabled for specific repo",
+			mergeStateStatus: "BLOCKED",
+			enforceConfig: map[string]bool{
+				fmt.Sprintf("%s/%s", orgName, repoName): true,
+			},
+			expectedMergeOutput:  "PR is blocked from merging by GitHub (check branch protection, required reviews, or rulesets)",
+			expectedMergeAllowed: false,
+		},
+		{
+			name:             "BLOCKED status with enforce enabled for different repo",
+			mergeStateStatus: "BLOCKED",
+			enforceConfig: map[string]bool{
+				fmt.Sprintf("%s/other-repo", orgName): true,
+			},
+			expectedMergeOutput:  "",
+			expectedMergeAllowed: true,
+		},
+		{
+			name:             "BLOCKED status - repo config overrides org config (disabled)",
+			mergeStateStatus: "BLOCKED",
+			enforceConfig: map[string]bool{
+				orgName: true,
+				fmt.Sprintf("%s/%s", orgName, repoName): false,
+			},
+			expectedMergeOutput:  "",
+			expectedMergeAllowed: true,
+		},
+		{
+			name:             "BLOCKED status - repo config overrides org config (enabled)",
+			mergeStateStatus: "BLOCKED",
+			enforceConfig: map[string]bool{
+				orgName: false,
+				fmt.Sprintf("%s/%s", orgName, repoName): true,
+			},
+			expectedMergeOutput:  "PR is blocked from merging by GitHub (check branch protection, required reviews, or rulesets)",
+			expectedMergeAllowed: false,
+		},
+		{
+			name:             "CLEAN status with enforce enabled",
+			mergeStateStatus: "CLEAN",
+			enforceConfig: map[string]bool{
+				"*": true,
+			},
+			expectedMergeOutput:  "",
+			expectedMergeAllowed: true,
+		},
+		{
+			name:             "BEHIND status with enforce enabled",
+			mergeStateStatus: "BEHIND",
+			enforceConfig: map[string]bool{
+				"*": true,
+			},
+			expectedMergeOutput:  "",
+			expectedMergeAllowed: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			tideConfig := config.Tide{
+				TideGitHubConfig: config.TideGitHubConfig{
+					MergeType: map[string]config.TideOrgMergeType{
+						fmt.Sprintf("%s/%s", orgName, repoName): {MergeType: types.MergeMerge},
+					},
+				},
+				EnforceGitHubMergeBlocksMap: tc.enforceConfig,
+			}
+			cfg := func() *config.Config { return &config.Config{ProwConfig: config.ProwConfig{Tide: tideConfig}} }
+			mmc := newMergeChecker(cfg, &fgc{})
+			mmc.cache = map[config.OrgRepo]map[types.PullRequestMergeType]bool{
+				{Org: orgName, Repo: repoName}: {
+					types.MergeMerge: true,
+				},
+			}
+
+			pr := &PullRequest{
+				Repository: struct {
+					Name          githubql.String
+					NameWithOwner githubql.String
+					Owner         struct {
+						Login githubql.String
+					}
+				}{
+					Name: githubql.String(repoName),
+					Owner: struct {
+						Login githubql.String
+					}{
+						Login: githubql.String(orgName),
+					},
+				},
+				Labels: struct {
+					Nodes []struct{ Name githubql.String }
+				}{
+					Nodes: []struct{ Name githubql.String }{},
+				},
+				MergeStateStatus: githubql.String(tc.mergeStateStatus),
+			}
+
+			mergeOutput, err := mmc.isAllowedToMerge(CodeReviewCommonFromPullRequest(pr))
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+
+			if mergeOutput != tc.expectedMergeOutput {
+				t.Errorf("Expected merge output %q but got %q", tc.expectedMergeOutput, mergeOutput)
+			}
+
+			isAllowed := mergeOutput == ""
+			if isAllowed != tc.expectedMergeAllowed {
+				t.Errorf("Expected merge allowed=%v but got %v (output: %q)", tc.expectedMergeAllowed, isAllowed, mergeOutput)
+			}
+		})
+	}
+}
+
 func TestTakeActionV2(t *testing.T) {
 	testTakeAction(localgit.NewV2, t)
 }

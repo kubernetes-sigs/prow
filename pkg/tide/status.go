@@ -125,7 +125,7 @@ func (sc *statusController) shutdown() {
 // Note: an empty diff can be returned if the reason that the PR does not match
 // the TideQuery is unknown. This can happen if this function's logic
 // does not match GitHub's and does not indicate that the PR matches the query.
-func requirementDiff(pr *PullRequest, q *config.TideQuery, cc contextChecker) (string, int) {
+func requirementDiff(pr *PullRequest, q *config.TideQuery, cc contextChecker, tide *config.Tide) (string, int) {
 	const maxLabelChars = 50
 	var desc string
 	var diff int
@@ -260,6 +260,20 @@ func requirementDiff(pr *PullRequest, q *config.TideQuery, cc contextChecker) (s
 			desc = " PullRequest is missing sufficient approving GitHub review(s)"
 		}
 	}
+	// Check GitHub's mergeStateStatus which reflects all GitHub-side blocking conditions
+	// This is controlled by the enforce_github_merge_blocks configuration flag.
+	if tide != nil {
+		orgRepo := config.OrgRepo{
+			Org:  string(pr.Repository.Owner.Login),
+			Repo: string(pr.Repository.Name),
+		}
+		if tide.EnforceGitHubMergeBlocks(orgRepo) && pr.MergeStateStatus == "BLOCKED" {
+			diff += 100
+			if desc == "" {
+				desc = " Blocked by GitHub (branch rulesets or protection)"
+			}
+		}
+	}
 	return desc, diff
 }
 
@@ -315,7 +329,7 @@ func (sc *statusController) expectedStatus(log *logrus.Entry, queryMap *config.Q
 		minDiffCount := -1
 		var minDiff string
 		for _, q := range queryMap.ForRepo(repo) {
-			diff, diffCount := requirementDiff(pr, &q, cc)
+			diff, diffCount := requirementDiff(pr, &q, cc, &sc.config().Tide)
 			if diffCount == 0 {
 				hasFulfilledQuery = true
 				break
