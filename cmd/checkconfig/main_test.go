@@ -2416,6 +2416,124 @@ func TestVerifyLabelPlugin(t *testing.T) {
 	}
 }
 
+func TestValidateConfigUpdaterACLs(t *testing.T) {
+	testCases := []struct {
+		name             string
+		config           *plugins.Configuration
+		expectedErrorMsg string
+	}{
+		{
+			name:   "nil config",
+			config: nil,
+		},
+		{
+			name:   "empty config",
+			config: &plugins.Configuration{},
+		},
+		{
+			name: "valid org-only entries",
+			config: &plugins.Configuration{
+				ConfigUpdater: plugins.ConfigUpdater{
+					Maps: map[string]plugins.ConfigMapSpec{
+						"config.yaml": {
+							Name:         "config",
+							AllowedRepos: []string{"kubernetes", "istio"},
+							DeniedRepos:  []string{"test-org"},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "valid org/repo entries",
+			config: &plugins.Configuration{
+				ConfigUpdater: plugins.ConfigUpdater{
+					Maps: map[string]plugins.ConfigMapSpec{
+						"config.yaml": {
+							Name:         "config",
+							AllowedRepos: []string{"kubernetes/test-infra", "istio/istio"},
+							DeniedRepos:  []string{"test-org/bad-repo"},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "valid mixed entries",
+			config: &plugins.Configuration{
+				ConfigUpdater: plugins.ConfigUpdater{
+					Maps: map[string]plugins.ConfigMapSpec{
+						"config.yaml": {
+							Name:         "config",
+							AllowedRepos: []string{"kubernetes", "istio/istio"},
+							DeniedRepos:  []string{"test-org", "bad-org/bad-repo"},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "empty entry in allowed_repos",
+			config: &plugins.Configuration{
+				ConfigUpdater: plugins.ConfigUpdater{
+					Maps: map[string]plugins.ConfigMapSpec{
+						"config.yaml": {
+							Name:         "config",
+							AllowedRepos: []string{"kubernetes", ""},
+						},
+					},
+				},
+			},
+			expectedErrorMsg: `config_updater.maps["config.yaml"].allowed_repos: org/repo cannot be empty`,
+		},
+		{
+			name: "entry with empty org (starts with slash)",
+			config: &plugins.Configuration{
+				ConfigUpdater: plugins.ConfigUpdater{
+					Maps: map[string]plugins.ConfigMapSpec{
+						"config.yaml": {
+							Name:         "config",
+							AllowedRepos: []string{"/repo"},
+						},
+					},
+				},
+			},
+			expectedErrorMsg: `config_updater.maps["config.yaml"].allowed_repos: you cannot set a repo without an org`,
+		},
+		{
+			name: "multiple maps with errors",
+			config: &plugins.Configuration{
+				ConfigUpdater: plugins.ConfigUpdater{
+					Maps: map[string]plugins.ConfigMapSpec{
+						"config.yaml": {
+							Name:         "config",
+							AllowedRepos: []string{""},
+						},
+						"plugins.yaml": {
+							Name:        "plugins",
+							DeniedRepos: []string{"/bad"},
+						},
+					},
+				},
+			},
+			expectedErrorMsg: `[config_updater.maps["config.yaml"].allowed_repos: org/repo cannot be empty, config_updater.maps["plugins.yaml"].denied_repos: you cannot set a repo without an org]`,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var errMsg string
+			err := validateConfigUpdaterACLs(tc.config)
+			if err != nil {
+				errMsg = err.Error()
+			}
+			if tc.expectedErrorMsg != errMsg {
+				t.Errorf("expected error %q, got error %q", tc.expectedErrorMsg, errMsg)
+			}
+		})
+	}
+}
+
 func TestValidateRequiredJobAnnotations(t *testing.T) {
 	tc := []struct {
 		name                string

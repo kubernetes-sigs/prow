@@ -123,6 +123,7 @@ const (
 	validateLabelWarning                           = "validate-label"
 	requiredJobAnnotationsWarning                  = "required-job-annotations"
 	periodicDefaultCloneWarning                    = "periodic-default-clone-config"
+	validateConfigUpdaterACLsWarning               = "validate-config-updater-acls"
 
 	defaultHourlyTokens = 3000
 	defaultAllowedBurst = 100
@@ -148,6 +149,7 @@ var defaultWarnings = []string{
 	validateLabelWarning,
 	requiredJobAnnotationsWarning,
 	periodicDefaultCloneWarning,
+	validateConfigUpdaterACLsWarning,
 }
 
 var expensiveWarnings = []string{
@@ -439,6 +441,12 @@ func validate(o options) error {
 
 	if pcfg != nil && o.warningEnabled(validateLabelWarning) {
 		if err := verifyLabelPlugin(pcfg.Label); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	if pcfg != nil && o.warningEnabled(validateConfigUpdaterACLsWarning) {
+		if err := validateConfigUpdaterACLs(pcfg); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -1519,6 +1527,42 @@ func validateGitHubAppIsInstalled(client ghAppListingClient, allRepos sets.Set[s
 	}
 
 	return utilerrors.NewAggregate(errs)
+}
+
+func validateConfigUpdaterACLs(pcfg *plugins.Configuration) error {
+	if pcfg == nil {
+		return nil
+	}
+	var errs []error
+	for pattern, cm := range pcfg.ConfigUpdater.Maps {
+		for _, entry := range cm.AllowedRepos {
+			if err := validateRepoName(entry); err != nil {
+				errs = append(errs, fmt.Errorf("config_updater.maps[%q].allowed_repos: %w", pattern, err))
+			}
+		}
+		for _, entry := range cm.DeniedRepos {
+			if err := validateRepoName(entry); err != nil {
+				errs = append(errs, fmt.Errorf("config_updater.maps[%q].denied_repos: %w", pattern, err))
+			}
+		}
+	}
+	return utilerrors.NewAggregate(errs)
+}
+
+func validateRepoName(repo string) error {
+	if repo == "" {
+		return errors.New("org/repo cannot be empty")
+	}
+
+	s := strings.SplitN(repo, "/", 3)
+	if len(s) > 2 {
+		return errors.New("org/repo contains too many slashes '/'")
+	}
+	if s[0] == "" {
+		return errors.New("you cannot set a repo without an org")
+	}
+
+	return nil
 }
 
 func validateRequiredJobAnnotations(a []string, c config.JobConfig) error {

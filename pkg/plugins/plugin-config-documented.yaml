@@ -346,6 +346,14 @@ config_updater:
     # will result in replacing the foo configmap whenever path.yaml changes
     maps:
         "":
+            # AllowedRepos is a list of org or org/repo entries that are allowed to update this configmap.
+            # If specified, only PRs from these orgs/repos will trigger updates.
+            # Entries without a slash (e.g., "kubernetes") match the entire org.
+            # Entries with a slash (e.g., "kubernetes/test-infra") match a specific repo.
+            # When both AllowedRepos and DeniedRepos are specified, the org/repo must be in
+            # the allowed list and not in the denied list.
+            allowed_repos:
+                - ""
             # ClusterGroup is a list of named cluster_groups to target. Mutually exclusive with clusters.
             cluster_groups:
                 - ""
@@ -353,6 +361,12 @@ config_updater:
             # which specifies the targets the configMap needs to be deployed, i.e., each namespace in map[cluster]
             clusters:
                 "": null
+            # DeniedRepos is a list of org or org/repo entries that are denied from updating this configmap.
+            # PRs from these orgs/repos will not trigger updates.
+            # Entries without a slash (e.g., "kubernetes") match the entire org.
+            # Entries with a slash (e.g., "kubernetes/test-infra") match a specific repo.
+            denied_repos:
+                - ""
             # GZIP toggles whether the key's data should be GZIP'd before being stored
             # If set to false and the global GZIP option is enabled, this file will
             # will not be GZIP'd.

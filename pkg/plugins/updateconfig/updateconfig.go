@@ -281,7 +281,7 @@ type ConfigMapUpdate struct {
 
 // FilterChanges determines which of the changes are relevant for config updating, returning mapping of
 // config map to key to filename to update that key from.
-func FilterChanges(cfg plugins.ConfigUpdater, changes []github.PullRequestChange, defaultNamespace string, bootstrap bool, log *logrus.Entry) map[plugins.ConfigMapID][]ConfigMapUpdate {
+func FilterChanges(cfg plugins.ConfigUpdater, changes []github.PullRequestChange, defaultNamespace string, bootstrap bool, log *logrus.Entry, repo string) map[plugins.ConfigMapID][]ConfigMapUpdate {
 	toUpdate := map[plugins.ConfigMapID][]ConfigMapUpdate{}
 
 	// Keep track of partitioned ConfigMaps that may need to be updated when bootstrapping
@@ -308,6 +308,16 @@ func FilterChanges(cfg plugins.ConfigUpdater, changes []github.PullRequestChange
 
 		if !found {
 			continue // This file does not define a configmap
+		}
+
+		// Check if this repo is allowed to update this configmap
+		if !cm.IsAllowed(repo) {
+			log.WithFields(logrus.Fields{
+				"repo":      repo,
+				"configmap": cm.Name,
+				"filename":  change.Filename,
+			}).Debug("Skipping configmap update due to ACL restrictions")
+			continue
 		}
 
 		// Yes, update the configmap with the contents of this file
@@ -429,7 +439,7 @@ func handle(gc githubClient, gitClient git.ClientFactory, kc corev1.ConfigMapsGe
 	}
 
 	// Are any of the changes files ones that define a configmap we want to update?
-	toUpdate := FilterChanges(config, changes, defaultNamespace, bootstrapMode, log)
+	toUpdate := FilterChanges(config, changes, defaultNamespace, bootstrapMode, log, org+"/"+repo)
 	log.WithFields(logrus.Fields{
 		"configmaps_to_update": len(toUpdate),
 		"changes":              len(changes),
