@@ -17,9 +17,13 @@ limitations under the License.
 package main
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
+	"os"
 	"sync"
 	"time"
 
@@ -29,18 +33,21 @@ import (
 // cacheLife is the time that we keep a pluginhelp.Help struct before considering it stale.
 // We consider help valid for a minute to prevent excessive calls to hook.
 const cacheLife = time.Minute
+const tlsEnabledScehma = "https"
 
 type helpAgent struct {
 	path string
+	cert string
 
 	sync.Mutex
 	help   *pluginhelp.Help
 	expiry time.Time
 }
 
-func newHelpAgent(path string) *helpAgent {
+func newHelpAgent(path string, cert string) *helpAgent {
 	return &helpAgent{
 		path: path,
+		cert: cert,
 	}
 }
 
@@ -50,6 +57,27 @@ func (ha *helpAgent) getHelp() (*pluginhelp.Help, error) {
 	defer ha.Unlock()
 	if time.Now().Before(ha.expiry) {
 		return ha.help, nil
+	}
+
+	//Setting Root CAs if SSL is enabled
+	hookPath, err := url.Parse(ha.path)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing hook path: %w", err)
+	}
+	if hookPath.Scheme == tlsEnabledScehma {
+		caCert, err := os.ReadFile(ha.cert)
+		if err != nil {
+			return nil, fmt.Errorf("error decoding cert file: %w", err)
+		}
+		caCertPool := x509.NewCertPool()
+		caCertPool.AppendCertsFromPEM(caCert)
+		//Error is eaten here for testing purposes. There should be no reason the transport is not of type HTTP
+		if transport, ok := http.DefaultTransport.(*http.Transport); ok {
+			transport.TLSClientConfig = &tls.Config{
+				RootCAs: caCertPool,
+			}
+			http.DefaultTransport = transport
+		}
 	}
 
 	var help pluginhelp.Help

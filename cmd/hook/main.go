@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"errors"
 	"flag"
 	"net/http"
 	"os"
@@ -72,6 +73,10 @@ type options struct {
 	instrumentationOptions prowflagutil.InstrumentationOptions
 	jira                   prowflagutil.JiraOptions
 
+	enableSSL bool
+	certFile  string
+	keyFile   string
+
 	webhookSecretFile string
 	slackTokenFile    string
 }
@@ -80,6 +85,15 @@ func (o *options) Validate() error {
 	for _, group := range []flagutil.OptionGroup{&o.kubernetes, &o.github, &o.bugzilla, &o.jira, &o.githubEnablement, &o.config, &o.pluginsConfig} {
 		if err := group.Validate(o.dryRun); err != nil {
 			return err
+		}
+	}
+
+	if o.enableSSL {
+		if o.certFile == "" {
+			return errors.New("flag --enable-ssl was set to true but required flag --cert-file was unset")
+		}
+		if o.keyFile == "" {
+			return errors.New("flag --enable-ssl was set to true but required flag --key-file was unset")
 		}
 	}
 
@@ -97,7 +111,9 @@ func gatherOptions(fs *flag.FlagSet, args ...string) options {
 	for _, group := range []flagutil.OptionGroup{&o.kubernetes, &o.github, &o.bugzilla, &o.instrumentationOptions, &o.jira, &o.githubEnablement, &o.config, &o.pluginsConfig} {
 		group.AddFlags(fs)
 	}
-
+	fs.BoolVar(&o.enableSSL, "enable-ssl", false, "Enable SSL to support Ingress backend HTTPS")
+	fs.StringVar(&o.certFile, "cert-file", "", "Location of the cert file for TLS call. This must be set if SSL is enabled.")
+	fs.StringVar(&o.keyFile, "key-file", "", "Location of the key file for TLS call. This must be set if SSL is enabled.")
 	fs.StringVar(&o.webhookSecretFile, "hmac-secret-file", "/etc/webhook/hmac", "Path to the file containing the GitHub HMAC secret.")
 	fs.StringVar(&o.slackTokenFile, "slack-token-file", "", "Path to the file containing the Slack token to use.")
 	fs.Parse(args)
@@ -270,9 +286,16 @@ func main() {
 	// Serve plugin help information from /plugin-help.
 	hookMux.Handle("/plugin-help", pluginhelp.NewHelpAgent(pluginAgent, githubClient))
 
-	httpServer := &http.Server{Addr: ":" + strconv.Itoa(o.port), Handler: hookMux}
-
 	health.ServeReady()
 
-	interrupts.ListenAndServe(httpServer, o.gracePeriod)
+	if o.enableSSL {
+		httpServer := &http.Server{
+			Addr:    ":" + strconv.Itoa(o.port),
+			Handler: hookMux,
+		}
+		interrupts.ListenAndServeTLS(httpServer, o.certFile, o.keyFile, o.gracePeriod)
+	} else {
+		httpServer := &http.Server{Addr: ":" + strconv.Itoa(o.port), Handler: hookMux}
+		interrupts.ListenAndServe(httpServer, o.gracePeriod)
+	}
 }

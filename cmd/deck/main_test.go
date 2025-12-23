@@ -680,6 +680,21 @@ func Test_gatherOptions(t *testing.T) {
 			},
 			err: true,
 		},
+		{
+			name: "explicitly set enableSSL",
+			args: map[string]string{
+				"--enable-ssl": "true",
+				"--cert-file":  "/test/path/cert.pem",
+				"--key-file":   "/test/path/key.pem",
+			},
+			expected: func(o *options) {
+				o.controllerManager.TimeoutListingProwJobs = 30 * time.Second
+				o.controllerManager.TimeoutListingProwJobsDefault = 30 * time.Second
+				o.enableSSL = true
+				o.certFile = "/test/path/cert.pem"
+				o.keyFile = "/test/path/key.pem"
+			},
+		},
 	}
 	for _, tc := range cases {
 		fs := flag.NewFlagSet("fake-flags", flag.PanicOnError)
