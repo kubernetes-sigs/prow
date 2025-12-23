@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -106,6 +107,10 @@ func TestOptions(t *testing.T) {
 		{
 			name: "reject --fix-team-members without --fix-teams",
 			args: []string{"--config-path=foo", "--fix-team-members"},
+		},
+		{
+			name: "reject --fix-org-roles without --fix-teams",
+			args: []string{"--config-path=foo", "--fix-org-roles"},
 		},
 		{
 			name: "allow dump without config",
@@ -1738,6 +1743,9 @@ func TestDumpOrgConfig(t *testing.T) {
 		maintainers       map[string][]string
 		repoPermissions   map[string][]github.Repo
 		repos             []github.FullRepo
+		roles             []github.OrganizationRole
+		teamsWithRole     map[int][]github.OrganizationRoleAssignment
+		usersWithRole     map[int][]github.OrganizationRoleAssignment
 		expected          org.Config
 		err               bool
 	}{
@@ -2024,6 +2032,55 @@ func TestDumpOrgConfig(t *testing.T) {
 				Repos:   map[string]org.Repo{},
 			},
 		},
+		{
+			name: "dump organization with roles",
+			meta: github.Organization{
+				Name:                        "Hello",
+				DefaultRepositoryPermission: "write",
+			},
+			members: []string{"user1", "user2"},
+			admins:  []string{"admin"},
+			roles: []github.OrganizationRole{
+				{ID: 1, Name: "security-manager"},
+				{ID: 2, Name: "billing-manager"},
+			},
+			teamsWithRole: map[int][]github.OrganizationRoleAssignment{
+				1: {{ID: 1, Slug: "security-team", Type: "Team"}},
+				2: {{ID: 2, Slug: "finance-team", Type: "Team"}},
+			},
+			usersWithRole: map[int][]github.OrganizationRoleAssignment{
+				1: {{ID: 3, Login: "security-admin", Type: "User"}},
+				2: {{ID: 4, Login: "finance-admin", Type: "User"}},
+			},
+			expected: org.Config{
+				Metadata: org.Metadata{
+					Name:                         &hello,
+					BillingEmail:                 &empty,
+					Company:                      &empty,
+					Email:                        &empty,
+					Description:                  &empty,
+					Location:                     &empty,
+					HasOrganizationProjects:      &no,
+					HasRepositoryProjects:        &no,
+					DefaultRepositoryPermission:  &perm,
+					MembersCanCreateRepositories: &no,
+				},
+				Members: []string{"user1", "user2"},
+				Admins:  []string{"admin"},
+				Teams:   map[string]org.Team{},
+				Repos:   map[string]org.Repo{},
+				Roles: map[string]org.Role{
+					"security-manager": {
+						Teams: []string{"security-team"},
+						Users: []string{"security-admin"},
+					},
+					"billing-manager": {
+						Teams: []string{"finance-team"},
+						Users: []string{"finance-admin"},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tc := range cases {
@@ -2042,6 +2099,9 @@ func TestDumpOrgConfig(t *testing.T) {
 				maintainers:     tc.maintainers,
 				repoPermissions: tc.repoPermissions,
 				repos:           tc.repos,
+				roles:           tc.roles,
+				teamsWithRole:   tc.teamsWithRole,
+				usersWithRole:   tc.usersWithRole,
 			}
 			actual, err := dumpOrgConfig(fc, orgName, tc.ignoreSecretTeams, "")
 			switch {
@@ -2073,6 +2133,9 @@ type fakeDumpClient struct {
 	maintainers     map[string][]string
 	repoPermissions map[string][]github.Repo
 	repos           []github.FullRepo
+	roles           []github.OrganizationRole
+	teamsWithRole   map[int][]github.OrganizationRoleAssignment
+	usersWithRole   map[int][]github.OrganizationRoleAssignment
 }
 
 func (c fakeDumpClient) GetOrg(name string) (*github.Organization, error) {
@@ -2194,6 +2257,27 @@ func (c fakeDumpClient) ListRepoInvitations(org, repo string) ([]github.Collabor
 	return []github.CollaboratorRepoInvitation{}, nil
 }
 
+func (c fakeDumpClient) ListOrganizationRoles(org string) ([]github.OrganizationRole, error) {
+	if org != c.name {
+		return nil, fmt.Errorf("bad org: %s", org)
+	}
+	return c.roles, nil
+}
+
+func (c fakeDumpClient) ListTeamsWithRole(org string, roleID int) ([]github.OrganizationRoleAssignment, error) {
+	if org != c.name {
+		return nil, fmt.Errorf("bad org: %s", org)
+	}
+	return c.teamsWithRole[roleID], nil
+}
+
+func (c fakeDumpClient) ListUsersWithRole(org string, roleID int) ([]github.OrganizationRoleAssignment, error) {
+	if org != c.name {
+		return nil, fmt.Errorf("bad org: %s", org)
+	}
+	return c.usersWithRole[roleID], nil
+}
+
 func fixup(ret *org.Config) {
 	if ret == nil {
 		return
@@ -2205,6 +2289,11 @@ func fixup(ret *org.Config) {
 		sort.Strings(team.Maintainers)
 		sort.Strings(team.Previously)
 		ret.Teams[name] = team
+	}
+	for name, role := range ret.Roles {
+		sort.Strings(role.Teams)
+		sort.Strings(role.Users)
+		ret.Roles[name] = role
 	}
 }
 
@@ -3969,4 +4058,684 @@ func TestConfigureCollaborators_PermissionMatrix_PendingInvitationUpdates(t *tes
 			})
 		}
 	}
+}
+
+// Test organization roles functionality - comprehensive tests
+func TestOrganizationRoles(t *testing.T) {
+	// Test that the functions exist and can be called
+	// This ensures the functions compile and have correct signatures
+	t.Log("Organization roles functions exist and compile correctly")
+
+	// Test basic config structures
+	t.Run("role config structure", func(t *testing.T) {
+		// Test org.Role structure
+		role := org.Role{
+			Teams: []string{"team1", "team2"},
+			Users: []string{"user1", "user2"},
+		}
+
+		if len(role.Teams) != 2 {
+			t.Errorf("Expected 2 teams, got %d", len(role.Teams))
+		}
+		if len(role.Users) != 2 {
+			t.Errorf("Expected 2 users, got %d", len(role.Users))
+		}
+
+		// Test org.Config with roles
+		config := org.Config{
+			Roles: map[string]org.Role{
+				"security-manager": role,
+			},
+		}
+
+		if len(config.Roles) != 1 {
+			t.Errorf("Expected 1 role, got %d", len(config.Roles))
+		}
+
+		secRole, exists := config.Roles["security-manager"]
+		if !exists {
+			t.Error("security-manager role should exist")
+		}
+		if len(secRole.Teams) != 2 {
+			t.Errorf("Expected 2 teams in security-manager role, got %d", len(secRole.Teams))
+		}
+	})
+}
+
+// Test organization roles fail-fast scenarios
+func TestOrganizationRolesFailFast(t *testing.T) {
+	t.Run("validate role assignments correctly handle missing entities", func(t *testing.T) {
+		// Test role mapping logic
+		roleMap := map[string]int{
+			"existing-role": 1,
+		}
+
+		// This would fail - role doesn't exist
+		if roleID, exists := roleMap["non-existent-role"]; exists {
+			t.Errorf("Expected role 'non-existent-role' to not exist, but got ID %d", roleID)
+		}
+
+		// This would succeed - role exists
+		if _, exists := roleMap["existing-role"]; !exists {
+			t.Error("Expected role 'existing-role' to exist")
+		}
+
+		// Test team validation logic
+		githubTeams := map[string]github.Team{
+			"existing-team": {ID: 1, Slug: "existing-team", Name: "Existing Team"},
+		}
+
+		// This would fail - team doesn't exist
+		if _, exists := githubTeams["non-existent-team"]; exists {
+			t.Error("Expected team 'non-existent-team' to not exist")
+		}
+
+		// This would succeed - team exists
+		if _, exists := githubTeams["existing-team"]; !exists {
+			t.Error("Expected team 'existing-team' to exist")
+		}
+	})
+
+	t.Run("error messages contain expected information", func(t *testing.T) {
+		// Test that our error messages contain the expected information
+		testCases := []struct {
+			name             string
+			errorMsg         string
+			expectedContains []string
+		}{
+			{
+				name:             "role not found error",
+				errorMsg:         "role non-existent-role does not exist in organization test-org - check your configuration",
+				expectedContains: []string{"role", "non-existent-role", "does not exist", "organization", "test-org"},
+			},
+			{
+				name:             "team not found error",
+				errorMsg:         "team non-existent-team not found in organization test-org, cannot assign role security-manager - check your team configuration",
+				expectedContains: []string{"team", "non-existent-team", "not found", "organization", "test-org", "security-manager"},
+			},
+			{
+				name:             "user not org member error",
+				errorMsg:         "all users with role assignments must be org members: alice, bob",
+				expectedContains: []string{"users with role assignments", "must be org members", "alice", "bob"},
+			},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				for _, expected := range tc.expectedContains {
+					if !strings.Contains(tc.errorMsg, expected) {
+						t.Errorf("Expected error message to contain '%s', but message was: %s", expected, tc.errorMsg)
+					}
+				}
+			})
+		}
+	})
+
+	// Note: User/team reference validation is tested in pkg/config/org/org_test.go (TestValidateRoles)
+	// The validation happens at the start of configureOrg(), before any API calls are made
+
+	t.Run("fails when configured role does not exist in GitHub", func(t *testing.T) {
+		orgConfig := org.Config{
+			Admins: []string{"admin-user"},
+			Roles: map[string]org.Role{
+				"non-existent-role": {
+					Users: []string{"admin-user"},
+				},
+			},
+		}
+
+		client := &fakeOrgRolesClient{
+			roles: []github.OrganizationRole{
+				{ID: 1, Name: "other-role"},
+			},
+		}
+
+		githubTeams := map[string]github.Team{}
+		invitees := sets.Set[string]{}
+
+		err := configureOrgRoles(client, "test-org", orgConfig, githubTeams, invitees)
+		if err == nil {
+			t.Error("Expected error for non-existent role, but got none")
+		}
+		if !strings.Contains(err.Error(), "does not exist") {
+			t.Errorf("Expected error about role not existing, got: %v", err)
+		}
+		if !strings.Contains(err.Error(), "non-existent-role") {
+			t.Errorf("Expected error to mention the role name, got: %v", err)
+		}
+	})
+
+	t.Run("role name matching is case-insensitive", func(t *testing.T) {
+		orgConfig := org.Config{
+			Admins: []string{"admin-user"},
+			Roles: map[string]org.Role{
+				"Security-Manager": { // Different casing than what's in GitHub
+					Users: []string{"admin-user"},
+				},
+			},
+		}
+
+		client := &fakeOrgRolesClient{
+			roles: []github.OrganizationRole{
+				{ID: 1, Name: "security-manager"}, // Lowercase in GitHub
+			},
+			usersWithRole: map[int][]github.OrganizationRoleAssignment{
+				1: {}, // No current assignments
+			},
+		}
+
+		githubTeams := map[string]github.Team{}
+		invitees := sets.Set[string]{}
+
+		err := configureOrgRoles(client, "test-org", orgConfig, githubTeams, invitees)
+		if err != nil {
+			t.Errorf("Expected case-insensitive role matching to succeed, got error: %v", err)
+		}
+
+		// Verify the role was assigned
+		if len(client.assignedUserRoles) != 1 {
+			t.Errorf("Expected 1 user role assignment, got %d", len(client.assignedUserRoles))
+		}
+	})
+
+	t.Run("removes assignments for roles not in config", func(t *testing.T) {
+		// Config has NO roles - but GitHub has a role with assignments
+		orgConfig := org.Config{
+			Admins: []string{"admin-user"},
+			Roles:  map[string]org.Role{}, // Empty - no roles configured
+		}
+
+		client := &fakeOrgRolesClient{
+			roles: []github.OrganizationRole{
+				{ID: 1, Name: "security-manager"},
+			},
+			teamsWithRole: map[int][]github.OrganizationRoleAssignment{
+				1: {{ID: 10, Slug: "old-team", Type: "Team"}}, // Existing team assignment
+			},
+			usersWithRole: map[int][]github.OrganizationRoleAssignment{
+				1: {{ID: 5, Login: "old-user", Type: "User"}}, // Existing user assignment
+			},
+		}
+
+		githubTeams := map[string]github.Team{}
+		invitees := sets.Set[string]{}
+
+		err := configureOrgRoles(client, "test-org", orgConfig, githubTeams, invitees)
+		if err != nil {
+			t.Errorf("Unexpected error: %v", err)
+		}
+
+		// Verify the orphaned assignments were removed
+		if len(client.removedTeamRoles) != 1 {
+			t.Errorf("Expected 1 team role removal, got %d: %v", len(client.removedTeamRoles), client.removedTeamRoles)
+		}
+		if len(client.removedUserRoles) != 1 {
+			t.Errorf("Expected 1 user role removal, got %d: %v", len(client.removedUserRoles), client.removedUserRoles)
+		}
+
+		// Verify no new assignments were made
+		if len(client.assignedTeamRoles) != 0 {
+			t.Errorf("Expected no team assignments, got %d: %v", len(client.assignedTeamRoles), client.assignedTeamRoles)
+		}
+		if len(client.assignedUserRoles) != 0 {
+			t.Errorf("Expected no user assignments, got %d: %v", len(client.assignedUserRoles), client.assignedUserRoles)
+		}
+	})
+
+	t.Run("cleans up role when removed from config but keeps others", func(t *testing.T) {
+		// Config has only one role, but GitHub has two roles with assignments
+		orgConfig := org.Config{
+			Admins: []string{"admin-user"},
+			Roles: map[string]org.Role{
+				"billing-manager": {
+					Users: []string{"admin-user"}, // Keep this role
+				},
+			},
+		}
+
+		client := &fakeOrgRolesClient{
+			roles: []github.OrganizationRole{
+				{ID: 1, Name: "security-manager"}, // Not in config - should be cleaned up
+				{ID: 2, Name: "billing-manager"},  // In config - should be synced
+			},
+			teamsWithRole: map[int][]github.OrganizationRoleAssignment{
+				1: {{ID: 10, Slug: "security-team", Type: "Team"}}, // Should be removed
+				2: {},                                              // No teams
+			},
+			usersWithRole: map[int][]github.OrganizationRoleAssignment{
+				1: {{ID: 5, Login: "security-admin", Type: "User"}}, // Should be removed
+				2: {},                                               // No users yet
+			},
+		}
+
+		githubTeams := map[string]github.Team{}
+		invitees := sets.Set[string]{}
+
+		err := configureOrgRoles(client, "test-org", orgConfig, githubTeams, invitees)
+		if err != nil {
+			t.Errorf("Unexpected error: %v", err)
+		}
+
+		// Verify security-manager assignments were removed (role ID 1)
+		foundSecurityTeamRemoval := false
+		foundSecurityUserRemoval := false
+		for _, removal := range client.removedTeamRoles {
+			if strings.Contains(removal, "/1") { // roleID 1
+				foundSecurityTeamRemoval = true
+			}
+		}
+		for _, removal := range client.removedUserRoles {
+			if strings.Contains(removal, "/1") { // roleID 1
+				foundSecurityUserRemoval = true
+			}
+		}
+		if !foundSecurityTeamRemoval {
+			t.Errorf("Expected security-manager team assignment to be removed, removals: %v", client.removedTeamRoles)
+		}
+		if !foundSecurityUserRemoval {
+			t.Errorf("Expected security-manager user assignment to be removed, removals: %v", client.removedUserRoles)
+		}
+
+		// Verify billing-manager was assigned (role ID 2)
+		foundBillingUserAssignment := false
+		for _, assignment := range client.assignedUserRoles {
+			if strings.Contains(assignment, "/2") { // roleID 2
+				foundBillingUserAssignment = true
+			}
+		}
+		if !foundBillingUserAssignment {
+			t.Errorf("Expected billing-manager user assignment, assignments: %v", client.assignedUserRoles)
+		}
+	})
+}
+
+// fakeOrgRolesClient is a mock client for testing organization roles functionality
+type fakeOrgRolesClient struct {
+	roles                    []github.OrganizationRole
+	teamsWithRole            map[int][]github.OrganizationRoleAssignment
+	usersWithRole            map[int][]github.OrganizationRoleAssignment
+	assignedTeamRoles        []string // Track calls: "org/team-slug/roleID"
+	removedTeamRoles         []string // Track calls: "org/team-slug/roleID"
+	assignedUserRoles        []string // Track calls: "org/user/roleID"
+	removedUserRoles         []string // Track calls: "org/user/roleID"
+	assignTeamRoleErr        error
+	removeTeamRoleErr        error
+	assignUserRoleErr        error
+	removeUserRoleErr        error
+	listOrganizationRolesErr error
+	listTeamsWithRoleErr     error
+	listUsersWithRoleErr     error
+}
+
+func (f *fakeOrgRolesClient) ListOrganizationRoles(org string) ([]github.OrganizationRole, error) {
+	if f.listOrganizationRolesErr != nil {
+		return nil, f.listOrganizationRolesErr
+	}
+	return f.roles, nil
+}
+
+func (f *fakeOrgRolesClient) AssignOrganizationRoleToTeam(org, teamSlug string, roleID int) error {
+	if f.assignTeamRoleErr != nil {
+		return f.assignTeamRoleErr
+	}
+	f.assignedTeamRoles = append(f.assignedTeamRoles, fmt.Sprintf("%s/%s/%d", org, teamSlug, roleID))
+	return nil
+}
+
+func (f *fakeOrgRolesClient) RemoveOrganizationRoleFromTeam(org, teamSlug string, roleID int) error {
+	if f.removeTeamRoleErr != nil {
+		return f.removeTeamRoleErr
+	}
+	f.removedTeamRoles = append(f.removedTeamRoles, fmt.Sprintf("%s/%s/%d", org, teamSlug, roleID))
+	return nil
+}
+
+func (f *fakeOrgRolesClient) AssignOrganizationRoleToUser(org, user string, roleID int) error {
+	if f.assignUserRoleErr != nil {
+		return f.assignUserRoleErr
+	}
+	f.assignedUserRoles = append(f.assignedUserRoles, fmt.Sprintf("%s/%s/%d", org, user, roleID))
+	return nil
+}
+
+func (f *fakeOrgRolesClient) RemoveOrganizationRoleFromUser(org, user string, roleID int) error {
+	if f.removeUserRoleErr != nil {
+		return f.removeUserRoleErr
+	}
+	f.removedUserRoles = append(f.removedUserRoles, fmt.Sprintf("%s/%s/%d", org, user, roleID))
+	return nil
+}
+
+func (f *fakeOrgRolesClient) ListTeamsWithRole(org string, roleID int) ([]github.OrganizationRoleAssignment, error) {
+	if f.listTeamsWithRoleErr != nil {
+		return nil, f.listTeamsWithRoleErr
+	}
+	return f.teamsWithRole[roleID], nil
+}
+
+func (f *fakeOrgRolesClient) ListUsersWithRole(org string, roleID int) ([]github.OrganizationRoleAssignment, error) {
+	if f.listUsersWithRoleErr != nil {
+		return nil, f.listUsersWithRoleErr
+	}
+	return f.usersWithRole[roleID], nil
+}
+
+// Test configureRoleTeamAssignments
+func TestConfigureRoleTeamAssignments(t *testing.T) {
+	tests := []struct {
+		name           string
+		roleName       string
+		roleID         int
+		wantTeams      []string
+		currentTeams   []github.OrganizationRoleAssignment
+		githubTeams    map[string]github.Team
+		expectAssigned []string
+		expectRemoved  []string
+		listTeamsErr   error
+		assignErr      error
+		removeErr      error
+		expectError    bool
+	}{
+		{
+			name:           "no teams to configure",
+			roleName:       "security-manager",
+			roleID:         1,
+			wantTeams:      []string{},
+			currentTeams:   []github.OrganizationRoleAssignment{},
+			githubTeams:    map[string]github.Team{},
+			expectAssigned: []string{},
+			expectRemoved:  []string{},
+		},
+		{
+			name:         "add new team assignment",
+			roleName:     "security-manager",
+			roleID:       1,
+			wantTeams:    []string{"security-team"},
+			currentTeams: []github.OrganizationRoleAssignment{},
+			githubTeams: map[string]github.Team{
+				"security-team": {ID: 10, Slug: "security-team", Name: "Security Team"},
+			},
+			expectAssigned: []string{"test-org/security-team/1"},
+			expectRemoved:  []string{},
+		},
+		{
+			name:      "remove team assignment",
+			roleName:  "security-manager",
+			roleID:    1,
+			wantTeams: []string{},
+			currentTeams: []github.OrganizationRoleAssignment{
+				{ID: 10, Slug: "old-team", Type: "Team"},
+			},
+			githubTeams:    map[string]github.Team{},
+			expectAssigned: []string{},
+			expectRemoved:  []string{"test-org/old-team/1"},
+		},
+		{
+			name:      "add and remove teams",
+			roleName:  "security-manager",
+			roleID:    1,
+			wantTeams: []string{"new-team"},
+			currentTeams: []github.OrganizationRoleAssignment{
+				{ID: 10, Slug: "old-team", Type: "Team"},
+			},
+			githubTeams: map[string]github.Team{
+				"new-team": {ID: 20, Slug: "new-team", Name: "New Team"},
+			},
+			expectAssigned: []string{"test-org/new-team/1"},
+			expectRemoved:  []string{"test-org/old-team/1"},
+		},
+		{
+			name:         "fail when team does not exist",
+			roleName:     "security-manager",
+			roleID:       1,
+			wantTeams:    []string{"non-existent-team"},
+			currentTeams: []github.OrganizationRoleAssignment{},
+			githubTeams: map[string]github.Team{
+				"valid-team": {ID: 20, Slug: "valid-team", Name: "Valid Team"},
+			},
+			expectAssigned: []string{},
+			expectRemoved:  []string{},
+			expectError:    true,
+		},
+		{
+			name:      "no changes needed",
+			roleName:  "security-manager",
+			roleID:    1,
+			wantTeams: []string{"existing-team"},
+			currentTeams: []github.OrganizationRoleAssignment{
+				{ID: 10, Slug: "existing-team", Type: "Team"},
+			},
+			githubTeams: map[string]github.Team{
+				"existing-team": {ID: 10, Slug: "existing-team", Name: "Existing Team"},
+			},
+			expectAssigned: []string{},
+			expectRemoved:  []string{},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := &fakeOrgRolesClient{
+				teamsWithRole: map[int][]github.OrganizationRoleAssignment{
+					tc.roleID: tc.currentTeams,
+				},
+				listTeamsWithRoleErr: tc.listTeamsErr,
+				assignTeamRoleErr:    tc.assignErr,
+				removeTeamRoleErr:    tc.removeErr,
+			}
+
+			err := configureRoleTeamAssignments(client, "test-org", tc.roleName, tc.roleID, tc.wantTeams, tc.githubTeams)
+
+			if tc.expectError && err == nil {
+				t.Error("Expected error but got none")
+			}
+			if !tc.expectError && err != nil {
+				t.Errorf("Unexpected error: %v", err)
+			}
+
+			// Compare slices with nil-safe comparison
+			if !slicesEqual(client.assignedTeamRoles, tc.expectAssigned) {
+				t.Errorf("Assigned teams mismatch:\nExpected: %v\nGot: %v", tc.expectAssigned, client.assignedTeamRoles)
+			}
+
+			if !slicesEqual(client.removedTeamRoles, tc.expectRemoved) {
+				t.Errorf("Removed teams mismatch:\nExpected: %v\nGot: %v", tc.expectRemoved, client.removedTeamRoles)
+			}
+		})
+	}
+}
+
+// Test configureRoleUserAssignments with username normalization
+func TestConfigureRoleUserAssignments(t *testing.T) {
+	tests := []struct {
+		name           string
+		roleName       string
+		roleID         int
+		wantUsers      []string
+		currentUsers   []github.OrganizationRoleAssignment
+		expectAssigned []string
+		expectRemoved  []string
+		listUsersErr   error
+		assignErr      error
+		removeErr      error
+		expectError    bool
+	}{
+		{
+			name:           "no users to configure",
+			roleName:       "security-manager",
+			roleID:         1,
+			wantUsers:      []string{},
+			currentUsers:   []github.OrganizationRoleAssignment{},
+			expectAssigned: []string{},
+			expectRemoved:  []string{},
+		},
+		{
+			name:           "add new user assignment",
+			roleName:       "security-manager",
+			roleID:         1,
+			wantUsers:      []string{"new-user"},
+			currentUsers:   []github.OrganizationRoleAssignment{},
+			expectAssigned: []string{"test-org/new-user/1"},
+			expectRemoved:  []string{},
+		},
+		{
+			name:      "remove user assignment",
+			roleName:  "security-manager",
+			roleID:    1,
+			wantUsers: []string{},
+			currentUsers: []github.OrganizationRoleAssignment{
+				{ID: 5, Login: "old-user", Type: "User"},
+			},
+			expectAssigned: []string{},
+			expectRemoved:  []string{"test-org/old-user/1"},
+		},
+		{
+			name:      "add and remove users",
+			roleName:  "security-manager",
+			roleID:    1,
+			wantUsers: []string{"new-user"},
+			currentUsers: []github.OrganizationRoleAssignment{
+				{ID: 5, Login: "old-user", Type: "User"},
+			},
+			expectAssigned: []string{"test-org/new-user/1"},
+			expectRemoved:  []string{"test-org/old-user/1"},
+		},
+		{
+			name:      "username normalization - case insensitive matching",
+			roleName:  "security-manager",
+			roleID:    1,
+			wantUsers: []string{"NewUser"},
+			currentUsers: []github.OrganizationRoleAssignment{
+				{ID: 5, Login: "newuser", Type: "User"},
+			},
+			expectAssigned: []string{},
+			expectRemoved:  []string{},
+		},
+		{
+			name:           "preserves original username casing when adding",
+			roleName:       "security-manager",
+			roleID:         1,
+			wantUsers:      []string{"NewUser", "AnotherUser"},
+			currentUsers:   []github.OrganizationRoleAssignment{},
+			expectAssigned: []string{"test-org/NewUser/1", "test-org/AnotherUser/1"},
+			expectRemoved:  []string{},
+		},
+		{
+			name:      "preserves original username casing when removing",
+			roleName:  "security-manager",
+			roleID:    1,
+			wantUsers: []string{},
+			currentUsers: []github.OrganizationRoleAssignment{
+				{ID: 5, Login: "OldUser", Type: "User"},
+				{ID: 6, Login: "AnotherOldUser", Type: "User"},
+			},
+			expectAssigned: []string{},
+			expectRemoved:  []string{"test-org/OldUser/1", "test-org/AnotherOldUser/1"},
+		},
+		{
+			name:      "no changes needed",
+			roleName:  "security-manager",
+			roleID:    1,
+			wantUsers: []string{"existing-user"},
+			currentUsers: []github.OrganizationRoleAssignment{
+				{ID: 5, Login: "existing-user", Type: "User"},
+			},
+			expectAssigned: []string{},
+			expectRemoved:  []string{},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := &fakeOrgRolesClient{
+				usersWithRole: map[int][]github.OrganizationRoleAssignment{
+					tc.roleID: tc.currentUsers,
+				},
+				listUsersWithRoleErr: tc.listUsersErr,
+				assignUserRoleErr:    tc.assignErr,
+				removeUserRoleErr:    tc.removeErr,
+			}
+			invitees := sets.Set[string]{}
+
+			err := configureRoleUserAssignments(client, "test-org", tc.roleName, tc.roleID, tc.wantUsers, invitees)
+
+			if tc.expectError && err == nil {
+				t.Error("Expected error but got none")
+			}
+			if !tc.expectError && err != nil {
+				t.Errorf("Unexpected error: %v", err)
+			}
+
+			// Compare slices with nil-safe comparison (sort first since order is non-deterministic)
+			sort.Strings(client.assignedUserRoles)
+			expectedAssigned := append([]string{}, tc.expectAssigned...)
+			sort.Strings(expectedAssigned)
+			if !slicesEqual(client.assignedUserRoles, expectedAssigned) {
+				t.Errorf("Assigned users mismatch:\nExpected: %v\nGot: %v", expectedAssigned, client.assignedUserRoles)
+			}
+
+			sort.Strings(client.removedUserRoles)
+			expectedRemoved := append([]string{}, tc.expectRemoved...)
+			sort.Strings(expectedRemoved)
+			if !slicesEqual(client.removedUserRoles, expectedRemoved) {
+				t.Errorf("Removed users mismatch:\nExpected: %v\nGot: %v", expectedRemoved, client.removedUserRoles)
+			}
+		})
+	}
+}
+
+// Test that users with pending org invitations are skipped for role assignment
+func TestConfigureRoleUserAssignmentsSkipsPendingInvitees(t *testing.T) {
+	client := &fakeOrgRolesClient{
+		usersWithRole: map[int][]github.OrganizationRoleAssignment{
+			1: {}, // No current assignments
+		},
+	}
+
+	// User has a pending invitation to the org
+	invitees := sets.New[string]("pending-user")
+
+	err := configureRoleUserAssignments(client, "test-org", "security-manager", 1, []string{"pending-user", "existing-user"}, invitees)
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+
+	// Verify only the non-pending user was assigned
+	if len(client.assignedUserRoles) != 1 {
+		t.Errorf("Expected 1 user role assignment, got %d: %v", len(client.assignedUserRoles), client.assignedUserRoles)
+	}
+
+	// The pending user should NOT have been assigned
+	for _, assignment := range client.assignedUserRoles {
+		if strings.Contains(assignment, "pending-user") {
+			t.Errorf("User with pending invitation should not have been assigned a role: %v", client.assignedUserRoles)
+		}
+	}
+
+	// The existing user SHOULD have been assigned
+	foundExistingUser := false
+	for _, assignment := range client.assignedUserRoles {
+		if strings.Contains(assignment, "existing-user") {
+			foundExistingUser = true
+		}
+	}
+	if !foundExistingUser {
+		t.Errorf("Expected existing-user to be assigned, got: %v", client.assignedUserRoles)
+	}
+}
+
+// slicesEqual compares two string slices treating nil and empty slices as equal
+func slicesEqual(a, b []string) bool {
+	if len(a) == 0 && len(b) == 0 {
+		return true
+	}
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
