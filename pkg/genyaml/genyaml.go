@@ -76,6 +76,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"unicode"
 
 	"github.com/clarketm/json"
 	yaml3 "gopkg.in/yaml.v3"
@@ -281,6 +282,7 @@ func fieldIsInlined(field *ast.Field, tag string) bool {
 func fieldType(field *ast.Field, recurse bool) (string, bool) {
 	typeName := ""
 	isObj, isSelect := false, false
+	seenNonNilObj := false
 
 	// Find leaf node.
 	ast.Inspect(field, func(n ast.Node) bool {
@@ -290,11 +292,23 @@ func fieldType(field *ast.Field, recurse bool) (string, bool) {
 			return true
 		case *ast.Ident:
 			// Encountered a type, overwrite typeName.
-			// For isObj, once set to true, keep it true (don't let nil Obj overwrite it).
 			typeName = x.Name
-			if x.Obj != nil || isSelect {
-				isObj = true
+			// Track if we've ever seen a non-nil Obj for this identifier.
+			// Once we've seen it, don't let subsequent nil Objs clear it.
+			// Only consider it an object if the Obj is a TypeSpec (user-defined type).
+			if x.Obj != nil && x.Obj.Kind == ast.Typ {
+				seenNonNilObj = true
 			}
+			// For Go 1.25 compatibility: When x.Obj is nil (which can happen for type
+			// references in Go 1.25), use a heuristic: if the type name is capitalized
+			// and not a builtin, it's likely a user-defined struct type.
+			if x.Obj == nil && !seenNonNilObj && typeName != "" && len(typeName) > 0 {
+				firstChar := rune(typeName[0])
+				if unicode.IsUpper(firstChar) && !isBuiltinType(typeName) {
+					seenNonNilObj = true
+				}
+			}
+			isObj = seenNonNilObj || isSelect
 		case *ast.SelectorExpr:
 			// SelectorExpr are not object types yet reference one, thus continue with DFS.
 			isSelect = true
@@ -304,6 +318,16 @@ func fieldType(field *ast.Field, recurse bool) (string, bool) {
 	})
 
 	return typeName, isObj
+}
+
+func isBuiltinType(typeName string) bool {
+	switch typeName {
+	case "bool", "string", "int", "int8", "int16", "int32", "int64",
+		"uint", "uint8", "uint16", "uint32", "uint64", "uintptr",
+		"byte", "rune", "float32", "float64", "complex64", "complex128":
+		return true
+	}
+	return false
 }
 
 // getType returns the type's name within its package for a defined type. For other (non-defined) types it returns the empty string.
