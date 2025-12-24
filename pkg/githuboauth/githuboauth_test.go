@@ -118,6 +118,7 @@ func TestHandleLogin(t *testing.T) {
 	}
 	if oauthCookie == nil {
 		t.Fatal("Cookie for oauth session not found")
+		return
 	}
 	decodedCookie := make(map[interface{}]interface{})
 	if err := securecookie.DecodeMulti(oauthCookie.Name, oauthCookie.Value, &decodedCookie, cookie.Codecs...); err != nil {
@@ -184,6 +185,7 @@ func TestHandleLogout(t *testing.T) {
 	}
 	if tokenCookie == nil {
 		t.Fatal("Cookie for oauth session not found")
+		return
 	}
 	if tokenCookie.MaxAge != -1 {
 		t.Errorf("Expect cookie MaxAge equals -1, %d", tokenCookie.MaxAge)
@@ -225,6 +227,7 @@ func TestHandleLogoutWithLoginSession(t *testing.T) {
 	}
 	if loginCookie == nil {
 		t.Fatal("Cookie for oauth session not found")
+		return
 	}
 	if loginCookie.MaxAge != -1 {
 		t.Errorf("Expect cookie MaxAge equals -1, %d", loginCookie.MaxAge)
@@ -331,6 +334,7 @@ func TestHandleRedirectWithValidState(t *testing.T) {
 	}
 	if oauthCookie == nil {
 		t.Fatalf("Cookie for oauth session not found")
+		return
 	}
 	decodedCookie := make(map[interface{}]interface{})
 	if err := securecookie.DecodeMulti(oauthCookie.Name, oauthCookie.Value, &decodedCookie, cookie.Codecs...); err != nil {
@@ -355,6 +359,7 @@ func TestHandleRedirectWithValidState(t *testing.T) {
 	}
 	if loginCookie == nil {
 		t.Fatalf("Cookie for github login not found")
+		return
 	}
 	if loginCookie.Value != mockLogin {
 		t.Errorf("Mismatch github login. Got %v, expected %v", loginCookie.Value, mockLogin)

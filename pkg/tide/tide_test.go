@@ -2917,6 +2917,7 @@ func TestFilterSubpool(t *testing.T) {
 			}
 			if filtered == nil {
 				t.Fatalf("Expected subpool to have %d prs, but it was pruned.", len(tc.expectedPRs))
+				return
 			}
 			if got := prNumbers(filtered.prs); !reflect.DeepEqual(got, tc.expectedPRs) {
 				t.Errorf("Expected filtered pool to have PRs %v, but got %v.", tc.expectedPRs, got)
