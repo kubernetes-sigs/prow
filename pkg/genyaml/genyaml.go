@@ -289,9 +289,12 @@ func fieldType(field *ast.Field, recurse bool) (string, bool) {
 			// First node is always a field; skip.
 			return true
 		case *ast.Ident:
-			// Encountered a type, overwrite typeName and isObj.
+			// Encountered a type, overwrite typeName.
+			// For isObj, once set to true, keep it true (don't let nil Obj overwrite it).
 			typeName = x.Name
-			isObj = x.Obj != nil || isSelect
+			if x.Obj != nil || isSelect {
+				isObj = true
+			}
 		case *ast.SelectorExpr:
 			// SelectorExpr are not object types yet reference one, thus continue with DFS.
 			isSelect = true

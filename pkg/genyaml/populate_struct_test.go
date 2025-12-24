@@ -107,6 +107,7 @@ func TestPopulateStructHandlesMapsWithPointerValues(t *testing.T) {
 	for _, v := range s.Field {
 		if v == nil {
 			t.Fatalf("Map value is a nilpointer, struct: %+v", s)
+			return
 		}
 		if v.NestedField == nil {
 			t.Fatalf("Pointer field in map element didn't get populated, struct: %+v", s)

@@ -1,57 +1,100 @@
 branch-protection:
+    # AllowDeletions allows deletion of the protected branch by anyone with write access to the repository.
     allow_deletions: false
+    # AllowDisabledJobPolicies allows a branch to choose to opt out of branch protection
+    # even if Prow has registered required jobs for that branch.
     allow_disabled_job_policies: false
+    # AllowDisabledPolicies allows a child to disable all protection even if the
+    # branch has inherited protection options from a parent.
     allow_disabled_policies: false
+    # AllowForcePushes permits force pushes to the protected branch by anyone with write access to the repository.
     allow_force_pushes: false
+    # Admins overrides whether protections apply to admins if set.
     enforce_admins: false
+    # Exclude specifies a set of regular expressions which identify branches
+    # that should be excluded from the protection policy, mutually exclusive with Include
     exclude:
         - ""
+    # Include specifies a set of regular expressions which identify branches
+    # that should be included from the protection policy, mutually exclusive with Exclude
     include:
         - ""
+    # Orgs holds branch protection options for orgs by name
     orgs:
         "":
+            # AllowDeletions allows deletion of the protected branch by anyone with write access to the repository.
             allow_deletions: false
+            # AllowForcePushes permits force pushes to the protected branch by anyone with write access to the repository.
             allow_force_pushes: false
+            # Admins overrides whether protections apply to admins if set.
             enforce_admins: false
+            # Exclude specifies a set of regular expressions which identify branches
+            # that should be excluded from the protection policy, mutually exclusive with Include
             exclude:
                 - ""
+            # Include specifies a set of regular expressions which identify branches
+            # that should be included from the protection policy, mutually exclusive with Exclude
             include:
                 - ""
+            # Protect overrides whether branch protection is enabled if set.
             protect: false
             repos:
                 "":
+                    # AllowDeletions allows deletion of the protected branch by anyone with write access to the repository.
                     allow_deletions: false
+                    # AllowForcePushes permits force pushes to the protected branch by anyone with write access to the repository.
                     allow_force_pushes: false
                     branches:
                         "":
+                            # AllowDeletions allows deletion of the protected branch by anyone with write access to the repository.
                             allow_deletions: false
+                            # AllowForcePushes permits force pushes to the protected branch by anyone with write access to the repository.
                             allow_force_pushes: false
+                            # Admins overrides whether protections apply to admins if set.
                             enforce_admins: false
+                            # Exclude specifies a set of regular expressions which identify branches
+                            # that should be excluded from the protection policy, mutually exclusive with Include
                             exclude:
                                 - ""
+                            # Include specifies a set of regular expressions which identify branches
+                            # that should be included from the protection policy, mutually exclusive with Exclude
                             include:
                                 - ""
+                            # Protect overrides whether branch protection is enabled if set.
                             protect: false
+                            # RequireManuallyTriggeredJobs enforces a context presence when job runs conditionally, but not automatically,
+                            # that results in params always_run: false, optional: false, and skip_if_only_change, run_if_changed not present.
                             require_manually_triggered_jobs: false
+                            # RequiredLinearHistory enforces a linear commit Git history, which prevents anyone from pushing merge commits to a branch.
                             required_linear_history: false
+                            # RequiredPullRequestReviews specifies github approval/review criteria.
                             required_pull_request_reviews:
+                                # BypassRestrictions appends users/teams that are allowed to bypass PR restrictions
                                 bypass_pull_request_allowances:
                                     teams:
                                         - ""
                                     users:
                                         - ""
+                                # DismissStale overrides whether new commits automatically dismiss old reviews if set
                                 dismiss_stale_reviews: false
+                                # DismissalRestrictions appends users/teams that are allowed to merge
                                 dismissal_restrictions:
                                     teams:
                                         - ""
                                     users:
                                         - ""
+                                # RequireOwners overrides whether CODEOWNERS must approve PRs if set
                                 require_code_owner_reviews: false
+                                # Approvals overrides the number of approvals required if set
                                 required_approving_review_count: 0
+                            # RequiredStatusChecks configures github contexts
                             required_status_checks:
+                                # Contexts appends required contexts that must be green to merge
                                 contexts:
                                     - ""
+                                # Strict overrides whether new commits in the base branch require updating the PR if set
                                 strict: false
+                            # Restrictions limits who can merge
                             restrictions:
                                 apps:
                                     - ""
@@ -59,33 +102,53 @@ branch-protection:
                                     - ""
                                 users:
                                     - ""
+                            # Unmanaged makes us not manage the branchprotection.
                             unmanaged: false
+                    # Admins overrides whether protections apply to admins if set.
                     enforce_admins: false
+                    # Exclude specifies a set of regular expressions which identify branches
+                    # that should be excluded from the protection policy, mutually exclusive with Include
                     exclude:
                         - ""
+                    # Include specifies a set of regular expressions which identify branches
+                    # that should be included from the protection policy, mutually exclusive with Exclude
                     include:
                         - ""
+                    # Protect overrides whether branch protection is enabled if set.
                     protect: false
+                    # RequireManuallyTriggeredJobs enforces a context presence when job runs conditionally, but not automatically,
+                    # that results in params always_run: false, optional: false, and skip_if_only_change, run_if_changed not present.
                     require_manually_triggered_jobs: false
+                    # RequiredLinearHistory enforces a linear commit Git history, which prevents anyone from pushing merge commits to a branch.
                     required_linear_history: false
+                    # RequiredPullRequestReviews specifies github approval/review criteria.
                     required_pull_request_reviews:
+                        # BypassRestrictions appends users/teams that are allowed to bypass PR restrictions
                         bypass_pull_request_allowances:
                             teams:
                                 - ""
                             users:
                                 - ""
+                        # DismissStale overrides whether new commits automatically dismiss old reviews if set
                         dismiss_stale_reviews: false
+                        # DismissalRestrictions appends users/teams that are allowed to merge
                         dismissal_restrictions:
                             teams:
                                 - ""
                             users:
                                 - ""
+                        # RequireOwners overrides whether CODEOWNERS must approve PRs if set
                         require_code_owner_reviews: false
+                        # Approvals overrides the number of approvals required if set
                         required_approving_review_count: 0
+                    # RequiredStatusChecks configures github contexts
                     required_status_checks:
+                        # Contexts appends required contexts that must be green to merge
                         contexts:
                             - ""
+                        # Strict overrides whether new commits in the base branch require updating the PR if set
                         strict: false
+                    # Restrictions limits who can merge
                     restrictions:
                         apps:
                             - ""
@@ -93,27 +156,41 @@ branch-protection:
                             - ""
                         users:
                             - ""
+                    # Unmanaged makes us not manage the branchprotection.
                     unmanaged: false
+            # RequireManuallyTriggeredJobs enforces a context presence when job runs conditionally, but not automatically,
+            # that results in params always_run: false, optional: false, and skip_if_only_change, run_if_changed not present.
             require_manually_triggered_jobs: false
+            # RequiredLinearHistory enforces a linear commit Git history, which prevents anyone from pushing merge commits to a branch.
             required_linear_history: false
+            # RequiredPullRequestReviews specifies github approval/review criteria.
             required_pull_request_reviews:
+                # BypassRestrictions appends users/teams that are allowed to bypass PR restrictions
                 bypass_pull_request_allowances:
                     teams:
                         - ""
                     users:
                         - ""
+                # DismissStale overrides whether new commits automatically dismiss old reviews if set
                 dismiss_stale_reviews: false
+                # DismissalRestrictions appends users/teams that are allowed to merge
                 dismissal_restrictions:
                     teams:
                         - ""
                     users:
                         - ""
+                # RequireOwners overrides whether CODEOWNERS must approve PRs if set
                 require_code_owner_reviews: false
+                # Approvals overrides the number of approvals required if set
                 required_approving_review_count: 0
+            # RequiredStatusChecks configures github contexts
             required_status_checks:
+                # Contexts appends required contexts that must be green to merge
                 contexts:
                     - ""
+                # Strict overrides whether new commits in the base branch require updating the PR if set
                 strict: false
+            # Restrictions limits who can merge
             restrictions:
                 apps:
                     - ""
@@ -121,30 +198,50 @@ branch-protection:
                     - ""
                 users:
                     - ""
+            # Unmanaged makes us not manage the branchprotection.
             unmanaged: false
+    # Protect overrides whether branch protection is enabled if set.
     protect: false
+    # ProtectTested determines if branch protection rules are set for all repos
+    # that Prow has registered jobs for, regardless of if those repos are in the
+    # branch protection config.
     protect-tested-repos: false
+    # ProtectReposWithOptionalJobs will make the Branchprotector manage required status
+    # contexts on repositories that only have optional jobs (default: false)
     protect_repos_with_optional_jobs: false
+    # RequireManuallyTriggeredJobs enforces a context presence when job runs conditionally, but not automatically,
+    # that results in params always_run: false, optional: false, and skip_if_only_change, run_if_changed not present.
     require_manually_triggered_jobs: false
+    # RequiredLinearHistory enforces a linear commit Git history, which prevents anyone from pushing merge commits to a branch.
     required_linear_history: false
+    # RequiredPullRequestReviews specifies github approval/review criteria.
     required_pull_request_reviews:
+        # BypassRestrictions appends users/teams that are allowed to bypass PR restrictions
         bypass_pull_request_allowances:
             teams:
                 - ""
             users:
                 - ""
+        # DismissStale overrides whether new commits automatically dismiss old reviews if set
         dismiss_stale_reviews: false
+        # DismissalRestrictions appends users/teams that are allowed to merge
         dismissal_restrictions:
             teams:
                 - ""
             users:
                 - ""
+        # RequireOwners overrides whether CODEOWNERS must approve PRs if set
         require_code_owner_reviews: false
+        # Approvals overrides the number of approvals required if set
         required_approving_review_count: 0
+    # RequiredStatusChecks configures github contexts
     required_status_checks:
+        # Contexts appends required contexts that must be green to merge
         contexts:
             - ""
+        # Strict overrides whether new commits in the base branch require updating the PR if set
         strict: false
+    # Restrictions limits who can merge
     restrictions:
         apps:
             - ""
@@ -152,6 +249,7 @@ branch-protection:
             - ""
         users:
             - ""
+    # Unmanaged makes us not manage the branchprotection.
     unmanaged: false
 # The git sha from which this config was generated.
 config_version_sha: ' '
@@ -341,11 +439,26 @@ disabled_clusters:
 # same name. It encodes an allowlist of API clients and what kinds of Prow
 # Jobs they are authorized to trigger.
 gangway:
+    # AllowedApiClients encodes identifying information about API clients
+    # (AllowedApiClient). An AllowedApiClient has authority to trigger a subset
+    # of Prow Jobs.
     allowed_api_clients:
-        - allowed_jobs_filters:
+        - # AllowedJobsFilters contains information about what kinds of Prow jobs this
+          # API client is authorized to trigger.
+          allowed_jobs_filters:
             - tenant_id: ' '
+          # ApiClientGcp contains GoogleCloudPlatform details about a web API client.
+          # We currently only support GoogleCloudPlatform but other cloud vendors are
+          # possible as additional fields in this struct.
           gcp:
+            # EndpointApiConsumerNumber is the expected value of the
+            # x-endpoint-api-consumer-number HTTP metadata header. Typically this
+            # encodes the GCP Project number value, which uniquely identifies a GCP
+            # Project.
             endpoint_api_consumer_number: ' '
+            # EndpointApiConsumerType is the expected value of the
+            # x-endpoint-api-consumer-type HTTP metadata header. Typically this will be
+            # "PROJECT".
             endpoint_api_consumer_type: ' '
 gerrit:
     allowed_presubmit_trigger_re: ' '
@@ -1297,11 +1410,19 @@ push_gateway:
 scheduler:
     enabled: true
     external:
+        # Cache is the cache configuration for the external scheduling strategy
         cache:
+            # CacheCleanupInterval is the interval to clean up the cache
             cleanup_interval: 0s
+            # EntryTimeoutInterval is the interval to consider an entry in the cache
             entry_timeout_interval: 0s
+        # URL is the URL of the REST API to query for the cluster assigned to prowjob
         url: ' '
+    # Scheduling strategies
     failover:
+        # ClusterMappings maps a cluster to another one. It is used when we
+        # want to schedule a ProJob to a cluster other than the one it was
+        # configured to in the first place.
         mappings:
             "": ""
 sinker:
@@ -1336,60 +1457,96 @@ slack_reporter_configs:
 # is: https://github.com/kubernetes/test-infra/issues.
 status_error_link: ' '
 tide:
+    # BatchSizeLimitMap is a key/value pair of an org or org/repo as the key and
+    # integer batch size limit as the value. Use "*" as key to set a global default.
+    # Special values:
+    # 0 => unlimited batch size
+    # -1 => batch merging disabled :(
     batch_size_limit:
         "": 0
+    # BlockerLabel is an optional label that is used to identify merge blocking
+    # GitHub issues.
+    # Leave this blank to disable this feature and save 1 API token per sync loop.
     blocker_label: ' '
+    # TideContextPolicyOptions defines merge options for context. If not set it will infer
+    # the required and optional contexts from the prow jobs configured and use the github
+    # combined status; otherwise it may apply the branch protection setting or let user
+    # define their own options in case branch protection is not used.
     context_options:
+        # Infer required and optional jobs from Branch Protection configuration
         from-branch-protection: false
         optional-contexts:
             - ""
+        # Contexts that match any of the regex values in OptionalRegexContexts will be optional
         optional-regex-contexts:
             - ""
+        # GitHub Orgs
         orgs:
             "":
+                # Infer required and optional jobs from Branch Protection configuration
                 from-branch-protection: false
                 optional-contexts:
                     - ""
+                # Contexts that match any of the regex values in OptionalRegexContexts will be optional
                 optional-regex-contexts:
                     - ""
+                # Overwrite `pending` contexts with `success` when a PR is merged in a batch.
+                # This prevents PRs from being blocked by branch-protection rules if batches contexts are successful but PR context is still pending.
                 overwrite-pending-contexts: false
                 repos:
                     "":
                         branches:
                             "":
+                                # Infer required and optional jobs from Branch Protection configuration
                                 from-branch-protection: false
                                 optional-contexts:
                                     - ""
+                                # Contexts that match any of the regex values in OptionalRegexContexts will be optional
                                 optional-regex-contexts:
                                     - ""
+                                # Overwrite `pending` contexts with `success` when a PR is merged in a batch.
+                                # This prevents PRs from being blocked by branch-protection rules if batches contexts are successful but PR context is still pending.
                                 overwrite-pending-contexts: false
                                 required-contexts:
                                     - ""
                                 required-if-present-contexts:
                                     - ""
+                                # whether to consider unknown contexts optional (skip) or required.
                                 skip-unknown-contexts: false
+                        # Infer required and optional jobs from Branch Protection configuration
                         from-branch-protection: false
                         optional-contexts:
                             - ""
+                        # Contexts that match any of the regex values in OptionalRegexContexts will be optional
                         optional-regex-contexts:
                             - ""
+                        # Overwrite `pending` contexts with `success` when a PR is merged in a batch.
+                        # This prevents PRs from being blocked by branch-protection rules if batches contexts are successful but PR context is still pending.
                         overwrite-pending-contexts: false
                         required-contexts:
                             - ""
                         required-if-present-contexts:
                             - ""
+                        # whether to consider unknown contexts optional (skip) or required.
                         skip-unknown-contexts: false
                 required-contexts:
                     - ""
                 required-if-present-contexts:
                     - ""
+                # whether to consider unknown contexts optional (skip) or required.
                 skip-unknown-contexts: false
+        # Overwrite `pending` contexts with `success` when a PR is merged in a batch.
+        # This prevents PRs from being blocked by branch-protection rules if batches contexts are successful but PR context is still pending.
         overwrite-pending-contexts: false
         required-contexts:
             - ""
         required-if-present-contexts:
             - ""
+        # whether to consider unknown contexts optional (skip) or required.
         skip-unknown-contexts: false
+    # DisplayAllQueriesInStatus controls if Tide should mention all queries in the status it
+    # creates. The default is to only mention the one to which we are closest (Calculated
+    # by total number of requirements - fulfilled number of requirements).
     display_all_tide_queries_in_status: true
     gerrit:
         queries:
@@ -1403,21 +1560,45 @@ tide:
               org: ' '
               repos:
                 - ""
+    # A key/value pair of an org/repo as the key and Go template to override
+    # the default merge commit title and/or message. Template is passed the
+    # PullRequest struct (prow/github/types.go#PullRequest)
     merge_commit_template:
         "":
             body: ' '
             title: ' '
+    # MergeLabel is an optional label that is used to identify PRs that should
+    # always be merged with all individual commits from the PR.
+    # Leave this blank to disable this feature.
     merge_label: ' '
+    # A key/value pair of an org/repo as the key and merge method to override
+    # the default method of merge. Valid options are squash, rebase, and merge.
     merge_method:
         "": ' '
+    # PRStatusBaseURL is the base URL for the PR status page.
+    # This is used to link to a merge requirements overview
+    # in the tide status context.
+    # Will be deprecated on June 2020.
     pr_status_base_url: ' '
+    # PRStatusBaseURLs is the base URL for the PR status page
+    # mapped by org or org/repo level.
     pr_status_base_urls:
         "": ""
+    # PrioritizeExistingBatches configures on org or org/repo level if Tide should continue
+    # testing pre-existing batches instead of immediately including new PRs as they become
+    # eligible. Continuing on an old batch allows to re-use all existing test results whereas
+    # starting a new one requires to start new instances of all tests.
+    # Use '*' as key to set this globally. Defaults to true.
     prioritize_existing_batches:
         "": false
+    # Priority is an ordered list of sets of labels that would be prioritized before other PRs
+    # PRs should match all labels contained in a set to be prioritized. The first entry has
+    # the highest priority.
     priority:
         - labels:
             - ""
+    # Queries represents a list of GitHub search queries that collectively
+    # specify the set of PRs that meet merge requirements.
     queries:
         - author: ' '
           excludedBranches:
@@ -1436,10 +1617,25 @@ tide:
           repos:
             - ""
           reviewApprovedRequired: true
+    # RebaseLabel is an optional label that is used to identify PRs that should
+    # always be rebased and merged.
+    # Leave this blank to disable this feature.
     rebase_label: ' '
+    # SquashLabel is an optional label that is used to identify PRs that should
+    # always be squash merged.
+    # Leave this blank to disable this feature.
     squash_label: ' '
+    # StatusUpdatePeriod specifies how often Tide will update GitHub status contexts.
+    # Defaults to the value of SyncPeriod.
     status_update_period: 0s
+    # SyncPeriod specifies how often Tide will sync jobs with GitHub. Defaults to 1m.
     sync_period: 0s
+    # URL for tide status contexts.
+    # We can consider allowing this to be set separately for separate repos, or
+    # allowing it to be a template.
     target_url: ' '
+    # TargetURLs is a map from "*", <org>, or <org/repo> to the URL for the tide status contexts.
+    # The most specific key that matches will be used.
+    # This field is mutually exclusive with TargetURL.
     target_urls:
         "": ""
