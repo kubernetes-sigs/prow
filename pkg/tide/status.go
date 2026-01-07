@@ -562,12 +562,7 @@ func (sc *statusController) run() {
 	ticks := time.NewTicker(time.Hour)
 	defer ticks.Stop()
 	go sc.save(ticks)
-	for {
-		// wait for a new pool
-		if !<-sc.newPoolPending {
-			// chan was closed
-			break
-		}
+	for <-sc.newPoolPending {
 		sc.waitSync()
 	}
 	close(sc.shutDown)

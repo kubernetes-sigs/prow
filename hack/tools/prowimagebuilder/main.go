@@ -19,7 +19,6 @@ package main
 import (
 	"bufio"
 	"context"
-	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -31,7 +30,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
-	"sigs.k8s.io/prow/pkg/flagutil"
+	"github.com/spf13/pflag"
 	"sigs.k8s.io/yaml"
 )
 
@@ -39,7 +38,7 @@ const (
 	defaultArch = "linux/amd64"
 	allArch     = "all"
 
-	gatherStaicScriptName = "gather-static.sh"
+	gatherStaticScriptName = "gather-static.sh"
 
 	// Relative to root of the repo
 	defaultProwImageListFile = ".prow-images.yaml"
@@ -81,7 +80,7 @@ func init() {
 type options struct {
 	dockerRepo        string
 	prowImageListFile string
-	images            flagutil.Strings
+	images            []string
 	workers           int
 	push              bool
 	maxRetry          int
@@ -207,7 +206,7 @@ func gitTag() (string, error) {
 }
 
 func runGatherStaticScript(id *imageDef, args ...string) error {
-	script := path.Join(rootDir, id.Dir, gatherStaicScriptName)
+	script := path.Join(rootDir, id.Dir, gatherStaticScriptName)
 	if _, err := os.Lstat(script); err != nil {
 		if !os.IsNotExist(err) {
 			return err
@@ -276,18 +275,26 @@ func buildAndPush(id *imageDef, dockerRepos []string, push bool) error {
 }
 
 func (o *options) imageAllowed(image string) bool {
-	return len(o.images.Strings()) == 0 || o.images.StringSet().Has(image)
+	if len(o.images) == 0 {
+		return true
+	}
+	for _, img := range o.images {
+		if img == image {
+			return true
+		}
+	}
+	return false
 }
 
 func main() {
 	var o options
-	flag.StringVar(&o.prowImageListFile, "prow-images-file", path.Join(rootDir, defaultProwImageListFile), "Yaml file contains list of prow images")
-	flag.Var(&o.images, "image", "Images to be built, must be part of --prow-images-file, can be passed in repeatedly")
-	flag.StringVar(&o.dockerRepo, "ko-docker-repo", os.Getenv("KO_DOCKER_REPO"), "Dockers repos, separated by comma")
-	flag.IntVar(&o.workers, "workers", defaultWorkersCount, "Number of workers in parallel")
-	flag.BoolVar(&o.push, "push", false, "whether push or not")
-	flag.IntVar(&o.maxRetry, "retry", defaultRetry, "Number of times retrying for each image")
-	flag.Parse()
+	pflag.StringVar(&o.prowImageListFile, "prow-images-file", path.Join(rootDir, defaultProwImageListFile), "Yaml file contains list of prow images")
+	pflag.StringSliceVar(&o.images, "image", nil, "Images to be built, must be part of --prow-images-file, can be passed in repeatedly")
+	pflag.StringVar(&o.dockerRepo, "ko-docker-repo", os.Getenv("KO_DOCKER_REPO"), "Dockers repos, separated by comma")
+	pflag.IntVar(&o.workers, "workers", defaultWorkersCount, "Number of workers in parallel")
+	pflag.BoolVar(&o.push, "push", false, "whether push or not")
+	pflag.IntVar(&o.maxRetry, "retry", defaultRetry, "Number of times retrying for each image")
+	pflag.Parse()
 
 	if !o.push && o.dockerRepo == "" {
 		o.dockerRepo = noOpKoDocerRepo

@@ -146,10 +146,7 @@ func main() {
 
 	metrics.ExposeMetrics("moonraker", configAgent.Config().PushGateway, o.instrumentationOptions.MetricsPort)
 
-	persist := false
-	if o.config.InRepoConfigCacheDirBase != "" {
-		persist = true
-	}
+	persist := o.config.InRepoConfigCacheDirBase != ""
 
 	gitClient, err := o.github.GitClientFactory(o.cookiefilePath, &o.config.InRepoConfigCacheDirBase, o.dryRun, persist)
 	if err != nil {

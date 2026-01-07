@@ -164,7 +164,7 @@ func (s *Subscriber) handleMessage(msg messageInterface, subscription string, al
 	// Do not check for HTTP client authorization, because we're handling a
 	// PubSub message.
 	var allowedApiClient *config.AllowedApiClient = nil
-	var requireTenantID bool = false
+	var requireTenantID bool
 
 	cfgAdapter := gangway.ProwCfgAdapter{Config: s.ConfigAgent.Config()}
 	if _, err = gangway.HandleProwJob(l, s.getReporterFunc(l), cjer, s.ProwJobClient, &cfgAdapter, s.InRepoConfigGetter, allowedApiClient, requireTenantID, allowedClusters); err != nil {

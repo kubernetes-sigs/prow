@@ -1336,7 +1336,7 @@ type editTeamClient interface {
 // configureTeam patches the team name/description/privacy when values differ
 func configureTeam(client editTeamClient, orgName, teamName string, team org.Team, gt github.Team, parent *int) error {
 	// Do we need to reconfigure any team settings?
-	patch := false
+	var patch bool
 	if gt.Name != teamName {
 		patch = true
 	}

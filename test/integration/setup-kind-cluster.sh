@@ -84,7 +84,7 @@ function main() {
   #
   # TODO(listx): Move this code to horologium_test.go, as it is orthogonal to
   # KIND cluster setup.
-  populate_registry gcr.io/k8s-prow/alpine:latest alpine:latest
+  populate_registry gcr.io/k8s-staging-test-infra/alpine:latest alpine:latest
 
   if cluster_running; then
     log "Using existing KIND cluster"

@@ -2556,7 +2556,7 @@ func parseProwConfig(c *Config) error {
 	// We could use sprig.FuncMap() instead in feature.
 	jenkinsFuncMap := template.FuncMap{
 		"replace": func(old, new, src string) string {
-			return strings.Replace(src, old, new, -1)
+			return strings.ReplaceAll(src, old, new)
 		},
 	}
 

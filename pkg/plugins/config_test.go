@@ -740,7 +740,7 @@ func TestResolveBugzillaOptions(t *testing.T) {
 		})
 	}
 
-	var i int = 0
+	var i = 0
 	managedCol1 := ManagedColumn{ID: &i, Name: "col1", State: "open", Labels: []string{"area/conformance", "area/testing"}, Org: "org1"}
 	managedCol3 := ManagedColumn{ID: &i, Name: "col2", State: "open", Labels: []string{}, Org: "org2"}
 	managedColx := ManagedColumn{ID: &i, Name: "col2", State: "open", Labels: []string{"area/conformance", "area/testing"}, Org: "org2"}
