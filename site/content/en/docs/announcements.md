@@ -34,7 +34,7 @@ New features added to each component:
     The saved highlight automatically displays next page load.
 - *January 24, 2022* It is possible now to define GitHub Apps bots as trusted
     users to allow automatic tests trigger without relying on `/ok-to-test`
-    from organization member. Trigger and DCO plugins configuration now support
+    from organization member. Trigger plugin configuration now supports
     additional field `trusted_apps`, which contains list of GitHub Apps bot
     usernames without `[bot]` suffix.
 - *January 11, 2022* Trigger plugin can now trigger failed github jobs.
