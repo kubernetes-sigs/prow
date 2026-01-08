@@ -71,7 +71,7 @@ func TestHook(t *testing.T) {
 		t.Fatalf("Could not read payload file: %v", err)
 	}
 
-	d = []byte(strings.Replace(strings.Replace(string(d), "{ISSUE_ID_PLACEHOLDER}", strconv.Itoa(issueID), -1), "{COMMENT_ID_PLACEHOLDER}", strconv.Itoa(comments[0].ID), -1))
+	d = []byte(strings.ReplaceAll(strings.ReplaceAll(string(d), "{ISSUE_ID_PLACEHOLDER}", strconv.Itoa(issueID)), "{COMMENT_ID_PLACEHOLDER}", strconv.Itoa(comments[0].ID)))
 
 	// Intentionally separate webhook from fakeghserver, to avoid the hassle of
 	// supporting webhooks for all faked gh events, as hook is the only place

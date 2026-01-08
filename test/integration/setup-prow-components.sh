@@ -175,8 +175,7 @@ $(cat "${prowimagebuilder_yaml}")
 EOF
 
   set -x
-  go run \
-    "${REPO_ROOT}"/hack/prowimagebuilder \
+  go -C "${REPO_ROOT}"/hack/tools run ./prowimagebuilder \
     --ko-docker-repo="localhost:${LOCAL_DOCKER_REGISTRY_PORT}" \
     --prow-images-file="${prowimagebuilder_yaml}" \
     --push

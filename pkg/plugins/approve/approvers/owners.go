@@ -253,10 +253,7 @@ func (o Owners) removeSubdirs(dirs sets.Set[string]) {
 	}
 	for _, dir := range sets.List(dirs) {
 		path := dir
-		for {
-			if o.repo.IsNoParentOwners(path) || canonicalize(path) == "" {
-				break
-			}
+		for !o.repo.IsNoParentOwners(path) && canonicalize(path) != "" {
 			path = filepath.Dir(path)
 			if dirs.Has(canonicalize(path)) {
 				dirs.Delete(dir)

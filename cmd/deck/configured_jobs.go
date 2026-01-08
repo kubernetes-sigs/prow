@@ -163,7 +163,7 @@ func GetConfiguredJobs(cfg config.Getter, org, repo string) (*configuredjobs.Job
 }
 
 func safeName(name string) string {
-	return strings.Replace(name, ".", "-", -1)
+	return strings.ReplaceAll(name, ".", "-")
 }
 
 func getStorageProviderAndBucket(cfg config.Getter, org, repo string, job config.JobBase) (provider string, bucket string, err error) {

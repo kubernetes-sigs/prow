@@ -74,7 +74,7 @@ Options:
 
     -build='':
         Build only the comma-separated list of Prow components with
-        "${REPO_ROOT}"/hack/prowimagebuilder. Useful when developing a fake
+        "${REPO_ROOT}"/hack/tools/prowimagebuilder. Useful when developing a fake
         service that needs frequent recompilation. The images are a
         comma-separated string. Also results in only redeploying certain entries
         in PROW_COMPONENTS, by way of PROW_IMAGES_TO_COMPONENTS in lib.sh.

@@ -240,7 +240,7 @@ func fmtRawDoc(rawDoc string) string {
 	}
 
 	postDoc := strings.TrimRight(buffer.String(), "\n")               // Remove last newline.
-	postDoc = strings.Replace(postDoc, "\t", " ", -1)                 // Replace tabs with spaces.
+	postDoc = strings.ReplaceAll(postDoc, "\t", " ")                  // Replace tabs with spaces.
 	postDoc = regexp.MustCompile(` +`).ReplaceAllString(postDoc, " ") // Compress multiple spaces to a single space.
 
 	return postDoc
