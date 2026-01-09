@@ -1959,6 +1959,17 @@ func testTakeAction(clients localgit.Clients, t *testing.T) {
 			action:           Trigger,
 			enableScheduling: true,
 		},
+		{
+			name:        "batch merge fails, falls back to individual PR merge (issue #474)",
+			batchMerges: []int{0, 1},
+			mergeErrs: map[int]error{
+				0: github.UnmergablePRError("merge conflict"),
+				1: github.UnmergablePRError("merge conflict"),
+			},
+			merged:    0,
+			triggered: 0,
+			action:    Merge,
+		},
 	}
 
 	for _, tc := range testcases {
