@@ -1560,6 +1560,15 @@ tide:
               org: ' '
               repos:
                 - ""
+    # GitHubMergeBlocksPolicyMap configures on org or org/repo level how Tide should handle
+    # GitHub's mergeStateStatus (BLOCKED state from branch protection rules, rulesets,
+    # required reviews, etc.).
+    # Use '*' as key to set this globally. Defaults to "permit" which allows merging but logs warnings.
+    # Valid values: "ignore", "permit", "block"
+    # Note: "ignore" may cause issues with repos using GitHub Rulesets that restrict updates
+    # but have Tide on the bypass list.
+    github_merge_blocks_policy:
+        "": ""
     # A key/value pair of an org/repo as the key and Go template to override
     # the default merge commit title and/or message. Template is passed the
     # PullRequest struct (prow/github/types.go#PullRequest)
