@@ -140,6 +140,9 @@ type options struct {
 	controllerManager     prowflagutil.ControllerManagerOptions
 	dryRun                bool
 	tenantIDs             prowflagutil.Strings
+	enableSSL             bool
+	certFile              string
+	keyFile               string
 }
 
 func (o *options) Validate() error {
@@ -160,6 +163,15 @@ func (o *options) Validate() error {
 
 	if (o.hiddenOnly && o.showHidden) || (o.tenantIDs.Strings() != nil && (o.hiddenOnly || o.showHidden)) {
 		return errors.New("'--hidden-only', '--tenant-id', and '--show-hidden' are mutually exclusive, 'hidden-only' shows only hidden job, '--tenant-id' shows all jobs with matching ID and 'show-hidden' shows both hidden and non-hidden jobs")
+	}
+
+	if o.enableSSL {
+		if o.certFile == "" {
+			return errors.New("flag --enable-ssl was set to true but required flag --cert-file was unset")
+		}
+		if o.keyFile == "" {
+			return errors.New("flag --enable-ssl was set to true but required flag --key-file was unset")
+		}
 	}
 	return nil
 }
@@ -186,6 +198,9 @@ func gatherOptions(fs *flag.FlagSet, args ...string) options {
 	fs.BoolVar(&o.allowInsecure, "allow-insecure", false, "Allows insecure requests for CSRF and GitHub oauth.")
 	fs.BoolVar(&o.dryRun, "dry-run", false, "Whether or not to make mutating API calls to GitHub.")
 	fs.Var(&o.tenantIDs, "tenant-id", "The tenantID(s) used by the ProwJobs that should be displayed by this instance of Deck. This flag can be repeated.")
+	fs.BoolVar(&o.enableSSL, "enable-ssl", false, "Enable SSL to support Ingress backend HTTPS")
+	fs.StringVar(&o.certFile, "cert-file", "", "Location of the cert file for TLS call. This must be set if SSL is enabled.")
+	fs.StringVar(&o.keyFile, "key-file", "", "Location of the key file for TLS call. This must be set if SSL is enabled.")
 	o.config.AddFlags(fs)
 	o.instrumentation.AddFlags(fs)
 	o.controllerManager.TimeoutListingProwJobsDefault = 30 * time.Second
@@ -501,16 +516,27 @@ func main() {
 		return
 	}
 
-	var server *http.Server
+	health.ServeReady()
+	var handler http.Handler
+	serverPort := ":8080"
+
 	if csrfToken != nil {
 		CSRF := csrf.Protect(csrfToken, csrf.Path("/"), csrf.Secure(!o.allowInsecure))
-		server = &http.Server{Addr: ":8080", Handler: CSRF(traceHandler(mux))}
+		handler = CSRF(traceHandler(mux))
 	} else {
-		server = &http.Server{Addr: ":8080", Handler: traceHandler(mux)}
+		handler = traceHandler(mux)
 	}
 
-	health.ServeReady()
-	interrupts.ListenAndServe(server, 5*time.Second)
+	if o.enableSSL {
+		httpServer := &http.Server{
+			Addr:    serverPort,
+			Handler: handler,
+		}
+		interrupts.ListenAndServeTLS(httpServer, o.certFile, o.keyFile, 5*time.Second)
+	} else {
+		httpServer := &http.Server{Addr: serverPort, Handler: handler}
+		interrupts.ListenAndServe(httpServer, 5*time.Second)
+	}
 }
 
 // localOnlyMain contains logic used only when running locally, and is mutually exclusive with
@@ -567,7 +593,7 @@ func prodOnlyMain(cfg config.Getter, pluginAgent *plugins.ConfigAgent, authCfgGe
 
 	if o.hookURL != "" {
 		mux.Handle("/plugin-help.js",
-			gziphandler.GzipHandler(handlePluginHelp(newHelpAgent(o.hookURL), logrus.WithField("handler", "/plugin-help.js"))))
+			gziphandler.GzipHandler(handlePluginHelp(newHelpAgent(o.hookURL, o.certFile), logrus.WithField("handler", "/plugin-help.js"))))
 	}
 
 	// tide could potentially be mocked by static data
