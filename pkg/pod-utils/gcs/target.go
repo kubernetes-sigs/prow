@@ -119,7 +119,7 @@ func NewLegacyRepoPathBuilder(defaultOrg, defaultRepo string) RepoPathBuilder {
 		}
 		// handle gerrit repo
 		org = gerritsource.TrimHTTPSPrefix(org)
-		repo = strings.Replace(repo, "/", "_", -1)
+		repo = strings.ReplaceAll(repo, "/", "_")
 		return fmt.Sprintf("%s_%s", org, repo)
 	}
 }
@@ -133,7 +133,7 @@ func NewSingleDefaultRepoPathBuilder(defaultOrg, defaultRepo string) RepoPathBui
 		}
 		// handle gerrit repo
 		org = gerritsource.TrimHTTPSPrefix(org)
-		repo = strings.Replace(repo, "/", "_", -1)
+		repo = strings.ReplaceAll(repo, "/", "_")
 		return fmt.Sprintf("%s_%s", org, repo)
 	}
 }
@@ -144,7 +144,7 @@ func NewExplicitRepoPathBuilder() RepoPathBuilder {
 	return func(org, repo string) string {
 		// handle gerrit repo
 		org = gerritsource.TrimHTTPSPrefix(org)
-		repo = strings.Replace(repo, "/", "_", -1)
+		repo = strings.ReplaceAll(repo, "/", "_")
 		return fmt.Sprintf("%s_%s", org, repo)
 	}
 }

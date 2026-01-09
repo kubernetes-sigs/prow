@@ -440,11 +440,7 @@ func findReviewer(ghc githubClient, log *logrus.Entry, useStatusAvailability boo
 	}
 
 	// if we do care, start looping through the candidates
-	for {
-		if targetSet.Len() == 0 {
-			// if there are no candidates left, then break
-			break
-		}
+	for targetSet.Len() > 0 {
 		candidate := targetSet.PopRandom()
 		if busyReviewers.Has(candidate) {
 			// we've already verified this reviewer is busy

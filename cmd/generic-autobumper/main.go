@@ -322,7 +322,7 @@ func updateReferencesWrapper(ctx context.Context, o *options) (map[string]string
 	if err != nil {
 		return nil, fmt.Errorf("bad regexp %q: %w", strings.Join(allPrefixes, "|"), err)
 	}
-	var client *http.Client = http.DefaultClient
+	var client = http.DefaultClient
 	if o.ImageRegistryAuth == googleImageRegistryAuth {
 		var err error
 		client, err = google.DefaultClient(ctx, cloudPlatformScope)

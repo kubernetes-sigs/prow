@@ -1,36 +1,44 @@
+version: "2"
+
 run:
   timeout: 15m
-  exclude-dirs:
-  - .git
-  - .tool
-  - vendor
-  - verify
-
-linters-settings:
-  dupl:
-    threshold: 100
-  gocyclo:
-    min-complexity: 50
-  govet:
-    enable:
-      - nilness
 
 linters:
+  settings:
+    govet:
+      enable:
+        - nilness
+    dupl:
+      threshold: 100
+    gocyclo:
+      min-complexity: 50
+    staticcheck:
+      checks:
+        - all
+        - -QF1001
+        - -QF1002
+        - -QF1003 # ignore using underscores in Go names
+        - -QF1008 # ignore omit embbed fields from selector expressions
+        - -ST* # disable all staticcheck style checks, we never ran these before
+  exclusions:
+    paths:
+      - .git
+      - .tool
+      - verify
+      - pkg/plugins/buildifier
+      - pkg/plugins/golint
+    rules:
+      - linters:
+          - golint
+        text: ".*should not use dot dot imports"
+      - linters:
+          - staticcheck
+        # TODO: Is this really supposed to be deprecated? Ref https://github.com/kubernetes/test-infra/issues/14875
+        text: "SA1019: t.*.TrustedOrg is deprecated: TrustedOrg functionality is deprecated and will be removed in January 2020"
   enable:
-  - govet
-  - unused
-  - misspell
-  - ineffassign
-  - staticcheck
-  - gosimple
-  disable-all: true
-
-issues:
-  exclude-rules:
-  - linters:
-    - golint
-    text: ".*should not use dot dot imports"
-  - linters:
+    - govet
+    - unused
+    - misspell
+    - ineffassign
     - staticcheck
-    # TODO: Is this really supposed to be deprecated? Ref https://github.com/kubernetes/test-infra/issues/14875
-    text: "SA1019: t.*.TrustedOrg is deprecated: TrustedOrg functionality is deprecated and will be removed in January 2020"
+  default: none

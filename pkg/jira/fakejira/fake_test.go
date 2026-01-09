@@ -18,10 +18,11 @@ package fakejira
 
 import (
 	"context"
+	"testing"
+
 	"github.com/andygrunwald/go-jira"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"testing"
 )
 
 func TestFakeClient_SearchWithContext(t *testing.T) {
@@ -61,12 +62,9 @@ func TestFakeClient_SearchWithContext(t *testing.T) {
 		t.Fatalf("incorrect metadata from search: %v", diff)
 	}
 
-	r, v, err = fakeClient.SearchWithContext(context.Background(), "unknown_query=fail", searchOptions)
+	r, _, err = fakeClient.SearchWithContext(context.Background(), "unknown_query=fail", searchOptions)
 	if r != nil {
 		t.Fatalf("expected empty result for an invalid query, but got: %v", r)
-	}
-	if r != nil {
-		t.Fatalf("expected no metadata for an invalid query, but got: %v", v)
 	}
 	if err == nil {
 		t.Fatal("expected invalid query to fail, but got no error")

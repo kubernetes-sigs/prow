@@ -174,10 +174,7 @@ func main() {
 		logrus.WithError(err).Fatal("Error creating opener")
 	}
 
-	persist := false
-	if o.config.InRepoConfigCacheDirBase != "" {
-		persist = true
-	}
+	persist := o.config.InRepoConfigCacheDirBase != ""
 
 	var ircg config.InRepoConfigGetter
 	if o.config.MoonrakerAddress != "" {

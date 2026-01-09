@@ -26,31 +26,30 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"sigs.k8s.io/prow/pkg/flagutil"
 )
 
 func TestImageAllowed(t *testing.T) {
 	tests := []struct {
 		name   string
-		images flagutil.Strings
+		images []string
 		image  string
 		want   bool
 	}{
 		{
 			name:   "not-specified",
-			images: flagutil.Strings{},
+			images: nil,
 			image:  "whatever",
 			want:   true,
 		},
 		{
 			name:   "included",
-			images: flagutil.NewStringsBeenSet("cmd/awesome"),
+			images: []string{"cmd/awesome"},
 			image:  "cmd/awesome",
 			want:   true,
 		},
 		{
 			name:   "not-included",
-			images: flagutil.NewStringsBeenSet("cmd/awesome"),
+			images: []string{"cmd/awesome"},
 			image:  "cmd/otherawesome",
 			want:   false,
 		},

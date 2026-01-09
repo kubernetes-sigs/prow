@@ -740,7 +740,7 @@ func TestResolveBugzillaOptions(t *testing.T) {
 		})
 	}
 
-	var i int = 0
+	var i = 0
 	managedCol1 := ManagedColumn{ID: &i, Name: "col1", State: "open", Labels: []string{"area/conformance", "area/testing"}, Org: "org1"}
 	managedCol3 := ManagedColumn{ID: &i, Name: "col2", State: "open", Labels: []string{}, Org: "org2"}
 	managedColx := ManagedColumn{ID: &i, Name: "col2", State: "open", Labels: []string{"area/conformance", "area/testing"}, Org: "org2"}
@@ -2584,6 +2584,159 @@ func TestRestrictedLabelsFor(t *testing.T) {
 				if !expectedTriggers.Equal(actualTriggers) {
 					t.Errorf("AssignOn triggers mismatch for %s:\nexpected: %v\ngot: %v", labelKey, sets.List(expectedTriggers), sets.List(actualTriggers))
 				}
+			}
+		})
+	}
+}
+
+func TestConfigMapSpecIsAllowed(t *testing.T) {
+	testCases := []struct {
+		name     string
+		cm       ConfigMapSpec
+		repo     string // in org/repo format
+		expected bool
+	}{
+		{
+			name:     "no ACLs configured - allow all",
+			cm:       ConfigMapSpec{Name: "test-config"},
+			repo:     "kubernetes/test-infra",
+			expected: true,
+		},
+		{
+			name: "org/repo in allowed repos - allowed",
+			cm: ConfigMapSpec{
+				Name:         "test-config",
+				AllowedRepos: []string{"kubernetes/test-infra", "kubernetes/kubernetes"},
+			},
+			repo:     "kubernetes/test-infra",
+			expected: true,
+		},
+		{
+			name: "org/repo not in allowed repos - denied",
+			cm: ConfigMapSpec{
+				Name:         "test-config",
+				AllowedRepos: []string{"kubernetes/kubernetes"},
+			},
+			repo:     "kubernetes/test-infra",
+			expected: false,
+		},
+		{
+			name: "org in allowed repos (org-level entry) - allowed",
+			cm: ConfigMapSpec{
+				Name:         "test-config",
+				AllowedRepos: []string{"kubernetes", "istio"},
+			},
+			repo:     "kubernetes/test-infra",
+			expected: true,
+		},
+		{
+			name: "org not in allowed repos - denied",
+			cm: ConfigMapSpec{
+				Name:         "test-config",
+				AllowedRepos: []string{"istio"},
+			},
+			repo:     "kubernetes/test-infra",
+			expected: false,
+		},
+		{
+			name: "org/repo in denied repos - denied",
+			cm: ConfigMapSpec{
+				Name:        "test-config",
+				DeniedRepos: []string{"kubernetes/test-infra"},
+			},
+			repo:     "kubernetes/test-infra",
+			expected: false,
+		},
+		{
+			name: "org/repo not in denied repos - allowed",
+			cm: ConfigMapSpec{
+				Name:        "test-config",
+				DeniedRepos: []string{"kubernetes/kubernetes"},
+			},
+			repo:     "kubernetes/test-infra",
+			expected: true,
+		},
+		{
+			name: "org in denied repos (org-level entry) - denied",
+			cm: ConfigMapSpec{
+				Name:        "test-config",
+				DeniedRepos: []string{"kubernetes"},
+			},
+			repo:     "kubernetes/test-infra",
+			expected: false,
+		},
+		{
+			name: "org denied, different org/repo not explicitly allowed - denied",
+			cm: ConfigMapSpec{
+				Name:         "test-config",
+				DeniedRepos:  []string{"kubernetes"},
+				AllowedRepos: []string{"kubernetes/kubernetes"},
+			},
+			repo:     "kubernetes/test-infra",
+			expected: false,
+		},
+		{
+			name: "org/repo in allowed repos but also in denied repos - denied (deny takes precedence)",
+			cm: ConfigMapSpec{
+				Name:         "test-config",
+				AllowedRepos: []string{"kubernetes/test-infra"},
+				DeniedRepos:  []string{"kubernetes/test-infra"},
+			},
+			repo:     "kubernetes/test-infra",
+			expected: false,
+		},
+		{
+			name: "org allowed but specific org/repo in denied repos - denied",
+			cm: ConfigMapSpec{
+				Name:         "test-config",
+				AllowedRepos: []string{"kubernetes"},
+				DeniedRepos:  []string{"kubernetes/test-infra"},
+			},
+			repo:     "kubernetes/test-infra",
+			expected: false,
+		},
+		{
+			name: "mixed org and org/repo entries - allowed via org/repo",
+			cm: ConfigMapSpec{
+				Name:         "test-config",
+				AllowedRepos: []string{"istio", "kubernetes/test-infra"},
+			},
+			repo:     "kubernetes/test-infra",
+			expected: true,
+		},
+		{
+			name: "mixed org and org/repo entries - allowed via org",
+			cm: ConfigMapSpec{
+				Name:         "test-config",
+				AllowedRepos: []string{"kubernetes", "istio/istio"},
+			},
+			repo:     "kubernetes/test-infra",
+			expected: true,
+		},
+		{
+			name: "empty repo with no ACLs - allowed",
+			cm: ConfigMapSpec{
+				Name: "test-config",
+			},
+			repo:     "",
+			expected: true,
+		},
+		{
+			name: "empty repo with allowed repos - denied",
+			cm: ConfigMapSpec{
+				Name:         "test-config",
+				AllowedRepos: []string{"kubernetes"},
+			},
+			repo:     "",
+			expected: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := tc.cm.IsAllowed(tc.repo)
+			if result != tc.expected {
+				t.Errorf("Expected IsAllowed(%q) = %v, got %v", tc.repo, tc.expected, result)
 			}
 		})
 	}
