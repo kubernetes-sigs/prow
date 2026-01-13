@@ -47,6 +47,10 @@ function optionsForRepo(repository: string): RepoOptions {
   };
 
   for (const build of allBuilds.items) {
+    if (build.status == null) {
+      continue;
+    }
+
     const {
       spec: {
         cluster = "",
