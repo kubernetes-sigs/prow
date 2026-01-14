@@ -3348,7 +3348,7 @@ func TestConfigureCollaborators(t *testing.T) {
 				client.collaborators[user] = permission
 			}
 
-			err := configureCollaborators(client, "test-org", "test-repo", tc.repo)
+			err := configureCollaborators(client, "test-org", "test-repo", tc.repo, map[string]string{})
 
 			if tc.expectedErr && err == nil {
 				t.Errorf("Expected error but got none")
@@ -3503,7 +3503,7 @@ func TestConfigureCollaboratorsRemovePendingInvitations(t *testing.T) {
 		// Note: "remove-pending" is NOT in the config, so their invitation should be removed
 	}
 
-	err := configureCollaborators(client, "test-org", "test-repo", repo)
+	err := configureCollaborators(client, "test-org", "test-repo", repo, map[string]string{})
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -3586,7 +3586,7 @@ func TestConfigureCollaboratorsInvitationManagement(t *testing.T) {
 		},
 	}
 
-	err := configureCollaborators(client, "test-org", "test-repo", repo)
+	err := configureCollaborators(client, "test-org", "test-repo", repo, map[string]string{})
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -3649,7 +3649,7 @@ func TestConfigureCollaboratorsInvitationPermissionChecking(t *testing.T) {
 		},
 	}
 
-	err := configureCollaborators(client, "test-org", "test-repo", repo)
+	err := configureCollaborators(client, "test-org", "test-repo", repo, map[string]string{})
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -3771,7 +3771,7 @@ func TestConfigureCollaboratorsLargeSet(t *testing.T) {
 	}
 
 	repo := org.Repo{Collaborators: desired}
-	if err := configureCollaborators(client, "org", "repo", repo); err != nil {
+	if err := configureCollaborators(client, "org", "repo", repo, map[string]string{}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -3815,7 +3815,7 @@ func TestConfigureCollaboratorsCorrectAPIEndpoints(t *testing.T) {
 		},
 	}
 
-	err := configureCollaborators(client, "test-org", "test-repo", repo)
+	err := configureCollaborators(client, "test-org", "test-repo", repo, map[string]string{})
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -3868,7 +3868,7 @@ func TestConfigureCollaboratorsInvitationVsCollaboratorRemoval(t *testing.T) {
 		},
 	}
 
-	err := configureCollaborators(client, "test-org", "test-repo", repo)
+	err := configureCollaborators(client, "test-org", "test-repo", repo, map[string]string{})
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -3903,7 +3903,7 @@ func TestConfigureCollaborators_Idempotent_NoChangeForDirectCollaborator(t *test
 		},
 	}
 
-	err := configureCollaborators(client, "test-org", "test-repo", repo)
+	err := configureCollaborators(client, "test-org", "test-repo", repo, map[string]string{})
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -3934,7 +3934,7 @@ func TestConfigureCollaborators_PermissionMatrix_TransitionsExistingCollaborator
 
 				repo := org.Repo{Collaborators: map[string]github.RepoPermissionLevel{"user": to}}
 
-				err := configureCollaborators(client, "org", "repo", repo)
+				err := configureCollaborators(client, "org", "repo", repo, map[string]string{})
 				if err != nil {
 					t.Fatalf("unexpected error: %v", err)
 				}
@@ -3976,7 +3976,7 @@ func TestConfigureCollaborators_PermissionMatrix_PendingInvitationUpdates(t *tes
 
 				repo := org.Repo{Collaborators: map[string]github.RepoPermissionLevel{"user": to}}
 
-				err := configureCollaborators(client, "org", "repo", repo)
+				err := configureCollaborators(client, "org", "repo", repo, map[string]string{})
 				if err != nil {
 					t.Fatalf("unexpected error: %v", err)
 				}
@@ -4039,10 +4039,24 @@ func (f *fakeForkClient) CreateForkInOrg(owner, repo, targetOrg string, defaultB
 		upstream:          fmt.Sprintf("%s/%s", owner, repo),
 		defaultBranchOnly: defaultBranchOnly,
 	})
+	createdName := repo
 	if f.forkNameOverride != "" {
-		return f.forkNameOverride, nil
+		createdName = f.forkNameOverride
 	}
-	return repo, nil
+	// Simulate fork becoming available for waitForFork
+	if f.fullRepos == nil {
+		f.fullRepos = make(map[string]github.FullRepo)
+	}
+	f.fullRepos[createdName] = github.FullRepo{
+		Repo: github.Repo{
+			Name: createdName,
+			Fork: true,
+			Parent: github.ParentRepo{
+				FullName: fmt.Sprintf("%s/%s", owner, repo),
+			},
+		},
+	}
+	return createdName, nil
 }
 
 func TestConfigureForks(t *testing.T) {
@@ -4272,6 +4286,100 @@ func TestConfigureForks(t *testing.T) {
 			existingRepos: map[string]github.Repo{},
 			expectedForks: nil,
 		},
+		// Idempotency tests: fork lookup by upstream parent
+		{
+			description: "idempotency: fork exists with different name than config (renamed by GitHub)",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					"my-custom-name": {ForkFrom: strPtr(upstream)}, // Config uses custom name
+				},
+			},
+			existingRepos: map[string]github.Repo{
+				// GitHub created it as "upstream-repo" (upstream's name), not "my-custom-name"
+				"upstream-repo": {Name: "upstream-repo", Fork: true},
+			},
+			fullRepos: map[string]github.FullRepo{
+				"upstream-repo": {
+					Repo: github.Repo{Name: "upstream-repo", Fork: true, Parent: github.ParentRepo{FullName: upstream}},
+				},
+			},
+			expectedForks: nil,   // Should NOT try to create - fork of upstream already exists
+			expectError:   false, // No error - just logs that fork exists with different name
+		},
+		{
+			description: "idempotency: fork exists with same name and correct upstream (standard case)",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					"upstream-repo": {ForkFrom: strPtr(upstream)},
+				},
+			},
+			existingRepos: map[string]github.Repo{
+				"upstream-repo": {Name: "upstream-repo", Fork: true},
+			},
+			fullRepos: map[string]github.FullRepo{
+				"upstream-repo": {
+					Repo: github.Repo{Name: "upstream-repo", Fork: true, Parent: github.ParentRepo{FullName: upstream}},
+				},
+			},
+			expectedForks: nil, // Should NOT try to create - already exists correctly
+			expectError:   false,
+		},
+		{
+			description: "idempotency: case-insensitive upstream matching",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					"my-fork": {ForkFrom: strPtr("UPSTREAM-ORG/UPSTREAM-REPO")}, // Uppercase in config
+				},
+			},
+			existingRepos: map[string]github.Repo{
+				"existing-fork": {Name: "existing-fork", Fork: true},
+			},
+			fullRepos: map[string]github.FullRepo{
+				"existing-fork": {
+					Repo: github.Repo{Name: "existing-fork", Fork: true, Parent: github.ParentRepo{FullName: "upstream-org/upstream-repo"}}, // Lowercase from GitHub
+				},
+			},
+			expectedForks: nil, // Should match despite case difference
+			expectError:   false,
+		},
+		{
+			description: "idempotency: no existing fork of upstream - creates new fork",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					"my-fork": {ForkFrom: strPtr(upstream)},
+				},
+			},
+			existingRepos: map[string]github.Repo{
+				// Org has other forks, but none from our target upstream
+				"other-fork": {Name: "other-fork", Fork: true},
+			},
+			fullRepos: map[string]github.FullRepo{
+				"other-fork": {
+					Repo: github.Repo{Name: "other-fork", Fork: true, Parent: github.ParentRepo{FullName: "different-org/different-repo"}},
+				},
+			},
+			expectedForks: []forkCreation{{upstream: upstream, defaultBranchOnly: false}}, // Should create since no fork of upstream exists
+			expectError:   false,
+		},
+		{
+			description: "idempotency: multiple configs, one upstream already forked",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					"fork-a": {ForkFrom: strPtr("org-a/repo-a")}, // Already forked (exists as "repo-a")
+					"fork-b": {ForkFrom: strPtr("org-b/repo-b")}, // Not yet forked
+				},
+			},
+			existingRepos: map[string]github.Repo{
+				"repo-a": {Name: "repo-a", Fork: true}, // Fork of org-a/repo-a exists with different name
+			},
+			fullRepos: map[string]github.FullRepo{
+				"repo-a": {
+					Repo: github.Repo{Name: "repo-a", Fork: true, Parent: github.ParentRepo{FullName: "org-a/repo-a"}},
+				},
+			},
+			expectedForks: []forkCreation{{upstream: "org-b/repo-b", defaultBranchOnly: false}}, // Only fork-b should be created
+			expectError:   false,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -4285,7 +4393,7 @@ func TestConfigureForks(t *testing.T) {
 				forkNameOverride: tc.forkNameOverride,
 			}
 
-			err := configureForks(client, "test-org", tc.orgConfig)
+			forkNames, err := configureForks(client, "test-org", tc.orgConfig)
 
 			if tc.expectError {
 				if err == nil {
@@ -4294,6 +4402,10 @@ func TestConfigureForks(t *testing.T) {
 			} else {
 				if err != nil {
 					t.Errorf("unexpected error: %v", err)
+				}
+				// Verify forkNames is not nil on success
+				if forkNames == nil {
+					t.Error("forkNames should not be nil on success")
 				}
 			}
 
