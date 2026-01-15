@@ -145,6 +145,45 @@ func TestOptions(t *testing.T) {
 				logLevel:       "debug",
 			},
 		},
+		{
+			name: "--fix-forks inherits from --fix-repos when not set",
+			args: []string{"--config-path=foo", "--fix-repos"},
+			expected: &options{
+				config:       "foo",
+				minAdmins:    defaultMinAdmins,
+				requireSelf:  true,
+				maximumDelta: defaultDelta,
+				fixRepos:     true,
+				fixForks:     true, // Inherited from --fix-repos
+				logLevel:     "info",
+			},
+		},
+		{
+			name: "--fix-forks=false overrides --fix-repos inheritance",
+			args: []string{"--config-path=foo", "--fix-repos", "--fix-forks=false"},
+			expected: &options{
+				config:       "foo",
+				minAdmins:    defaultMinAdmins,
+				requireSelf:  true,
+				maximumDelta: defaultDelta,
+				fixRepos:     true,
+				fixForks:     false, // Explicitly set to false
+				logLevel:     "info",
+			},
+		},
+		{
+			name: "--fix-forks=true without --fix-repos",
+			args: []string{"--config-path=foo", "--fix-forks=true"},
+			expected: &options{
+				config:       "foo",
+				minAdmins:    defaultMinAdmins,
+				requireSelf:  true,
+				maximumDelta: defaultDelta,
+				fixRepos:     false,
+				fixForks:     true, // Explicitly set to true
+				logLevel:     "info",
+			},
+		},
 	}
 
 	for _, tc := range cases {

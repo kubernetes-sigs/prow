@@ -95,7 +95,7 @@ func (o *options) parseArgs(flags *flag.FlagSet, args []string) error {
 	flags.BoolVar(&o.fixTeamMembers, "fix-team-members", false, "Add/remove team members if set")
 	flags.BoolVar(&o.fixTeamRepos, "fix-team-repos", false, "Add/remove team permissions on repos if set")
 	flags.BoolVar(&o.fixRepos, "fix-repos", false, "Create/update repositories if set")
-	flags.BoolVar(&o.fixForks, "fix-forks", false, "Create repository forks from upstream if set")
+	flags.BoolVar(&o.fixForks, "fix-forks", false, "Create repository forks from upstream. Inherits from --fix-repos if not explicitly set")
 	flags.BoolVar(&o.fixCollaborators, "fix-collaborators", false, "Add/remove/update repository collaborators if set")
 	flags.BoolVar(&o.allowRepoArchival, "allow-repo-archival", false, "If set, archiving repos is allowed while updating repos")
 	flags.BoolVar(&o.allowRepoPublish, "allow-repo-publish", false, "If set, making private repos public is allowed while updating repos")
@@ -103,6 +103,17 @@ func (o *options) parseArgs(flags *flag.FlagSet, args []string) error {
 	o.github.AddCustomizedFlags(flags, flagutil.ThrottlerDefaults(defaultTokens, defaultBurst))
 	if err := flags.Parse(args); err != nil {
 		return err
+	}
+
+	// If --fix-forks was not explicitly set, inherit from --fix-repos
+	fixForksExplicitlySet := false
+	flags.Visit(func(f *flag.Flag) {
+		if f.Name == "fix-forks" {
+			fixForksExplicitlySet = true
+		}
+	})
+	if !fixForksExplicitlySet {
+		o.fixForks = o.fixRepos
 	}
 
 	level, err := logrus.ParseLevel(o.logLevel)
