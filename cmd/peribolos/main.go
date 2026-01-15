@@ -912,14 +912,7 @@ func configureOrg(opt options, client github.Client, orgName string, orgConfig o
 		return fmt.Errorf("failed to configure %s members: %w", orgName, err)
 	}
 
-	// Create repositories in the org
-	if !opt.fixRepos {
-		logrus.Info("Skipping org repositories configuration")
-	} else if err := configureRepos(opt, client, orgName, orgConfig); err != nil {
-		return fmt.Errorf("failed to configure %s repos: %w", orgName, err)
-	}
-
-	// Create repository forks from upstream
+	// Create repository forks from upstream (must run before configureRepos so forkNames is available)
 	// forkNames maps config repo name -> actual GitHub repo name (for renamed forks)
 	var forkNames map[string]string
 	if !opt.fixForks {
@@ -931,6 +924,13 @@ func configureOrg(opt options, client github.Client, orgName string, orgConfig o
 		if err != nil {
 			return fmt.Errorf("failed to configure %s forks: %w", orgName, err)
 		}
+	}
+
+	// Create repositories in the org
+	if !opt.fixRepos {
+		logrus.Info("Skipping org repositories configuration")
+	} else if err := configureRepos(opt, client, orgName, orgConfig, forkNames); err != nil {
+		return fmt.Errorf("failed to configure %s repos: %w", orgName, err)
 	}
 
 	// Configure repository collaborators
@@ -1088,7 +1088,7 @@ func sanitizeRepoDelta(opt options, delta *github.RepoUpdateRequest) []error {
 	return errs
 }
 
-func configureRepos(opt options, client repoClient, orgName string, orgConfig org.Config) error {
+func configureRepos(opt options, client repoClient, orgName string, orgConfig org.Config, forkNames map[string]string) error {
 	if err := validateRepos(orgConfig.Repos); err != nil {
 		return err
 	}
@@ -1106,10 +1106,25 @@ func configureRepos(opt options, client repoClient, orgName string, orgConfig or
 	var allErrors []error
 
 	for wantName, wantRepo := range orgConfig.Repos {
+		// Determine the actual GitHub repo name (may differ for forks)
+		actualName := wantName
+		if mappedName, ok := forkNames[wantName]; ok {
+			actualName = mappedName
+		}
 		repoLogger := logrus.WithField("repo", wantName)
+		if actualName != wantName {
+			repoLogger = repoLogger.WithField("actual_name", actualName)
+		}
 		pastErrors := len(allErrors)
 		var existing *github.FullRepo = nil
-		for _, possibleName := range append([]string{wantName}, wantRepo.Previously...) {
+
+		// For forks, also check if the repo exists with the actual name (which may differ from config key)
+		namesToCheck := append([]string{wantName}, wantRepo.Previously...)
+		if actualName != wantName {
+			namesToCheck = append([]string{actualName}, namesToCheck...)
+		}
+
+		for _, possibleName := range namesToCheck {
 			if repo, exists := byName[strings.ToLower(possibleName)]; exists {
 				switch {
 				case existing == nil:
@@ -1130,9 +1145,12 @@ func configureRepos(opt options, client repoClient, orgName string, orgConfig or
 			continue
 		}
 
+		// Check if this is a fork repo
+		isFork := wantRepo.ForkFrom != nil && *wantRepo.ForkFrom != ""
+
 		if existing == nil {
 			// Skip repos that should be created as forks - they're handled by configureForks
-			if wantRepo.ForkFrom != nil && *wantRepo.ForkFrom != "" {
+			if isFork {
 				repoLogger.Debug("repo has fork_from set, skipping creation (will be handled by --fix-forks)")
 				continue
 			}
@@ -1159,7 +1177,16 @@ func configureRepos(opt options, client repoClient, orgName string, orgConfig or
 				}
 			}
 			repoLogger.Info("repo exists, considering an update")
-			delta := newRepoUpdateRequest(*existing, wantName, wantRepo)
+			// For forks, use the actual name to avoid trying to rename
+			updateName := wantName
+			if isFork && actualName != wantName {
+				updateName = actualName
+			}
+			// Note on fork metadata: Forks inherit metadata from their upstream repository.
+			// If a metadata field is set in the config, it will override the inherited value.
+			// If a metadata field is not set (nil), the fork keeps its current value (which
+			// may be inherited from upstream or previously modified).
+			delta := newRepoUpdateRequest(*existing, updateName, wantRepo)
 			if deltaErrors := sanitizeRepoDelta(opt, &delta); len(deltaErrors) > 0 {
 				for _, err := range deltaErrors {
 					repoLogger.WithError(err).Error("requested repo change is not allowed, removing from delta")
@@ -1182,7 +1209,7 @@ func configureRepos(opt options, client repoClient, orgName string, orgConfig or
 type forkClient interface {
 	GetRepo(owner, name string) (github.FullRepo, error)
 	GetRepos(org string, isUser bool) ([]github.Repo, error)
-	CreateForkInOrg(owner, repo, targetOrg string, defaultBranchOnly bool) (string, error)
+	CreateForkInOrg(owner, repo, targetOrg string, defaultBranchOnly bool, name string) (string, error)
 }
 
 // waitForFork polls until the fork repository is available.
@@ -1311,7 +1338,8 @@ func configureForks(client forkClient, orgName string, orgConfig org.Config) (ma
 		}
 
 		repoLogger.Info("creating fork from upstream")
-		createdName, err := client.CreateForkInOrg(parts[0], parts[1], orgName, defaultBranchOnly)
+		// Pass the config key as the desired fork name - GitHub will use this name for the fork
+		createdName, err := client.CreateForkInOrg(parts[0], parts[1], orgName, defaultBranchOnly, repoName)
 		if err != nil {
 			repoLogger.WithError(err).Error("failed to create fork")
 			allErrors = append(allErrors, err)

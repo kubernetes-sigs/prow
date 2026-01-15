@@ -97,6 +97,15 @@ type Repo struct {
 
 	// ForkFrom specifies an upstream repository to fork from, in the format "owner/repo".
 	// When set, Peribolos will create this repository as a fork of the upstream.
+	// The config key name will be used as the fork's name (via GitHub's fork API name parameter).
+	//
+	// Metadata behavior for forks:
+	//   - Forks initially inherit metadata (description, has_issues, etc.) from the upstream.
+	//   - If a RepoMetadata field is set in config, it overrides the inherited/current value.
+	//   - If a RepoMetadata field is not set (nil), the fork keeps its current value.
+	//   - Some metadata changes may be restricted by GitHub (e.g., public forks cannot be
+	//     made private on GitHub.com). Such restrictions vary by GitHub edition (Enterprise
+	//     may allow more). Restricted changes will result in an API error.
 	ForkFrom *string `json:"fork_from,omitempty"`
 
 	// DefaultBranchOnly specifies whether to fork only the default branch.

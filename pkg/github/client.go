@@ -194,7 +194,7 @@ type RepositoryClient interface {
 	RemoveCollaborator(org, repo, user string) error
 	UpdateCollaboratorPermission(org, repo, user string, permission RepoPermissionLevel) error
 	CreateFork(owner, repo string) (string, error)
-	CreateForkInOrg(owner, repo, targetOrg string, defaultBranchOnly bool) (string, error)
+	CreateForkInOrg(owner, repo, targetOrg string, defaultBranchOnly bool, name string) (string, error)
 	EnsureFork(forkingUser, org, repo string) (string, error)
 	ListRepoTeams(org, repo string) ([]Team, error)
 	CreateRepo(owner string, isUser bool, repo RepoCreateRequest) (*FullRepo, error)
@@ -4340,17 +4340,22 @@ func (c *client) CreateFork(owner, repo string) (string, error) {
 // period before accessing the git objects. If this takes longer than 5 minutes, GitHub
 // recommends contacting their support.
 //
+// The name parameter allows specifying a custom name for the fork. If empty, GitHub
+// will use the upstream repository name (or append a suffix if there's a conflict).
+//
 // See https://docs.github.com/en/rest/repos/forks#create-a-fork
-func (c *client) CreateForkInOrg(owner, repo, targetOrg string, defaultBranchOnly bool) (string, error) {
-	durationLogger := c.log("CreateForkInOrg", owner, repo, targetOrg, defaultBranchOnly)
+func (c *client) CreateForkInOrg(owner, repo, targetOrg string, defaultBranchOnly bool, name string) (string, error) {
+	durationLogger := c.log("CreateForkInOrg", owner, repo, targetOrg, defaultBranchOnly, name)
 	defer durationLogger()
 
 	reqBody := struct {
 		Organization      string `json:"organization"`
 		DefaultBranchOnly bool   `json:"default_branch_only,omitempty"`
+		Name              string `json:"name,omitempty"`
 	}{
 		Organization:      targetOrg,
 		DefaultBranchOnly: defaultBranchOnly,
+		Name:              name,
 	}
 
 	resp := struct {

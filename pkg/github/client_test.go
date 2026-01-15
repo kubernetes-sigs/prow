@@ -3101,16 +3101,16 @@ func TestCreateForkInOrg(t *testing.T) {
 		body, _ := io.ReadAll(r.Body)
 		json.Unmarshal(body, &receivedBody)
 		w.WriteHeader(202)
-		w.Write([]byte(`{"name":"upstream-repo"}`))
+		w.Write([]byte(`{"name":"my-custom-fork"}`))
 	}))
 	defer ts.Close()
 	c := getClient(ts.URL)
 
-	name, err := c.CreateForkInOrg("upstream-org", "upstream-repo", "target-org", true)
+	name, err := c.CreateForkInOrg("upstream-org", "upstream-repo", "target-org", true, "my-custom-fork")
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
-	if name != "upstream-repo" {
+	if name != "my-custom-fork" {
 		t.Errorf("Unexpected fork name: %v", name)
 	}
 	if receivedBody["organization"] != "target-org" {
@@ -3118,6 +3118,33 @@ func TestCreateForkInOrg(t *testing.T) {
 	}
 	if receivedBody["default_branch_only"] != true {
 		t.Errorf("Expected default_branch_only true, got %v", receivedBody["default_branch_only"])
+	}
+	if receivedBody["name"] != "my-custom-fork" {
+		t.Errorf("Expected name 'my-custom-fork', got %v", receivedBody["name"])
+	}
+}
+
+func TestCreateForkInOrgWithoutName(t *testing.T) {
+	var receivedBody map[string]interface{}
+	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		json.Unmarshal(body, &receivedBody)
+		w.WriteHeader(202)
+		w.Write([]byte(`{"name":"upstream-repo"}`))
+	}))
+	defer ts.Close()
+	c := getClient(ts.URL)
+
+	name, err := c.CreateForkInOrg("upstream-org", "upstream-repo", "target-org", false, "")
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+	if name != "upstream-repo" {
+		t.Errorf("Unexpected fork name: %v", name)
+	}
+	// When name is empty, it should not be included in the request body (omitempty)
+	if _, hasName := receivedBody["name"]; hasName {
+		t.Errorf("Expected name field to be omitted when empty, got %v", receivedBody["name"])
 	}
 }
 
