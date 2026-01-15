@@ -25,11 +25,11 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/prow/pkg/config/org"
 	"sigs.k8s.io/prow/pkg/flagutil"
 	"sigs.k8s.io/prow/pkg/github"
-
-	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 func TestOptions(t *testing.T) {
@@ -2732,7 +2732,7 @@ func TestConfigureRepos(t *testing.T) {
 			description: "repo with fork_from is skipped (handled by configureForks)",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
-					"forked-repo": {ForkFrom: strPtr("upstream/repo")},
+					"forked-repo": {ForkFrom: ptr.To("upstream/repo")},
 				},
 			},
 			repos:         []github.FullRepo{},
@@ -4080,7 +4080,7 @@ func TestConfigureForks(t *testing.T) {
 			description: "no forks configured - does nothing",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
-					"regular-repo": {RepoMetadata: org.RepoMetadata{Description: strPtr("a regular repo")}},
+					"regular-repo": {RepoMetadata: org.RepoMetadata{Description: ptr.To("a regular repo")}},
 				},
 			},
 			existingRepos: map[string]github.Repo{},
@@ -4090,7 +4090,7 @@ func TestConfigureForks(t *testing.T) {
 			description: "creates fork when repo doesn't exist",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
-					forkName: {ForkFrom: strPtr(upstream)},
+					forkName: {ForkFrom: ptr.To(upstream)},
 				},
 			},
 			existingRepos: map[string]github.Repo{},
@@ -4100,7 +4100,7 @@ func TestConfigureForks(t *testing.T) {
 			description: "skips fork when repo already exists as correct fork",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
-					forkName: {ForkFrom: strPtr(upstream)},
+					forkName: {ForkFrom: ptr.To(upstream)},
 				},
 			},
 			existingRepos: map[string]github.Repo{
@@ -4117,7 +4117,7 @@ func TestConfigureForks(t *testing.T) {
 			description: "errors when repo exists but is not a fork",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
-					forkName: {ForkFrom: strPtr(upstream)},
+					forkName: {ForkFrom: ptr.To(upstream)},
 				},
 			},
 			existingRepos: map[string]github.Repo{
@@ -4132,7 +4132,7 @@ func TestConfigureForks(t *testing.T) {
 			description: "errors when fork exists from different upstream",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
-					forkName: {ForkFrom: strPtr(upstream)},
+					forkName: {ForkFrom: ptr.To(upstream)},
 				},
 			},
 			existingRepos: map[string]github.Repo{
@@ -4149,7 +4149,7 @@ func TestConfigureForks(t *testing.T) {
 			description: "errors on invalid fork_from format",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
-					forkName: {ForkFrom: strPtr("invalid-format")},
+					forkName: {ForkFrom: ptr.To("invalid-format")},
 				},
 			},
 			existingRepos: map[string]github.Repo{},
@@ -4159,7 +4159,7 @@ func TestConfigureForks(t *testing.T) {
 			description: "handles CreateForkInOrg error (e.g., generic failure)",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
-					forkName: {ForkFrom: strPtr(upstream)},
+					forkName: {ForkFrom: ptr.To(upstream)},
 				},
 			},
 			existingRepos: map[string]github.Repo{},
@@ -4170,7 +4170,7 @@ func TestConfigureForks(t *testing.T) {
 			description: "errors when upstream repo does not exist (404)",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
-					forkName: {ForkFrom: strPtr("nonexistent-org/nonexistent-repo")},
+					forkName: {ForkFrom: ptr.To("nonexistent-org/nonexistent-repo")},
 				},
 			},
 			existingRepos: map[string]github.Repo{},
@@ -4181,8 +4181,8 @@ func TestConfigureForks(t *testing.T) {
 			description: "creates multiple forks",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
-					"fork1": {ForkFrom: strPtr("org1/repo1")},
-					"fork2": {ForkFrom: strPtr("org2/repo2")},
+					"fork1": {ForkFrom: ptr.To("org1/repo1")},
+					"fork2": {ForkFrom: ptr.To("org2/repo2")},
 				},
 			},
 			existingRepos: map[string]github.Repo{},
@@ -4194,7 +4194,7 @@ func TestConfigureForks(t *testing.T) {
 		// New test cases for full coverage
 		{
 			description:   "GetRepos failure is propagated",
-			orgConfig:     org.Config{Repos: map[string]org.Repo{forkName: {ForkFrom: strPtr(upstream)}}},
+			orgConfig:     org.Config{Repos: map[string]org.Repo{forkName: {ForkFrom: ptr.To(upstream)}}},
 			existingRepos: map[string]github.Repo{},
 			getReposErr:   errors.New("failed to get repos"),
 			expectError:   true,
@@ -4203,7 +4203,7 @@ func TestConfigureForks(t *testing.T) {
 			description: "GetRepo failure when checking existing fork parent",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
-					forkName: {ForkFrom: strPtr(upstream)},
+					forkName: {ForkFrom: ptr.To(upstream)},
 				},
 			},
 			existingRepos: map[string]github.Repo{
@@ -4216,8 +4216,8 @@ func TestConfigureForks(t *testing.T) {
 			description: "empty fork_from string is skipped",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
-					"repo-with-empty-fork": {ForkFrom: strPtr("")},
-					"regular-repo":         {RepoMetadata: org.RepoMetadata{Description: strPtr("normal")}},
+					"repo-with-empty-fork": {ForkFrom: ptr.To("")},
+					"regular-repo":         {RepoMetadata: org.RepoMetadata{Description: ptr.To("normal")}},
 				},
 			},
 			existingRepos: map[string]github.Repo{},
@@ -4227,7 +4227,7 @@ func TestConfigureForks(t *testing.T) {
 			description: "case-insensitive repo name matching",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
-					"My-Fork": {ForkFrom: strPtr(upstream)}, // Config uses different case
+					"My-Fork": {ForkFrom: ptr.To(upstream)}, // Config uses different case
 				},
 			},
 			existingRepos: map[string]github.Repo{
@@ -4244,7 +4244,7 @@ func TestConfigureForks(t *testing.T) {
 			description: "DefaultBranchOnly parameter is passed correctly",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
-					forkName: {ForkFrom: strPtr(upstream), DefaultBranchOnly: boolPtr(true)},
+					forkName: {ForkFrom: ptr.To(upstream), DefaultBranchOnly: ptr.To(true)},
 				},
 			},
 			existingRepos: map[string]github.Repo{},
@@ -4254,7 +4254,7 @@ func TestConfigureForks(t *testing.T) {
 			description: "fork created with different name logs warning (no error)",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
-					"my-custom-name": {ForkFrom: strPtr(upstream)},
+					"my-custom-name": {ForkFrom: ptr.To(upstream)},
 				},
 			},
 			existingRepos:    map[string]github.Repo{},
@@ -4266,8 +4266,8 @@ func TestConfigureForks(t *testing.T) {
 			description: "mixed success and failure - one fork succeeds, one fails",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
-					"good-fork":    {ForkFrom: strPtr("good-org/good-repo")},
-					"invalid-fork": {ForkFrom: strPtr("no-slash")}, // Invalid format
+					"good-fork":    {ForkFrom: ptr.To("good-org/good-repo")},
+					"invalid-fork": {ForkFrom: ptr.To("no-slash")}, // Invalid format
 				},
 			},
 			existingRepos: map[string]github.Repo{},
@@ -4291,7 +4291,7 @@ func TestConfigureForks(t *testing.T) {
 			description: "idempotency: fork exists with different name than config (renamed by GitHub)",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
-					"my-custom-name": {ForkFrom: strPtr(upstream)}, // Config uses custom name
+					"my-custom-name": {ForkFrom: ptr.To(upstream)}, // Config uses custom name
 				},
 			},
 			existingRepos: map[string]github.Repo{
@@ -4310,7 +4310,7 @@ func TestConfigureForks(t *testing.T) {
 			description: "idempotency: fork exists with same name and correct upstream (standard case)",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
-					"upstream-repo": {ForkFrom: strPtr(upstream)},
+					"upstream-repo": {ForkFrom: ptr.To(upstream)},
 				},
 			},
 			existingRepos: map[string]github.Repo{
@@ -4328,7 +4328,7 @@ func TestConfigureForks(t *testing.T) {
 			description: "idempotency: case-insensitive upstream matching",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
-					"my-fork": {ForkFrom: strPtr("UPSTREAM-ORG/UPSTREAM-REPO")}, // Uppercase in config
+					"my-fork": {ForkFrom: ptr.To("UPSTREAM-ORG/UPSTREAM-REPO")}, // Uppercase in config
 				},
 			},
 			existingRepos: map[string]github.Repo{
@@ -4346,7 +4346,7 @@ func TestConfigureForks(t *testing.T) {
 			description: "idempotency: no existing fork of upstream - creates new fork",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
-					"my-fork": {ForkFrom: strPtr(upstream)},
+					"my-fork": {ForkFrom: ptr.To(upstream)},
 				},
 			},
 			existingRepos: map[string]github.Repo{
@@ -4365,8 +4365,8 @@ func TestConfigureForks(t *testing.T) {
 			description: "idempotency: multiple configs, one upstream already forked",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
-					"fork-a": {ForkFrom: strPtr("org-a/repo-a")}, // Already forked (exists as "repo-a")
-					"fork-b": {ForkFrom: strPtr("org-b/repo-b")}, // Not yet forked
+					"fork-a": {ForkFrom: ptr.To("org-a/repo-a")}, // Already forked (exists as "repo-a")
+					"fork-b": {ForkFrom: ptr.To("org-b/repo-b")}, // Not yet forked
 				},
 			},
 			existingRepos: map[string]github.Repo{
@@ -4428,12 +4428,4 @@ func TestConfigureForks(t *testing.T) {
 			}
 		})
 	}
-}
-
-func boolPtr(b bool) *bool {
-	return &b
-}
-
-func strPtr(s string) *string {
-	return &s
 }
