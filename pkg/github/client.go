@@ -4340,8 +4340,10 @@ func (c *client) CreateFork(owner, repo string) (string, error) {
 // period before accessing the git objects. If this takes longer than 5 minutes, GitHub
 // recommends contacting their support.
 //
-// The name parameter allows specifying a custom name for the fork. If empty, GitHub
-// will use the upstream repository name (or append a suffix if there's a conflict).
+// The name parameter specifies the desired name for the fork:
+//   - If empty, GitHub uses the upstream repository name (or appends a suffix on conflict).
+//   - If specified, GitHub uses this exact name. If a repository with this name already
+//     exists, the API will return an error (it will not automatically rename the fork).
 //
 // See https://docs.github.com/en/rest/repos/forks#create-a-fork
 func (c *client) CreateForkInOrg(owner, repo, targetOrg string, defaultBranchOnly bool, name string) (string, error) {

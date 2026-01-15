@@ -4099,13 +4099,12 @@ type forkCreation struct {
 
 // fakeForkClient implements the forkClient interface for testing
 type fakeForkClient struct {
-	repos            map[string]github.Repo     // repo name -> repo
-	fullRepos        map[string]github.FullRepo // repo name -> full repo
-	createdForks     []forkCreation             // list of fork creation calls with details
-	createForkErr    error
-	getRepoErr       error
-	getReposErr      error
-	forkNameOverride string // if set, CreateForkInOrg returns this name instead
+	repos         map[string]github.Repo     // repo name -> repo
+	fullRepos     map[string]github.FullRepo // repo name -> full repo
+	createdForks  []forkCreation             // list of fork creation calls with details
+	createForkErr error
+	getRepoErr    error
+	getReposErr   error
 }
 
 func (f *fakeForkClient) GetRepo(owner, name string) (github.FullRepo, error) {
@@ -4143,10 +4142,6 @@ func (f *fakeForkClient) CreateForkInOrg(owner, repo, targetOrg string, defaultB
 	if createdName == "" {
 		createdName = repo
 	}
-	// Allow override for testing GitHub rename scenarios
-	if f.forkNameOverride != "" {
-		createdName = f.forkNameOverride
-	}
 	// Simulate fork becoming available for waitForFork
 	if f.fullRepos == nil {
 		f.fullRepos = make(map[string]github.FullRepo)
@@ -4168,14 +4163,13 @@ func TestConfigureForks(t *testing.T) {
 	forkName := "upstream-repo"
 
 	testCases := []struct {
-		description      string
-		orgConfig        org.Config
-		existingRepos    map[string]github.Repo
-		fullRepos        map[string]github.FullRepo
-		createForkErr    error
-		getReposErr      error
-		getRepoErr       error
-		forkNameOverride string
+		description   string
+		orgConfig     org.Config
+		existingRepos map[string]github.Repo
+		fullRepos     map[string]github.FullRepo
+		createForkErr error
+		getReposErr   error
+		getRepoErr    error
 
 		expectError   bool
 		expectedForks []forkCreation
@@ -4355,18 +4349,6 @@ func TestConfigureForks(t *testing.T) {
 			expectedForks: []forkCreation{{upstream: upstream, defaultBranchOnly: true, name: forkName}},
 		},
 		{
-			description: "fork created with different name logs warning (no error)",
-			orgConfig: org.Config{
-				Repos: map[string]org.Repo{
-					"my-custom-name": {ForkFrom: ptr.To(upstream)},
-				},
-			},
-			existingRepos:    map[string]github.Repo{},
-			forkNameOverride: "upstream-repo", // GitHub returns different name
-			expectedForks:    []forkCreation{{upstream: upstream, defaultBranchOnly: false, name: "my-custom-name"}},
-			expectError:      false, // Should succeed with warning, not error
-		},
-		{
 			description: "mixed success and failure - one fork succeeds, one fails",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
@@ -4489,12 +4471,11 @@ func TestConfigureForks(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.description, func(t *testing.T) {
 			client := &fakeForkClient{
-				repos:            tc.existingRepos,
-				fullRepos:        tc.fullRepos,
-				createForkErr:    tc.createForkErr,
-				getReposErr:      tc.getReposErr,
-				getRepoErr:       tc.getRepoErr,
-				forkNameOverride: tc.forkNameOverride,
+				repos:         tc.existingRepos,
+				fullRepos:     tc.fullRepos,
+				createForkErr: tc.createForkErr,
+				getReposErr:   tc.getReposErr,
+				getRepoErr:    tc.getRepoErr,
 			}
 
 			forkNames, err := configureForks(client, "test-org", tc.orgConfig)

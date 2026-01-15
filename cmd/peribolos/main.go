@@ -1338,29 +1338,24 @@ func configureForks(client forkClient, orgName string, orgConfig org.Config) (ma
 		}
 
 		repoLogger.Info("creating fork from upstream")
-		// Pass the config key as the desired fork name - GitHub will use this name for the fork
-		createdName, err := client.CreateForkInOrg(parts[0], parts[1], orgName, defaultBranchOnly, repoName)
-		if err != nil {
+		// Pass the config key as the desired fork name - GitHub will use this exact name
+		// (or return an error if a repo with that name already exists)
+		if _, err := client.CreateForkInOrg(parts[0], parts[1], orgName, defaultBranchOnly, repoName); err != nil {
 			repoLogger.WithError(err).Error("failed to create fork")
 			allErrors = append(allErrors, err)
 			continue
 		}
 
-		// Note: GitHub may name the fork differently if there's a naming conflict
-		if createdName != repoName {
-			repoLogger.WithField("created_name", createdName).Warn("fork was created with a different name than expected")
-		}
-
 		// Wait for the fork to become available (GitHub creates forks asynchronously)
 		repoLogger.Info("waiting for fork to become available")
-		if err := waitForFork(client, orgName, createdName, 5*time.Minute, 10*time.Second); err != nil {
+		if err := waitForFork(client, orgName, repoName, 5*time.Minute, 10*time.Second); err != nil {
 			repoLogger.WithError(err).Error("fork creation timed out")
 			allErrors = append(allErrors, err)
 			continue
 		}
 
-		// Record the mapping for configureCollaborators
-		forkNames[repoName] = createdName
+		// Record the mapping for configureRepos and configureCollaborators
+		forkNames[repoName] = repoName
 		repoLogger.Info("fork created successfully")
 	}
 
