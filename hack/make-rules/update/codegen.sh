@@ -160,6 +160,7 @@ gen-spyglass-bindata() {
   echo "Generating spyglass bindata..." >&2
   $go_bindata -modtime 1 -pkg=common static/
   gofmt -s -w ./
+  gofmt -s -w ./  # Run twice: go-bindata + Go 1.25 generates malformed comments needing two passes
   cd - >/dev/null
 }
 
