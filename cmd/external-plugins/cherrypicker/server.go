@@ -305,17 +305,12 @@ func (s *Server) handleIssueComment(log logrus.FieldLogger, ic github.IssueComme
 		branchLog.Debug("Cherrypick request.")
 
 		if err := s.handle(branchLog, ic.Comment.User.Login, &ic.Comment, org, repo, targetBranch, baseBranch, commands[targetBranch], title, body, num); err != nil {
-			branchLog.WithError(err).Error("Cherrypick failed")
 			errs = append(errs, fmt.Errorf("failed to handle cherrypick for %s: %w", targetBranch, err))
-        	continue 
+			continue
 		}
 	}
 
-	if len(errs) > 0 {
-    return log, utilerrors.NewAggregate(errs) 
-	}
-
-	return log, nil
+	return log, utilerrors.NewAggregate(errs)
 }
 
 type cherrypickCommands map[string][]string
