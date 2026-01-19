@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 
@@ -296,76 +297,172 @@ func TestCherryPickICV2(t *testing.T) {
 }
 
 func testCherryPickIC(clients localgit.Clients, t *testing.T) {
-	iNumber := fakePR.GetPRNumber()
-	lg, c := makeFakeRepoWithCommit(clients, t)
-	if err := lg.CheckoutNewBranch("foo", "bar", "stage"); err != nil {
-		t.Fatalf("Checking out pull branch: %v", err)
-	}
-
-	ghc := &fghc{
-		pr: &github.PullRequest{
-			Base: github.PullRequestBranch{
-				Ref: "master",
-			},
-			Merged: true,
-			Title:  "This is a fix for X",
-			Body:   body,
-		},
-		isMember: true,
-		patch:    patch,
-	}
-	ic := github.IssueCommentEvent{
-		Action: github.IssueCommentActionCreated,
-		Repo: github.Repo{
-			Owner: github.User{
-				Login: "foo",
-			},
-			Name:     "bar",
-			FullName: "foo/bar",
-		},
-		Issue: github.Issue{
-			Number:      iNumber,
-			State:       "closed",
-			PullRequest: &struct{}{},
-		},
-		Comment: github.IssueComment{
-			User: github.User{
-				Login: "wiseguy",
-			},
-			Body: "/cherrypick stage",
-		},
-	}
 
 	botUser := &github.UserData{Login: "ci-robot", Email: "ci-robot@users.noreply.github.com"}
-	expectedTitle := "[stage] This is a fix for X"
-	expectedBody := fmt.Sprintf("This is an automated cherry-pick of #%d\n\n/assign wiseguy\n\n```release-note\nUpdate the magic number from 42 to 49\n```", iNumber)
-	expectedBase := "stage"
-	expectedHead := fmt.Sprintf(botUser.Login+":"+cherryPickBranchFmt, iNumber, expectedBase)
-	expectedLabels := []string{}
-	expected := fmt.Sprintf(expectedFmt, expectedTitle, expectedBody, expectedHead, expectedBase, expectedLabels)
-
 	getSecret := func() []byte {
 		return []byte("sha=abcdefg")
 	}
 
-	s := &Server{
-		botUser:        botUser,
-		gc:             c,
-		pusher:         fakePusher{},
-		ghc:            ghc,
-		tokenGenerator: getSecret,
-		log:            logrus.StandardLogger().WithField("client", "cherrypicker"),
+	t.Run("single branch success", func(t *testing.T) {
+		iNumber := fakePR.GetPRNumber()
+		lg, c := makeFakeRepoWithCommit(clients, t)
+		if err := lg.CheckoutNewBranch("foo", "bar", "stage"); err != nil {
+			t.Fatalf("Checking out pull branch: %v", err)
+		}
 
-		prowAssignments: true,
-	}
+		ghc := &fghc{
+			pr: &github.PullRequest{
+				Base: github.PullRequestBranch{
+					Ref: "master",
+				},
+				Merged: true,
+				Title:  "This is a fix for X",
+				Body:   body,
+			},
+			isMember: true,
+			patch:    patch,
+		}
 
-	if _, err := s.handleIssueComment(logrus.NewEntry(logrus.StandardLogger()), ic); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	got := prToString(ghc.prs[0])
-	if got != expected {
-		t.Errorf("Expected (%d):\n%s\nGot (%d):\n%+v\n", len(expected), expected, len(got), got)
-	}
+		ic := github.IssueCommentEvent{
+			Action: github.IssueCommentActionCreated,
+			Repo: github.Repo{
+				Owner: github.User{
+					Login: "foo",
+				},
+				Name:     "bar",
+				FullName: "foo/bar",
+			},
+			Issue: github.Issue{
+				Number:      iNumber,
+				State:       "closed",
+				PullRequest: &struct{}{},
+			},
+			Comment: github.IssueComment{
+				User: github.User{
+					Login: "wiseguy",
+				},
+				Body: "/cherrypick stage",
+			},
+		}
+		expectedTitle := "[stage] This is a fix for X"
+		expectedBody := fmt.Sprintf("This is an automated cherry-pick of #%d\n\n/assign wiseguy\n\n```release-note\nUpdate the magic number from 42 to 49\n```", iNumber)
+		expectedBase := "stage"
+		expectedHead := fmt.Sprintf(botUser.Login+":"+cherryPickBranchFmt, iNumber, expectedBase)
+		expectedLabels := []string{}
+		expected := fmt.Sprintf(expectedFmt, expectedTitle, expectedBody, expectedHead, expectedBase, expectedLabels)
+
+		s := &Server{
+			botUser:        botUser,
+			gc:             c,
+			pusher:         fakePusher{},
+			ghc:            ghc,
+			tokenGenerator: getSecret,
+			log:            logrus.StandardLogger().WithField("client", "cherrypicker"),
+
+			prowAssignments: true,
+		}
+
+		if _, err := s.handleIssueComment(logrus.NewEntry(logrus.StandardLogger()), ic); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		got := prToString(ghc.prs[0])
+		if got != expected {
+			t.Errorf("Expected (%d):\n%s\nGot (%d):\n%+v\n", len(expected), expected, len(got), got)
+		}
+
+	})
+
+	t.Run("one branch fails, others proceed", func(t *testing.T) {
+		iNumber := fakePR.GetPRNumber()
+		lg, c := makeFakeRepoWithCommit(clients, t)
+
+		for _, br := range []string{"good-1", "bad", "good-2"} {
+			if err := lg.CheckoutNewBranch("foo", "bar", br); err != nil {
+				t.Fatalf("Checkout %s: %v", br, err)
+			}
+		}
+
+		if err := lg.Checkout("foo", "bar", "bad"); err != nil {
+			t.Fatalf("Checkout bad: %v", err)
+		}
+
+		if err := lg.AddCommit("foo", "bar", map[string][]byte{
+			"bar.go": []byte("this will conflict\n"),
+		}); err != nil {
+			t.Fatalf("Add conflicting commit: %v", err)
+		}
+
+		ghc := &fghc{
+			pr: &github.PullRequest{
+				Base: github.PullRequestBranch{
+					Ref: "master",
+				},
+				Merged: true,
+				Title:  "This is a fix for X",
+				Body:   body,
+			},
+			isMember: true,
+			patch:    patch,
+		}
+
+		ic := github.IssueCommentEvent{
+			Action: github.IssueCommentActionCreated,
+			Repo: github.Repo{
+				Owner: github.User{
+					Login: "foo",
+				},
+				Name:     "bar",
+				FullName: "foo/bar",
+			},
+			Issue: github.Issue{
+				Number:      iNumber,
+				State:       "closed",
+				PullRequest: &struct{}{},
+			},
+			Comment: github.IssueComment{
+				User: github.User{
+					Login: "wiseguy",
+				},
+				Body: "/cherrypick good-1\n/cherrypick bad\n/cherrypick good-2",
+			},
+		}
+
+		s := &Server{
+			botUser:        botUser,
+			gc:             c,
+			pusher:         fakePusher{},
+			ghc:            ghc,
+			tokenGenerator: getSecret,
+			log:            logrus.StandardLogger().WithField("client", "cherrypicker"),
+		}
+
+		_, _ = s.handleIssueComment(logrus.NewEntry(logrus.StandardLogger()), ic)
+
+		if len(ghc.prs) != 2 {
+			t.Fatalf("expected 2 successful cherry-picks, got %d", len(ghc.prs))
+		}
+
+		found := sets.New[string]()
+		for _, pr := range ghc.prs {
+			found.Insert(pr.Base.Ref)
+		}
+
+		if !found.Has("good-1") || !found.Has("good-2") {
+			t.Fatalf("expected PRs for good-1 and good-2, got %v", found.UnsortedList())
+		}
+
+		foundFailure := false
+		for _, c := range ghc.comments {
+			if strings.Contains(c, "failed") {
+				foundFailure = true
+				break
+			}
+		}
+
+		if !foundFailure {
+			t.Fatalf("expected failure comment for bad branch, got none")
+		}
+	})
 }
 
 func TestCherryPickPRV2(t *testing.T) {
