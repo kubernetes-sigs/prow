@@ -192,7 +192,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.27
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.66.3
 	github.com/client9/misspell v0.3.4
-	github.com/go-bindata/go-bindata/v3 v3.1.3
 	github.com/golangci/golangci-lint v1.64.8
 	github.com/google/ko v0.14.1
 	gotest.tools/gotestsum v1.12.3
@@ -449,7 +448,6 @@ require (
 
 tool (
 	github.com/client9/misspell/cmd/misspell
-	github.com/go-bindata/go-bindata/v3/go-bindata
 	github.com/golangci/golangci-lint/cmd/golangci-lint
 	github.com/google/ko
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc

@@ -44,8 +44,6 @@ informergen=${REPO_ROOT}/_bin/informer-gen
 go build -o "${informergen}" k8s.io/code-generator/cmd/informer-gen
 listergen=${REPO_ROOT}/_bin/lister-gen
 go build -o "${listergen}" k8s.io/code-generator/cmd/lister-gen
-go_bindata=${REPO_ROOT}/_bin/go-bindata
-go build -o "${go_bindata}" github.com/go-bindata/go-bindata/v3/go-bindata
 controllergen=${REPO_ROOT}/_bin/controller-gen
 go build -o "${controllergen}" sigs.k8s.io/controller-tools/cmd/controller-gen
 protoc_gen_go="${REPO_ROOT}/_bin/protoc-gen-go" # golang protobuf plugin
@@ -155,14 +153,6 @@ gen-informer() {
     --output-pkg sigs.k8s.io/prow/pkg/pipeline/informers
 }
 
-gen-spyglass-bindata() {
-  cd pkg/spyglass/lenses/common/
-  echo "Generating spyglass bindata..." >&2
-  $go_bindata -pkg=common static/
-  gofmt -s -w ./
-  cd - >/dev/null
-}
-
 gen-prowjob-crd() {
   echo "Generating prowjob crd..." >&2
   "$controllergen" crd:crdVersions=v1 paths=./pkg/apis/prowjobs/v1 output:stdout \
@@ -244,7 +234,6 @@ gen-deepcopy
 gen-client
 gen-lister
 gen-informer
-gen-spyglass-bindata
 gen-prowjob-crd
 gen-all-proto-stubs
 gen-gangway-apidescriptorpb-for-cloud-endpoints

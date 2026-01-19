@@ -18,6 +18,7 @@ package common
 
 import (
 	"context"
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -37,7 +38,10 @@ import (
 	"sigs.k8s.io/prow/pkg/spyglass/api"
 )
 
-var lensTemplate = template.Must(template.New("sg").Parse(string(MustAsset("static/spyglass-lens.html"))))
+//go:embed static/spyglass-lens.html
+var lensTemplateContent []byte
+
+var lensTemplate = template.Must(template.New("sg").Parse(string(lensTemplateContent)))
 var buildLogRegex = regexp.MustCompile(`^(?:[^/]*-)?build-log\.txt$`)
 
 type LensWithConfiguration struct {
