@@ -38,6 +38,7 @@ import (
 	_ "sigs.k8s.io/prow/pkg/plugins/help"
 	_ "sigs.k8s.io/prow/pkg/plugins/hold"
 	_ "sigs.k8s.io/prow/pkg/plugins/invalidcommitmsg"
+	_ "sigs.k8s.io/prow/pkg/plugins/issue-management"
 	_ "sigs.k8s.io/prow/pkg/plugins/jira"
 	_ "sigs.k8s.io/prow/pkg/plugins/label"
 	_ "sigs.k8s.io/prow/pkg/plugins/lgtm"
