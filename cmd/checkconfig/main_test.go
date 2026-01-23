@@ -2418,9 +2418,10 @@ func TestVerifyLabelPlugin(t *testing.T) {
 
 func TestValidateConfigUpdaterACLs(t *testing.T) {
 	testCases := []struct {
-		name             string
-		config           *plugins.Configuration
-		expectedErrorMsg string
+		name                  string
+		config                *plugins.Configuration
+		expectedErrorMsg      string
+		expectedErrorContains []string // For tests with non-deterministic error order
 	}{
 		{
 			name:   "nil config",
@@ -2516,7 +2517,11 @@ func TestValidateConfigUpdaterACLs(t *testing.T) {
 					},
 				},
 			},
-			expectedErrorMsg: `[config_updater.maps["config.yaml"].allowed_repos: org/repo cannot be empty, config_updater.maps["plugins.yaml"].denied_repos: you cannot set a repo without an org]`,
+			// Use expectedErrorContains instead of expectedErrorMsg because map iteration order is non-deterministic
+			expectedErrorContains: []string{
+				`config_updater.maps["config.yaml"].allowed_repos: org/repo cannot be empty`,
+				`config_updater.maps["plugins.yaml"].denied_repos: you cannot set a repo without an org`,
+			},
 		},
 	}
 
@@ -2527,7 +2532,14 @@ func TestValidateConfigUpdaterACLs(t *testing.T) {
 			if err != nil {
 				errMsg = err.Error()
 			}
-			if tc.expectedErrorMsg != errMsg {
+			if len(tc.expectedErrorContains) > 0 {
+				// For tests with non-deterministic error order, check that all expected substrings are present
+				for _, expected := range tc.expectedErrorContains {
+					if !strings.Contains(errMsg, expected) {
+						t.Errorf("expected error to contain %q, got error %q", expected, errMsg)
+					}
+				}
+			} else if tc.expectedErrorMsg != errMsg {
 				t.Errorf("expected error %q, got error %q", tc.expectedErrorMsg, errMsg)
 			}
 		})
