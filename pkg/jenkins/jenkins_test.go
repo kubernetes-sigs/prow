@@ -713,3 +713,165 @@ func TestGetBuildWithParametersPath(t *testing.T) {
 		})
 	}
 }
+
+func TestIsRunning(t *testing.T) {
+	tests := []struct {
+		name     string
+		build    Build
+		expected bool
+	}{
+		{
+			name:     "building true, result nil - should be running",
+			build:    Build{Building: true, Result: nil},
+			expected: true,
+		},
+		{
+			name:     "building true, result SUCCESS - should still be running",
+			build:    Build{Building: true, Result: strP(success)},
+			expected: true,
+		},
+		{
+			name:     "building true, result FAILURE - should still be running",
+			build:    Build{Building: true, Result: strP(failure)},
+			expected: true,
+		},
+		{
+			name:     "building false, result SUCCESS - completed successfully",
+			build:    Build{Building: false, Result: strP(success)},
+			expected: false,
+		},
+		{
+			name:     "building false, result FAILURE - completed with failure",
+			build:    Build{Building: false, Result: strP(failure)},
+			expected: false,
+		},
+		{
+			name:     "building false, result nil - not yet started (legacy behavior)",
+			build:    Build{Building: false, Result: nil},
+			expected: true,
+		},
+		{
+			name:     "building false, result nil, enqueued - waiting in queue",
+			build:    Build{Building: false, Result: nil, enqueued: true},
+			expected: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result := test.build.IsRunning()
+			if result != test.expected {
+				t.Errorf("IsRunning() = %v, expected %v", result, test.expected)
+			}
+		})
+	}
+}
+
+func TestIsSuccess(t *testing.T) {
+	tests := []struct {
+		name     string
+		build    Build
+		expected bool
+	}{
+		{
+			name:     "result SUCCESS - is success",
+			build:    Build{Result: strP(success)},
+			expected: true,
+		},
+		{
+			name:     "result FAILURE - not success",
+			build:    Build{Result: strP(failure)},
+			expected: false,
+		},
+		{
+			name:     "result nil - not success",
+			build:    Build{Result: nil},
+			expected: false,
+		},
+		{
+			name:     "building true with result SUCCESS - technically success but should check IsRunning first",
+			build:    Build{Building: true, Result: strP(success)},
+			expected: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result := test.build.IsSuccess()
+			if result != test.expected {
+				t.Errorf("IsSuccess() = %v, expected %v", result, test.expected)
+			}
+		})
+	}
+}
+
+func TestIsFailure(t *testing.T) {
+	tests := []struct {
+		name     string
+		build    Build
+		expected bool
+	}{
+		{
+			name:     "result FAILURE - is failure",
+			build:    Build{Result: strP(failure)},
+			expected: true,
+		},
+		{
+			name:     "result UNSTABLE - is failure",
+			build:    Build{Result: strP(unstable)},
+			expected: true,
+		},
+		{
+			name:     "result SUCCESS - not failure",
+			build:    Build{Result: strP(success)},
+			expected: false,
+		},
+		{
+			name:     "result nil - not failure",
+			build:    Build{Result: nil},
+			expected: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result := test.build.IsFailure()
+			if result != test.expected {
+				t.Errorf("IsFailure() = %v, expected %v", result, test.expected)
+			}
+		})
+	}
+}
+
+func TestIsAborted(t *testing.T) {
+	tests := []struct {
+		name     string
+		build    Build
+		expected bool
+	}{
+		{
+			name:     "result ABORTED - is aborted",
+			build:    Build{Result: strP(aborted)},
+			expected: true,
+		},
+		{
+			name:     "result SUCCESS - not aborted",
+			build:    Build{Result: strP(success)},
+			expected: false,
+		},
+		{
+			name:     "result nil - not aborted",
+			build:    Build{Result: nil},
+			expected: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result := test.build.IsAborted()
+			if result != test.expected {
+				t.Errorf("IsAborted() = %v, expected %v", result, test.expected)
+			}
+		})
+	}
+}
