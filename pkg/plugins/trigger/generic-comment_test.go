@@ -47,6 +47,14 @@ func issueLabels(labels ...string) []string {
 
 const shouldNotAddComment = "<none>"
 
+type fakeCommentPruner struct {
+	called bool
+}
+
+func (cp *fakeCommentPruner) PruneComments(shouldPrune func(github.IssueComment) bool) {
+	cp.called = true
+}
+
 type testcase struct {
 	name string
 
@@ -64,6 +72,7 @@ type testcase struct {
 	IssueLabels    []string
 	IgnoreOkToTest bool
 	AddedComment   string
+	PruneHelp      bool
 }
 
 func TestHandleGenericComment(t *testing.T) {
@@ -123,6 +132,7 @@ func TestHandleGenericComment(t *testing.T) {
 			State:       "open",
 			IsPR:        true,
 			ShouldBuild: true,
+			PruneHelp:   true,
 		},
 		{
 			name:        "reject /test from non-trusted member when PR author is untrusted",
@@ -141,6 +151,7 @@ func TestHandleGenericComment(t *testing.T) {
 			State:       "open",
 			IsPR:        true,
 			ShouldBuild: true,
+			PruneHelp:   true,
 			IssueLabels: issueLabels(labels.OkToTest),
 		},
 		{
@@ -151,6 +162,7 @@ func TestHandleGenericComment(t *testing.T) {
 			State:         "open",
 			IsPR:          true,
 			ShouldBuild:   true,
+			PruneHelp:     true,
 			IssueLabels:   issueLabels(labels.NeedsOkToTest, labels.OkToTest),
 			RemovedLabels: issueLabels(labels.NeedsOkToTest),
 		},
@@ -201,6 +213,7 @@ func TestHandleGenericComment(t *testing.T) {
 			State:       "open",
 			IsPR:        true,
 			ShouldBuild: true,
+			PruneHelp:   true,
 		},
 		{
 			name: "Wrong branch",
@@ -221,6 +234,7 @@ func TestHandleGenericComment(t *testing.T) {
 			IsPR:          true,
 			ShouldBuild:   true,
 			StartsExactly: "pull-jib",
+			PruneHelp:     true,
 		},
 		{
 			name: "Retest with one running and one failed, trailing space.",
@@ -231,6 +245,7 @@ func TestHandleGenericComment(t *testing.T) {
 			IsPR:          true,
 			ShouldBuild:   true,
 			StartsExactly: "pull-jib",
+			PruneHelp:     true,
 		},
 		{
 			name:   "test of silly regex job",
@@ -255,6 +270,10 @@ func TestHandleGenericComment(t *testing.T) {
 			},
 			ShouldBuild:   true,
 			StartsExactly: "pull-jab",
+
+			// We only add/remove help comments for things that look like the
+			// normal triggers.
+			PruneHelp: false,
 		},
 		{
 			name: "needs-ok-to-test label is removed when no presubmit runs by default",
@@ -345,6 +364,7 @@ func TestHandleGenericComment(t *testing.T) {
 			},
 			ShouldBuild:   true,
 			StartsExactly: "pull-jab",
+			PruneHelp:     true,
 		},
 		{
 			name:   "Retest of skip_if_only_changed job that hasn't run. Changes require job",
@@ -372,6 +392,7 @@ func TestHandleGenericComment(t *testing.T) {
 			},
 			ShouldBuild:   true,
 			StartsExactly: "pull-jab",
+			PruneHelp:     true,
 		},
 		{
 			name:   "Retest of run_if_changed job that failed. Changes require job",
@@ -398,6 +419,7 @@ func TestHandleGenericComment(t *testing.T) {
 			},
 			ShouldBuild:   true,
 			StartsExactly: "pull-jib",
+			PruneHelp:     true,
 		},
 		{
 			name:   "Retest of skip_if_only_changed job that failed. Changes require job",
@@ -424,6 +446,7 @@ func TestHandleGenericComment(t *testing.T) {
 			},
 			ShouldBuild:   true,
 			StartsExactly: "pull-jib",
+			PruneHelp:     true,
 		},
 		{
 			name:   "/test of run_if_changed job that has passed",
@@ -450,6 +473,7 @@ func TestHandleGenericComment(t *testing.T) {
 			},
 			ShouldBuild:   true,
 			StartsExactly: "pull-jub",
+			PruneHelp:     true,
 		},
 		{
 			name:   "/test of skip_if_only_changed job that has passed",
@@ -476,6 +500,7 @@ func TestHandleGenericComment(t *testing.T) {
 			},
 			ShouldBuild:   true,
 			StartsExactly: "pull-jub",
+			PruneHelp:     true,
 		},
 		{
 			name:   "Retest triggers failed job",
@@ -498,6 +523,7 @@ func TestHandleGenericComment(t *testing.T) {
 				},
 			},
 			ShouldBuild: true,
+			PruneHelp:   true,
 		},
 		{
 			name:   "Retest triggers failed job that is optional",
@@ -521,6 +547,7 @@ func TestHandleGenericComment(t *testing.T) {
 				},
 			},
 			ShouldBuild: true,
+			PruneHelp:   true,
 		},
 		{
 			name:   "Retest-Required doesn't triggers failed job",
@@ -543,6 +570,7 @@ func TestHandleGenericComment(t *testing.T) {
 				},
 			},
 			ShouldBuild: true,
+			PruneHelp:   true,
 		},
 		{
 			name:   "Retest-Required doesn't trigger failed job that is optional",
@@ -565,6 +593,7 @@ func TestHandleGenericComment(t *testing.T) {
 					},
 				},
 			},
+			PruneHelp: true,
 		},
 		{
 			name:   "Retest of run_if_changed job that failed. Changes do not require the job",
@@ -590,6 +619,7 @@ func TestHandleGenericComment(t *testing.T) {
 				},
 			},
 			ShouldBuild: true,
+			PruneHelp:   true,
 		},
 		{
 			name:   "Retest of skip_if_only_changed job that failed. Changes do not require the job",
@@ -615,6 +645,7 @@ func TestHandleGenericComment(t *testing.T) {
 				},
 			},
 			ShouldBuild: true,
+			PruneHelp:   true,
 		},
 		{
 			name:   "Run if changed job triggered by /ok-to-test",
@@ -708,6 +739,7 @@ func TestHandleGenericComment(t *testing.T) {
 			},
 			ShouldBuild:   true,
 			StartsExactly: "pull-jab",
+			PruneHelp:     true,
 		},
 		{
 			name:   "branch-sharded job. no shard matches base branch",
@@ -767,6 +799,7 @@ func TestHandleGenericComment(t *testing.T) {
 					},
 				},
 			},
+			PruneHelp: true,
 		},
 		{
 			name: "/retest of SkipIfOnlyChanged job that doesn't need to run and hasn't run",
@@ -792,6 +825,7 @@ func TestHandleGenericComment(t *testing.T) {
 					},
 				},
 			},
+			PruneHelp: true,
 		},
 		{
 			name: "explicit /test for RunIfChanged job that doesn't need to run",
@@ -870,6 +904,7 @@ func TestHandleGenericComment(t *testing.T) {
 			},
 			ShouldBuild:   true,
 			StartsExactly: "pull-jub",
+			PruneHelp:     true,
 		},
 		{
 			name:   "/test all of skip_if_only_changed job that has passed and needs to run",
@@ -896,6 +931,7 @@ func TestHandleGenericComment(t *testing.T) {
 			},
 			ShouldBuild:   true,
 			StartsExactly: "pull-jub",
+			PruneHelp:     true,
 		},
 		{
 			name:   "/test all of run_if_changed job that has passed and doesn't need to run",
@@ -953,6 +989,7 @@ func TestHandleGenericComment(t *testing.T) {
 			State:       "open",
 			IsPR:        true,
 			ShouldBuild: true,
+			PruneHelp:   true,
 		},
 		{
 			name:        `Non-trusted member after "/lgtm" and "/approve"`,
@@ -1087,7 +1124,7 @@ func TestHandleGenericComment(t *testing.T) {
 			AddedComment: pjutil.TestWithoutTargetNote + helpComment + helpTestAllWithJobsComment,
 		},
 		{
-			name:         "ignore `/test` with no target results in a code block",
+			name:         "ignore `/test` with no target in a code block",
 			Author:       "trusted-member",
 			Body:         "```\n/test\n```",
 			State:        "open",
@@ -1095,7 +1132,7 @@ func TestHandleGenericComment(t *testing.T) {
 			AddedComment: shouldNotAddComment,
 		},
 		{
-			name:         "ignore `/test` with no target results in a tilda code block",
+			name:         "ignore `/test` with no target in a tilde code block",
 			Author:       "trusted-member",
 			Body:         "~~~\n/test\n~~~",
 			State:        "open",
@@ -1119,7 +1156,7 @@ func TestHandleGenericComment(t *testing.T) {
 			AddedComment: pjutil.RetestWithTargetNote + helpComment + helpTestAllWithJobsComment,
 		},
 		{
-			name:         "/retest with trailing words results in a code block",
+			name:         "/retest with trailing words in a code block",
 			Author:       "trusted-member",
 			Body:         produceCodeBlock("/retest FOO", false),
 			State:        "open",
@@ -1134,6 +1171,7 @@ func TestHandleGenericComment(t *testing.T) {
 			IsPR:          true,
 			ShouldBuild:   true,
 			StartsExactly: "pull-jib",
+			PruneHelp:     true,
 		},
 		{
 			name:         "/test with unknown target results in a help message",
@@ -1144,7 +1182,7 @@ func TestHandleGenericComment(t *testing.T) {
 			AddedComment: pjutil.TargetNotFoundNote + helpComment + helpTestAllWithJobsComment,
 		},
 		{
-			name:         "/test with unknown target results in code block. Should be ignored",
+			name:         "/test with unknown target in code block. Should be ignored",
 			Author:       "trusted-member",
 			Body:         produceCodeBlock("/test FOO", false),
 			State:        "open",
@@ -1152,7 +1190,7 @@ func TestHandleGenericComment(t *testing.T) {
 			AddedComment: shouldNotAddComment,
 		},
 		{
-			name:         "two `/test` with unknown target results. One in a code block, and one is not.",
+			name:         "two `/test` with unknown target. One in a code block, and one is not.",
 			Author:       "trusted-member",
 			Body:         produceCodeBlock("/test FOO", true) + "/test BAR",
 			State:        "open",
@@ -1160,7 +1198,7 @@ func TestHandleGenericComment(t *testing.T) {
 			AddedComment: pjutil.TargetNotFoundNote + helpComment + helpTestAllWithJobsComment,
 		},
 		{
-			name:         "two `/test` with unknown target results. One out of a code block, and one is inside.",
+			name:         "two `/test` with unknown target. One out of a code block, and one is inside.",
 			Author:       "trusted-member",
 			Body:         "/test FOO\n" + produceCodeBlock("/test BAR", false),
 			State:        "open",
@@ -1485,23 +1523,25 @@ func TestHandleGenericComment(t *testing.T) {
 			}
 			trigger.SetDefaults()
 
+			cp := &fakeCommentPruner{}
+
 			log.Printf("running case %s", tc.name)
 			// In some cases handleGenericComment can be called twice for the same event.
 			// For instance on Issue/PR creation and modification.
 			// Let's call it twice to ensure idempotency.
-			if err := handleGenericComment(c, trigger, event); err != nil {
+			if err := handleGenericComment(c, cp, trigger, event); err != nil {
 				t.Fatalf("%s: didn't expect error: %s", tc.name, err)
 			}
-			validate(t, fakeProwJobClient.Fake.Actions(), g, tc)
-			if err := handleGenericComment(c, trigger, event); err != nil {
+			validate(t, fakeProwJobClient.Fake.Actions(), g, cp, tc)
+			if err := handleGenericComment(c, cp, trigger, event); err != nil {
 				t.Fatalf("%s: didn't expect error: %s", tc.name, err)
 			}
-			validate(t, fakeProwJobClient.Fake.Actions(), g, tc)
+			validate(t, fakeProwJobClient.Fake.Actions(), g, cp, tc)
 		})
 	}
 }
 
-func validate(t *testing.T, actions []clienttesting.Action, g *fakegithub.FakeClient, tc testcase) {
+func validate(t *testing.T, actions []clienttesting.Action, g *fakegithub.FakeClient, cp *fakeCommentPruner, tc testcase) {
 	startedContexts := sets.New[string]()
 	for _, action := range actions {
 		switch action := action.(type) {
@@ -1540,6 +1580,11 @@ func validate(t *testing.T, actions []clienttesting.Action, g *fakegithub.FakeCl
 				}
 			}
 		}
+	}
+	if tc.PruneHelp && !cp.called {
+		t.Errorf("expected to prune old help comment on successful trigger, but did not")
+	} else if !tc.PruneHelp && cp.called {
+		t.Errorf("expected to not prune old help comment, but did")
 	}
 }
 

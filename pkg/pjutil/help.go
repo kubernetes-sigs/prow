@@ -30,10 +30,15 @@ var (
 	RetestWithTargetRe  = regexp.MustCompile(`(?m)^/retest[ \t]+\S+`)
 	TestWithAnyTargetRe = regexp.MustCompile(`(?m)^/test[ \t]+\S+`)
 
+	anyTestRe = regexp.MustCompile(`(?m)^/(?:re)?test\b`)
+
 	TestWithoutTargetNote     = "The `/test` command needs one or more targets.\n"
 	RetestWithTargetNote      = "The `/retest` command does not accept any targets.\n"
 	TargetNotFoundNote        = "The specified target(s) for `/test` were not found.\n"
 	ThereAreNoTestAllJobsNote = "No jobs can be run with `/test all`.\n"
+
+	availableRequiredTestsNote = "The following commands are available to trigger required jobs:"
+	availableOptionalTestsNote = "The following commands are available to trigger optional jobs:"
 )
 
 func MayNeedHelpComment(body string) bool {
@@ -60,6 +65,20 @@ func ShouldRespondWithHelp(body string, toRunOrSkip int) (bool, string) {
 	}
 }
 
+func ShouldRespondByPruningHelp(body string) bool {
+	return anyTestRe.MatchString(body)
+}
+
+func IsHelpComment(body string) bool {
+	return strings.Contains(body, TestWithoutTargetNote) ||
+		strings.Contains(body, RetestWithTargetNote) ||
+		strings.Contains(body, TargetNotFoundNote) ||
+		strings.Contains(body, ThereAreNoTestAllJobsNote) ||
+		// The response to "/test ?" has no header, so we have to search for these as well.
+		strings.Contains(body, availableRequiredTestsNote) ||
+		strings.Contains(body, availableOptionalTestsNote)
+}
+
 // HelpMessage returns a user friendly help message with the
 //
 //	available /test commands that can be triggered
@@ -79,10 +98,10 @@ func HelpMessage(org, repo, branch, note string, testAllNames, optionalTestComma
 
 	resp = note
 	if requiredTestCommands.Len() > 0 {
-		resp += fmt.Sprintf("The following commands are available to trigger required jobs:%s\n\n", listBuilder(requiredTestCommands))
+		resp += availableRequiredTestsNote + listBuilder(requiredTestCommands) + "\n\n"
 	}
 	if optionalTestCommands.Len() > 0 {
-		resp += fmt.Sprintf("The following commands are available to trigger optional jobs:%s\n\n", listBuilder(optionalTestCommands))
+		resp += availableOptionalTestsNote + listBuilder(optionalTestCommands) + "\n\n"
 	}
 
 	var testAllNote string
