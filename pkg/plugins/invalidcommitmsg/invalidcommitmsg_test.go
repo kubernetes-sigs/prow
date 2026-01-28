@@ -48,16 +48,13 @@ func makeFakePullRequestEvent(action github.PullRequestEventAction, title string
 	}
 }
 
-var invalidCommitComment = `k/k#3:[Keywords](https://help.github.com/articles/closing-issues-using-keywords) which can automatically close issues and at(@) or hashtag(#) mentions are not allowed in commit messages.
+var invalidCommitComment = `k/k#3:[Keywords](https://help.github.com/articles/closing-issues-using-keywords) which can automatically close issues and hashtag(#) mentions are not allowed in commit messages.
 
 **The list of commits with invalid commit messages**:
 
-- [sha1](https://github.com/k/k/commits/sha1) this is a @mention
-- [sha2](https://github.com/k/k/commits/sha2) this @menti-on has a hyphen
-- [sha3](https://github.com/k/k/commits/sha3) this @Menti-On has mixed case letters
-- [sha4](https://github.com/k/k/commits/sha4) fixes k/k#9999
-- [sha5](https://github.com/k/k/commits/sha5) Close k/k#9999
-- [sha6](https://github.com/k/k/commits/sha6) resolved k/k#9999
+- [sha1](https://github.com/k/k/commits/sha1) fixes k/k#9999
+- [sha2](https://github.com/k/k/commits/sha2) Close k/k#9999
+- [sha3](https://github.com/k/k/commits/sha3) resolved k/k#9999
 
 <details>
 
@@ -65,7 +62,7 @@ Instructions for interacting with me using PR comments are available [here](http
 </details>
 `
 
-var invalidPRTitleComment = `k/k#3:[Keywords](https://help.github.com/articles/closing-issues-using-keywords) which can automatically close issues and at(@) mentions are not allowed in the title of a Pull Request.
+var invalidPRTitleComment = `k/k#3:[Keywords](https://help.github.com/articles/closing-issues-using-keywords) which can automatically close issues are not allowed in the title of a Pull Request.
 
 You can edit the title by writing **/retitle <new-title>** in a comment.
 
@@ -101,8 +98,6 @@ func TestHandlePullRequest(t *testing.T) {
 			commits: []github.RepositoryCommit{
 				{SHA: "sha1", Commit: github.GitCommit{Message: "this is a valid message"}},
 				{SHA: "sha2", Commit: github.GitCommit{Message: "fixing k/k#9999"}},
-				{SHA: "sha3", Commit: github.GitCommit{Message: "not a @ mention"}},
-				{SHA: "sha4", Commit: github.GitCommit{Message: "escape @\u200bmention with zero width unicode"}},
 			},
 			hasInvalidCommitMessageLabel: false,
 		},
@@ -110,13 +105,9 @@ func TestHandlePullRequest(t *testing.T) {
 			name:   "msg contains invalid keywords -> add label and comment",
 			action: github.PullRequestActionOpened,
 			commits: []github.RepositoryCommit{
-				{SHA: "sha1", Commit: github.GitCommit{Message: "this is a @mention"}},
-				{SHA: "sha2", Commit: github.GitCommit{Message: "this @menti-on has a hyphen"}},
-				{SHA: "sha3", Commit: github.GitCommit{Message: "this @Menti-On has mixed case letters"}},
-				{SHA: "sha4", Commit: github.GitCommit{Message: "fixes k/k#9999"}},
-				{SHA: "sha5", Commit: github.GitCommit{Message: "Close k/k#9999"}},
-				{SHA: "sha6", Commit: github.GitCommit{Message: "resolved k/k#9999"}},
-				{SHA: "sha7", Commit: github.GitCommit{Message: "this is an email@address and is valid"}},
+				{SHA: "sha1", Commit: github.GitCommit{Message: "fixes k/k#9999"}},
+				{SHA: "sha2", Commit: github.GitCommit{Message: "Close k/k#9999"}},
+				{SHA: "sha3", Commit: github.GitCommit{Message: "resolved k/k#9999"}},
 			},
 			hasInvalidCommitMessageLabel: false,
 
@@ -143,17 +134,6 @@ func TestHandlePullRequest(t *testing.T) {
 			hasInvalidCommitMessageLabel: false,
 		},
 		{
-			name:   "contains invalid title with @mention -> add label and comment",
-			action: github.PullRequestActionOpened,
-			commits: []github.RepositoryCommit{
-				{SHA: "sha1", Commit: github.GitCommit{Message: "this is a valid message"}},
-			},
-			title:                        "title with @mention",
-			hasInvalidCommitMessageLabel: false,
-			addedLabel:                   fmt.Sprintf("k/k#3:%s", invalidCommitMsgLabel),
-			addedComments:                []string{invalidPRTitleComment},
-		},
-		{
 			name:   "contains invalid title with fixes keyword -> add label and comment",
 			action: github.PullRequestActionOpened,
 			commits: []github.RepositoryCommit{
@@ -168,15 +148,11 @@ func TestHandlePullRequest(t *testing.T) {
 			name:   "contains invalid title and invalid commits -> add label and 2 comments",
 			action: github.PullRequestActionOpened,
 			commits: []github.RepositoryCommit{
-				{SHA: "sha1", Commit: github.GitCommit{Message: "this is a @mention"}},
-				{SHA: "sha2", Commit: github.GitCommit{Message: "this @menti-on has a hyphen"}},
-				{SHA: "sha3", Commit: github.GitCommit{Message: "this @Menti-On has mixed case letters"}},
-				{SHA: "sha4", Commit: github.GitCommit{Message: "fixes k/k#9999"}},
-				{SHA: "sha5", Commit: github.GitCommit{Message: "Close k/k#9999"}},
-				{SHA: "sha6", Commit: github.GitCommit{Message: "resolved k/k#9999"}},
-				{SHA: "sha7", Commit: github.GitCommit{Message: "this is an email@address and is valid"}},
+				{SHA: "sha1", Commit: github.GitCommit{Message: "fixes k/k#9999"}},
+				{SHA: "sha2", Commit: github.GitCommit{Message: "Close k/k#9999"}},
+				{SHA: "sha3", Commit: github.GitCommit{Message: "resolved k/k#9999"}},
 			},
-			title:                        "title with @mention",
+			title:                        "fixes #9999",
 			hasInvalidCommitMessageLabel: false,
 			addedLabel:                   fmt.Sprintf("k/k#3:%s", invalidCommitMsgLabel),
 			addedComments:                []string{invalidCommitComment, invalidPRTitleComment},
@@ -187,7 +163,7 @@ func TestHandlePullRequest(t *testing.T) {
 			commits: []github.RepositoryCommit{
 				{SHA: "sha", Commit: github.GitCommit{Message: "this is a valid message"}},
 			},
-			title:                        "title with @mention",
+			title:                        "fixes #9999",
 			hasInvalidCommitMessageLabel: true,
 			addedComments:                []string{invalidPRTitleComment},
 		},
@@ -195,13 +171,9 @@ func TestHandlePullRequest(t *testing.T) {
 			name:   "invalid commits and valid title, and has label -> keep label and add comment",
 			action: github.PullRequestActionOpened,
 			commits: []github.RepositoryCommit{
-				{SHA: "sha1", Commit: github.GitCommit{Message: "this is a @mention"}},
-				{SHA: "sha2", Commit: github.GitCommit{Message: "this @menti-on has a hyphen"}},
-				{SHA: "sha3", Commit: github.GitCommit{Message: "this @Menti-On has mixed case letters"}},
-				{SHA: "sha4", Commit: github.GitCommit{Message: "fixes k/k#9999"}},
-				{SHA: "sha5", Commit: github.GitCommit{Message: "Close k/k#9999"}},
-				{SHA: "sha6", Commit: github.GitCommit{Message: "resolved k/k#9999"}},
-				{SHA: "sha7", Commit: github.GitCommit{Message: "this is an email@address and is valid"}},
+				{SHA: "sha1", Commit: github.GitCommit{Message: "fixes k/k#9999"}},
+				{SHA: "sha2", Commit: github.GitCommit{Message: "Close k/k#9999"}},
+				{SHA: "sha3", Commit: github.GitCommit{Message: "resolved k/k#9999"}},
 			},
 			title:                        "valid title",
 			hasInvalidCommitMessageLabel: true,
