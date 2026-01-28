@@ -15,8 +15,7 @@ limitations under the License.
 */
 
 // Package invalidcommitmsg adds the "do-not-merge/invalid-commit-message"
-// label on PRs containing commit messages with @mentions or
-// keywords that can automatically close issues.
+// label on PRs containing commit messages with keywords that can automatically close issues.
 package invalidcommitmsg
 
 import (
@@ -36,7 +35,7 @@ import (
 const (
 	pluginName                  = "invalidcommitmsg"
 	invalidCommitMsgLabel       = "do-not-merge/invalid-commit-message"
-	invalidCommitMsgCommentBody = `[Keywords](https://help.github.com/articles/closing-issues-using-keywords) which can automatically close issues and at(@) or hashtag(#) mentions are not allowed in commit messages.
+	invalidCommitMsgCommentBody = `[Keywords](https://help.github.com/articles/closing-issues-using-keywords) which can automatically close issues and hashtag(#) mentions are not allowed in commit messages.
 
 **The list of commits with invalid commit messages**:
 
@@ -48,7 +47,7 @@ const (
 </details>
 `
 	invalidCommitMsgCommentPruneBody = "**The list of commits with invalid commit messages**:"
-	invalidTitleCommentBody          = `[Keywords](https://help.github.com/articles/closing-issues-using-keywords) which can automatically close issues and at(@) mentions are not allowed in the title of a Pull Request.
+	invalidTitleCommentBody          = `[Keywords](https://help.github.com/articles/closing-issues-using-keywords) which can automatically close issues are not allowed in the title of a Pull Request.
 
 You can edit the title by writing **/retitle <new-title>** in a comment.
 
@@ -61,10 +60,7 @@ When GitHub merges a Pull Request, the title is included in the merge commit. To
 	invalidTitleCommentPruneBody = "not allowed in the title of a Pull Request"
 )
 
-var (
-	CloseIssueRegex = regexp.MustCompile(`((?i)(clos(?:e[sd]?))|(fix(?:(es|ed)?))|(resolv(?:e[sd]?)))[\s:]+(\w+/\w+)?#(\d+)`)
-	AtMentionRegex  = regexp.MustCompile(`\B([@][\w_-]+)`)
-)
+var CloseIssueRegex = regexp.MustCompile(`((?i)(clos(?:e[sd]?))|(fix(?:(es|ed)?))|(resolv(?:e[sd]?)))[\s:]+(\w+/\w+)?#(\d+)`)
 
 func init() {
 	plugins.RegisterPullRequestHandler(pluginName, handlePullRequest, helpProvider)
@@ -73,7 +69,7 @@ func init() {
 func helpProvider(config *plugins.Configuration, _ []config.OrgRepo) (*pluginhelp.PluginHelp, error) {
 	// Only the Description field is specified because this plugin is not triggered with commands and is not configurable.
 	return &pluginhelp.PluginHelp{
-			Description: "The invalidcommitmsg plugin applies the '" + invalidCommitMsgLabel + "' label to pull requests whose commit messages and titles contain @ mentions or keywords which can automatically close issues.",
+			Description: "The invalidcommitmsg plugin applies the '" + invalidCommitMsgLabel + "' label to pull requests whose commit messages and titles contain keywords which can automatically close issues.",
 		},
 		nil
 }
@@ -125,12 +121,12 @@ func handle(gc githubClient, log *logrus.Entry, pr github.PullRequestEvent, cp c
 
 	var invalidCommits []github.RepositoryCommit
 	for _, commit := range allCommits {
-		if CloseIssueRegex.MatchString(commit.Commit.Message) || AtMentionRegex.MatchString(commit.Commit.Message) {
+		if CloseIssueRegex.MatchString(commit.Commit.Message) {
 			invalidCommits = append(invalidCommits, commit)
 		}
 	}
 
-	invalidPRTitle := CloseIssueRegex.MatchString(title) || AtMentionRegex.MatchString(title)
+	invalidPRTitle := CloseIssueRegex.MatchString(title)
 
 	// if we have the label but all commits and the PR title is valid,
 	// remove the label and prune comments
