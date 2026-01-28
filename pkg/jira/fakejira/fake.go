@@ -82,7 +82,9 @@ func (f *FakeClient) JiraClient() *jira.Client {
 	panic("not implemented")
 }
 
-const FakeJiraUrl = "https://my-jira.com"
+// FakeJiraUrl is the return value for FakeClient.JiraURL.
+// JiraURL of the real client returns the base URL with a trailing slash.
+const FakeJiraUrl = "https://my-jira.com/"
 
 func (f *FakeClient) JiraURL() string {
 	return FakeJiraUrl

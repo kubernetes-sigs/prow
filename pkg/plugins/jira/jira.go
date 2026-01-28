@@ -28,6 +28,7 @@ import (
 
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
+
 	"sigs.k8s.io/prow/pkg/config"
 	"sigs.k8s.io/prow/pkg/github"
 	jiraclient "sigs.k8s.io/prow/pkg/jira"
@@ -214,7 +215,7 @@ func insertLinksIntoComment(body string, issueNames []string, jiraBaseURL string
 
 func insertLinksIntoLine(line string, issueNames []string, jiraBaseURL string) string {
 	for _, issue := range issueNames {
-		replacement := fmt.Sprintf("[%s](%s/browse/%s)", issue, jiraBaseURL, issue)
+		replacement := fmt.Sprintf("[%s](%s/browse/%s)", issue, strings.TrimSuffix(jiraBaseURL, "/"), issue)
 		line = replaceStringIfNeeded(line, issue, replacement)
 	}
 	return line
