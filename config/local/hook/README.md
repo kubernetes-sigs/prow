@@ -1,4 +1,4 @@
-# Local hook development
+# Local Hook development folder
 
 This folder contains configuration files to run [Hook](/docs/components/core/hook/) locally for plugin development and testing. This is a safe place to store sensible credentials, as the `config/local` folder is included in the gitignore.
 
