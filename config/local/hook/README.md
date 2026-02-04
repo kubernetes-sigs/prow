@@ -2,7 +2,7 @@
 
 This folder contains configuration files to run [Hook](/docs/components/core/hook/) locally for plugin development and testing. This is a safe place to store sensible credentials, as the `config/local` folder is included in the gitignore.
 
-For the full step-by-step guide, see [Developing and Contributing to Prow — Hook plugin development guide](/docs/getting-started-develop/#hook-plugin-development-guide).
+For the full step-by-step guide, see the [Hook plugin development guide](/docs/getting-started-hook).
 
 ## Files
 
