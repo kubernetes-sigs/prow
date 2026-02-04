@@ -1,0 +1,3 @@
+# Prow configuration file. No configuration is needed for local hook development.
+#
+# See: https://github.com/kubernetes-sigs/prow/blob/main/pkg/config/prow-config-documented.yaml
