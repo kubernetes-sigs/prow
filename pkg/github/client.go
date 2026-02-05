@@ -293,6 +293,8 @@ type Client interface {
 	Used() bool
 	TriggerGitHubWorkflow(org, repo string, id int) error
 	TriggerFailedGitHubWorkflow(org, repo string, id int) error
+	GetPendingApprovalActionRuns(org, repo, branchName, headSHA string) ([]WorkflowRun, error)
+	ApproveGitHubWorkflowRun(org, repo string, id int) error
 }
 
 // client interacts with the github api. It is reconstructed whenever
@@ -2148,6 +2150,55 @@ func (c *client) TriggerFailedGitHubWorkflow(org, repo string, id int) error {
 		accept:    "application/vnd.github.v3+json",
 		method:    http.MethodPost,
 		path:      fmt.Sprintf("/repos/%s/%s/actions/runs/%d/rerun-failed-jobs", org, repo, id),
+		org:       org,
+		exitCodes: []int{201},
+	}, nil)
+	return err
+}
+
+// GetPendingApprovalActionRuns retrieves workflow runs that are pending approval for a given PR head SHA
+//
+// See https://docs.github.com/en/rest/actions/workflow-runs#list-workflow-runs-for-a-repository
+func (c *client) GetPendingApprovalActionRuns(org, repo, branchName, headSHA string) ([]WorkflowRun, error) {
+	durationLogger := c.log("GetPendingApprovalActionRuns", org, repo)
+	defer durationLogger()
+
+	var runs WorkflowRuns
+
+	u := url.URL{
+		Path: fmt.Sprintf("/repos/%s/%s/actions/runs", org, repo),
+	}
+	query := u.Query()
+	// Filter for the specific head SHA
+	query.Add("head_sha", headSHA)
+	// setting the OR condition to get both PR and PR target workflows
+	query.Add("event", "pull_request OR pull_request_target")
+	query.Add("branch", branchName)
+	// Filter for action_required status (workflows pending approval)
+	query.Add("status", "action_required")
+	u.RawQuery = query.Encode()
+
+	_, err := c.request(&request{
+		accept:    "application/vnd.github.v3+json",
+		method:    http.MethodGet,
+		path:      u.String(),
+		org:       org,
+		exitCodes: []int{200},
+	}, &runs)
+
+	return runs.WorkflowRuns, err
+}
+
+// ApproveGitHubWorkflowRun approves a pending workflow run
+//
+// See https://docs.github.com/en/rest/actions/workflow-runs#approve-a-workflow-run-for-a-fork-pull-request
+func (c *client) ApproveGitHubWorkflowRun(org, repo string, id int) error {
+	durationLogger := c.log("ApproveGitHubWorkflowRun", org, repo, id)
+	defer durationLogger()
+	_, err := c.request(&request{
+		accept:    "application/vnd.github.v3+json",
+		method:    http.MethodPost,
+		path:      fmt.Sprintf("/repos/%s/%s/actions/runs/%d/approve", org, repo, id),
 		org:       org,
 		exitCodes: []int{201},
 	}, nil)

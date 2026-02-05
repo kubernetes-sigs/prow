@@ -3703,3 +3703,165 @@ func TestCollaboratorMethodsDryRun(t *testing.T) {
 		t.Errorf("Expected 0 API calls in dry-run mode, but got %d", callCount)
 	}
 }
+
+func TestGetPendingApprovalActionRuns(t *testing.T) {
+	const (
+		org     = "k8s"
+		repo    = "kuber"
+		branch  = "pr-branch"
+		headSHA = "abc123"
+	)
+	var (
+		pendingRun1 = WorkflowRun{ID: 1, HeadSha: headSHA, Status: "action_required"}
+		pendingRun2 = WorkflowRun{ID: 2, HeadSha: headSHA, Status: "action_required"}
+	)
+	testCases := []struct {
+		name          string
+		queryResponse WorkflowRuns
+		expectedRuns  []WorkflowRun
+	}{
+		{
+			name: "single pending run",
+			queryResponse: WorkflowRuns{
+				WorkflowRuns: []WorkflowRun{pendingRun1},
+			},
+			expectedRuns: []WorkflowRun{pendingRun1},
+		},
+		{
+			name: "multiple pending runs",
+			queryResponse: WorkflowRuns{
+				WorkflowRuns: []WorkflowRun{pendingRun1, pendingRun2},
+			},
+			expectedRuns: []WorkflowRun{pendingRun1, pendingRun2},
+		},
+		{
+			name: "no pending runs",
+			queryResponse: WorkflowRuns{
+				WorkflowRuns: []WorkflowRun{},
+			},
+			expectedRuns: []WorkflowRun{},
+		},
+		{
+			name: "mixed runs, but API filters to pending only",
+			queryResponse: WorkflowRuns{
+				WorkflowRuns: []WorkflowRun{pendingRun1},
+			},
+			expectedRuns: []WorkflowRun{pendingRun1},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != http.MethodGet {
+					t.Errorf("Expected GET method, got %s", r.Method)
+				}
+				expectedPath := fmt.Sprintf("/repos/%s/%s/actions/runs", org, repo)
+				if r.URL.Path != expectedPath {
+					t.Errorf("Expected path %s, got %s", expectedPath, r.URL.Path)
+				}
+
+				// Check query parameters
+				query := r.URL.Query()
+				if query.Get("head_sha") != headSHA {
+					t.Errorf("Expected query parameter head_sha=%s, got %s", headSHA, query.Get("head_sha"))
+				}
+				expectedEvent := "pull_request OR pull_request_target"
+				if query.Get("event") != expectedEvent {
+					t.Errorf("Expected query parameter event=%q, got %q", expectedEvent, query.Get("event"))
+				}
+				if query.Get("branch") != branch {
+					t.Errorf("Expected query parameter branch=%s, got %s", branch, query.Get("branch"))
+				}
+				if query.Get("status") != "action_required" {
+					t.Errorf("Expected query parameter status=action_required, got %s", query.Get("status"))
+				}
+
+				// Prepare response
+				b, err := json.Marshal(&tc.queryResponse)
+				if err != nil {
+					t.Fatalf("Unexpected error marshalling JSON: %v", err)
+				}
+				w.Header().Set("Content-Type", "application/json")
+				fmt.Fprint(w, string(b))
+			}))
+			defer ts.Close()
+
+			c := getClient(ts.URL)
+			runs, err := c.GetPendingApprovalActionRuns(org, repo, branch, headSHA)
+			if err != nil {
+				t.Errorf("Did not expect error, got %v", err)
+			}
+
+			// Check if the returned runs match the expected runs
+			if len(runs) != len(tc.expectedRuns) {
+				t.Errorf("Expected %d runs, got %d", len(tc.expectedRuns), len(runs))
+			}
+			for i, run := range runs {
+				if i < len(tc.expectedRuns) {
+					expectedRun := tc.expectedRuns[i]
+					if run.ID != expectedRun.ID || run.Status != expectedRun.Status || run.HeadSha != expectedRun.HeadSha {
+						t.Errorf("Run %v does not match expected run %v", run, expectedRun)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestApproveGitHubWorkflowRun(t *testing.T) {
+	const (
+		org    = "k8s"
+		repo   = "kuber"
+		runID  = 12345
+	)
+
+	testCases := []struct {
+		name           string
+		statusCode     int
+		expectError    bool
+	}{
+		{
+			name:        "successful approval",
+			statusCode:  201,
+			expectError: false,
+		},
+		{
+			name:        "already approved (403)",
+			statusCode:  403,
+			expectError: true,
+		},
+		{
+			name:        "run not found (404)",
+			statusCode:  404,
+			expectError: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != http.MethodPost {
+					t.Errorf("Expected POST method, got %s", r.Method)
+				}
+				expectedPath := fmt.Sprintf("/repos/%s/%s/actions/runs/%d/approve", org, repo, runID)
+				if r.URL.Path != expectedPath {
+					t.Errorf("Expected path %s, got %s", expectedPath, r.URL.Path)
+				}
+
+				w.WriteHeader(tc.statusCode)
+			}))
+			defer ts.Close()
+
+			c := getClient(ts.URL)
+			err := c.ApproveGitHubWorkflowRun(org, repo, runID)
+
+			if tc.expectError && err == nil {
+				t.Errorf("Expected error but got none")
+			}
+			if !tc.expectError && err != nil {
+				t.Errorf("Did not expect error, got %v", err)
+			}
+		})
+	}
+}
