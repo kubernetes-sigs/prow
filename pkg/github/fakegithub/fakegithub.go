@@ -146,6 +146,11 @@ type FakeClient struct {
 	// WasLabelAddedByHumanVal determines the return of the method with the same name
 	WasLabelAddedByHumanVal bool
 
+	// PendingApprovalRuns maps "org/repo/branch/sha" to workflow runs pending approval
+	PendingApprovalRuns map[string][]github.WorkflowRun
+	// ApprovedWorkflowRuns tracks approvals as "org/repo/runID"
+	ApprovedWorkflowRuns []string
+
 	// lock to be thread safe
 	lock sync.RWMutex
 
@@ -1327,6 +1332,26 @@ func (f *FakeClient) TriggerGitHubWorkflow(org, repo string, id int) error {
 }
 
 func (f *FakeClient) TriggerFailedGitHubWorkflow(org, repo string, id int) error {
+	return nil
+}
+
+func (f *FakeClient) GetPendingApprovalActionRuns(org, repo, branchName, headSHA string) ([]github.WorkflowRun, error) {
+	f.lock.RLock()
+	defer f.lock.RUnlock()
+
+	key := fmt.Sprintf("%s/%s/%s/%s", org, repo, branchName, headSHA)
+	if runs, ok := f.PendingApprovalRuns[key]; ok {
+		return runs, nil
+	}
+	return []github.WorkflowRun{}, nil
+}
+
+func (f *FakeClient) ApproveGitHubWorkflowRun(org, repo string, id int) error {
+	f.lock.Lock()
+	defer f.lock.Unlock()
+
+	key := fmt.Sprintf("%s/%s/%d", org, repo, id)
+	f.ApprovedWorkflowRuns = append(f.ApprovedWorkflowRuns, key)
 	return nil
 }
 
