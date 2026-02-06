@@ -74,6 +74,8 @@ func prepareBaseTemplate(o options, cfg config.Getter, csrfToken string, t *temp
 		"deckVersion":      func() string { return version.Version },
 		"googleAnalytics":  func() string { return cfg().Deck.GoogleAnalytics },
 		"csrfToken":        func() string { return csrfToken },
+		"deckBasePath":     func() string { return o.basePath },
+		"deckPath":         func(p string) string { return o.absolutePath(p) },
 	}).ParseFiles(path.Join(o.templateFilesLocation, "base.html"))
 }
 
