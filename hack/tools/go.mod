@@ -4,7 +4,6 @@ go 1.25.5
 
 require (
 	github.com/client9/misspell v0.3.4
-	github.com/go-bindata/go-bindata/v3 v3.1.3
 	github.com/golangci/golangci-lint/v2 v2.7.2
 	github.com/google/go-cmp v0.7.0
 	github.com/google/ko v0.18.1
@@ -333,7 +332,6 @@ require (
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/crypto v0.46.0 // indirect
 	golang.org/x/exp/typeparams v0.0.0-20251023183803-a4bb9ffd2546 // indirect
-	golang.org/x/lint v0.0.0-20191125180803-fdd1cda4f05f // indirect
 	golang.org/x/mod v0.31.0 // indirect
 	golang.org/x/net v0.48.0 // indirect
 	golang.org/x/oauth2 v0.34.0 // indirect
