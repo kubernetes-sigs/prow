@@ -424,6 +424,16 @@ func (s *Server) handlePullRequest(log logrus.FieldLogger, pre github.PullReques
 				return requester == member.Login
 			})
 			if !isMember {
+				s.ghc.CreateComment(
+    				org,
+    				repo,
+    				num,
+    				fmt.Sprintf(
+        				"The cherrypick label was added, but it will be ignored because the PR author (@%s) is not a member of the %s org.",
+        				requester,
+						org,
+    				),
+				)
 				delete(requesterToComments, requester)
 			}
 		}
