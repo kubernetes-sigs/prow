@@ -22,10 +22,12 @@ import (
 	"os"
 	"reflect"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/GoogleCloudPlatform/testgrid/metadata"
 	prowapi "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/pkg/github"
 	"sigs.k8s.io/prow/pkg/pod-utils/clone"
 )
 
@@ -98,6 +100,8 @@ const (
 
 	RepoOwnerEnv   = "REPO_OWNER"
 	RepoNameEnv    = "REPO_NAME"
+	SrcBaseEnv     = "SRC_BASE"
+	SrcHostEnv     = "SRC_HOST"
 	PullBaseRefEnv = "PULL_BASE_REF"
 	PullBaseShaEnv = "PULL_BASE_SHA"
 	PullRefsEnv    = "PULL_REFS"
@@ -137,6 +141,32 @@ func EnvForSpec(spec JobSpec) (map[string]string, error) {
 
 	env[RepoOwnerEnv] = spec.Refs.Org
 	env[RepoNameEnv] = spec.Refs.Repo
+
+	// Determine the source host and base path, mirroring
+	// the logic in clone.PathForRefs for consistency.
+	// SRC_HOST is the hosting service (e.g. "github.com").
+	// SRC_BASE is the path under the host (e.g. "org/repo").
+	srcHost := github.DefaultHost
+	srcBase := fmt.Sprintf("%s/%s", spec.Refs.Org, spec.Refs.Repo)
+
+	if spec.Refs.PathAlias != "" {
+		srcHost = spec.Refs.PathAlias
+		if idx := strings.Index(spec.Refs.PathAlias, "/"); idx != -1 {
+			srcHost = spec.Refs.PathAlias[:idx]
+			srcBase = spec.Refs.PathAlias[idx+1:]
+		}
+	} else if spec.Refs.RepoLink != "" {
+		parts := strings.Split(spec.Refs.RepoLink, "://")
+		hostAndPath := parts[len(parts)-1]
+		srcHost = hostAndPath
+		if idx := strings.Index(hostAndPath, "/"); idx != -1 {
+			srcHost = hostAndPath[:idx]
+			srcBase = hostAndPath[idx+1:]
+		}
+	}
+	env[SrcHostEnv] = srcHost
+	env[SrcBaseEnv] = srcBase
+
 	env[PullBaseRefEnv] = spec.Refs.BaseRef
 	env[PullBaseShaEnv] = spec.Refs.BaseSHA
 	env[PullRefsEnv] = spec.Refs.String()
@@ -156,7 +186,7 @@ func EnvForSpec(spec JobSpec) (map[string]string, error) {
 // EnvForType returns the slice of environment variables to export for jobType
 func EnvForType(jobType prowapi.ProwJobType) []string {
 	baseEnv := []string{CI, JobNameEnv, JobSpecEnv, JobTypeEnv, ProwJobIDEnv, BuildIDEnv, ProwBuildIDEnv}
-	refsEnv := []string{RepoOwnerEnv, RepoNameEnv, PullBaseRefEnv, PullBaseShaEnv, PullRefsEnv}
+	refsEnv := []string{RepoOwnerEnv, RepoNameEnv, SrcBaseEnv, SrcHostEnv, PullBaseRefEnv, PullBaseShaEnv, PullRefsEnv}
 	pullEnv := []string{PullNumberEnv, PullPullShaEnv, PullHeadRefEnv, PullTitleEnv}
 
 	switch jobType {
