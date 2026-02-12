@@ -1186,6 +1186,8 @@ func TestMakeResourcesBeta1(t *testing.T) {
 					pipelinev1.Param{Name: "PULL_TITLE", Value: pipelinev1.ParamValue{Type: pipelinev1.ParamTypeString}},
 					pipelinev1.Param{Name: "REPO_NAME", Value: pipelinev1.ParamValue{Type: pipelinev1.ParamTypeString}},
 					pipelinev1.Param{Name: "REPO_OWNER", Value: pipelinev1.ParamValue{Type: pipelinev1.ParamTypeString}},
+					pipelinev1.Param{Name: "SRC_BASE", Value: pipelinev1.ParamValue{Type: pipelinev1.ParamTypeString, StringVal: "/"}},
+					pipelinev1.Param{Name: "SRC_HOST", Value: pipelinev1.ParamValue{Type: pipelinev1.ParamTypeString, StringVal: "github.com"}},
 				)
 				pr.Spec.PipelineSpec.Tasks = []pipelinev1.PipelineTask{
 					{
