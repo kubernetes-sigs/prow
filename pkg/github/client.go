@@ -194,6 +194,7 @@ type RepositoryClient interface {
 	RemoveCollaborator(org, repo, user string) error
 	UpdateCollaboratorPermission(org, repo, user string, permission RepoPermissionLevel) error
 	CreateFork(owner, repo string) (string, error)
+	CreateForkInOrg(owner, repo, targetOrg string, defaultBranchOnly bool, name string) (string, error)
 	EnsureFork(forkingUser, org, repo string) (string, error)
 	ListRepoTeams(org, repo string) ([]Team, error)
 	CreateRepo(owner string, isUser bool, repo RepoCreateRequest) (*FullRepo, error)
@@ -4382,6 +4383,49 @@ func (c *client) CreateFork(owner, repo string) (string, error) {
 	// there are many reasons why GitHub may end up forking the
 	// repo under a different name -- the repo got re-named, the
 	// bot account already has a fork with that name, etc
+	return resp.Name, err
+}
+
+// CreateForkInOrg creates a fork of the specified repository in the target organization.
+// Forking a repository happens asynchronously. Therefore, we may have to wait a short
+// period before accessing the git objects. If this takes longer than 5 minutes, GitHub
+// recommends contacting their support.
+//
+// The name parameter specifies the desired name for the fork:
+//   - If empty, GitHub uses the upstream repository name (or appends a suffix on conflict).
+//   - If specified, GitHub uses this exact name. If a repository with this name already
+//     exists, the API will return an error (it will not automatically rename the fork).
+//
+// See https://docs.github.com/en/rest/repos/forks#create-a-fork
+func (c *client) CreateForkInOrg(owner, repo, targetOrg string, defaultBranchOnly bool, name string) (string, error) {
+	durationLogger := c.log("CreateForkInOrg", owner, repo, targetOrg, defaultBranchOnly, name)
+	defer durationLogger()
+
+	reqBody := struct {
+		Organization      string `json:"organization"`
+		DefaultBranchOnly bool   `json:"default_branch_only,omitempty"`
+		Name              string `json:"name,omitempty"`
+	}{
+		Organization:      targetOrg,
+		DefaultBranchOnly: defaultBranchOnly,
+		Name:              name,
+	}
+
+	resp := struct {
+		Name string `json:"name"`
+	}{}
+
+	_, err := c.request(&request{
+		method:      http.MethodPost,
+		path:        fmt.Sprintf("/repos/%s/%s/forks", owner, repo),
+		org:         owner,
+		requestBody: &reqBody,
+		exitCodes:   []int{202},
+	}, &resp)
+
+	// there are many reasons why GitHub may end up forking the
+	// repo under a different name -- the repo got re-named, the
+	// target org already has a fork with that name, etc
 	return resp.Name, err
 }
 
