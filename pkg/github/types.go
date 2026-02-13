@@ -1751,3 +1751,22 @@ type Layers struct {
 	MediaType string `json:"media_type"`
 	Size      int    `json:"size"`
 }
+
+// OrganizationRole represents an organization role
+type OrganizationRole struct {
+	ID          int      `json:"id"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Permissions []string `json:"permissions"`
+}
+
+// OrganizationRoleAssignment represents a role assignment to a team or user
+type OrganizationRoleAssignment struct {
+	ID         int    `json:"id"`
+	Login      string `json:"login,omitempty"`
+	Slug       string `json:"slug,omitempty"`
+	Type       string `json:"type"` // "User" or "Team"
+	RoleID     int    `json:"role_id"`
+	RoleName   string `json:"role_name"`
+	Assignment string `json:"assignment"` // "direct" or "indirect" (indirect = via team membership)
+}
