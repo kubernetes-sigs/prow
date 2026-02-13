@@ -1345,6 +1345,13 @@ plank:
     # Use `org/repo`, `org` or `*` as a key.
     report_templates:
         "": ""
+    # TerminationConditionReasons is a set of pod status condition reasons on which the
+    # controller will match to determine if the pod's node is being terminated. If a node is being
+    # terminated the controller will restart the prowjob, unless the ErrorOnTermination option
+    # is set on the prowjob or the MaxRevivals option is reached.
+    # Defaults to ["DeletionByPodGC", "DeletionByGCPControllerManager"].
+    termination_condition_reasons:
+        - ""
 # PodNamespace is the namespace in the cluster that prow
 # components will use for looking up Pods owned by ProwJobs.
 # The namespace needs to exist and will not be created by prow.
