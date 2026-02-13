@@ -1363,6 +1363,25 @@ func TestSetReportDefault(t *testing.T) {
 			spec: &prowapi.ProwJobSpec{
 				ReporterConfig: &prowapi.ReporterConfig{
 					Slack: &prowapi.SlackReporterConfig{
+						JobStatesToReport: []prowapi.ProwJobState{},
+						Report:            boolPtr(true),
+					},
+				},
+			},
+			wantSpec: &prowapi.ProwJobSpec{
+				ReporterConfig: &prowapi.ReporterConfig{
+					Slack: &prowapi.SlackReporterConfig{
+						JobStatesToReport: []prowapi.ProwJobState{},
+						Report:            boolPtr(true),
+					},
+				},
+			},
+		},
+		{
+			name: "explicit-no-report",
+			spec: &prowapi.ProwJobSpec{
+				ReporterConfig: &prowapi.ReporterConfig{
+					Slack: &prowapi.SlackReporterConfig{
 						Report: boolPtr(false),
 					},
 				},
@@ -1376,7 +1395,7 @@ func TestSetReportDefault(t *testing.T) {
 			},
 		},
 		{
-			name: "explicit-report-with-states",
+			name: "explicit-no-report-with-states",
 			spec: &prowapi.ProwJobSpec{
 				ReporterConfig: &prowapi.ReporterConfig{
 					Slack: &prowapi.SlackReporterConfig{
