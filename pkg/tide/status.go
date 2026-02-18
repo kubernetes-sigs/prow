@@ -394,7 +394,11 @@ func targetURL(c *config.Config, crc *CodeReviewCommon, log *logrus.Entry) strin
 		if err != nil {
 			log.WithError(err).Error("Failed to parse PR status base URL")
 		} else {
-			prQuery := fmt.Sprintf("is:pr repo:%s author:%s head:%s", pr.Repository.NameWithOwner, crc.AuthorLogin, crc.HeadRefName)
+			authorLogin := crc.AuthorLogin
+			if string(pr.AuthorMetadata.TypeName) == github.UserTypeBot && !strings.HasPrefix(authorLogin, "app/") {
+				authorLogin = "app/" + authorLogin
+			}
+			prQuery := fmt.Sprintf("is:pr repo:%s author:%s head:%s", pr.Repository.NameWithOwner, authorLogin, crc.HeadRefName)
 			values := parseURL.Query()
 			values.Set("query", prQuery)
 			parseURL.RawQuery = values.Encode()
