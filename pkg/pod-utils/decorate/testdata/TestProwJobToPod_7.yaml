@@ -60,6 +60,10 @@ spec:
       value: repo-name
     - name: REPO_OWNER
       value: org-name
+    - name: SRC_BASE
+      value: else
+    - name: SRC_HOST
+      value: somewhere
     - name: ENTRYPOINT_OPTIONS
       value: '{"timeout":7200000000000,"grace_period":10000000000,"artifact_dir":"/logs/artifacts","args":["/bin/thing","some","args"],"container_name":"test-0","process_log":"/logs/test-0-log.txt","marker_file":"/logs/test-0-marker.txt","metadata_file":"/logs/artifacts/test-0-metadata.json"}'
     image: tester
@@ -115,6 +119,10 @@ spec:
       value: repo-name
     - name: REPO_OWNER
       value: org-name
+    - name: SRC_BASE
+      value: else
+    - name: SRC_HOST
+      value: somewhere
     - name: ENTRYPOINT_OPTIONS
       value: '{"timeout":7200000000000,"grace_period":10000000000,"artifact_dir":"/logs/artifacts","args":["/bin/otherthing","other","args"],"container_name":"test-1","process_log":"/logs/test-1-log.txt","marker_file":"/logs/test-1-marker.txt","metadata_file":"/logs/artifacts/test-1-metadata.json"}'
     image: othertester
