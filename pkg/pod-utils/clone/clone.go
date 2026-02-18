@@ -240,15 +240,20 @@ func (g *gitCtx) commandsForBaseRef(refs prowapi.Refs, gitUserName, gitUserEmail
 	}
 
 	var depthArgs []string
+	if len(refs.SparseCheckoutFiles) > 0 {
+		refs.CloneDepth = 1
+		commands = append(commands, g.gitCommand("sparse-checkout", "init"))
+	}
 	if d := refs.CloneDepth; d > 0 {
 		depthArgs = append(depthArgs, "--depth", strconv.Itoa(d))
 	}
 	var filterArgs []string
-	if refs.BloblessFetch != nil && *refs.BloblessFetch {
+	if (refs.BloblessFetch != nil && *refs.BloblessFetch) || len(refs.SparseCheckoutFiles) > 0 {
 		filterArgs = append(filterArgs, "--filter=blob:none")
 	}
 
-	if !refs.SkipFetchHead {
+	skipTagFetch := refs.SkipFetchHead || len(refs.SparseCheckoutFiles) > 0
+	if !skipTagFetch {
 		var fetchArgs []string
 		fetchArgs = append(fetchArgs, depthArgs...)
 		fetchArgs = append(fetchArgs, filterArgs...)
@@ -270,8 +275,16 @@ func (g *gitCtx) commandsForBaseRef(refs prowapi.Refs, gitUserName, gitUserEmail
 		var fetchArgs []string
 		fetchArgs = append(fetchArgs, depthArgs...)
 		fetchArgs = append(fetchArgs, filterArgs...)
+		if len(refs.SparseCheckoutFiles) > 0 {
+			fetchArgs = append(fetchArgs, "--no-tags")
+		}
 		fetchArgs = append(fetchArgs, g.repositoryURI, fetchRef)
 		commands = append(commands, g.gitFetch(fetchArgs...))
+	}
+
+	if len(refs.SparseCheckoutFiles) > 0 {
+		sparseArgs := append([]string{"sparse-checkout", "set"}, refs.SparseCheckoutFiles...)
+		commands = append(commands, g.gitCommand(sparseArgs...))
 	}
 
 	// we need to be "on" the target branch after the sync
@@ -361,8 +374,8 @@ func (g *gitCtx) commandsForPullRefs(refs prowapi.Refs, fakeTimestamp int) []run
 		commands = append(commands, gitMergeCommand)
 	}
 
-	// unless the user specifically asks us not to, init submodules
-	if !refs.SkipSubmodules {
+	// sparse checkout implies skip-submodules; otherwise respect the field
+	if !refs.SkipSubmodules && len(refs.SparseCheckoutFiles) == 0 {
 		commands = append(commands, g.gitCommand("submodule", "update", "--init", "--recursive"))
 	}
 
