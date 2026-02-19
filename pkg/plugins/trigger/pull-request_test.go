@@ -19,7 +19,9 @@ package trigger
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -36,6 +38,14 @@ import (
 	"sigs.k8s.io/prow/pkg/labels"
 	"sigs.k8s.io/prow/pkg/plugins"
 )
+
+type findIssuesWithOrgErrorClient struct {
+	*fakegithub.FakeClient
+}
+
+func (f *findIssuesWithOrgErrorClient) FindIssuesWithOrg(org, query, sort string, asc bool) ([]github.Issue, error) {
+	return nil, fmt.Errorf("search failed")
+}
 
 func TestTrusted(t *testing.T) {
 	const rando = "random-person"
@@ -629,5 +639,169 @@ func TestAbortAllJobs(t *testing.T) {
 				t.Errorf("IsAborted: %t, but expected aborted: %t", isAborted, tc.expectedAbortedProwJob)
 			}
 		})
+	}
+}
+
+func TestShouldHighlightJoinOrgMessage(t *testing.T) {
+	t.Parallel()
+
+	mergedPRIssue := func(number int, author string) *github.Issue {
+		return &github.Issue{
+			Number:      number,
+			State:       github.PullRequestStateClosed,
+			User:        github.User{Login: author},
+			PullRequest: &struct{}{},
+		}
+	}
+
+	testCases := []struct {
+		name      string
+		issues    map[int]*github.Issue
+		expecting bool
+	}{
+		{
+			name: "fewer than threshold merged PRs",
+			issues: map[int]*github.Issue{
+				1: mergedPRIssue(1, "author"),
+				2: mergedPRIssue(2, "author"),
+			},
+			expecting: false,
+		},
+		{
+			name: "threshold merged PRs",
+			issues: map[int]*github.Issue{
+				1: mergedPRIssue(1, "author"),
+				2: mergedPRIssue(2, "author"),
+				3: mergedPRIssue(3, "author"),
+			},
+			expecting: true,
+		},
+		{
+			name: "ignores non matching issues",
+			issues: map[int]*github.Issue{
+				1: mergedPRIssue(1, "author"),
+				2: mergedPRIssue(2, "other-author"),
+				3: {
+					Number:      3,
+					State:       github.PullRequestStateOpen,
+					User:        github.User{Login: "author"},
+					PullRequest: &struct{}{},
+				},
+				4: {
+					Number: 4,
+					State:  github.PullRequestStateClosed,
+					User:   github.User{Login: "author"},
+				},
+			},
+			expecting: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			fc := fakegithub.NewFakeClient()
+			fc.Issues = tc.issues
+
+			highlight, err := shouldHighlightJoinOrgMessage(fc, "org", "author")
+			if err != nil {
+				t.Fatalf("shouldHighlightJoinOrgMessage() returned error: %v", err)
+			}
+			if highlight != tc.expecting {
+				t.Fatalf("shouldHighlightJoinOrgMessage() = %t, want %t", highlight, tc.expecting)
+			}
+		})
+	}
+}
+
+func TestWelcomeMsgUsesProminentOrgInvitation(t *testing.T) {
+	t.Parallel()
+
+	fc := fakegithub.NewFakeClient()
+	fc.IssueComments = map[int][]github.IssueComment{}
+	fc.Issues = map[int]*github.Issue{
+		1: {
+			Number:      1,
+			State:       github.PullRequestStateClosed,
+			User:        github.User{Login: "author"},
+			PullRequest: &struct{}{},
+		},
+		2: {
+			Number:      2,
+			State:       github.PullRequestStateClosed,
+			User:        github.User{Login: "author"},
+			PullRequest: &struct{}{},
+		},
+		3: {
+			Number:      3,
+			State:       github.PullRequestStateClosed,
+			User:        github.User{Login: "author"},
+			PullRequest: &struct{}{},
+		},
+	}
+
+	pr := github.PullRequest{
+		Number: 10,
+		User:   github.User{Login: "author"},
+		Base: github.PullRequestBranch{
+			Repo: github.Repo{
+				Owner:    github.User{Login: "org"},
+				Name:     "repo",
+				FullName: "org/repo",
+			},
+		},
+	}
+
+	if err := welcomeMsg(fc, plugins.Trigger{}, pr); err != nil {
+		t.Fatalf("welcomeMsg() returned error: %v", err)
+	}
+
+	if len(fc.IssueCommentsAdded) != 1 {
+		t.Fatalf("expected exactly one comment, got %d", len(fc.IssueCommentsAdded))
+	}
+
+	comment := fc.IssueCommentsAdded[0]
+	if !strings.Contains(comment, "We noticed you've done this a few times!") {
+		t.Fatalf("expected prominent org invitation in comment, got: %s", comment)
+	}
+	if strings.Contains(comment, "Regular contributors should [join the org]") {
+		t.Fatalf("expected default org invitation to be replaced in comment, got: %s", comment)
+	}
+}
+
+func TestWelcomeMsgFallsBackToDefaultOrgInvitationWhenSearchFails(t *testing.T) {
+	t.Parallel()
+
+	fc := &findIssuesWithOrgErrorClient{
+		FakeClient: fakegithub.NewFakeClient(),
+	}
+	fc.IssueComments = map[int][]github.IssueComment{}
+
+	pr := github.PullRequest{
+		Number: 11,
+		User:   github.User{Login: "author"},
+		Base: github.PullRequestBranch{
+			Repo: github.Repo{
+				Owner:    github.User{Login: "org"},
+				Name:     "repo",
+				FullName: "org/repo",
+			},
+		},
+	}
+
+	if err := welcomeMsg(fc, plugins.Trigger{}, pr); err != nil {
+		t.Fatalf("welcomeMsg() returned error: %v", err)
+	}
+
+	if len(fc.IssueCommentsAdded) != 1 {
+		t.Fatalf("expected exactly one comment, got %d", len(fc.IssueCommentsAdded))
+	}
+
+	comment := fc.IssueCommentsAdded[0]
+	if !strings.Contains(comment, "Regular contributors should [join the org]") {
+		t.Fatalf("expected default org invitation in comment, got: %s", comment)
+	}
+	if strings.Contains(comment, "We noticed you've done this a few times!") {
+		t.Fatalf("expected prominent org invitation to be absent in fallback comment, got: %s", comment)
 	}
 }
