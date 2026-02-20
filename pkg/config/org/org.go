@@ -52,10 +52,11 @@ type RepoCreateOptions struct {
 	LicenseTemplate   *string `json:"license_template,omitempty"`
 }
 
-// Repo declares metadata about the GitHub repository
+// RepoMetadata declares metadata about the GitHub repository.
+// These fields map directly to the GitHub Repos API.
 //
-// See https://developer.github.com/v3/repos/#edit
-type Repo struct {
+// See https://docs.github.com/en/rest/repos/repos#update-a-repository
+type RepoMetadata struct {
 	Description              *string `json:"description,omitempty"`
 	HomePage                 *string `json:"homepage,omitempty"`
 	Private                  *bool   `json:"private,omitempty"`
@@ -67,16 +68,57 @@ type Repo struct {
 	AllowRebaseMerge         *bool   `json:"allow_rebase_merge,omitempty"`
 	SquashMergeCommitTitle   *string `json:"squash_merge_commit_title,omitempty"`
 	SquashMergeCommitMessage *string `json:"squash_merge_commit_message,omitempty"`
+	DefaultBranch            *string `json:"default_branch,omitempty"`
+	Archived                 *bool   `json:"archived,omitempty"`
+}
 
-	DefaultBranch *string `json:"default_branch,omitempty"`
-	Archived      *bool   `json:"archived,omitempty"`
+// Repo declares a repository and its configuration.
+type Repo struct {
+	// RepoMetadata contains fields that map directly to the GitHub Repos API.
+	// See https://docs.github.com/en/rest/repos/repos#update-a-repository
+	RepoMetadata
 
+	//
+	// Peribolos-specific fields (not part of any GitHub API)
+	//
+
+	// Previously allows handling repo renames. Peribolos will use the first
+	// entry in previously that exists on GitHub as the source for the rename.
 	Previously []string `json:"previously,omitempty"`
 
-	// Collaborators is a map of username to their permission level for this repository
-	Collaborators map[string]github.RepoPermissionLevel `json:"collaborators,omitempty"`
-
+	// OnCreate specifies options that are only applied when creating a new repo.
+	// See https://docs.github.com/en/rest/repos/repos#create-an-organization-repository
 	OnCreate *RepoCreateOptions `json:"on_create,omitempty"`
+
+	//
+	// GitHub Forks API fields
+	// See https://docs.github.com/en/rest/repos/forks
+	//
+
+	// ForkFrom specifies an upstream repository to fork from, in the format "owner/repo".
+	// When set, Peribolos will create this repository as a fork of the upstream.
+	// The config key name will be used as the fork's name (via GitHub's fork API name parameter).
+	//
+	// Metadata behavior for forks:
+	//   - Forks initially inherit metadata (description, has_issues, etc.) from the upstream.
+	//   - If a RepoMetadata field is set in config, it overrides the inherited/current value.
+	//   - If a RepoMetadata field is not set (nil), the fork keeps its current value.
+	//   - Some metadata changes may be restricted by GitHub (e.g., public forks cannot be
+	//     made private on GitHub.com). Such restrictions vary by GitHub edition (Enterprise
+	//     may allow more). Restricted changes will result in an API error.
+	ForkFrom *string `json:"fork_from,omitempty"`
+
+	// DefaultBranchOnly specifies whether to fork only the default branch.
+	// Only applicable when ForkFrom is set.
+	DefaultBranchOnly *bool `json:"default_branch_only,omitempty"`
+
+	//
+	// GitHub Collaborators API fields
+	// See https://docs.github.com/en/rest/collaborators/collaborators
+	//
+
+	// Collaborators is a map of username to their permission level for this repository.
+	Collaborators map[string]github.RepoPermissionLevel `json:"collaborators,omitempty"`
 }
 
 // Config declares org metadata as well as its people and teams.
@@ -145,10 +187,10 @@ func (p *Privacy) UnmarshalText(text []byte) error {
 	return nil
 }
 
-// PruneRepoDefaults finds values in org.Repo config that matches the default
-// values replaces them with nil pointer. This reduces the size of an org dump
+// PruneRepoDefaults finds values in org.Repo config that match the default
+// values and replaces them with nil pointer. This reduces the size of an org dump
 // by omitting the fields that would be set to the same value when not set at all.
-// See https://developer.github.com/v3/repos/#edit
+// See https://docs.github.com/en/rest/repos/repos#update-a-repository
 func PruneRepoDefaults(repo Repo) Repo {
 	pruneString := func(p **string, def string) {
 		if *p != nil && **p == def {
