@@ -1031,6 +1031,28 @@ func TestSetStatuses(t *testing.T) {
 }
 
 func TestTargetUrl(t *testing.T) {
+	makePR := func(authorLogin, authorTypeName, org, repo, headRef string) *PullRequest {
+		pr := &PullRequest{
+			Author: struct {
+				Login githubql.String
+			}{Login: githubql.String(authorLogin)},
+			Repository: struct {
+				Name          githubql.String
+				NameWithOwner githubql.String
+				Owner         struct {
+					Login githubql.String
+				}
+			}{
+				Owner:         struct{ Login githubql.String }{Login: githubql.String(org)},
+				Name:          githubql.String(repo),
+				NameWithOwner: githubql.String(fmt.Sprintf("%s/%s", org, repo)),
+			},
+			HeadRefName: githubql.String(headRef),
+		}
+		pr.AuthorMetadata.TypeName = githubql.String(authorTypeName)
+		return pr
+	}
+
 	testcases := []struct {
 		name   string
 		pr     *PullRequest
@@ -1057,64 +1079,20 @@ func TestTargetUrl(t *testing.T) {
 			expectedURL: "tide.com",
 		},
 		{
-			name: "PR dashboard config",
-			pr: &PullRequest{
-				Author: struct {
-					Login githubql.String
-				}{Login: githubql.String("author")},
-				Repository: struct {
-					Name          githubql.String
-					NameWithOwner githubql.String
-					Owner         struct {
-						Login githubql.String
-					}
-				}{NameWithOwner: githubql.String("org/repo")},
-				HeadRefName: "head",
-			},
+			name:        "PR dashboard config",
+			pr:          makePR("author", "", "org", "repo", "head"),
 			config:      config.Tide{TideGitHubConfig: config.TideGitHubConfig{PRStatusBaseURLs: map[string]string{"*": "pr.status.com"}}},
 			expectedURL: "pr.status.com?query=is%3Apr+repo%3Aorg%2Frepo+author%3Aauthor+head%3Ahead",
 		},
 		{
-			name: "generate link by default config",
-			pr: &PullRequest{
-				Author: struct {
-					Login githubql.String
-				}{Login: githubql.String("author")},
-				Repository: struct {
-					Name          githubql.String
-					NameWithOwner githubql.String
-					Owner         struct {
-						Login githubql.String
-					}
-				}{
-					Owner:         struct{ Login githubql.String }{Login: githubql.String("testOrg")},
-					Name:          githubql.String("testRepo"),
-					NameWithOwner: githubql.String("testOrg/testRepo"),
-				},
-				HeadRefName: "head",
-			},
+			name:        "generate link by default config",
+			pr:          makePR("author", "", "testOrg", "testRepo", "head"),
 			config:      config.Tide{TideGitHubConfig: config.TideGitHubConfig{PRStatusBaseURLs: map[string]string{"*": "default.pr.status.com"}}},
 			expectedURL: "default.pr.status.com?query=is%3Apr+repo%3AtestOrg%2FtestRepo+author%3Aauthor+head%3Ahead",
 		},
 		{
 			name: "generate link by org config",
-			pr: &PullRequest{
-				Author: struct {
-					Login githubql.String
-				}{Login: githubql.String("author")},
-				Repository: struct {
-					Name          githubql.String
-					NameWithOwner githubql.String
-					Owner         struct {
-						Login githubql.String
-					}
-				}{
-					Owner:         struct{ Login githubql.String }{Login: githubql.String("testOrg")},
-					Name:          githubql.String("testRepo"),
-					NameWithOwner: githubql.String("testOrg/testRepo"),
-				},
-				HeadRefName: "head",
-			},
+			pr:   makePR("author", "", "testOrg", "testRepo", "head"),
 			config: config.Tide{TideGitHubConfig: config.TideGitHubConfig{PRStatusBaseURLs: map[string]string{
 				"*":       "default.pr.status.com",
 				"testOrg": "byorg.pr.status.com"},
@@ -1123,29 +1101,25 @@ func TestTargetUrl(t *testing.T) {
 		},
 		{
 			name: "generate link by repo config",
-			pr: &PullRequest{
-				Author: struct {
-					Login githubql.String
-				}{Login: githubql.String("author")},
-				Repository: struct {
-					Name          githubql.String
-					NameWithOwner githubql.String
-					Owner         struct {
-						Login githubql.String
-					}
-				}{
-					Owner:         struct{ Login githubql.String }{Login: githubql.String("testOrg")},
-					Name:          githubql.String("testRepo"),
-					NameWithOwner: githubql.String("testOrg/testRepo"),
-				},
-				HeadRefName: "head",
-			},
+			pr:   makePR("author", "", "testOrg", "testRepo", "head"),
 			config: config.Tide{TideGitHubConfig: config.TideGitHubConfig{PRStatusBaseURLs: map[string]string{
 				"*":                "default.pr.status.com",
 				"testOrg":          "byorg.pr.status.com",
 				"testOrg/testRepo": "byrepo.pr.status.com"},
 			}},
 			expectedURL: "byrepo.pr.status.com?query=is%3Apr+repo%3AtestOrg%2FtestRepo+author%3Aauthor+head%3Ahead",
+		},
+		{
+			name:        "bot author uses app qualifier",
+			pr:          makePR("dependabot", github.UserTypeBot, "org", "repo", "dependabot/github_actions/actions/cache-4.0.0"),
+			config:      config.Tide{TideGitHubConfig: config.TideGitHubConfig{PRStatusBaseURLs: map[string]string{"*": "pr.status.com"}}},
+			expectedURL: "pr.status.com?query=is%3Apr+repo%3Aorg%2Frepo+author%3Aapp%2Fdependabot+head%3Adependabot%2Fgithub_actions%2Factions%2Fcache-4.0.0",
+		},
+		{
+			name:        "bot author avoids double app qualifier",
+			pr:          makePR("app/dependabot", github.UserTypeBot, "org", "repo", "dependabot/github_actions/actions/cache-4.0.0"),
+			config:      config.Tide{TideGitHubConfig: config.TideGitHubConfig{PRStatusBaseURLs: map[string]string{"*": "pr.status.com"}}},
+			expectedURL: "pr.status.com?query=is%3Apr+repo%3Aorg%2Frepo+author%3Aapp%2Fdependabot+head%3Adependabot%2Fgithub_actions%2Factions%2Fcache-4.0.0",
 		},
 	}
 
