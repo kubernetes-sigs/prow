@@ -39,7 +39,8 @@ import (
 )
 
 const (
-	abortedDescription = "Aborted by trigger plugin."
+	abortedDescription                      = "Aborted by trigger plugin."
+	mergedPRCountForProminentJoinOrgMessage = 3
 )
 
 func handlePR(c Client, trigger plugins.Trigger, pr github.PullRequestEvent) error {
@@ -278,9 +279,10 @@ I understand the commands that are listed [here](https://go.k8s.io/bot-commands?
 </details>
 `, author, encodedRepoFullName, plugins.AboutThisBotWithoutCommands)
 	} else {
+		membershipGuidance := orgInvitationGuidance(ghc, org, author, joinOrgURL)
 		comment = fmt.Sprintf(`Hi @%s. Thanks for your PR.
 
-I'm waiting for a [%s](https://%s/orgs/%s/people) %smember to verify that this patch is reasonable to test. If it is, they should reply with `+"`/ok-to-test`"+` on its own line. Until that is done, I will not automatically test new commits in this PR, but the usual testing commands by org members will still work. Regular contributors should [join the org](%s) to skip this step.
+I'm waiting for a [%s](https://%s/orgs/%s/people) %smember to verify that this patch is reasonable to test. If it is, they should reply with `+"`/ok-to-test`"+` on its own line. Until that is done, I will not automatically test new commits in this PR, but the usual testing commands by org members will still work. %s
 
 Once the patch is verified, the new status will be reflected by the `+"`%s`"+` label.
 
@@ -290,7 +292,7 @@ I understand the commands that are listed [here](https://go.k8s.io/bot-commands?
 
 %s
 </details>
-`, author, org, github.DefaultHost, org, more, joinOrgURL, labels.OkToTest, encodedRepoFullName, plugins.AboutThisBotWithoutCommands)
+`, author, org, github.DefaultHost, org, more, membershipGuidance, labels.OkToTest, encodedRepoFullName, plugins.AboutThisBotWithoutCommands)
 
 		l, err := ghc.GetIssueLabels(org, repo, pr.Number)
 		if err != nil {
@@ -313,6 +315,38 @@ I understand the commands that are listed [here](https://go.k8s.io/bot-commands?
 		return utilerrors.NewAggregate(errors)
 	}
 	return nil
+}
+
+func orgInvitationGuidance(ghc githubClient, org, author, joinOrgURL string) string {
+	defaultMessage := fmt.Sprintf("Regular contributors should [join the org](%s) to skip this step.", joinOrgURL)
+	shouldHighlight, err := shouldHighlightJoinOrgMessage(ghc, org, author)
+	if err != nil || !shouldHighlight {
+		return defaultMessage
+	}
+
+	return fmt.Sprintf("**We noticed you've done this a few times! Consider [joining the org](%s) to skip this step and gain `/lgtm` and other bot rights.** We recommend asking approvers on your previous PRs to sponsor you.", joinOrgURL)
+}
+
+func shouldHighlightJoinOrgMessage(ghc githubClient, org, author string) (bool, error) {
+	query := fmt.Sprintf("type:pr is:merged org:%s author:%s", org, author)
+	issues, err := ghc.FindIssuesWithOrg(org, query, "", false)
+	if err != nil {
+		return false, err
+	}
+
+	mergedPRCount := 0
+	for _, issue := range issues {
+		if !issue.IsPullRequest() || !issue.IsAuthor(author) || issue.State != github.PullRequestStateClosed {
+			continue
+		}
+
+		mergedPRCount++
+		if mergedPRCount >= mergedPRCountForProminentJoinOrgMessage {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 func draftMsg(ghc githubClient, pr github.PullRequest) error {
