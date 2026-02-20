@@ -582,7 +582,8 @@ func TestHelp(t *testing.T) {
 		fmt.Fprint(w, string(b))
 	}))
 	ha := &helpAgent{
-		path: s.URL,
+		path:   s.URL,
+		client: http.DefaultClient,
 	}
 	handler := handlePluginHelp(ha, logrus.WithField("handler", "/plugin-help.js"))
 	handleAndCheck := func() {
@@ -679,6 +680,23 @@ func Test_gatherOptions(t *testing.T) {
 				"--show-hidden": "true",
 			},
 			err: true,
+		},
+		{
+			name: "explicitly set enableSSL",
+			args: map[string]string{
+				"--enable-ssl":       "true",
+				"--server-cert-file": "/test/path/cert.pem",
+				"--server-key-file":  "/test/path/key.pem",
+				"--client-cert-file": "/test/path/cert.pem",
+			},
+			expected: func(o *options) {
+				o.controllerManager.TimeoutListingProwJobs = 30 * time.Second
+				o.controllerManager.TimeoutListingProwJobsDefault = 30 * time.Second
+				o.sslEnablement.EnableSSL = true
+				o.sslEnablement.ServerCertFile = "/test/path/cert.pem"
+				o.sslEnablement.ServerKeyFile = "/test/path/key.pem"
+				o.clientCertFile = "/test/path/cert.pem"
+			},
 		},
 	}
 	for _, tc := range cases {

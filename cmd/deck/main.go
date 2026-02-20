@@ -140,10 +140,12 @@ type options struct {
 	controllerManager     prowflagutil.ControllerManagerOptions
 	dryRun                bool
 	tenantIDs             prowflagutil.Strings
+	sslEnablement         prowflagutil.SSLEnablementOptions
+	clientCertFile        string
 }
 
 func (o *options) Validate() error {
-	for _, group := range []pkgFlagutil.OptionGroup{&o.kubernetes, &o.github, &o.config, &o.pluginsConfig, &o.controllerManager} {
+	for _, group := range []pkgFlagutil.OptionGroup{&o.kubernetes, &o.github, &o.config, &o.pluginsConfig, &o.controllerManager, &o.sslEnablement} {
 		if err := group.Validate(o.dryRun); err != nil {
 			return err
 		}
@@ -160,6 +162,10 @@ func (o *options) Validate() error {
 
 	if (o.hiddenOnly && o.showHidden) || (o.tenantIDs.Strings() != nil && (o.hiddenOnly || o.showHidden)) {
 		return errors.New("'--hidden-only', '--tenant-id', and '--show-hidden' are mutually exclusive, 'hidden-only' shows only hidden job, '--tenant-id' shows all jobs with matching ID and 'show-hidden' shows both hidden and non-hidden jobs")
+	}
+
+	if o.sslEnablement.EnableSSL && o.clientCertFile == "" {
+		return errors.New("flag --enable-ssl was set to true but required flag --client-cert-file was not set")
 	}
 	return nil
 }
@@ -186,6 +192,7 @@ func gatherOptions(fs *flag.FlagSet, args ...string) options {
 	fs.BoolVar(&o.allowInsecure, "allow-insecure", false, "Allows insecure requests for CSRF and GitHub oauth.")
 	fs.BoolVar(&o.dryRun, "dry-run", false, "Whether or not to make mutating API calls to GitHub.")
 	fs.Var(&o.tenantIDs, "tenant-id", "The tenantID(s) used by the ProwJobs that should be displayed by this instance of Deck. This flag can be repeated.")
+	fs.StringVar(&o.clientCertFile, "client-cert-file", "", "Location of the client cert file for deck to make calls to hook. This must be set if SSL is enabled.")
 	o.config.AddFlags(fs)
 	o.instrumentation.AddFlags(fs)
 	o.controllerManager.TimeoutListingProwJobsDefault = 30 * time.Second
@@ -196,6 +203,7 @@ func gatherOptions(fs *flag.FlagSet, args ...string) options {
 	o.github.AllowDirectAccess = true
 	o.storage.AddFlags(fs)
 	o.pluginsConfig.AddFlags(fs)
+	o.sslEnablement.AddFlags(fs)
 	fs.Parse(args)
 
 	return o
@@ -510,7 +518,11 @@ func main() {
 	}
 
 	health.ServeReady()
-	interrupts.ListenAndServe(server, 5*time.Second)
+	if o.sslEnablement.EnableSSL {
+		interrupts.ListenAndServeTLS(server, o.sslEnablement.ServerCertFile, o.sslEnablement.ServerKeyFile, 5*time.Second)
+	} else {
+		interrupts.ListenAndServe(server, 5*time.Second)
+	}
 }
 
 // localOnlyMain contains logic used only when running locally, and is mutually exclusive with
@@ -566,8 +578,12 @@ func prodOnlyMain(cfg config.Getter, pluginAgent *plugins.ConfigAgent, authCfgGe
 	mux.Handle("/prowjob", gziphandler.GzipHandler(handleProwJob(prowJobClient, logrus.WithField("handler", "/prowjob"))))
 
 	if o.hookURL != "" {
+		helpAgent, err := newHelpAgent(o.hookURL, o.clientCertFile)
+		if err != nil {
+			logrus.WithError(err).Fatal("Error creating Help Agent.")
+		}
 		mux.Handle("/plugin-help.js",
-			gziphandler.GzipHandler(handlePluginHelp(newHelpAgent(o.hookURL), logrus.WithField("handler", "/plugin-help.js"))))
+			gziphandler.GzipHandler(handlePluginHelp(helpAgent, logrus.WithField("handler", "/plugin-help.js"))))
 	}
 
 	// tide could potentially be mocked by static data
