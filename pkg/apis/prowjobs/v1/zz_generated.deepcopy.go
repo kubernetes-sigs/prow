@@ -567,6 +567,11 @@ func (in *Refs) DeepCopyInto(out *Refs) {
 		*out = new(bool)
 		**out = **in
 	}
+	if in.SparseCheckoutFiles != nil {
+		in, out := &in.SparseCheckoutFiles, &out.SparseCheckoutFiles
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	return
 }
 
