@@ -1274,6 +1274,47 @@ func TestControllerReconcile(t *testing.T) {
 	}
 }
 
+func TestControllerReconcileRefusesDroppingAllPresubmits(t *testing.T) {
+	oldConfigData := `presubmits:
+  "org/repo":
+  - name: required-job
+    context: required-job
+    always_run: true`
+	newConfigData := `presubmits: {}`
+
+	var oldConfig, newConfig config.Config
+	if err := yaml.Unmarshal([]byte(oldConfigData), &oldConfig); err != nil {
+		t.Fatalf("could not unmarshal old config: %v", err)
+	}
+	for _, presubmits := range oldConfig.PresubmitsStatic {
+		if err := config.SetPresubmitRegexes(presubmits); err != nil {
+			t.Fatalf("could not set presubmit regexes for old config: %v", err)
+		}
+	}
+	if err := yaml.Unmarshal([]byte(newConfigData), &newConfig); err != nil {
+		t.Fatalf("could not unmarshal new config: %v", err)
+	}
+
+	delta := config.Delta{Before: oldConfig, After: newConfig}
+	key := orgRepo{org: "org", repo: "repo"}
+	fpjt := newfakeProwJobTriggerer()
+	fsm := newFakeMigrator(key)
+	controller := Controller{
+		continueOnError:           true,
+		prowJobTriggerer:          &fpjt,
+		statusMigrator:            &fsm,
+		addedPresubmitDenylist:    sets.New[string](),
+		addedPresubmitDenylistAll: sets.New[string](),
+	}
+
+	if err := controller.reconcile(delta, logrusEntry()); err == nil {
+		t.Fatalf("expected an error when all presubmits disappear, but got none")
+	}
+
+	checkTriggerer(t, fpjt, map[prKey]sets.Set[string]{})
+	checkMigrator(t, fsm, map[orgRepo]sets.Set[string]{key: sets.New[string]()}, map[orgRepo]migrationSet{key: {}})
+}
+
 func logrusEntry() *logrus.Entry {
 	return logrus.NewEntry(logrus.StandardLogger())
 }

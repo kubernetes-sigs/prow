@@ -183,6 +183,10 @@ func (c *Controller) Run(ctx context.Context) {
 }
 
 func (c *Controller) reconcile(delta config.Delta, log *logrus.Entry) error {
+	if countPresubmits(delta.Before.PresubmitsStatic) > 0 && countPresubmits(delta.After.PresubmitsStatic) == 0 {
+		return fmt.Errorf("refusing to reconcile config update because all presubmits disappeared")
+	}
+
 	var errors []error
 	if err := c.triggerNewPresubmits(addedBlockingPresubmits(delta.Before.PresubmitsStatic, delta.After.PresubmitsStatic, log)); err != nil {
 		errors = append(errors, err)
@@ -471,4 +475,12 @@ func migratedBlockingPresubmits(old, new map[string][]config.Presubmit, log *log
 	}
 	log.Infof("Identified %d migrated blocking presubmits.", numMigrated)
 	return migrated, log
+}
+
+func countPresubmits(presubmits map[string][]config.Presubmit) int {
+	var count int
+	for _, jobs := range presubmits {
+		count += len(jobs)
+	}
+	return count
 }
