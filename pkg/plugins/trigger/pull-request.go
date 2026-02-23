@@ -318,35 +318,32 @@ I understand the commands that are listed [here](https://go.k8s.io/bot-commands?
 }
 
 func orgInvitationGuidance(ghc githubClient, org, author, joinOrgURL string) string {
-	defaultMessage := fmt.Sprintf("Regular contributors should [join the org](%s) to skip this step.", joinOrgURL)
-	shouldHighlight, err := shouldHighlightJoinOrgMessage(ghc, org, author)
-	if err != nil || !shouldHighlight {
-		return defaultMessage
+	if shouldHighlightJoinOrgMessage(ghc, org, author) {
+		return fmt.Sprintf("**We noticed you've done this a few times! Consider [joining the org](%s) to skip this step and gain `/lgtm` and other bot rights.** We recommend asking approvers on your previous PRs to sponsor you.", joinOrgURL)
 	}
 
-	return fmt.Sprintf("**We noticed you've done this a few times! Consider [joining the org](%s) to skip this step and gain `/lgtm` and other bot rights.** We recommend asking approvers on your previous PRs to sponsor you.", joinOrgURL)
+	return fmt.Sprintf("Regular contributors should [join the org](%s) to skip this step.", joinOrgURL)
 }
 
-func shouldHighlightJoinOrgMessage(ghc githubClient, org, author string) (bool, error) {
+func shouldHighlightJoinOrgMessage(ghc githubClient, org, author string) bool {
 	query := fmt.Sprintf("type:pr is:merged org:%s author:%s", org, author)
 	issues, err := ghc.FindIssuesWithOrg(org, query, "", false)
 	if err != nil {
-		return false, err
+		// Search failures should not block the welcome message; fall back to the default copy.
+		return false
 	}
 
 	mergedPRCount := 0
 	for _, issue := range issues {
-		if !issue.IsPullRequest() || !issue.IsAuthor(author) || issue.State != github.PullRequestStateClosed {
-			continue
-		}
-
-		mergedPRCount++
-		if mergedPRCount >= mergedPRCountForProminentJoinOrgMessage {
-			return true, nil
+		if issue.IsPullRequest() && issue.IsAuthor(author) && issue.State == github.PullRequestStateClosed {
+			mergedPRCount++
+			if mergedPRCount >= mergedPRCountForProminentJoinOrgMessage {
+				return true
+			}
 		}
 	}
 
-	return false, nil
+	return false
 }
 
 func draftMsg(ghc githubClient, pr github.PullRequest) error {
