@@ -19,6 +19,7 @@ package trigger
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"testing"
 
@@ -36,6 +37,33 @@ import (
 	"sigs.k8s.io/prow/pkg/labels"
 	"sigs.k8s.io/prow/pkg/plugins"
 )
+
+type findIssuesWithOrgErrorClient struct {
+	*fakegithub.FakeClient
+	called bool
+}
+
+func (f *findIssuesWithOrgErrorClient) FindIssuesWithOrg(org, query, sort string, asc bool) ([]github.Issue, error) {
+	f.called = true
+	return nil, fmt.Errorf("search failed")
+}
+
+type findIssuesWithOrgCapturingClient struct {
+	*fakegithub.FakeClient
+	org    string
+	query  string
+	sort   string
+	asc    bool
+	issues []github.Issue
+}
+
+func (f *findIssuesWithOrgCapturingClient) FindIssuesWithOrg(org, query, sort string, asc bool) ([]github.Issue, error) {
+	f.org = org
+	f.query = query
+	f.sort = sort
+	f.asc = asc
+	return f.issues, nil
+}
 
 func TestTrusted(t *testing.T) {
 	const rando = "random-person"
@@ -629,5 +657,124 @@ func TestAbortAllJobs(t *testing.T) {
 				t.Errorf("IsAborted: %t, but expected aborted: %t", isAborted, tc.expectedAbortedProwJob)
 			}
 		})
+	}
+}
+
+func TestShouldHighlightJoinOrgMessage(t *testing.T) {
+	t.Parallel()
+
+	mergedPRIssue := func(number int, author string) *github.Issue {
+		return &github.Issue{
+			Number:      number,
+			State:       github.PullRequestStateClosed,
+			User:        github.User{Login: author},
+			PullRequest: &struct{}{},
+		}
+	}
+
+	testCases := []struct {
+		name      string
+		issues    map[int]*github.Issue
+		expecting bool
+	}{
+		{
+			name: "fewer than threshold merged PRs",
+			issues: map[int]*github.Issue{
+				1: mergedPRIssue(1, "author"),
+				2: mergedPRIssue(2, "author"),
+			},
+			expecting: false,
+		},
+		{
+			name: "threshold merged PRs",
+			issues: map[int]*github.Issue{
+				1: mergedPRIssue(1, "author"),
+				2: mergedPRIssue(2, "author"),
+				3: mergedPRIssue(3, "author"),
+			},
+			expecting: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			fc := fakegithub.NewFakeClient()
+			fc.Issues = tc.issues
+			c := Client{
+				GitHubClient: fc,
+				Logger:       logrus.WithField("test", "TestShouldHighlightJoinOrgMessage"),
+			}
+
+			highlight := shouldHighlightJoinOrgMessage(c, "org", github.User{Login: "author"})
+			if highlight != tc.expecting {
+				t.Fatalf("shouldHighlightJoinOrgMessage() = %t, want %t", highlight, tc.expecting)
+			}
+		})
+	}
+}
+
+func TestShouldHighlightJoinOrgMessageUsesFilteredQuery(t *testing.T) {
+	t.Parallel()
+
+	fc := &findIssuesWithOrgCapturingClient{
+		FakeClient: fakegithub.NewFakeClient(),
+	}
+	c := Client{
+		GitHubClient: fc,
+		Logger:       logrus.WithField("test", "TestShouldHighlightJoinOrgMessageUsesFilteredQuery"),
+	}
+
+	if highlight := shouldHighlightJoinOrgMessage(c, "org", github.User{Login: "author"}); highlight {
+		t.Fatalf("shouldHighlightJoinOrgMessage() = true, want false")
+	}
+
+	const expectedQuery = "type:pr is:merged org:org author:author"
+	if fc.org != "org" {
+		t.Fatalf("FindIssuesWithOrg() org = %q, want %q", fc.org, "org")
+	}
+	if fc.query != expectedQuery {
+		t.Fatalf("FindIssuesWithOrg() query = %q, want %q", fc.query, expectedQuery)
+	}
+	if fc.sort != "" {
+		t.Fatalf("FindIssuesWithOrg() sort = %q, want empty", fc.sort)
+	}
+	if fc.asc {
+		t.Fatalf("FindIssuesWithOrg() asc = true, want false")
+	}
+}
+
+func TestShouldHighlightJoinOrgMessageIgnoresSearchErrors(t *testing.T) {
+	t.Parallel()
+
+	fc := &findIssuesWithOrgErrorClient{
+		FakeClient: fakegithub.NewFakeClient(),
+	}
+	c := Client{
+		GitHubClient: fc,
+		Logger:       logrus.WithField("test", "TestShouldHighlightJoinOrgMessageIgnoresSearchErrors"),
+	}
+
+	if highlight := shouldHighlightJoinOrgMessage(c, "org", github.User{Login: "author"}); highlight {
+		t.Fatalf("shouldHighlightJoinOrgMessage() = true, want false when search fails")
+	}
+}
+
+func TestShouldHighlightJoinOrgMessageSkipsBotAuthors(t *testing.T) {
+	t.Parallel()
+
+	fc := &findIssuesWithOrgErrorClient{
+		FakeClient: fakegithub.NewFakeClient(),
+	}
+	c := Client{
+		GitHubClient: fc,
+		Logger:       logrus.WithField("test", "TestShouldHighlightJoinOrgMessageSkipsBotAuthors"),
+	}
+
+	if highlight := shouldHighlightJoinOrgMessage(c, "org", github.User{Login: "ci-robot", Type: github.UserTypeBot}); highlight {
+		t.Fatalf("shouldHighlightJoinOrgMessage() = true, want false for bot author")
+	}
+	if fc.called {
+		t.Fatalf("expected no search call for bot author")
 	}
 }
