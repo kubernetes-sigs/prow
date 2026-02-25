@@ -140,12 +140,12 @@ type options struct {
 	controllerManager     prowflagutil.ControllerManagerOptions
 	dryRun                bool
 	tenantIDs             prowflagutil.Strings
-	sslEnablement         prowflagutil.SSLEnablementOptions
+	ssl                   prowflagutil.SSLOptions
 	clientCertFile        string
 }
 
 func (o *options) Validate() error {
-	for _, group := range []pkgFlagutil.OptionGroup{&o.kubernetes, &o.github, &o.config, &o.pluginsConfig, &o.controllerManager, &o.sslEnablement} {
+	for _, group := range []pkgFlagutil.OptionGroup{&o.kubernetes, &o.github, &o.config, &o.pluginsConfig, &o.controllerManager, &o.ssl} {
 		if err := group.Validate(o.dryRun); err != nil {
 			return err
 		}
@@ -164,8 +164,18 @@ func (o *options) Validate() error {
 		return errors.New("'--hidden-only', '--tenant-id', and '--show-hidden' are mutually exclusive, 'hidden-only' shows only hidden job, '--tenant-id' shows all jobs with matching ID and 'show-hidden' shows both hidden and non-hidden jobs")
 	}
 
-	if o.sslEnablement.EnableSSL && o.clientCertFile == "" {
-		return errors.New("flag --enable-ssl was set to true but required flag --client-cert-file was not set")
+	if o.hookURL != "" {
+		sslEnabled, err := isHttpsPath(o.hookURL)
+		if err != nil {
+			return err
+		}
+		if sslEnabled && o.clientCertFile == "" {
+			return errors.New("flag --hook-url was set to an https url but required flag --client-cert-file was not set")
+		}
+	}
+
+	if o.ssl.CertFile != "" && o.clientCertFile == "" {
+		return errors.New("flag --server-cert-file and --server-key-file was set to true but required flag --client-cert-file was not set")
 	}
 	return nil
 }
@@ -203,7 +213,7 @@ func gatherOptions(fs *flag.FlagSet, args ...string) options {
 	o.github.AllowDirectAccess = true
 	o.storage.AddFlags(fs)
 	o.pluginsConfig.AddFlags(fs)
-	o.sslEnablement.AddFlags(fs)
+	o.ssl.AddFlags(fs)
 	fs.Parse(args)
 
 	return o
@@ -518,8 +528,8 @@ func main() {
 	}
 
 	health.ServeReady()
-	if o.sslEnablement.EnableSSL {
-		interrupts.ListenAndServeTLS(server, o.sslEnablement.ServerCertFile, o.sslEnablement.ServerKeyFile, 5*time.Second)
+	if o.ssl.CertFile != "" {
+		interrupts.ListenAndServeTLS(server, o.ssl.CertFile, o.ssl.KeyFile, 5*time.Second)
 	} else {
 		interrupts.ListenAndServe(server, 5*time.Second)
 	}

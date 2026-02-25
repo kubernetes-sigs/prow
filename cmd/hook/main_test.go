@@ -80,14 +80,12 @@ func Test_gatherOptions(t *testing.T) {
 		{
 			name: "explicitly set enableSSL",
 			args: map[string]string{
-				"--enable-ssl":       "true",
 				"--server-cert-file": "/test/path/cert.pem",
 				"--server-key-file":  "/test/path/key.pem",
 			},
 			expected: func(o *options) {
-				o.sslEnablement.EnableSSL = true
-				o.sslEnablement.ServerCertFile = "/test/path/cert.pem"
-				o.sslEnablement.ServerKeyFile = "/test/path/key.pem"
+				o.ssl.CertFile = "/test/path/cert.pem"
+				o.ssl.KeyFile = "/test/path/key.pem"
 			},
 		},
 	}

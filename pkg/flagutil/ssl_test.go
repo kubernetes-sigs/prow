@@ -22,56 +22,40 @@ import (
 
 func TestSSLEnablementOptions_Validate(t *testing.T) {
 	testCases := []struct {
-		name                 string
-		sslEnablementOptions SSLEnablementOptions
-		expectedErrorString  string
+		name                string
+		sslOptions          SSLOptions
+		expectedErrorString string
 	}{
 		{
 			name: "No_SSL_Options_Is_Valid",
 		},
 		{
 			name: "SSL_Options_Properly_Enabled",
-			sslEnablementOptions: SSLEnablementOptions{
-				EnableSSL:      true,
-				ServerCertFile: "/test/path/cert.pem",
-				ServerKeyFile:  "/test/path/key.pem",
+			sslOptions: SSLOptions{
+				CertFile: "/test/path/cert.pem",
+				KeyFile:  "/test/path/key.pem",
 			},
-		},
-		{
-			name: "SSL_Options_Explicitly_Disabled_Is_Ok",
-			sslEnablementOptions: SSLEnablementOptions{
-				EnableSSL: false,
-			},
-		},
-		{
-			name: "Cert_File_And_Key_File_Are_Missing",
-			sslEnablementOptions: SSLEnablementOptions{
-				EnableSSL: true,
-			},
-			expectedErrorString: `flag --enable-ssl was set to true but required flag --cert-file was not set`,
 		},
 		{
 			name: "Cert_File_Is_Missing",
-			sslEnablementOptions: SSLEnablementOptions{
-				EnableSSL:     true,
-				ServerKeyFile: "/test/path/key.pem",
+			sslOptions: SSLOptions{
+				KeyFile: "/test/path/key.pem",
 			},
-			expectedErrorString: `flag --enable-ssl was set to true but required flag --cert-file was not set`,
+			expectedErrorString: `flag --server-key-file was set but corresponding required flag --server-cert-file was not set`,
 		},
 		{
 			name: "Key_File_Is_Missing",
-			sslEnablementOptions: SSLEnablementOptions{
-				EnableSSL:      true,
-				ServerCertFile: "/test/path/cert.pem",
+			sslOptions: SSLOptions{
+				CertFile: "/test/path/cert.pem",
 			},
-			expectedErrorString: `flag --enable-ssl was set to true but required flag --key-file was not set`,
+			expectedErrorString: `flag --server-cert-file was set but corresponding required flag --server-key-file was not set`,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			var actualErrMsg string
-			actualErr := tc.sslEnablementOptions.Validate(false)
+			actualErr := tc.sslOptions.Validate(false)
 			if actualErr != nil {
 				actualErrMsg = actualErr.Error()
 			}

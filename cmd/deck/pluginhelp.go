@@ -48,11 +48,11 @@ type helpAgent struct {
 func newHelpAgent(path string, cert string) (*helpAgent, error) {
 	//Set custom http client if ssl is enabled
 	var client *http.Client
-	hookPath, err := url.Parse(path)
+	sslEnabled, err := isHttpsPath(path)
 	if err != nil {
-		return nil, fmt.Errorf("error parsing hook path: %w", err)
+		return nil, err
 	}
-	if hookPath.Scheme == sslEnabledSchema {
+	if sslEnabled {
 		caCert, err := os.ReadFile(cert)
 		if err != nil {
 			return nil, fmt.Errorf("error decoding cert file: %w", err)
@@ -100,4 +100,12 @@ func (ha *helpAgent) getHelp() (*pluginhelp.Help, error) {
 	ha.help = &help
 	ha.expiry = time.Now().Add(cacheLife)
 	return &help, nil
+}
+
+func isHttpsPath(path string) (bool, error) {
+	hookPath, err := url.Parse(path)
+	if err != nil {
+		return false, fmt.Errorf("error parsing hook path: %w", err)
+	}
+	return hookPath.Scheme == sslEnabledSchema, nil
 }

@@ -682,9 +682,8 @@ func Test_gatherOptions(t *testing.T) {
 			err: true,
 		},
 		{
-			name: "explicitly set enableSSL",
+			name: "explicitly set cert arguments",
 			args: map[string]string{
-				"--enable-ssl":       "true",
 				"--server-cert-file": "/test/path/cert.pem",
 				"--server-key-file":  "/test/path/key.pem",
 				"--client-cert-file": "/test/path/cert.pem",
@@ -692,11 +691,25 @@ func Test_gatherOptions(t *testing.T) {
 			expected: func(o *options) {
 				o.controllerManager.TimeoutListingProwJobs = 30 * time.Second
 				o.controllerManager.TimeoutListingProwJobsDefault = 30 * time.Second
-				o.sslEnablement.EnableSSL = true
-				o.sslEnablement.ServerCertFile = "/test/path/cert.pem"
-				o.sslEnablement.ServerKeyFile = "/test/path/key.pem"
+				o.ssl.CertFile = "/test/path/cert.pem"
+				o.ssl.KeyFile = "/test/path/key.pem"
 				o.clientCertFile = "/test/path/cert.pem"
 			},
+		},
+		{
+			name: "server flags set but missing flag --client-cert-file",
+			args: map[string]string{
+				"--server-cert-file": "/test/path/cert.pem",
+				"--server-key-file":  "/test/path/key.pem",
+			},
+			err: true,
+		},
+		{
+			name: "hook path starts with https but missing flag --client-cert-file",
+			args: map[string]string{
+				"--hook-url": "https://example.com",
+			},
+			err: true,
 		},
 	}
 	for _, tc := range cases {
