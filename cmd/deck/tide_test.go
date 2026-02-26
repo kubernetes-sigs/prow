@@ -535,7 +535,7 @@ func TestFilter(t *testing.T) {
 			},
 			expectedHist: map[string][]history.Record{
 				"tenanted/test:master":         {{Action: "TRIGGER_BATCH"}, {Action: "MERGE_BATCH"}},
-				"clustered-tenant/test:master": {{Action: "TRIGGER_BATCH", TenantIDs: []string{"t"}}, {Action: "MERGE_BATCH"}},
+				"clustered-tenant/test:master": {{Action: "TRIGGER_BATCH", TenantIDs: []string{"t"}}},
 			},
 		},
 		{
@@ -589,7 +589,7 @@ func TestFilter(t *testing.T) {
 			},
 			expectedHist: map[string][]history.Record{
 				"tenanted/test:master":         {{Action: "TRIGGER_BATCH"}, {Action: "MERGE_BATCH"}},
-				"clustered-tenant/test:master": {{Action: "TRIGGER_BATCH", TenantIDs: []string{"t"}}, {Action: "MERGE_BATCH"}},
+				"clustered-tenant/test:master": {{Action: "TRIGGER_BATCH", TenantIDs: []string{"t"}}},
 			},
 		},
 		{
@@ -709,6 +709,55 @@ func TestFilter(t *testing.T) {
 			expectedHist: map[string][]history.Record{
 				"kubernetes/test-infra:master": {{Action: "MERGE", TenantIDs: []string{config.DefaultTenantID}}, {Action: "TRIGGER"}},
 				"kubernetes/kubernetes:master": {{Action: "TRIGGER_BATCH", TenantIDs: []string{config.DefaultTenantID}}, {Action: "MERGE_BATCH"}},
+			},
+		},
+		{
+			name:      "pool with mixed tenant IDs is visible when deck matches any",
+			cfg:       exampleConfigNoDefaults,
+			tenantIDs: []string{config.DefaultTenantID},
+			pools: []tide.Pool{
+				{Org: "kubernetes", Repo: "release", TenantIDs: []string{config.DefaultTenantID}},
+				{Org: "kubernetes", Repo: "mixed", TenantIDs: []string{config.DefaultTenantID, "other-tenant"}},
+				{Org: "other", Repo: "only-other"},
+			},
+			hist: map[string][]history.Record{
+				"kubernetes/release:main": {
+					{Action: "MERGE", TenantIDs: []string{config.DefaultTenantID}},
+					{Action: "TRIGGER", TenantIDs: []string{config.DefaultTenantID}},
+				},
+				"kubernetes/mixed:main": {
+					{Action: "MERGE", TenantIDs: []string{config.DefaultTenantID}},
+					{Action: "TRIGGER", TenantIDs: []string{config.DefaultTenantID, "other-tenant"}},
+					{Action: "TRIGGER", TenantIDs: []string{"other-tenant"}},
+				},
+				"other/only-other:main": {
+					{Action: "MERGE", TenantIDs: []string{"other-tenant"}},
+				},
+			},
+			queries: []config.TideQuery{
+				{
+					Repos: []string{"kubernetes/release"},
+				},
+			},
+
+			expectedQueries: []config.TideQuery{
+				{
+					Repos: []string{"kubernetes/release"},
+				},
+			},
+			expectedPools: []tide.Pool{
+				{Org: "kubernetes", Repo: "release", TenantIDs: []string{config.DefaultTenantID}},
+				{Org: "kubernetes", Repo: "mixed", TenantIDs: []string{config.DefaultTenantID, "other-tenant"}},
+			},
+			expectedHist: map[string][]history.Record{
+				"kubernetes/release:main": {
+					{Action: "MERGE", TenantIDs: []string{config.DefaultTenantID}},
+					{Action: "TRIGGER", TenantIDs: []string{config.DefaultTenantID}},
+				},
+				"kubernetes/mixed:main": {
+					{Action: "MERGE", TenantIDs: []string{config.DefaultTenantID}},
+					{Action: "TRIGGER", TenantIDs: []string{config.DefaultTenantID, "other-tenant"}},
+				},
 			},
 		},
 	}
