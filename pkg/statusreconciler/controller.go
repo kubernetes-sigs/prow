@@ -20,7 +20,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -156,8 +156,7 @@ type Controller struct {
 	trustedChecker            trustedChecker
 	statusClient              statusClient
 
-	healthInitializationLock sync.RWMutex
-	healthInitialized        bool
+	healthInitialized uint32
 }
 
 // Run monitors the incoming configuration changes to determine when statuses need to be
@@ -192,19 +191,14 @@ func (c *Controller) Run(ctx context.Context) {
 // avoid transient startup liveness failures. Afterwards it mirrors config load
 // health from the status client.
 func (c *Controller) Healthy() bool {
-	c.healthInitializationLock.RLock()
-	initialized := c.healthInitialized
-	c.healthInitializationLock.RUnlock()
-	if !initialized {
+	if atomic.LoadUint32(&c.healthInitialized) == 0 {
 		return true
 	}
 	return c.statusClient.Healthy()
 }
 
 func (c *Controller) markHealthInitialized() {
-	c.healthInitializationLock.Lock()
-	defer c.healthInitializationLock.Unlock()
-	c.healthInitialized = true
+	atomic.StoreUint32(&c.healthInitialized, 1)
 }
 
 func (c *Controller) reconcile(delta config.Delta, log *logrus.Entry) error {
