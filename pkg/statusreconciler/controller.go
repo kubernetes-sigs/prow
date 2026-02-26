@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -154,12 +155,16 @@ type Controller struct {
 	statusMigrator            statusMigrator
 	trustedChecker            trustedChecker
 	statusClient              statusClient
+
+	healthInitializationLock sync.RWMutex
+	healthInitialized        bool
 }
 
 // Run monitors the incoming configuration changes to determine when statuses need to be
 // reconciled on PRs in flight when blocking presubmits change
 func (c *Controller) Run(ctx context.Context) {
 	changes, err := c.statusClient.Load()
+	c.markHealthInitialized()
 	if err != nil {
 		logrus.WithError(err).Error("Error loading saved status.")
 		return
@@ -180,6 +185,26 @@ func (c *Controller) Run(ctx context.Context) {
 			return
 		}
 	}
+}
+
+// Healthy reports whether status-reconciler should be considered live.
+// Before the controller attempts its first config load it reports healthy to
+// avoid transient startup liveness failures. Afterwards it mirrors config load
+// health from the status client.
+func (c *Controller) Healthy() bool {
+	c.healthInitializationLock.RLock()
+	initialized := c.healthInitialized
+	c.healthInitializationLock.RUnlock()
+	if !initialized {
+		return true
+	}
+	return c.statusClient.Healthy()
+}
+
+func (c *Controller) markHealthInitialized() {
+	c.healthInitializationLock.Lock()
+	defer c.healthInitializationLock.Unlock()
+	c.healthInitialized = true
 }
 
 func (c *Controller) reconcile(delta config.Delta, log *logrus.Entry) error {
