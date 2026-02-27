@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"sigs.k8s.io/prow/pkg/interrupts"
@@ -31,7 +32,12 @@ const healthPort = 8081
 // Health keeps a request multiplexer for health liveness and readiness endpoints
 type Health struct {
 	healthMux *http.ServeMux
+
+	livenessLock   sync.RWMutex
+	livenessChecks []LivenessCheck
 }
+
+type LivenessCheck func() bool
 
 // NewHealth creates a new health request multiplexer and starts serving the liveness endpoint
 // on the default port
@@ -42,16 +48,22 @@ func NewHealth() *Health {
 // NewHealth creates a new health request multiplexer and starts serving the liveness endpoint
 // on the given port
 func NewHealthOnPort(port int) *Health {
-	healthMux := http.NewServeMux()
-	healthMux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, "OK") })
-	server := &http.Server{Addr: ":" + strconv.Itoa(port), Handler: healthMux}
+	h := &Health{healthMux: http.NewServeMux()}
+	h.healthMux.HandleFunc("/healthz", h.serveLive)
+	server := &http.Server{Addr: ":" + strconv.Itoa(port), Handler: h.healthMux}
 	interrupts.ListenAndServe(server, 5*time.Second)
-	return &Health{
-		healthMux: healthMux,
-	}
+	return h
 }
 
 type ReadinessCheck func() bool
+
+// ServeLive configures optional liveness checks for /healthz.
+// If no checks are provided, /healthz continues to return OK.
+func (h *Health) ServeLive(livenessChecks ...LivenessCheck) {
+	h.livenessLock.Lock()
+	defer h.livenessLock.Unlock()
+	h.livenessChecks = append([]LivenessCheck(nil), livenessChecks...)
+}
 
 // ServeReady starts serving the readiness endpoint
 func (h *Health) ServeReady(readinessChecks ...ReadinessCheck) {
@@ -65,4 +77,18 @@ func (h *Health) ServeReady(readinessChecks ...ReadinessCheck) {
 		}
 		fmt.Fprint(w, "OK")
 	})
+}
+
+func (h *Health) serveLive(w http.ResponseWriter, r *http.Request) {
+	h.livenessLock.RLock()
+	livenessChecks := append([]LivenessCheck(nil), h.livenessChecks...)
+	h.livenessLock.RUnlock()
+	for _, livenessCheck := range livenessChecks {
+		if !livenessCheck() {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			fmt.Fprint(w, "LivenessCheck failed")
+			return
+		}
+	}
+	fmt.Fprint(w, "OK")
 }

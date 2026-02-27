@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -154,12 +155,15 @@ type Controller struct {
 	statusMigrator            statusMigrator
 	trustedChecker            trustedChecker
 	statusClient              statusClient
+
+	healthInitialized uint32
 }
 
 // Run monitors the incoming configuration changes to determine when statuses need to be
 // reconciled on PRs in flight when blocking presubmits change
 func (c *Controller) Run(ctx context.Context) {
 	changes, err := c.statusClient.Load()
+	c.markHealthInitialized()
 	if err != nil {
 		logrus.WithError(err).Error("Error loading saved status.")
 		return
@@ -182,7 +186,26 @@ func (c *Controller) Run(ctx context.Context) {
 	}
 }
 
+// Healthy reports whether status-reconciler should be considered live.
+// Before the controller attempts its first config load it reports healthy to
+// avoid transient startup liveness failures. Afterwards it mirrors config load
+// health from the status client.
+func (c *Controller) Healthy() bool {
+	if atomic.LoadUint32(&c.healthInitialized) == 0 {
+		return true
+	}
+	return c.statusClient.Healthy()
+}
+
+func (c *Controller) markHealthInitialized() {
+	atomic.StoreUint32(&c.healthInitialized, 1)
+}
+
 func (c *Controller) reconcile(delta config.Delta, log *logrus.Entry) error {
+	if countPresubmits(delta.Before.PresubmitsStatic) > 0 && countPresubmits(delta.After.PresubmitsStatic) == 0 {
+		return fmt.Errorf("refusing to reconcile config update because all presubmits disappeared")
+	}
+
 	var errors []error
 	if err := c.triggerNewPresubmits(addedBlockingPresubmits(delta.Before.PresubmitsStatic, delta.After.PresubmitsStatic, log)); err != nil {
 		errors = append(errors, err)
@@ -471,4 +494,12 @@ func migratedBlockingPresubmits(old, new map[string][]config.Presubmit, log *log
 	}
 	log.Infof("Identified %d migrated blocking presubmits.", numMigrated)
 	return migrated, log
+}
+
+func countPresubmits(presubmits map[string][]config.Presubmit) int {
+	var count int
+	for _, jobs := range presubmits {
+		count += len(jobs)
+	}
+	return count
 }

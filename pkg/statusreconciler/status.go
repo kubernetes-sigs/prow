@@ -36,6 +36,7 @@ type storedState struct {
 type statusClient interface {
 	Load() (chan config.Delta, error)
 	Save() error
+	Healthy() bool
 }
 
 // opener has methods to read and write paths
@@ -58,7 +59,7 @@ func (s *statusController) Load() (chan config.Delta, error) {
 	s.Agent = config.Agent{}
 	state, err := s.loadState()
 	if err == nil {
-		s.Agent.Set(&state.Config)
+		s.Agent.SetWithoutBroadcast(&state.Config)
 	}
 	changes := make(chan config.Delta)
 	s.Agent.Subscribe(changes)
@@ -131,4 +132,8 @@ func (s *statusController) loadState() (storedState, error) {
 
 func (s *statusController) Config() *config.Config {
 	return s.Agent.Config()
+}
+
+func (s *statusController) Healthy() bool {
+	return s.Agent.Healthy()
 }
