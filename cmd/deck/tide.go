@@ -160,7 +160,7 @@ func (ta *tideAgent) updateHistory() error {
 }
 
 func (ta *tideAgent) matchingIDs(ids []string) bool {
-	return len(ids) > 0 && ta.tenantIDs.HasAll(ids...)
+	return len(ids) > 0 && ta.tenantIDs.HasAny(ids...)
 }
 
 func (ta *tideAgent) filterPools(pools []tide.Pool) []tide.Pool {
@@ -187,23 +187,21 @@ func noTenantIDOrDefaultTenantID(ids []string) bool {
 	return true
 }
 
-func recordIDs(records []history.Record) sets.Set[string] {
-	res := sets.Set[string]{}
-	for _, record := range records {
-		res.Insert(record.TenantIDs...)
-	}
-	return res
-}
-
 func (ta *tideAgent) filterHistory(hist map[string][]history.Record) map[string][]history.Record {
 	filtered := make(map[string][]history.Record, len(hist))
 	for pool, records := range hist {
 		orgRepo := strings.Split(pool, ":")[0]
-		curIDs := recordIDs(records).Insert()
 		orgRepoID := ta.cfg().GetProwJobDefault(orgRepo, "*").TenantID
 		needsHide := matches(orgRepo, ta.hiddenRepos())
-		if match := ta.filter(orgRepoID, curIDs, needsHide); match {
-			filtered[pool] = records
+		var filteredRecords []history.Record
+		for _, record := range records {
+			curIDs := sets.New[string](record.TenantIDs...)
+			if match := ta.filter(orgRepoID, curIDs, needsHide); match {
+				filteredRecords = append(filteredRecords, record)
+			}
+		}
+		if len(filteredRecords) > 0 {
+			filtered[pool] = filteredRecords
 		}
 	}
 	return filtered
