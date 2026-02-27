@@ -239,16 +239,26 @@ func (g *gitCtx) commandsForBaseRef(refs prowapi.Refs, gitUserName, gitUserEmail
 		commands = append(commands, g.gitCommand("config", "http.cookiefile", cookiePath))
 	}
 
+	sparseCheckoutSet := isSparseCheckoutSet(refs)
+	if sparseCheckoutSet {
+		commands = append(commands, g.gitCommand("sparse-checkout", "init"))
+	}
+
+	cloneDepth := refs.CloneDepth
+	if sparseCheckoutSet && cloneDepth == 0 {
+		cloneDepth = 1
+	}
 	var depthArgs []string
-	if d := refs.CloneDepth; d > 0 {
-		depthArgs = append(depthArgs, "--depth", strconv.Itoa(d))
+	if cloneDepth > 0 {
+		depthArgs = append(depthArgs, "--depth", strconv.Itoa(cloneDepth))
 	}
 	var filterArgs []string
-	if refs.BloblessFetch != nil && *refs.BloblessFetch {
+	if (refs.BloblessFetch != nil && *refs.BloblessFetch) || sparseCheckoutSet {
 		filterArgs = append(filterArgs, "--filter=blob:none")
 	}
 
-	if !refs.SkipFetchHead {
+	skipTagFetch := refs.SkipFetchHead || sparseCheckoutSet
+	if !skipTagFetch {
 		var fetchArgs []string
 		fetchArgs = append(fetchArgs, depthArgs...)
 		fetchArgs = append(fetchArgs, filterArgs...)
@@ -270,8 +280,16 @@ func (g *gitCtx) commandsForBaseRef(refs prowapi.Refs, gitUserName, gitUserEmail
 		var fetchArgs []string
 		fetchArgs = append(fetchArgs, depthArgs...)
 		fetchArgs = append(fetchArgs, filterArgs...)
+		if sparseCheckoutSet {
+			fetchArgs = append(fetchArgs, "--no-tags")
+		}
 		fetchArgs = append(fetchArgs, g.repositoryURI, fetchRef)
 		commands = append(commands, g.gitFetch(fetchArgs...))
+	}
+
+	if sparseCheckoutSet {
+		sparseArgs := append([]string{"sparse-checkout", "set"}, refs.SparseCheckoutFiles...)
+		commands = append(commands, g.gitCommand(sparseArgs...))
 	}
 
 	// we need to be "on" the target branch after the sync
@@ -285,6 +303,10 @@ func (g *gitCtx) commandsForBaseRef(refs prowapi.Refs, gitUserName, gitUserEmail
 	commands = append(commands, g.gitCommand("checkout", refs.BaseRef))
 
 	return commands
+}
+
+func isSparseCheckoutSet(refs prowapi.Refs) bool {
+	return len(refs.SparseCheckoutFiles) > 0
 }
 
 // gitHeadTimestamp returns the timestamp of the HEAD commit as seconds from the
@@ -337,7 +359,7 @@ func (g *gitCtx) commandsForPullRefs(refs prowapi.Refs, fakeTimestamp int) []run
 	var commands []runnable
 	for _, prRef := range refs.Pulls {
 		var fetchArgs []string
-		if refs.BloblessFetch != nil && *refs.BloblessFetch {
+		if (refs.BloblessFetch != nil && *refs.BloblessFetch) || isSparseCheckoutSet(refs) {
 			fetchArgs = append(fetchArgs, "--filter=blob:none")
 		}
 		ref := fmt.Sprintf("pull/%d/head", prRef.Number)
@@ -361,7 +383,6 @@ func (g *gitCtx) commandsForPullRefs(refs prowapi.Refs, fakeTimestamp int) []run
 		commands = append(commands, gitMergeCommand)
 	}
 
-	// unless the user specifically asks us not to, init submodules
 	if !refs.SkipSubmodules {
 		commands = append(commands, g.gitCommand("submodule", "update", "--init", "--recursive"))
 	}
