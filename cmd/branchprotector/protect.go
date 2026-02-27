@@ -326,11 +326,13 @@ func (p *protector) UpdateRepo(orgName string, repoName string, repo config.Repo
 	}
 
 	branches := map[string]github.Branch{}
+	var allBranches []github.Branch
 	for _, onlyProtected := range []bool{false, true} { // put true second so b.Protected is set correctly
 		bs, err := p.client.GetBranches(orgName, repoName, onlyProtected)
 		if err != nil {
 			return fmt.Errorf("list branches: %w", err)
 		}
+		allBranches = append(allBranches, bs...)
 		for _, b := range bs {
 			_, ok := repo.Branches[b.Name]
 			if !ok && branchInclusions != nil && branchInclusions.MatchString(b.Name) {
@@ -343,6 +345,27 @@ func (p *protector) UpdateRepo(orgName string, repoName string, repo config.Repo
 				continue
 			}
 			branches[b.Name] = b
+		}
+	}
+
+	// Handle excluded branches that are currently protected and need removal
+	if branchExclusions != nil {
+		seen := make(map[string]bool)
+		for _, b := range allBranches {
+			if b.Protected && branchExclusions.MatchString(b.Name) && !seen[b.Name] {
+				seen[b.Name] = true
+				// Check if this branch is not in the branches map (i.e., it was excluded)
+				if _, inBranches := branches[b.Name]; !inBranches {
+					logrus.Infof("%s/%s=%s: removing protection from excluded branch", orgName, repoName, b.Name)
+					p.updates <- requirements{
+						Org:     orgName,
+						Repo:    repoName,
+						Branch:  b.Name,
+						Request: nil, // nil Request triggers RemoveBranchProtection
+						// Flow: updates channel -> configureBranches() -> client.RemoveBranchProtection()
+					}
+				}
+			}
 		}
 	}
 
