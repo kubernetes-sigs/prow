@@ -63,6 +63,7 @@ const ControllerName = "plank"
 // PodStatus constants
 const (
 	Evicted    = "Evicted"
+	OOMKilled  = "OOMKilled"
 	Terminated = "Terminated"
 )
 
@@ -477,6 +478,12 @@ func (r *reconciler) syncPendingJob(ctx context.Context, pj *prowv1.ProwJob) (*r
 		}
 	} else if podUnexpectedStopCause := getPodUnexpectedStopCause(pod); podUnexpectedStopCause != PodUnexpectedStopCauseNone {
 		switch {
+		case podUnexpectedStopCause == PodUnexpectedStopCauseOOMKilled:
+			// OOMKilled, complete the PJ and mark it as errored.
+			r.log.WithField("error-on-oom", podUnexpectedStopCause).WithFields(pjutil.ProwJobFields(pj)).Info("Pod got OOMKilled, fail job.")
+			pj.SetComplete()
+			pj.Status.State = prowv1.ErrorState
+			pj.Status.Description = "Job pod was OOM killed by the cluster."
 		case podUnexpectedStopCause == PodUnexpectedStopCauseEvicted && pj.Spec.ErrorOnEviction:
 			// ErrorOnEviction is enabled, complete the PJ and mark it as errored.
 			r.log.WithField("error-on-eviction", true).WithFields(pjutil.ProwJobFields(pj)).Info("Pods Node got evicted, fail job.")
@@ -667,10 +674,15 @@ const (
 	PodUnexpectedStopCauseNone        PodUnexpectedStopCause = ""
 	PodUnexpectedStopCauseUnknown     PodUnexpectedStopCause = "unknown"
 	PodUnexpectedStopCauseEvicted     PodUnexpectedStopCause = "evicted"
+	PodUnexpectedStopCauseOOMKilled   PodUnexpectedStopCause = "oomkilled"
 	PodUnexpectedStopCauseUnreachable PodUnexpectedStopCause = "unreachable"
 )
 
 func getPodUnexpectedStopCause(pod *corev1.Pod) PodUnexpectedStopCause {
+	if pod.Status.Reason == OOMKilled {
+		return PodUnexpectedStopCauseOOMKilled
+	}
+
 	if pod.Status.Reason == Evicted {
 		return PodUnexpectedStopCauseEvicted
 	}
