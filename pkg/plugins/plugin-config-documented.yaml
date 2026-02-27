@@ -553,6 +553,10 @@ project_manager:
                           org: ' '
                           # State must be open, closed or all
                           state: ' '
+release_note:
+    # URL is the URL to the release note documentation that users should follow.
+    # Defaults to the Kubernetes community release note guide.
+    url: ' '
 repo_milestone:
     "":
         maintainers_friendly_name: ' '

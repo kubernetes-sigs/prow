@@ -273,15 +273,16 @@ func newFakeClient(body, branch string, initialLabels, comments []string, parent
 
 func TestReleaseNotePR(t *testing.T) {
 	tests := []struct {
-		name               string
-		initialLabels      []string
-		body               string
-		branch             string // Defaults to master
-		parentPRs          map[int]string
-		issueComments      []string
-		IssueLabelsAdded   []string
-		IssueLabelsRemoved []string
-		merged             bool
+		name                 string
+		initialLabels        []string
+		body                 string
+		branch               string // Defaults to master
+		parentPRs            map[int]string
+		issueComments        []string
+		IssueLabelsAdded     []string
+		IssueLabelsRemoved   []string
+		merged               bool
+		expectedURLInComment string // If set, verify this URL appears in bot comment
 	}{
 		{
 			name:          "LGTM with release-note",
@@ -488,6 +489,13 @@ func TestReleaseNotePR(t *testing.T) {
 			IssueLabelsAdded:   []string{labels.ReleaseNoteNone},
 			IssueLabelsRemoved: []string{labels.ReleaseNoteLabelNeeded},
 		},
+		{
+			name:                 "release-note-none, with custom release note URL",
+			body:                 "",
+			initialLabels:        []string{},
+			IssueLabelsAdded:     []string{labels.ReleaseNoteLabelNeeded},
+			expectedURLInComment: "https://example.com/release-notes",
+		},
 	}
 	for _, test := range tests {
 		if test.branch == "" {
@@ -496,9 +504,29 @@ func TestReleaseNotePR(t *testing.T) {
 		fc, pr := newFakeClient(test.body, test.branch, test.initialLabels, test.issueComments, test.parentPRs)
 		pr.PullRequest.Merged = test.merged
 
-		err := handlePR(fc, logrus.WithField("plugin", PluginName), pr)
+		releaseNoteURL := "https://git.k8s.io/community/contributors/guide/release-notes.md"
+		if test.expectedURLInComment != "" {
+			releaseNoteURL = test.expectedURLInComment
+		}
+
+		err := handlePR(fc, logrus.WithField("plugin", PluginName), releaseNoteURL, pr)
 		if err != nil {
 			t.Fatalf("Unexpected error from handlePR: %v", err)
+		}
+
+		// Verify expected URL appears in bot comment
+		if test.expectedURLInComment != "" {
+			found := false
+			for _, comment := range fc.IssueCommentsAdded {
+				if strings.Contains(comment, test.expectedURLInComment) {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Errorf("(%s): Expected bot comment to contain URL %q, but it was not found in: %v",
+					test.name, test.expectedURLInComment, fc.IssueCommentsAdded)
+			}
 		}
 
 		// Check that all the correct labels (and only the correct labels) were added.
