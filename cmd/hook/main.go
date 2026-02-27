@@ -71,13 +71,14 @@ type options struct {
 	bugzilla               prowflagutil.BugzillaOptions
 	instrumentationOptions prowflagutil.InstrumentationOptions
 	jira                   prowflagutil.JiraOptions
+	ssl                    prowflagutil.SSLOptions
 
 	webhookSecretFile string
 	slackTokenFile    string
 }
 
 func (o *options) Validate() error {
-	for _, group := range []flagutil.OptionGroup{&o.kubernetes, &o.github, &o.bugzilla, &o.jira, &o.githubEnablement, &o.config, &o.pluginsConfig} {
+	for _, group := range []flagutil.OptionGroup{&o.kubernetes, &o.github, &o.bugzilla, &o.jira, &o.githubEnablement, &o.config, &o.pluginsConfig, &o.ssl} {
 		if err := group.Validate(o.dryRun); err != nil {
 			return err
 		}
@@ -94,10 +95,9 @@ func gatherOptions(fs *flag.FlagSet, args ...string) options {
 	fs.BoolVar(&o.dryRun, "dry-run", true, "Dry run for testing. Uses API tokens but does not mutate.")
 	fs.DurationVar(&o.gracePeriod, "grace-period", 180*time.Second, "On shutdown, try to handle remaining events for the specified duration. ")
 	o.pluginsConfig.PluginConfigPathDefault = "/etc/plugins/plugins.yaml"
-	for _, group := range []flagutil.OptionGroup{&o.kubernetes, &o.github, &o.bugzilla, &o.instrumentationOptions, &o.jira, &o.githubEnablement, &o.config, &o.pluginsConfig} {
+	for _, group := range []flagutil.OptionGroup{&o.kubernetes, &o.github, &o.bugzilla, &o.instrumentationOptions, &o.jira, &o.githubEnablement, &o.config, &o.pluginsConfig, &o.ssl} {
 		group.AddFlags(fs)
 	}
-
 	fs.StringVar(&o.webhookSecretFile, "hmac-secret-file", "/etc/webhook/hmac", "Path to the file containing the GitHub HMAC secret.")
 	fs.StringVar(&o.slackTokenFile, "slack-token-file", "", "Path to the file containing the Slack token to use.")
 	fs.Parse(args)
@@ -274,5 +274,9 @@ func main() {
 
 	health.ServeReady()
 
-	interrupts.ListenAndServe(httpServer, o.gracePeriod)
+	if o.ssl.CertFile != "" {
+		interrupts.ListenAndServeTLS(httpServer, o.ssl.CertFile, o.ssl.KeyFile, o.gracePeriod)
+	} else {
+		interrupts.ListenAndServe(httpServer, o.gracePeriod)
+	}
 }

@@ -582,7 +582,8 @@ func TestHelp(t *testing.T) {
 		fmt.Fprint(w, string(b))
 	}))
 	ha := &helpAgent{
-		path: s.URL,
+		path:   s.URL,
+		client: http.DefaultClient,
 	}
 	handler := handlePluginHelp(ha, logrus.WithField("handler", "/plugin-help.js"))
 	handleAndCheck := func() {
@@ -677,6 +678,36 @@ func Test_gatherOptions(t *testing.T) {
 			args: map[string]string{
 				"--hidden-only": "true",
 				"--show-hidden": "true",
+			},
+			err: true,
+		},
+		{
+			name: "explicitly set cert arguments",
+			args: map[string]string{
+				"--server-cert-file": "/test/path/cert.pem",
+				"--server-key-file":  "/test/path/key.pem",
+				"--client-cert-file": "/test/path/cert.pem",
+			},
+			expected: func(o *options) {
+				o.controllerManager.TimeoutListingProwJobs = 30 * time.Second
+				o.controllerManager.TimeoutListingProwJobsDefault = 30 * time.Second
+				o.ssl.CertFile = "/test/path/cert.pem"
+				o.ssl.KeyFile = "/test/path/key.pem"
+				o.clientCertFile = "/test/path/cert.pem"
+			},
+		},
+		{
+			name: "server flags set but missing flag --client-cert-file",
+			args: map[string]string{
+				"--server-cert-file": "/test/path/cert.pem",
+				"--server-key-file":  "/test/path/key.pem",
+			},
+			err: true,
+		},
+		{
+			name: "hook path starts with https but missing flag --client-cert-file",
+			args: map[string]string{
+				"--hook-url": "https://example.com",
 			},
 			err: true,
 		},
