@@ -38,7 +38,7 @@ const (
 	PluginName = "release-note"
 )
 const (
-	releaseNoteFormat            = `Adding the "%s" label because no release-note block was detected, please follow our [release note process](https://git.k8s.io/community/contributors/guide/release-notes.md) to remove it.`
+	releaseNoteFormat            = `Adding the "%s" label because no release-note block was detected, please follow our [release note process](%s) to remove it.`
 	parentReleaseNoteFormat      = `All 'parent' PRs of a cherry-pick PR must have one of the %q or %q labels, or this PR must follow the standard/parent release note labeling requirement.`
 	releaseNoteDeprecationFormat = `Adding the "%s" label and removing any existing "%s" label because there is a "%s" label on the PR.`
 
@@ -46,7 +46,6 @@ const (
 )
 
 var (
-	releaseNoteBody            = fmt.Sprintf(releaseNoteFormat, labels.ReleaseNoteLabelNeeded)
 	parentReleaseNoteBody      = fmt.Sprintf(parentReleaseNoteFormat, labels.ReleaseNote, labels.ReleaseNoteActionRequired)
 	releaseNoteDeprecationBody = fmt.Sprintf(releaseNoteDeprecationFormat, labels.ReleaseNoteLabelNeeded, labels.ReleaseNoteNone, labels.DeprecationLabel)
 
@@ -72,7 +71,8 @@ func init() {
 	plugins.RegisterPullRequestHandler(PluginName, handlePullRequest, helpProvider)
 }
 
-func helpProvider(_ *plugins.Configuration, _ []config.OrgRepo) (*pluginhelp.PluginHelp, error) {
+func helpProvider(config *plugins.Configuration, _ []config.OrgRepo) (*pluginhelp.PluginHelp, error) {
+	url := config.ReleaseNote.URL
 	pluginHelp := &pluginhelp.PluginHelp{
 		Description: `The releasenote plugin implements a release note process that uses a markdown 'release-note' code block to associate a release note with a pull request. Until the 'release-note' block in the pull request body is populated the PR will be assigned the '` + labels.ReleaseNoteLabelNeeded + `' label.
 <br>There are three valid types of release notes that can replace this label:
@@ -84,7 +84,7 @@ func helpProvider(_ *plugins.Configuration, _ []config.OrgRepo) (*pluginhelp.Plu
 	// NOTE: the other two commands re deprecated, so we're not documenting them
 	pluginHelp.AddCommand(pluginhelp.Command{
 		Usage:       "/release-note-none",
-		Description: "Adds the '" + labels.ReleaseNoteNone + `' label to indicate that the PR does not warrant a release note. This is deprecated and ideally <a href="https://git.k8s.io/community/contributors/guide/release-notes.md">the release note process</a> should be followed in the PR body instead.`,
+		Description: "Adds the '" + labels.ReleaseNoteNone + `' label to indicate that the PR does not warrant a release note. This is deprecated and ideally <a href="` + url + `">the release note process</a> should be followed in the PR body instead.`,
 		WhoCanUse:   "PR Authors and Org Members.",
 		Examples:    []string{"/release-note-none"},
 	})
@@ -215,7 +215,7 @@ func removeOtherLabels(remover func(string) error, label string, labelSet []stri
 }
 
 func handlePullRequest(pc plugins.Agent, pr github.PullRequestEvent) error {
-	return handlePR(pc.GitHubClient, pc.Logger, &pr)
+	return handlePR(pc.GitHubClient, pc.Logger, pc.PluginConfig.ReleaseNote.URL, &pr)
 }
 
 func shouldHandlePR(pr *github.PullRequestEvent) bool {
@@ -240,12 +240,13 @@ func shouldHandlePR(pr *github.PullRequestEvent) bool {
 	return true
 }
 
-func handlePR(gc githubClient, log *logrus.Entry, pr *github.PullRequestEvent) error {
+func handlePR(gc githubClient, log *logrus.Entry, releaseNoteURLGuide string, pr *github.PullRequestEvent) error {
 	if !shouldHandlePR(pr) {
 		return nil
 	}
 	org := pr.Repo.Owner.Login
 	repo := pr.Repo.Name
+	releaseNoteBody := fmt.Sprintf(releaseNoteFormat, labels.ReleaseNoteLabelNeeded, releaseNoteURLGuide)
 
 	prInitLabels, err := gc.GetIssueLabels(org, repo, pr.Number)
 	if err != nil {
@@ -263,7 +264,7 @@ func handlePR(gc githubClient, log *logrus.Entry, pr *github.PullRequestEvent) e
 		}
 		if !prMustFollowRelNoteProcess(gc, log, pr, prLabels, true) {
 			ensureNoRelNoteNeededLabel(gc, log, pr, prLabels)
-			return clearStaleComments(gc, log, pr, prLabels, nil)
+			return clearStaleComments(gc, log, pr, prLabels, nil, releaseNoteBody)
 		}
 
 		if prLabels.Has(labels.DeprecationLabel) {
@@ -309,11 +310,11 @@ func handlePR(gc githubClient, log *logrus.Entry, pr *github.PullRequestEvent) e
 		log.Error(err)
 	}
 
-	return clearStaleComments(gc, log, pr, prLabels, comments)
+	return clearStaleComments(gc, log, pr, prLabels, comments, releaseNoteBody)
 }
 
 // clearStaleComments deletes old comments that are no longer applicable.
-func clearStaleComments(gc githubClient, log *logrus.Entry, pr *github.PullRequestEvent, prLabels sets.Set[string], comments []github.IssueComment) error {
+func clearStaleComments(gc githubClient, log *logrus.Entry, pr *github.PullRequestEvent, prLabels sets.Set[string], comments []github.IssueComment, releaseNoteBody string) error {
 	// If the PR must follow the process and hasn't yet completed the process, don't remove comments.
 	if prMustFollowRelNoteProcess(gc, log, pr, prLabels, false) && !releaseNoteAlreadyAdded(prLabels) {
 		return nil

@@ -84,6 +84,7 @@ type Configuration struct {
 	Lgtm                 []Lgtm                       `json:"lgtm,omitempty"`
 	Jira                 *Jira                        `json:"jira,omitempty"`
 	MilestoneApplier     map[string]BranchToMilestone `json:"milestone_applier,omitempty"`
+	ReleaseNote          ReleaseNote                  `json:"release_note,omitempty"`
 	RepoMilestone        map[string]Milestone         `json:"repo_milestone,omitempty"`
 	Project              ProjectConfig                `json:"project_config,omitempty"`
 	ProjectManager       ProjectManager               `json:"project_manager,omitempty"`
@@ -525,6 +526,19 @@ type Heart struct {
 	// Compiles into CommentRe during config load.
 	CommentRegexp string         `json:"commentregexp,omitempty"`
 	CommentRe     *regexp.Regexp `json:"-"`
+}
+
+// ReleaseNote contains the configuration options for the release note plugin
+type ReleaseNote struct {
+	// URL is the URL to the release note documentation that users should follow.
+	// Defaults to the Kubernetes community release note guide.
+	URL string `json:"url,omitempty"`
+}
+
+func (r *ReleaseNote) setDefaults() {
+	if r.URL == "" {
+		r.URL = "https://git.k8s.io/community/contributors/guide/release-notes.md"
+	}
 }
 
 // Milestone contains the configuration options for the milestone and
@@ -1206,6 +1220,8 @@ func (c *Configuration) setDefaults() {
 			c.RequireMatchingLabel[i].GracePeriod = "5s"
 		}
 	}
+
+	c.ReleaseNote.setDefaults()
 }
 
 // validatePluginsDupes will return an error if there are duplicated plugins.
