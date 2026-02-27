@@ -7,7 +7,9 @@ description: >
 
 # ![Prow](/images/logo_horizontal_solid.png)
 
-Prow is a Kubernetes based CI/CD system. Jobs can be triggered by various types of events and report their status to many different services. In addition to job execution, Prow provides GitHub automation in the form of policy enforcement, chat-ops via `/foo` style commands, and automatic PR merging.
+Prow is a Kubernetes-based Continuous Integration and Continuous Deployment (CI/CD) system. It provides automated testing, code review automation, and project management features for Kubernetes and other open-source projects. Prow was originally developed as part of the Kubernetes project and has since become a widely-used CI/CD platform.
+
+Jobs can be triggered by various types of events and report their status to many different services. In addition to job execution, Prow provides GitHub automation in the form of policy enforcement, chat-ops via `/foo` style commands, and automatic PR merging.
 
 See the [GoDoc](https://pkg.go.dev/sigs.k8s.io/prow/pkg) for library docs.
 Please note that these libraries are intended for use by prow only, and we do
@@ -17,7 +19,107 @@ For a brief overview of how Prow runs jobs take a look at ["Life of a Prow Job"]
 
 To see common Prow usage and interactions flow, see the pull request interactions [sequence diagram](/images/pr-interactions-sequence.svg).
 
-#### Functions and Features
+## What Problem Does It Solve?
+
+Modern software development, especially in large open-source projects like Kubernetes, requires sophisticated CI/CD infrastructure to:
+
+- **Automate Testing**: Run tests automatically on every pull request and commit
+- **Code Review Automation**: Automate repetitive review tasks and enforce project policies
+- **Project Management**: Automate issue management, labeling, and project workflows
+- **Scalability**: Handle thousands of repositories and millions of test runs
+- **Integration**: Integrate with GitHub, Gerrit, and other code hosting platforms
+- **Resource Management**: Efficiently manage compute resources across multiple clusters
+
+Prow solves these problems by providing a Kubernetes-native CI/CD platform that scales horizontally, integrates deeply with code hosting platforms, and offers extensive plugin-based automation.
+
+## Who Is It For?
+
+### Primary Users
+
+1. **Kubernetes SIG Testing**: The team responsible for maintaining Kubernetes CI infrastructure
+2. **Open Source Project Maintainers**: Teams managing large open-source projects requiring robust CI/CD
+3. **CI/CD Engineers**: Engineers building and maintaining CI/CD pipelines
+4. **Developers**: Contributors who interact with Prow through GitHub/Gerrit
+
+### Skill Level Requirements
+
+- **Basic Users**: Need to understand YAML configuration and basic CI/CD concepts
+- **Advanced Users**: Should be familiar with Kubernetes, Go programming, and CI/CD best practices
+- **Contributors**: Need strong Go skills, Kubernetes API knowledge, and understanding of distributed systems
+
+## Key Features
+
+### 1. Job Execution
+Prow executes CI jobs as Kubernetes Pods:
+- **Presubmit Jobs**: Run on pull requests before merge
+- **Postsubmit Jobs**: Run after code is merged
+- **Periodic Jobs**: Run on a schedule (cron-based)
+- **Batch Jobs**: Run multiple jobs in parallel
+
+### 2. Webhook Handling
+Prow's `hook` component processes GitHub/Gerrit webhooks:
+- Validates webhook signatures
+- Triggers appropriate jobs based on events
+- Executes plugins based on webhook content
+- Manages job lifecycle
+
+### 3. Plugin System
+Extensible plugin architecture for automation:
+- **Label Management**: Automatically label PRs and issues
+- **Milestone Management**: Track project milestones
+- **Approval Automation**: `/approve`, `/lgtm` commands
+- **Test Automation**: `/test`, `/retest` commands
+- **Issue Management**: Auto-close, auto-assign, etc.
+- **Custom Plugins**: Write your own plugins
+
+### 4. Tide - Automated Merging
+Tide automatically merges pull requests when:
+- All required tests pass
+- Code is approved by required reviewers
+- Branch protection rules are satisfied
+- No merge conflicts exist
+
+### 5. Deck - Web UI
+Deck provides a web interface for:
+- Viewing job status and history
+- Browsing test results and logs
+- Managing Prow configuration
+- Viewing plugin help
+- Spyglass integration for artifact viewing
+
+### 6. Spyglass - Artifact Viewer
+Spyglass provides a unified interface for viewing:
+- Build logs
+- Test results (JUnit XML)
+- Coverage reports
+- Custom artifacts
+
+### 7. Status Reporting (Crier)
+Crier reports job status back to:
+- GitHub (commit status, PR comments)
+- Gerrit (code review comments)
+- Pub/Sub (for external integrations)
+- Slack (notifications)
+
+### 8. Resource Management
+- **Sinker**: Cleans up old ProwJobs and Pods
+- **Scheduler**: Distributes jobs across clusters
+- **Plank**: Manages job execution and Pod creation
+
+### 9. Multi-Cluster Support
+Prow can distribute jobs across multiple Kubernetes clusters:
+- Cluster selection based on job requirements
+- Load balancing across clusters
+- Cluster-specific configurations
+
+### 10. Integration Support
+- **GitHub**: Full integration with GitHub API
+- **Gerrit**: Support for Gerrit code review
+- **Slack**: Notifications and chat-ops
+- **Pub/Sub**: Event streaming
+- **GCS**: Artifact storage
+
+#### Additional Functions and Features
 
 * Job execution for testing, batch processing, artifact publishing.
   * GitHub events are used to trigger post-PR-merge (postsubmit) jobs and on-PR-update (presubmit) jobs.
