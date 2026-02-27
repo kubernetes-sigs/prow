@@ -140,9 +140,11 @@ type options struct {
 	controllerManager     prowflagutil.ControllerManagerOptions
 	dryRun                bool
 	tenantIDs             prowflagutil.Strings
+	basePath              string
 }
 
 func (o *options) Validate() error {
+	o.basePath = normalizeBasePath(o.basePath)
 	for _, group := range []pkgFlagutil.OptionGroup{&o.kubernetes, &o.github, &o.config, &o.pluginsConfig, &o.controllerManager} {
 		if err := group.Validate(o.dryRun); err != nil {
 			return err
@@ -166,6 +168,7 @@ func (o *options) Validate() error {
 
 func gatherOptions(fs *flag.FlagSet, args ...string) options {
 	var o options
+	o.basePath = "/"
 	fs.StringVar(&o.tideURL, "tide-url", "", "Path to tide. If empty, do not serve tide data.")
 	fs.StringVar(&o.hookURL, "hook-url", "", "Path to hook plugin help endpoint.")
 	fs.StringVar(&o.oauthURL, "oauth-url", "", "Path to deck user dashboard endpoint.")
@@ -186,6 +189,7 @@ func gatherOptions(fs *flag.FlagSet, args ...string) options {
 	fs.BoolVar(&o.allowInsecure, "allow-insecure", false, "Allows insecure requests for CSRF and GitHub oauth.")
 	fs.BoolVar(&o.dryRun, "dry-run", false, "Whether or not to make mutating API calls to GitHub.")
 	fs.Var(&o.tenantIDs, "tenant-id", "The tenantID(s) used by the ProwJobs that should be displayed by this instance of Deck. This flag can be repeated.")
+	fs.StringVar(&o.basePath, "base-path", "/", "The base path under which Deck is served, e.g. /prow.")
 	o.config.AddFlags(fs)
 	o.instrumentation.AddFlags(fs)
 	o.controllerManager.TimeoutListingProwJobsDefault = 30 * time.Second
@@ -197,6 +201,8 @@ func gatherOptions(fs *flag.FlagSet, args ...string) options {
 	o.storage.AddFlags(fs)
 	o.pluginsConfig.AddFlags(fs)
 	fs.Parse(args)
+
+	o.basePath = normalizeBasePath(o.basePath)
 
 	return o
 }
@@ -319,7 +325,7 @@ func main() {
 	// Set up handlers for template pages.
 	mux.Handle("/pr", gziphandler.GzipHandler(handleSimpleTemplate(o, cfg, "pr.html", nil)))
 	mux.Handle("/command-help", gziphandler.GzipHandler(handleSimpleTemplate(o, cfg, "command-help.html", nil)))
-	mux.Handle("/plugin-help", http.RedirectHandler("/command-help", http.StatusMovedPermanently))
+	mux.Handle("/plugin-help", http.RedirectHandler(o.absolutePath("/command-help"), http.StatusMovedPermanently))
 	mux.Handle("/tide", gziphandler.GzipHandler(handleSimpleTemplate(o, cfg, "tide.html", nil)))
 	mux.Handle("/tide-history", gziphandler.GzipHandler(handleSimpleTemplate(o, cfg, "tide-history.html", nil)))
 	mux.Handle("/plugins", gziphandler.GzipHandler(handleSimpleTemplate(o, cfg, "plugins.html", nil)))
@@ -501,13 +507,17 @@ func main() {
 		return
 	}
 
-	var server *http.Server
+	var handler http.Handler = mux
+	handler = withBasePath(o.basePath, handler)
+	handler = traceHandler(handler)
 	if csrfToken != nil {
-		CSRF := csrf.Protect(csrfToken, csrf.Path("/"), csrf.Secure(!o.allowInsecure))
-		server = &http.Server{Addr: ":8080", Handler: CSRF(traceHandler(mux))}
-	} else {
-		server = &http.Server{Addr: ":8080", Handler: traceHandler(mux)}
+		CSRF := csrf.Protect(csrfToken, csrf.Path(o.basePath), csrf.Secure(!o.allowInsecure))
+		handler = CSRF(handler)
 	}
+	if o.redirectHTTPTo != "" {
+		handler = withHTTPRedirect(handler, o.redirectHTTPTo)
+	}
+	server := &http.Server{Addr: ":8080", Handler: handler}
 
 	health.ServeReady()
 	interrupts.ListenAndServe(server, 5*time.Second)
@@ -660,30 +670,25 @@ func prodOnlyMain(cfg config.Getter, pluginAgent *plugins.ConfigAgent, authCfgGe
 	mux.Handle("/rerun", gziphandler.GzipHandler(handleRerun(cfg, prowJobClient, o.rerunCreatesJob, authCfgGetter, goa, githuboauth.NewAuthenticatedUserIdentifier(&o.github), githubClient, pluginAgent, logrus.WithField("handler", "/rerun"))))
 	mux.Handle("/abort", gziphandler.GzipHandler(handleAbort(prowJobClient, authCfgGetter, goa, githuboauth.NewAuthenticatedUserIdentifier(&o.github), githubClient, pluginAgent, logrus.WithField("handler", "/abort"))))
 
-	// optionally inject http->https redirect handler when behind loadbalancer
-	if o.redirectHTTPTo != "" {
-		redirectMux := http.NewServeMux()
-		redirectMux.Handle("/", func(oldMux *http.ServeMux, host string) http.HandlerFunc {
-			return func(w http.ResponseWriter, r *http.Request) {
-				if r.Header.Get("x-forwarded-proto") == "http" {
-					redirectURL, err := url.Parse(r.URL.String())
-					if err != nil {
-						logrus.Errorf("Failed to parse URL: %s.", r.URL.String())
-						http.Error(w, "Failed to perform https redirect.", http.StatusInternalServerError)
-						return
-					}
-					redirectURL.Scheme = "https"
-					redirectURL.Host = host
-					http.Redirect(w, r, redirectURL.String(), http.StatusMovedPermanently)
-				} else {
-					oldMux.ServeHTTP(w, r)
-				}
-			}
-		}(mux, o.redirectHTTPTo))
-		mux = redirectMux
-	}
-
 	return mux
+}
+
+func withHTTPRedirect(next http.Handler, host string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("x-forwarded-proto") == "http" {
+			redirectURL, err := url.Parse(r.URL.String())
+			if err != nil {
+				logrus.Errorf("Failed to parse URL: %s.", r.URL.String())
+				http.Error(w, "Failed to perform https redirect.", http.StatusInternalServerError)
+				return
+			}
+			redirectURL.Scheme = "https"
+			redirectURL.Host = host
+			http.Redirect(w, r, redirectURL.String(), http.StatusMovedPermanently)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func initSpyglass(cfg config.Getter, o options, mux *http.ServeMux, ja *jobs.JobAgent, gitHubClient deckGitHubClient, gitClient git.ClientFactory) {
@@ -864,6 +869,11 @@ func handleConfiguredJobs(o options, cfg config.Getter, log *logrus.Entry) http.
 			http.Error(w, "Error obtaining configured jobs", httpStatusForError(err))
 			return
 		}
+		for repoIdx := range configuredJobs.IncludedRepos {
+			for jobIdx, job := range configuredJobs.IncludedRepos[repoIdx].Jobs {
+				configuredJobs.IncludedRepos[repoIdx].Jobs[jobIdx].JobHistoryLink = o.absolutePathIfRelative(job.JobHistoryLink)
+			}
+		}
 		handleSimpleTemplate(o, cfg, "configured-jobs.html", configuredJobs)(w, r)
 	}
 }
@@ -943,8 +953,11 @@ func handleJobHistory(o options, cfg config.Getter, opener io.Opener, log *logru
 		}
 		for idx, build := range tmpl.Builds {
 			tmpl.Builds[idx].Result = strings.ToUpper(build.Result)
-
+			tmpl.Builds[idx].SpyglassLink = o.absolutePathIfRelative(build.SpyglassLink)
 		}
+		tmpl.LatestLink = o.absolutePathIfRelative(tmpl.LatestLink)
+		tmpl.NewerLink = o.absolutePathIfRelative(tmpl.NewerLink)
+		tmpl.OlderLink = o.absolutePathIfRelative(tmpl.OlderLink)
 		handleSimpleTemplate(o, cfg, "job-history.html", tmpl)(w, r)
 	}
 }
@@ -964,8 +977,10 @@ func handlePRHistory(o options, cfg config.Getter, opener io.Opener, gitHubClien
 			return
 		}
 		for idx := range tmpl.Jobs {
+			tmpl.Jobs[idx].Link = o.absolutePathIfRelative(tmpl.Jobs[idx].Link)
 			for jdx, build := range tmpl.Jobs[idx].Builds {
 				tmpl.Jobs[idx].Builds[jdx].Result = strings.ToUpper(build.Result)
+				tmpl.Jobs[idx].Builds[jdx].SpyglassLink = o.absolutePathIfRelative(build.SpyglassLink)
 			}
 		}
 		handleSimpleTemplate(o, cfg, "pr-history.html", tmpl)(w, r)
@@ -1062,6 +1077,7 @@ lensesLoop:
 	jobPath, err := sg.JobPath(src)
 	if err == nil {
 		jobHistLink = path.Join("/job-history", jobPath)
+		jobHistLink = o.absolutePathIfRelative(jobHistLink)
 	}
 
 	var prowJobLink string
@@ -1075,7 +1091,7 @@ lensesLoop:
 			query := url.Values{}
 			query.Set("prowjob", prowJobName)
 			u.RawQuery = query.Encode()
-			prowJobLink = u.String()
+			prowJobLink = o.absolutePathIfRelative(u.String())
 		}
 	} else {
 		log.WithError(err).Warningf("Error getting ProwJob name for source %q.", src)
@@ -1092,6 +1108,7 @@ lensesLoop:
 		if err != nil {
 			return "", err
 		}
+		prHistLink = o.absolutePathIfRelative(prHistLink)
 	}
 
 	artifactsLink := ""
@@ -1278,11 +1295,12 @@ func handleArtifactView(o options, sg *spyglass.Spyglass, cfg config.Getter) htt
 			return
 		}
 
-		handleRemoteLens(*lens, w, r, resource, request)
+		resourceRoot := o.absolutePath("/spyglass/static/" + lens.Lens.Name + "/")
+		handleRemoteLens(*lens, w, r, resource, request, resourceRoot)
 	}
 }
 
-func handleRemoteLens(lens config.LensFileConfig, w http.ResponseWriter, r *http.Request, resource string, request spyglass.LensRequest) {
+func handleRemoteLens(lens config.LensFileConfig, w http.ResponseWriter, r *http.Request, resource string, request spyglass.LensRequest, resourceRoot string) {
 	var requestType spyglassapi.RequestAction
 	switch resource {
 	case "iframe":
@@ -1310,7 +1328,7 @@ func handleRemoteLens(lens config.LensFileConfig, w http.ResponseWriter, r *http
 		Action:         requestType,
 		Data:           data,
 		Config:         lens.Lens.Config,
-		ResourceRoot:   "/spyglass/static/" + lens.Lens.Name + "/",
+		ResourceRoot:   resourceRoot,
 		Artifacts:      request.Artifacts,
 		ArtifactSource: request.Source,
 		LensIndex:      request.Index,
