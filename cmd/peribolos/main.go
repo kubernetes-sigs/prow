@@ -58,6 +58,7 @@ type options struct {
 	fixTeamRepos      bool
 	fixRepos          bool
 	fixCollaborators  bool
+	fixOrgRoles       bool
 	ignoreInvitees    bool
 	ignoreSecretTeams bool
 	allowRepoArchival bool
@@ -94,6 +95,7 @@ func (o *options) parseArgs(flags *flag.FlagSet, args []string) error {
 	flags.BoolVar(&o.fixTeamRepos, "fix-team-repos", false, "Add/remove team permissions on repos if set")
 	flags.BoolVar(&o.fixRepos, "fix-repos", false, "Create/update repositories if set")
 	flags.BoolVar(&o.fixCollaborators, "fix-collaborators", false, "Add/remove/update repository collaborators if set")
+	flags.BoolVar(&o.fixOrgRoles, "fix-org-roles", false, "Assign/remove organization roles to teams and users if set")
 	flags.BoolVar(&o.allowRepoArchival, "allow-repo-archival", false, "If set, archiving repos is allowed while updating repos")
 	flags.BoolVar(&o.allowRepoPublish, "allow-repo-publish", false, "If set, making private repos public is allowed while updating repos")
 	flags.StringVar(&o.logLevel, "log-level", logrus.InfoLevel.String(), fmt.Sprintf("Logging level, one of %v", logrus.AllLevels))
@@ -145,6 +147,10 @@ func (o *options) parseArgs(flags *flag.FlagSet, args []string) error {
 
 	if o.fixTeamRepos && !o.fixTeams {
 		return fmt.Errorf("--fix-team-repos requires --fix-teams")
+	}
+
+	if o.fixOrgRoles && !o.fixTeams {
+		return fmt.Errorf("--fix-org-roles requires --fix-teams")
 	}
 
 	return nil
@@ -209,6 +215,9 @@ type dumpClient interface {
 	GetRepo(owner, name string) (github.FullRepo, error)
 	GetRepos(org string, isUser bool) ([]github.Repo, error)
 	ListDirectCollaboratorsWithPermissions(org, repo string) (map[string]github.RepoPermissionLevel, error)
+	ListOrganizationRoles(org string) ([]github.OrganizationRole, error)
+	ListTeamsWithRole(org string, roleID int) ([]github.OrganizationRoleAssignment, error)
+	ListUsersWithRole(org string, roleID int) ([]github.OrganizationRoleAssignment, error)
 	BotUser() (*github.UserData, error)
 }
 
@@ -272,6 +281,7 @@ func dumpOrgConfig(client dumpClient, orgName string, ignoreSecretTeams bool, ap
 	idMap := map[int]org.Team{} // metadata for a team
 	children := map[int][]int{} // what children does it have
 	var tops []int              // what are the top-level teams
+	slugToName := map[string]string{}
 
 	for _, t := range teams {
 		logger := logrus.WithFields(logrus.Fields{"id": t.ID, "name": t.Name})
@@ -280,6 +290,7 @@ func dumpOrgConfig(client dumpClient, orgName string, ignoreSecretTeams bool, ap
 			logger.Debug("Ignoring secret team.")
 			continue
 		}
+		slugToName[t.Slug] = t.Name
 		d := t.Description
 		nt := org.Team{
 			TeamMetadata: org.TeamMetadata{
@@ -383,6 +394,53 @@ func dumpOrgConfig(client dumpClient, orgName string, ignoreSecretTeams bool, ap
 			repoConfig.Collaborators = directCollabs
 		}
 		out.Repos[full.Name] = repoConfig
+	}
+
+	// Dump organization roles
+	roles, err := client.ListOrganizationRoles(orgName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list organization roles: %w", err)
+	}
+	logrus.Debugf("Found %d organization roles", len(roles))
+	if len(roles) > 0 {
+		out.Roles = make(map[string]org.Role, len(roles))
+	}
+	for _, role := range roles {
+		logrus.WithField("role", role.Name).Debug("Recording organization role.")
+
+		// Get teams with this role
+		teamsWithRole, err := client.ListTeamsWithRole(orgName, role.ID)
+		if err != nil {
+			logrus.WithError(err).Warnf("Failed to list teams with role %s", role.Name)
+			continue
+		}
+
+		// Get users with this role
+		usersWithRole, err := client.ListUsersWithRole(orgName, role.ID)
+		if err != nil {
+			logrus.WithError(err).Warnf("Failed to list users with role %s", role.Name)
+			continue
+		}
+
+		// Build team and user lists
+		var teamSlugs []string
+		for _, team := range teamsWithRole {
+			if name, ok := slugToName[team.Slug]; ok {
+				teamSlugs = append(teamSlugs, name)
+			} else {
+				teamSlugs = append(teamSlugs, team.Slug)
+			}
+		}
+
+		var userLogins []string
+		for _, user := range usersWithRole {
+			userLogins = append(userLogins, user.Login)
+		}
+
+		out.Roles[role.Name] = org.Role{
+			Teams: teamSlugs,
+			Users: userLogins,
+		}
 	}
 
 	return &out, nil
@@ -496,6 +554,8 @@ func configureOrgMembers(opt options, client orgClient, orgName string, orgConfi
 			}
 		} else if om.State == github.StatePending {
 			logrus.Infof("Invited %s to %s as a %s", user, orgName, role)
+			// Track the new invitation so role assignment can skip this user
+			invitees.Insert(github.NormLogin(user))
 		} else {
 			logrus.Infof("Set %s as a %s of %s", user, role, orgName)
 		}
@@ -870,6 +930,13 @@ func orgInvitations(opt options, client inviteClient, orgName string) (sets.Set[
 }
 
 func configureOrg(opt options, client github.Client, orgName string, orgConfig org.Config) error {
+	// Validate role configuration early (before any API calls) if we're going to configure roles
+	if opt.fixOrgRoles {
+		if err := orgConfig.ValidateRoles(); err != nil {
+			return fmt.Errorf("invalid role configuration: %w", err)
+		}
+	}
+
 	// Ensure that metadata is configured correctly.
 	if !opt.fixOrg {
 		logrus.Infof("Skipping org metadata configuration")
@@ -888,6 +955,9 @@ func configureOrg(opt options, client github.Client, orgName string, orgConfig o
 	} else if err := configureOrgMembers(opt, client, orgName, orgConfig, invitees); err != nil {
 		return fmt.Errorf("failed to configure %s members: %w", orgName, err)
 	}
+
+	// Note: New invitations sent by configureOrgMembers are tracked in the invitees set,
+	// so role assignment can skip users with pending invitations without an extra API call.
 
 	// Create repositories in the org
 	if !opt.fixRepos {
@@ -932,6 +1002,14 @@ func configureOrg(opt options, client github.Client, orgName string, orgConfig o
 			return fmt.Errorf("failed to configure %s team %s repos: %w", orgName, name, err)
 		}
 	}
+
+	// Configure organization roles
+	if !opt.fixOrgRoles {
+		logrus.Infof("Skipping organization roles configuration")
+	} else if err := configureOrgRoles(client, orgName, orgConfig, githubTeams, invitees); err != nil {
+		return fmt.Errorf("failed to configure %s organization roles: %w", orgName, err)
+	}
+
 	return nil
 }
 
@@ -1451,6 +1529,220 @@ func configureTeamRepos(client teamRepoClient, githubTeams map[string]github.Tea
 	}
 
 	return utilerrors.NewAggregate(updateErrors)
+}
+
+type orgRolesClient interface {
+	ListOrganizationRoles(org string) ([]github.OrganizationRole, error)
+	AssignOrganizationRoleToTeam(org, teamSlug string, roleID int) error
+	RemoveOrganizationRoleFromTeam(org, teamSlug string, roleID int) error
+	AssignOrganizationRoleToUser(org, user string, roleID int) error
+	RemoveOrganizationRoleFromUser(org, user string, roleID int) error
+	ListTeamsWithRole(org string, roleID int) ([]github.OrganizationRoleAssignment, error)
+	ListUsersWithRole(org string, roleID int) ([]github.OrganizationRoleAssignment, error)
+}
+
+// configureOrgRoles configures organization roles for teams and users
+func configureOrgRoles(client orgRolesClient, orgName string, orgConfig org.Config, githubTeams map[string]github.Team, invitees sets.Set[string]) error {
+	// Note: Role configuration is validated at the start of configureOrg() before any API calls
+
+	// Get current organization roles from GitHub
+	roles, err := client.ListOrganizationRoles(orgName)
+	if err != nil {
+		return fmt.Errorf("failed to list organization roles: %w", err)
+	}
+
+	if len(roles) == 0 {
+		logrus.Debugf("No organization roles exist in %s", orgName)
+		return nil
+	}
+
+	// Create a map of configured role names (lowercase) for quick lookup
+	configuredRoles := make(map[string]org.Role)
+	for roleName, roleConfig := range orgConfig.Roles {
+		configuredRoles[strings.ToLower(roleName)] = roleConfig
+	}
+
+	unconfiguredCount := len(roles) - len(configuredRoles)
+	logrus.Debugf("Processing %d organization roles (%d configured, %d unconfigured to check for cleanup)",
+		len(roles), len(configuredRoles), unconfiguredCount)
+
+	var allErrors []error
+
+	// Iterate over ALL GitHub roles to handle both configured and unconfigured roles
+	for _, role := range roles {
+		roleNameLower := strings.ToLower(role.Name)
+
+		if roleConfig, isConfigured := configuredRoles[roleNameLower]; isConfigured {
+			// Role is in config - sync to match desired state
+			if err := configureRoleTeamAssignments(client, orgName, role.Name, role.ID, roleConfig.Teams, githubTeams); err != nil {
+				allErrors = append(allErrors, fmt.Errorf("failed to configure team assignments for role %s: %w", role.Name, err))
+			}
+			if err := configureRoleUserAssignments(client, orgName, role.Name, role.ID, roleConfig.Users, invitees); err != nil {
+				allErrors = append(allErrors, fmt.Errorf("failed to configure user assignments for role %s: %w", role.Name, err))
+			}
+		} else {
+			// Role is NOT in config - remove all assignments (clean up orphaned assignments)
+			logrus.Debugf("Role %q not in config, checking for assignments to clean up", role.Name)
+			if err := configureRoleTeamAssignments(client, orgName, role.Name, role.ID, []string{}, githubTeams); err != nil {
+				allErrors = append(allErrors, fmt.Errorf("failed to remove team assignments for unconfigured role %s: %w", role.Name, err))
+			}
+			if err := configureRoleUserAssignments(client, orgName, role.Name, role.ID, []string{}, invitees); err != nil {
+				allErrors = append(allErrors, fmt.Errorf("failed to remove user assignments for unconfigured role %s: %w", role.Name, err))
+			}
+		}
+	}
+
+	// Check if any configured roles don't exist in GitHub
+	for roleName := range orgConfig.Roles {
+		found := false
+		for _, role := range roles {
+			if strings.EqualFold(role.Name, roleName) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("role %q does not exist in organization %s - create the role in GitHub before assigning it", roleName, orgName)
+		}
+	}
+
+	return utilerrors.NewAggregate(allErrors)
+}
+
+// configureRoleTeamAssignments configures team assignments for a specific role
+func configureRoleTeamAssignments(client orgRolesClient, orgName, roleName string, roleID int, wantTeams []string, githubTeams map[string]github.Team) error {
+	// Get current team assignments for this role
+	currentTeams, err := client.ListTeamsWithRole(orgName, roleID)
+	if err != nil {
+		return fmt.Errorf("failed to list teams with role %s: %w", roleName, err)
+	}
+
+	// If we want no teams and have no teams, we're done
+	if len(wantTeams) == 0 && len(currentTeams) == 0 {
+		return nil
+	}
+
+	// Build a map of normalized team name to team slug for the teams we have in config
+	// This allows resolving "MyTeam" (config name) to "my-team" (GitHub slug)
+	normalizedTeams := make(map[string]string)
+	for name, team := range githubTeams {
+		normalizedTeams[strings.ToLower(name)] = team.Slug
+	}
+
+	// Create sets for comparison using slugs
+	wantSet := sets.New[string]()
+	for _, teamName := range wantTeams {
+		// Resolve config team name to slug
+		if slug, ok := normalizedTeams[strings.ToLower(teamName)]; ok {
+			wantSet.Insert(slug)
+		} else {
+			return fmt.Errorf("team %q referenced in role %q could not be resolved to a GitHub team slug - ensure the team exists in your teams configuration and was successfully created", teamName, roleName)
+		}
+	}
+
+	haveSet := sets.New[string]()
+	for _, team := range currentTeams {
+		haveSet.Insert(team.Slug)
+	}
+
+	// Teams to add
+	var errors []error
+	toAdd := wantSet.Difference(haveSet)
+	for teamSlug := range toAdd {
+		if err := client.AssignOrganizationRoleToTeam(orgName, teamSlug, roleID); err != nil {
+			errors = append(errors, fmt.Errorf("failed to assign role %s to team %s: %w", roleName, teamSlug, err))
+			logrus.WithError(err).Warnf("Failed to assign role %s to team %s", roleName, teamSlug)
+		} else {
+			logrus.Infof("Assigned role %s to team %s", roleName, teamSlug)
+		}
+	}
+
+	// Teams to remove
+	toRemove := haveSet.Difference(wantSet)
+	for teamSlug := range toRemove {
+		if err := client.RemoveOrganizationRoleFromTeam(orgName, teamSlug, roleID); err != nil {
+			errors = append(errors, fmt.Errorf("failed to remove role %s from team %s: %w", roleName, teamSlug, err))
+			logrus.WithError(err).Warnf("Failed to remove role %s from team %s", roleName, teamSlug)
+		} else {
+			logrus.Infof("Removed role %s from team %s", roleName, teamSlug)
+		}
+	}
+
+	return utilerrors.NewAggregate(errors)
+}
+
+// configureRoleUserAssignments configures user assignments for a specific role
+func configureRoleUserAssignments(client orgRolesClient, orgName, roleName string, roleID int, wantUsers []string, invitees sets.Set[string]) error {
+	// Get current user assignments for this role
+	currentUsers, err := client.ListUsersWithRole(orgName, roleID)
+	if err != nil {
+		return fmt.Errorf("failed to list users with role %s: %w", roleName, err)
+	}
+
+	// Create maps to preserve original casing while comparing normalized usernames
+	wantMap := make(map[string]string) // normalized -> original
+	for _, user := range wantUsers {
+		wantMap[github.NormLogin(user)] = user
+	}
+
+	// Only consider DIRECT assignments when building haveMap.
+	// Users with "indirect" assignment have the role via team membership and should not be
+	// removed just because they're not in the users list - they keep the role through their team.
+	haveMap := make(map[string]string) // normalized -> original
+	for _, user := range currentUsers {
+		if user.Assignment == "indirect" {
+			logrus.Debugf("Skipping indirect role assignment for user %s (has role via team membership)", user.Login)
+			continue
+		}
+		haveMap[github.NormLogin(user.Login)] = user.Login
+	}
+
+	// If we want no direct users and have no direct users, we're done
+	if len(wantUsers) == 0 && len(haveMap) == 0 {
+		return nil
+	}
+
+	// Create sets for comparison with normalized usernames
+	wantSet := sets.New[string]()
+	for normalized := range wantMap {
+		wantSet.Insert(normalized)
+	}
+	haveSet := sets.New[string]()
+	for normalized := range haveMap {
+		haveSet.Insert(normalized)
+	}
+
+	// Users to add
+	var errors []error
+	toAdd := wantSet.Difference(haveSet)
+	for normalizedUser := range toAdd {
+		originalUser := wantMap[normalizedUser]
+		// Skip users who have pending org invitations - they must accept before we can assign roles
+		if invitees.Has(normalizedUser) {
+			logrus.Infof("Waiting for %s to accept org invitation before assigning role %s", originalUser, roleName)
+			continue
+		}
+		if err := client.AssignOrganizationRoleToUser(orgName, originalUser, roleID); err != nil {
+			errors = append(errors, fmt.Errorf("failed to assign role %s to user %s: %w", roleName, originalUser, err))
+			logrus.WithError(err).Warnf("Failed to assign role %s to user %s", roleName, originalUser)
+		} else {
+			logrus.Infof("Assigned role %s to user %s", roleName, originalUser)
+		}
+	}
+
+	// Users to remove
+	toRemove := haveSet.Difference(wantSet)
+	for normalizedUser := range toRemove {
+		originalUser := haveMap[normalizedUser]
+		if err := client.RemoveOrganizationRoleFromUser(orgName, originalUser, roleID); err != nil {
+			errors = append(errors, fmt.Errorf("failed to remove role %s from user %s: %w", roleName, originalUser, err))
+			logrus.WithError(err).Warnf("Failed to remove role %s from user %s", roleName, originalUser)
+		} else {
+			logrus.Infof("Removed role %s from user %s", roleName, originalUser)
+		}
+	}
+
+	return utilerrors.NewAggregate(errors)
 }
 
 // teamMembersClient can list/remove/update people to a team.
