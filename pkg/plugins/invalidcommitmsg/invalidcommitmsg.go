@@ -29,7 +29,6 @@ import (
 	"sigs.k8s.io/prow/pkg/github"
 	"sigs.k8s.io/prow/pkg/pluginhelp"
 	"sigs.k8s.io/prow/pkg/plugins"
-	"sigs.k8s.io/prow/pkg/plugins/dco"
 )
 
 const (
@@ -159,7 +158,7 @@ func handle(gc githubClient, log *logrus.Entry, pr github.PullRequestEvent, cp c
 		})
 
 		log.Debug("Commenting on PR to advise users of invalid commit messages")
-		if err := gc.CreateComment(org, repo, number, fmt.Sprintf(invalidCommitMsgCommentBody, dco.MarkdownSHAList(org, repo, invalidCommits), plugins.AboutThisBot)); err != nil {
+		if err := gc.CreateComment(org, repo, number, fmt.Sprintf(invalidCommitMsgCommentBody, markdownSHAList(org, repo, invalidCommits), plugins.AboutThisBot)); err != nil {
 			log.WithError(err).Error("Could not create comment for invalid commit messages")
 		}
 	}
@@ -194,4 +193,27 @@ func hasPRChanged(pr github.PullRequestEvent) bool {
 	default:
 		return false
 	}
+}
+
+// markdownSHAList prints the list of commits in a markdown-friendly way.
+func markdownSHAList(org, repo string, list []github.RepositoryCommit) string {
+	lines := make([]string, len(list))
+	lineFmt := "- [%s](https://%s/%s/%s/commits/%s) %s"
+	for i, commit := range list {
+		if commit.SHA == "" {
+			continue
+		}
+		// if we somehow encounter a SHA that's less than 7 characters, we will
+		// just use it as is.
+		shortSHA := commit.SHA
+		if len(shortSHA) > 7 {
+			shortSHA = shortSHA[:7]
+		}
+
+		// get the first line of the commit
+		message := strings.Split(commit.Commit.Message, "\n")[0]
+
+		lines[i] = fmt.Sprintf(lineFmt, shortSHA, github.DefaultHost, org, repo, commit.SHA, message)
+	}
+	return strings.Join(lines, "\n")
 }
