@@ -39,6 +39,25 @@ import (
 // TideQueries is a TideQuery slice.
 type TideQueries []TideQuery
 
+// GitHubMergeBlocksPolicy describes how Tide should handle GitHub's merge blocking conditions.
+type GitHubMergeBlocksPolicy string
+
+const (
+	// GitHubMergeBlocksIgnore ignores GitHub's BLOCKED status entirely in merge decisions.
+	// Tide will attempt to merge PRs even if GitHub reports them as blocked.
+	GitHubMergeBlocksIgnore GitHubMergeBlocksPolicy = "ignore"
+
+	// GitHubMergeBlocksPermit allows merging of BLOCKED PRs but logs warnings and may
+	// surface the blocked state in PR status messages. This is useful for monitoring
+	// repos that need branch protection or ruleset fixes.
+	GitHubMergeBlocksPermit GitHubMergeBlocksPolicy = "permit"
+
+	// GitHubMergeBlocksBlock respects GitHub's BLOCKED status and prevents Tide from
+	// attempting to merge PRs that are blocked by branch protection rules, rulesets,
+	// required reviews, or other GitHub-side blocking conditions.
+	GitHubMergeBlocksBlock GitHubMergeBlocksPolicy = "block"
+)
+
 type TideBranchMergeType struct {
 	MergeType types.PullRequestMergeType
 	Regexpr   *regexp.Regexp
@@ -227,6 +246,14 @@ type Tide struct {
 	// starting a new one requires to start new instances of all tests.
 	// Use '*' as key to set this globally. Defaults to true.
 	PrioritizeExistingBatchesMap map[string]bool `json:"prioritize_existing_batches,omitempty"`
+	// GitHubMergeBlocksPolicyMap configures on org or org/repo level how Tide should handle
+	// GitHub's mergeStateStatus (BLOCKED state from branch protection rules, rulesets,
+	// required reviews, etc.).
+	// Use '*' as key to set this globally. Defaults to "permit" which allows merging but logs warnings.
+	// Valid values: "ignore", "permit", "block"
+	// Note: "ignore" may cause issues with repos using GitHub Rulesets that restrict updates
+	// but have Tide on the bypass list.
+	GitHubMergeBlocksPolicyMap map[string]GitHubMergeBlocksPolicy `json:"github_merge_blocks_policy,omitempty"`
 
 	TideGitHubConfig `json:",inline"`
 }
@@ -368,6 +395,22 @@ func (t *Tide) BatchSizeLimit(repo OrgRepo) int {
 		return limit
 	}
 	return t.BatchSizeLimitMap["*"]
+}
+
+// GitHubMergeBlocksPolicy returns the policy for handling GitHub's merge blocking conditions.
+// The default is "permit" which allows merging but logs warnings for monitoring.
+func (t *Tide) GitHubMergeBlocksPolicy(repo OrgRepo) GitHubMergeBlocksPolicy {
+	if val, set := t.GitHubMergeBlocksPolicyMap[repo.String()]; set {
+		return val
+	}
+	if val, set := t.GitHubMergeBlocksPolicyMap[repo.Org]; set {
+		return val
+	}
+	if val, set := t.GitHubMergeBlocksPolicyMap["*"]; set {
+		return val
+	}
+	// Default to "permit" to allow merging while surfacing the blocked state for monitoring
+	return GitHubMergeBlocksPermit
 }
 
 // MergeMethod returns the merge method to use for a repo. The default of merge is

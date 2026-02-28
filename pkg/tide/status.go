@@ -45,8 +45,9 @@ import (
 )
 
 const (
-	statusContext = "tide"
-	statusInPool  = "In merge pool."
+	statusContext               = "tide"
+	statusInPool                = "In merge pool."
+	statusInPoolDespiteBlocked  = "In merge pool (despite BLOCKED)."
 	// statusNotInPool is a format string used when a PR is not in a tide pool.
 	// The '%s' field is populated with the reason why the PR is not in a
 	// tide pool or the empty string if the reason is unknown. See requirementDiff.
@@ -125,7 +126,7 @@ func (sc *statusController) shutdown() {
 // Note: an empty diff can be returned if the reason that the PR does not match
 // the TideQuery is unknown. This can happen if this function's logic
 // does not match GitHub's and does not indicate that the PR matches the query.
-func requirementDiff(pr *PullRequest, q *config.TideQuery, cc contextChecker) (string, int) {
+func requirementDiff(pr *PullRequest, q *config.TideQuery, cc contextChecker, tide *config.Tide) (string, int) {
 	const maxLabelChars = 50
 	var desc string
 	var diff int
@@ -260,6 +261,27 @@ func requirementDiff(pr *PullRequest, q *config.TideQuery, cc contextChecker) (s
 			desc = " PullRequest is missing sufficient approving GitHub review(s)"
 		}
 	}
+	// Check GitHub's mergeStateStatus which reflects all GitHub-side blocking conditions
+	// This is controlled by the github_merge_blocks_policy configuration.
+	if tide != nil && pr.MergeStateStatus == "BLOCKED" {
+		orgRepo := config.OrgRepo{
+			Org:  string(pr.Repository.Owner.Login),
+			Repo: string(pr.Repository.Name),
+		}
+		policy := tide.GitHubMergeBlocksPolicy(orgRepo)
+		switch policy {
+		case config.GitHubMergeBlocksBlock:
+			// Block merge by adding to diff
+			diff += 100
+			if desc == "" {
+				desc = " Blocked by GitHub (branch rulesets or protection)"
+			}
+		case config.GitHubMergeBlocksPermit:
+			// Allow merge but don't add to diff. Warning will be shown in pool status.
+		case config.GitHubMergeBlocksIgnore:
+			// Ignore BLOCKED status entirely
+		}
+	}
 	return desc, diff
 }
 
@@ -315,7 +337,7 @@ func (sc *statusController) expectedStatus(log *logrus.Entry, queryMap *config.Q
 		minDiffCount := -1
 		var minDiff string
 		for _, q := range queryMap.ForRepo(repo) {
-			diff, diffCount := requirementDiff(pr, &q, cc)
+			diff, diffCount := requirementDiff(pr, &q, cc, &sc.config().Tide)
 			if diffCount == 0 {
 				hasFulfilledQuery = true
 				break
@@ -347,7 +369,7 @@ func (sc *statusController) expectedStatus(log *logrus.Entry, queryMap *config.Q
 	if err := sc.pjClient.List(context.Background(), passingUpToDatePJs, ctrlruntimeclient.MatchingFields{indexNamePassingJobs: indexKey}); err != nil {
 		// Just log the error and return success, as the PR is in the merge pool
 		log.WithError(err).Error("Failed to list ProwJobs.")
-		return github.StatusSuccess, statusInPool, nil
+		return github.StatusSuccess, poolStatus(pr, &sc.config().Tide, log), nil
 	}
 
 	var passingUpToDateContexts []string
@@ -357,7 +379,30 @@ func (sc *statusController) expectedStatus(log *logrus.Entry, queryMap *config.Q
 	if diff := cc.MissingRequiredContexts(passingUpToDateContexts); len(diff) > 0 {
 		return github.StatePending, retestingStatus(diff), nil
 	}
-	return github.StatusSuccess, statusInPool, nil
+	return github.StatusSuccess, poolStatus(pr, &sc.config().Tide, log), nil
+}
+
+// poolStatus returns the appropriate status message for a PR that is in the merge pool.
+// If the PR has BLOCKED merge state and the policy is "permit", it returns a warning message.
+// This also logs a warning for monitoring purposes.
+func poolStatus(pr *PullRequest, tide *config.Tide, log *logrus.Entry) string {
+	if pr.MergeStateStatus == "BLOCKED" && tide != nil {
+		repo := config.OrgRepo{
+			Org:  string(pr.Repository.Owner.Login),
+			Repo: string(pr.Repository.Name),
+		}
+		if tide.GitHubMergeBlocksPolicy(repo) == config.GitHubMergeBlocksPermit {
+			log.WithFields(logrus.Fields{
+				"org":              repo.Org,
+				"repo":             repo.Repo,
+				"pr":               pr.Number,
+				"merge_state":      pr.MergeStateStatus,
+				"policy":           config.GitHubMergeBlocksPermit,
+			}).Warning("PR is in merge pool despite GitHub BLOCKED status (policy: permit)")
+			return statusInPoolDespiteBlocked
+		}
+	}
+	return statusInPool
 }
 
 func retestingStatus(retested []string) string {
