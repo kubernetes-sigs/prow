@@ -62,6 +62,66 @@ type storedState struct {
 	PreviousQuery string
 }
 
+// contextHistory tracks previously seen contexts for a PR/commit combination
+// to detect when required contexts disappear (e.g., when GitHub Actions are re-triggered)
+type contextHistory struct {
+	prCommitContexts map[string]sets.Set[string]
+	sync.Mutex
+}
+
+func newContextHistory() *contextHistory {
+	return &contextHistory{
+		prCommitContexts: make(map[string]sets.Set[string]),
+	}
+}
+
+// checkAndUpdate returns contexts that disappeared since last check, then updates history.
+// This detects the race condition when GitHub Actions are re-triggered and the check
+// status temporarily disappears before the new run starts.
+//
+// Note: Uses PR number only (not commit SHA) to track across force pushes. This means
+// if a force push genuinely removes a context from the workflow, it will be detected
+// as "disappeared" until the next sync. This is acceptable as it errs on the side of
+// preventing premature merges.
+func (ch *contextHistory) checkAndUpdate(pr *CodeReviewCommon, currentContexts []string) []string {
+	key := fmt.Sprintf("%s/%s#%d", pr.Org, pr.Repo, pr.Number)
+
+	ch.Lock()
+	defer ch.Unlock()
+
+	var disappeared []string
+	if previous, exists := ch.prCommitContexts[key]; exists {
+		currentSet := sets.New[string](currentContexts...)
+		for ctx := range previous.Difference(currentSet) {
+			disappeared = append(disappeared, ctx)
+		}
+	}
+
+	ch.prCommitContexts[key] = sets.New[string](currentContexts...)
+	return disappeared
+}
+
+// prune removes entries for PRs that are no longer in the pool.
+// This prevents unbounded memory growth by cleaning up old/merged PRs.
+func (ch *contextHistory) prune(activePRs map[string]CodeReviewCommon) {
+	ch.Lock()
+	defer ch.Unlock()
+
+	// Build set of active PR keys
+	active := sets.New[string]()
+	for _, pr := range activePRs {
+		key := fmt.Sprintf("%s/%s#%d", pr.Org, pr.Repo, pr.Number)
+		active.Insert(key)
+	}
+
+	// Remove entries not in active set
+	for key := range ch.prCommitContexts {
+		if !active.Has(key) {
+			delete(ch.prCommitContexts, key)
+		}
+	}
+}
+
 // statusController is a goroutine runs in the background
 type statusController struct {
 	pjClient           ctrlruntimeclient.Client
@@ -106,6 +166,9 @@ type statusUpdate struct {
 	// newPoolPending is a size 1 chan that signals that the main Tide loop has
 	// updated the 'poolPRs' field with a freshly updated pool.
 	newPoolPending chan bool
+	// contextHistory tracks previously seen contexts to detect disappearing contexts
+	// when GitHub Actions are re-triggered (addresses issue #337)
+	contextHistory *contextHistory
 }
 
 func (sc *statusController) shutdown() {
@@ -238,7 +301,8 @@ func requirementDiff(pr *PullRequest, q *config.TideQuery, cc contextChecker) (s
 	log := logrus.WithFields(pr.logFields())
 	for _, commit := range pr.Commits.Nodes {
 		if commit.Commit.OID == pr.HeadRefOID {
-			for _, ctx := range unsuccessfulContexts(append(commit.Commit.Status.Contexts, checkRunNodesToContexts(log, commit.Commit.StatusCheckRollup.Contexts.Nodes)...), cc, log) {
+			crc := CodeReviewCommonFromPullRequest(pr)
+			for _, ctx := range unsuccessfulContexts(append(commit.Commit.Status.Contexts, checkRunNodesToContexts(log, commit.Commit.StatusCheckRollup.Contexts.Nodes)...), cc, crc, nil, log) {
 				contexts = append(contexts, string(ctx.Context))
 			}
 		}

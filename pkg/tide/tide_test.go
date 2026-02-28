@@ -2908,7 +2908,7 @@ func TestFilterSubpool(t *testing.T) {
 				mergeChecker: mmc,
 				logger:       logrus.WithContext(context.Background()),
 			}
-			filtered := filterSubpool(provider, mmc.isAllowedToMerge, sp)
+			filtered := filterSubpool(provider, mmc.isAllowedToMerge, sp, newContextHistory())
 			if len(tc.expectedPRs) == 0 {
 				if filtered != nil {
 					t.Fatalf("Expected subpool to be pruned, but got: %v", filtered)
@@ -5482,4 +5482,197 @@ func TestSerialRetestingConsidersPRThatIsCurrentlyBeingSRetested(t *testing.T) {
 		t.Errorf("expected to find exactly two prowjobs, got %d from list %+v", n, pjs)
 	}
 
+}
+
+// TestUnsuccessfulContextsWithDisappearedContexts tests the fix for issue #337
+// where re-triggering GitHub Actions causes contexts to temporarily disappear
+func TestUnsuccessfulContextsWithDisappearedContexts(t *testing.T) {
+	log := logrus.NewEntry(logrus.StandardLogger())
+
+	testCases := []struct {
+		name             string
+		contexts         []Context
+		previousContexts []string
+		requiredContexts []string
+		expectedFailed   int
+	}{
+		{
+			name: "no disappeared contexts",
+			contexts: []Context{
+				{Context: githubql.String("test-1"), State: githubql.StatusStateSuccess},
+				{Context: githubql.String("test-2"), State: githubql.StatusStateSuccess},
+			},
+			previousContexts: []string{"test-1", "test-2"},
+			requiredContexts: []string{"test-1", "test-2"},
+			expectedFailed:   0,
+		},
+		{
+			name: "context disappeared - race condition",
+			contexts: []Context{
+				{Context: githubql.String("test-1"), State: githubql.StatusStateSuccess},
+			},
+			previousContexts: []string{"test-1", "test-2"},
+			requiredContexts: []string{"test-1", "test-2"},
+			expectedFailed:   1, // test-2 is both missing and disappeared, counted once
+		},
+		{
+			name: "unknown context disappeared",
+			contexts: []Context{
+				{Context: githubql.String("test-1"), State: githubql.StatusStateSuccess},
+			},
+			previousContexts: []string{"test-1", "test-2"},
+			requiredContexts: []string{"test-1"},
+			// test-2 is unknown (not in required/optional), treated as required
+			// by default unless SkipUnknownContexts is set
+			expectedFailed: 1,
+		},
+		{
+			name: "first time seeing PR - no history",
+			contexts: []Context{
+				{Context: githubql.String("test-1"), State: githubql.StatusStateSuccess},
+			},
+			previousContexts: nil,
+			requiredContexts: []string{"test-1", "test-2"},
+			expectedFailed:   1, // only missing required, no disappeared
+		},
+		{
+			name: "context reappeared after disappearing",
+			contexts: []Context{
+				{Context: githubql.String("test-1"), State: githubql.StatusStateSuccess},
+				{Context: githubql.String("test-2"), State: githubql.StatusStatePending},
+			},
+			previousContexts: []string{"test-1"},
+			requiredContexts: []string{"test-1", "test-2"},
+			expectedFailed:   1, // test-2 is pending (not disappeared, it's present)
+		},
+		{
+			name: "context disappears multiple times",
+			contexts: []Context{
+				{Context: githubql.String("test-1"), State: githubql.StatusStateSuccess},
+			},
+			previousContexts: []string{"test-1", "test-2"}, // test-2 was seen before
+			requiredContexts: []string{"test-1", "test-2"},
+			expectedFailed:   1, // test-2 disappeared, blocks merge
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ch := newContextHistory()
+			pr := &CodeReviewCommon{
+				Org:        "test-org",
+				Repo:       "test-repo",
+				Number:     123,
+				HeadRefOID: "abc123",
+			}
+
+			// Set up previous context history if provided
+			if tc.previousContexts != nil {
+				ch.checkAndUpdate(pr, tc.previousContexts)
+			}
+
+			cc := &config.TideContextPolicy{
+				RequiredContexts: tc.requiredContexts,
+			}
+
+			failed := unsuccessfulContexts(tc.contexts, cc, pr, ch, log)
+
+			if len(failed) != tc.expectedFailed {
+				t.Errorf("expected %d failed contexts, got %d: %+v", tc.expectedFailed, len(failed), failed)
+			}
+		})
+	}
+}
+
+// TestContextDisappearsMultipleTimes tests the scenario where a context
+// appears, disappears, reappears, then disappears again
+func TestContextDisappearsMultipleTimes(t *testing.T) {
+	log := logrus.NewEntry(logrus.StandardLogger())
+	ch := newContextHistory()
+	pr := &CodeReviewCommon{
+		Org:        "test-org",
+		Repo:       "test-repo",
+		Number:     123,
+		HeadRefOID: "abc123",
+	}
+	cc := &config.TideContextPolicy{
+		RequiredContexts: []string{"test-1", "test-2"},
+	}
+
+	// T0: Both contexts present and successful
+	contexts1 := []Context{
+		{Context: githubql.String("test-1"), State: githubql.StatusStateSuccess},
+		{Context: githubql.String("test-2"), State: githubql.StatusStateSuccess},
+	}
+	failed1 := unsuccessfulContexts(contexts1, cc, pr, ch, log)
+	if len(failed1) != 0 {
+		t.Errorf("T0: expected 0 failed, got %d", len(failed1))
+	}
+
+	// T1: test-2 disappears (re-triggered)
+	contexts2 := []Context{
+		{Context: githubql.String("test-1"), State: githubql.StatusStateSuccess},
+	}
+	failed2 := unsuccessfulContexts(contexts2, cc, pr, ch, log)
+	if len(failed2) != 1 {
+		t.Errorf("T1: expected 1 failed (disappeared test-2), got %d", len(failed2))
+	}
+
+	// T2: test-2 reappears as SUCCESS
+	contexts3 := []Context{
+		{Context: githubql.String("test-1"), State: githubql.StatusStateSuccess},
+		{Context: githubql.String("test-2"), State: githubql.StatusStateSuccess},
+	}
+	failed3 := unsuccessfulContexts(contexts3, cc, pr, ch, log)
+	if len(failed3) != 0 {
+		t.Errorf("T2: expected 0 failed, got %d", len(failed3))
+	}
+
+	// T3: test-2 disappears AGAIN (re-triggered again)
+	contexts4 := []Context{
+		{Context: githubql.String("test-1"), State: githubql.StatusStateSuccess},
+	}
+	failed4 := unsuccessfulContexts(contexts4, cc, pr, ch, log)
+	if len(failed4) != 1 {
+		t.Errorf("T3: expected 1 failed (disappeared test-2 again), got %d", len(failed4))
+	}
+}
+
+// TestContextHistoryPrune tests that old PR entries are cleaned up
+func TestContextHistoryPrune(t *testing.T) {
+	ch := newContextHistory()
+
+	pr1 := &CodeReviewCommon{Org: "org", Repo: "repo", Number: 1, HeadRefOID: "sha1"}
+	pr2 := &CodeReviewCommon{Org: "org", Repo: "repo", Number: 2, HeadRefOID: "sha2"}
+	pr3 := &CodeReviewCommon{Org: "org", Repo: "repo", Number: 3, HeadRefOID: "sha3"}
+
+	// Record contexts for multiple PRs
+	ch.checkAndUpdate(pr1, []string{"test-1", "test-2"})
+	ch.checkAndUpdate(pr2, []string{"test-1", "test-2"})
+	ch.checkAndUpdate(pr3, []string{"test-1", "test-2"})
+
+	if len(ch.prCommitContexts) != 3 {
+		t.Errorf("expected 3 entries, got %d", len(ch.prCommitContexts))
+	}
+
+	// Only PR 1 and 2 are still active
+	activePRs := map[string]CodeReviewCommon{
+		"key1": *pr1,
+		"key2": *pr2,
+	}
+	ch.prune(activePRs)
+
+	if len(ch.prCommitContexts) != 2 {
+		t.Errorf("expected 2 entries after prune, got %d", len(ch.prCommitContexts))
+	}
+
+	if !ch.prCommitContexts["org/repo#1"].Has("test-1") {
+		t.Error("PR 1 should still be tracked")
+	}
+	if !ch.prCommitContexts["org/repo#2"].Has("test-1") {
+		t.Error("PR 2 should still be tracked")
+	}
+	if _, exists := ch.prCommitContexts["org/repo#3"]; exists {
+		t.Error("PR 3 should have been pruned")
+	}
 }
