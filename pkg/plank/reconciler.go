@@ -679,16 +679,20 @@ const (
 )
 
 func getPodUnexpectedStopCause(pod *corev1.Pod) PodUnexpectedStopCause {
-	if pod.Status.Reason == OOMKilled {
-		return PodUnexpectedStopCauseOOMKilled
-	}
-
 	if pod.Status.Reason == Evicted {
 		return PodUnexpectedStopCauseEvicted
 	}
 
 	if pod.Status.Reason == NodeUnreachablePodReason && pod.DeletionTimestamp != nil {
 		return PodUnexpectedStopCauseUnreachable
+	}
+
+	if pod.Status.Phase == corev1.PodRunning {
+		for _, container := range append(pod.Status.ContainerStatuses, pod.Status.InitContainerStatuses...) {
+			if container.State.Terminated != nil && container.State.Terminated.Reason == OOMKilled {
+				return PodUnexpectedStopCauseOOMKilled
+			}
+		}
 	}
 
 	if pod.Status.Phase == corev1.PodUnknown {
