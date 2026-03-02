@@ -253,7 +253,7 @@ func TestLoad(t *testing.T) {
 				HelpGuidelinesURL: "https://git.k8s.io/community/contributors/guide/help-wanted.md",
 			},
 			ReleaseNote: ReleaseNote{
-				URL: "https://git.k8s.io/community/contributors/guide/release-notes.md",
+				GuidelinesURL: "https://git.k8s.io/community/contributors/guide/release-notes.md",
 			},
 		}
 		for _, modify := range m {

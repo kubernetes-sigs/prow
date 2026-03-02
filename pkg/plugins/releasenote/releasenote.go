@@ -72,7 +72,7 @@ func init() {
 }
 
 func helpProvider(config *plugins.Configuration, _ []config.OrgRepo) (*pluginhelp.PluginHelp, error) {
-	url := config.ReleaseNote.URL
+	url := config.ReleaseNote.GuidelinesURL
 	pluginHelp := &pluginhelp.PluginHelp{
 		Description: `The releasenote plugin implements a release note process that uses a markdown 'release-note' code block to associate a release note with a pull request. Until the 'release-note' block in the pull request body is populated the PR will be assigned the '` + labels.ReleaseNoteLabelNeeded + `' label.
 <br>There are three valid types of release notes that can replace this label:
@@ -215,7 +215,7 @@ func removeOtherLabels(remover func(string) error, label string, labelSet []stri
 }
 
 func handlePullRequest(pc plugins.Agent, pr github.PullRequestEvent) error {
-	return handlePR(pc.GitHubClient, pc.Logger, pc.PluginConfig.ReleaseNote.URL, &pr)
+	return handlePR(pc.GitHubClient, pc.Logger, pc.PluginConfig.ReleaseNote.GuidelinesURL, &pr)
 }
 
 func shouldHandlePR(pr *github.PullRequestEvent) bool {

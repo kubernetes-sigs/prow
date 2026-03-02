@@ -273,16 +273,16 @@ func newFakeClient(body, branch string, initialLabels, comments []string, parent
 
 func TestReleaseNotePR(t *testing.T) {
 	tests := []struct {
-		name                 string
-		initialLabels        []string
-		body                 string
-		branch               string // Defaults to master
-		parentPRs            map[int]string
-		issueComments        []string
-		IssueLabelsAdded     []string
-		IssueLabelsRemoved   []string
-		merged               bool
-		expectedURLInComment string // If set, verify this URL appears in bot comment
+		name                           string
+		initialLabels                  []string
+		body                           string
+		branch                         string // Defaults to master
+		parentPRs                      map[int]string
+		issueComments                  []string
+		IssueLabelsAdded               []string
+		IssueLabelsRemoved             []string
+		merged                         bool
+		expectedGuidelinesURLInComment string // If set, overiddes default GuidelinesURL
 	}{
 		{
 			name:          "LGTM with release-note",
@@ -490,11 +490,11 @@ func TestReleaseNotePR(t *testing.T) {
 			IssueLabelsRemoved: []string{labels.ReleaseNoteLabelNeeded},
 		},
 		{
-			name:                 "release-note-none, with custom release note URL",
-			body:                 "",
-			initialLabels:        []string{},
-			IssueLabelsAdded:     []string{labels.ReleaseNoteLabelNeeded},
-			expectedURLInComment: "https://example.com/release-notes",
+			name:                           "release-note-none, with custom release note URL",
+			body:                           "",
+			initialLabels:                  []string{},
+			IssueLabelsAdded:               []string{labels.ReleaseNoteLabelNeeded},
+			expectedGuidelinesURLInComment: "https://example.com/release-notes",
 		},
 	}
 	for _, test := range tests {
@@ -504,28 +504,31 @@ func TestReleaseNotePR(t *testing.T) {
 		fc, pr := newFakeClient(test.body, test.branch, test.initialLabels, test.issueComments, test.parentPRs)
 		pr.PullRequest.Merged = test.merged
 
-		releaseNoteURL := "https://git.k8s.io/community/contributors/guide/release-notes.md"
-		if test.expectedURLInComment != "" {
-			releaseNoteURL = test.expectedURLInComment
+		releaseNoteGuidelinesURL := "https://git.k8s.io/community/contributors/guide/release-notes.md"
+		if test.expectedGuidelinesURLInComment != "" {
+			releaseNoteGuidelinesURL = test.expectedGuidelinesURLInComment
 		}
 
-		err := handlePR(fc, logrus.WithField("plugin", PluginName), releaseNoteURL, pr)
+		err := handlePR(fc, logrus.WithField("plugin", PluginName), releaseNoteGuidelinesURL, pr)
 		if err != nil {
 			t.Fatalf("Unexpected error from handlePR: %v", err)
 		}
 
-		// Verify expected URL appears in bot comment
-		if test.expectedURLInComment != "" {
+		// Verify the guidelines URL appears in bot comments when release-note-label-needed was added.
+		// Skip when deprecation label is present as it uses a different comment without the guidelines URL.
+		initialLabelSet := sets.New[string](test.initialLabels...)
+		addedLabelSet := sets.New[string](test.IssueLabelsAdded...)
+		if !initialLabelSet.Has(labels.DeprecationLabel) && addedLabelSet.Has(labels.ReleaseNoteLabelNeeded) {
 			found := false
 			for _, comment := range fc.IssueCommentsAdded {
-				if strings.Contains(comment, test.expectedURLInComment) {
+				if strings.Contains(comment, releaseNoteGuidelinesURL) {
 					found = true
 					break
 				}
 			}
 			if !found {
 				t.Errorf("(%s): Expected bot comment to contain URL %q, but it was not found in: %v",
-					test.name, test.expectedURLInComment, fc.IssueCommentsAdded)
+					test.name, releaseNoteGuidelinesURL, fc.IssueCommentsAdded)
 			}
 		}
 

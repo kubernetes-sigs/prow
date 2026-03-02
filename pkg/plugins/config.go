@@ -530,14 +530,14 @@ type Heart struct {
 
 // ReleaseNote contains the configuration options for the release note plugin
 type ReleaseNote struct {
-	// URL is the URL to the release note documentation that users should follow.
-	// Defaults to the Kubernetes community release note guide.
-	URL string `json:"url,omitempty"`
+	// GuidelinesURL is the URL to the release note guidelines that users should follow
+	// Defaults to the Kubernetes community guide: https://git.k8s.io/community/contributors/guide/release-notes.md
+	GuidelinesURL string `json:"guidelines_url,omitempty"`
 }
 
 func (r *ReleaseNote) setDefaults() {
-	if r.URL == "" {
-		r.URL = "https://git.k8s.io/community/contributors/guide/release-notes.md"
+	if r.GuidelinesURL == "" {
+		r.GuidelinesURL = "https://git.k8s.io/community/contributors/guide/release-notes.md"
 	}
 }
 
