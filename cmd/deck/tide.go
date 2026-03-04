@@ -40,7 +40,8 @@ type tidePools struct {
 }
 
 type tideHistory struct {
-	History map[string][]history.Record
+	History       map[string][]history.Record
+	HiddenRecords map[string]int `json:"HiddenRecords,omitempty"`
 }
 
 type tideAgent struct {
@@ -57,8 +58,9 @@ type tideAgent struct {
 	cfg       func() *config.Config
 
 	sync.Mutex
-	pools   []tide.Pool
-	history map[string][]history.Record
+	pools         []tide.Pool
+	history       map[string][]history.Record
+	hiddenRecords map[string]int
 }
 
 func (ta *tideAgent) start() {
@@ -151,11 +153,12 @@ func (ta *tideAgent) updateHistory() error {
 	if err := fetchTideData(ta.log, path, &history); err != nil {
 		return err
 	}
-	history = ta.filterHistory(history)
+	history, hiddenRecords := ta.filterHistory(history)
 
 	ta.Lock()
 	defer ta.Unlock()
 	ta.history = history
+	ta.hiddenRecords = hiddenRecords
 	return nil
 }
 
@@ -198,8 +201,9 @@ func (ta *tideAgent) matchRecordIDs(rec history.Record, orgRepoID string) bool {
 	return noTenantIDOrDefaultTenantID(sets.List(effectiveIDs))
 }
 
-func (ta *tideAgent) filterHistory(hist map[string][]history.Record) map[string][]history.Record {
+func (ta *tideAgent) filterHistory(hist map[string][]history.Record) (map[string][]history.Record, map[string]int) {
 	filtered := make(map[string][]history.Record, len(hist))
+	hidden := make(map[string]int)
 	for pool, records := range hist {
 		orgRepo := strings.Split(pool, ":")[0]
 		orgRepoID := ta.cfg().GetProwJobDefault(orgRepo, "*").TenantID
@@ -236,9 +240,12 @@ func (ta *tideAgent) filterHistory(hist map[string][]history.Record) map[string]
 		}
 		if len(kept) > 0 {
 			filtered[pool] = kept
+			if dropped := len(records) - len(kept); dropped > 0 {
+				hidden[pool] = dropped
+			}
 		}
 	}
-	return filtered
+	return filtered, hidden
 }
 
 func (ta *tideAgent) filter(orgRepoID string, curIDs sets.Set[string], needsHide bool) bool {

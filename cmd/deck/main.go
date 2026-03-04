@@ -1367,10 +1367,12 @@ func handleTideHistory(ta *tideAgent, log *logrus.Entry) http.HandlerFunc {
 
 		ta.Lock()
 		history := ta.history
+		hiddenRecords := ta.hiddenRecords
 		ta.Unlock()
 
 		payload := tideHistory{
-			History: history,
+			History:       history,
+			HiddenRecords: hiddenRecords,
 		}
 		pd, err := json.Marshal(payload)
 		if err != nil {
