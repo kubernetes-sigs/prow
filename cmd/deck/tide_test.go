@@ -777,6 +777,50 @@ func TestFilter(t *testing.T) {
 			expectedHist:    map[string][]history.Record{},
 		},
 		{
+			name:      "per-record filtering: empty TenantIDs treated as default tenant",
+			cfg:       exampleConfigNoDefaults,
+			tenantIDs: []string{config.DefaultTenantID},
+			hist: map[string][]history.Record{
+				"unconfigured/repo:master": {
+					{Action: "TRIGGER", TenantIDs: []string{config.DefaultTenantID}},
+					{Action: "MERGE"},
+					{Action: "TRIGGER_BATCH", TenantIDs: []string{"qe-private"}},
+				},
+			},
+			expectedQueries: []config.TideQuery{},
+			expectedPools:   []tide.Pool{},
+			expectedHist: map[string][]history.Record{
+				"unconfigured/repo:master": {
+					{Action: "TRIGGER", TenantIDs: []string{config.DefaultTenantID}},
+					{Action: "MERGE"},
+				},
+			},
+			expectedHiddenRecords: map[string]int{
+				"unconfigured/repo:master": 1,
+			},
+		},
+		{
+			name:      "per-record filtering: empty TenantIDs hidden for non-default tenant",
+			cfg:       exampleConfigNoDefaults,
+			tenantIDs: []string{"t"},
+			hist: map[string][]history.Record{
+				"unconfigured/repo:master": {
+					{Action: "TRIGGER", TenantIDs: []string{"t"}},
+					{Action: "MERGE"},
+				},
+			},
+			expectedQueries: []config.TideQuery{},
+			expectedPools:   []tide.Pool{},
+			expectedHist: map[string][]history.Record{
+				"unconfigured/repo:master": {
+					{Action: "TRIGGER", TenantIDs: []string{"t"}},
+				},
+			},
+			expectedHiddenRecords: map[string]int{
+				"unconfigured/repo:master": 1,
+			},
+		},
+		{
 			name:      "per-record filtering: pool excluded when all records have non-matching IDs",
 			cfg:       exampleConfigNoDefaults,
 			tenantIDs: []string{"t"},

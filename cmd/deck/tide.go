@@ -196,7 +196,11 @@ func (ta *tideAgent) matchRecordIDs(rec history.Record, orgRepoID string) bool {
 		effectiveIDs.Insert(orgRepoID)
 	}
 	if len(ta.tenantIDs) > 0 {
-		return effectiveIDs.Len() > 0 && ta.tenantIDs.HasAll(sets.List(effectiveIDs)...)
+		// Records with no tenant IDs are treated as belonging to the default tenant
+		if effectiveIDs.Len() == 0 {
+			return ta.tenantIDs.Has(config.DefaultTenantID)
+		}
+		return ta.tenantIDs.HasAll(sets.List(effectiveIDs)...)
 	}
 	return noTenantIDOrDefaultTenantID(sets.List(effectiveIDs))
 }
