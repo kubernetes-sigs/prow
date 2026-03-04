@@ -106,9 +106,10 @@ func TestFilter(t *testing.T) {
 		hist        map[string][]history.Record
 		cfg         config.Config
 
-		expectedQueries []config.TideQuery
-		expectedPools   []tide.Pool
-		expectedHist    map[string][]history.Record
+		expectedQueries       []config.TideQuery
+		expectedPools         []tide.Pool
+		expectedHist          map[string][]history.Record
+		expectedHiddenRecords map[string]int
 	}{
 		{
 			name: "public frontend",
@@ -537,6 +538,9 @@ func TestFilter(t *testing.T) {
 				"tenanted/test:master":         {{Action: "TRIGGER_BATCH"}, {Action: "MERGE_BATCH"}},
 				"clustered-tenant/test:master": {{Action: "TRIGGER_BATCH", TenantIDs: []string{"t"}}},
 			},
+			expectedHiddenRecords: map[string]int{
+				"clustered-tenant/test:master": 1,
+			},
 		},
 		{
 			name: "tenantID on Deck ignores hidden repos",
@@ -590,6 +594,9 @@ func TestFilter(t *testing.T) {
 			expectedHist: map[string][]history.Record{
 				"tenanted/test:master":         {{Action: "TRIGGER_BATCH"}, {Action: "MERGE_BATCH"}},
 				"clustered-tenant/test:master": {{Action: "TRIGGER_BATCH", TenantIDs: []string{"t"}}},
+			},
+			expectedHiddenRecords: map[string]int{
+				"clustered-tenant/test:master": 1,
 			},
 		},
 		{
@@ -730,6 +737,9 @@ func TestFilter(t *testing.T) {
 					{Action: "TRIGGER_BATCH", TenantIDs: []string{"t"}},
 				},
 			},
+			expectedHiddenRecords: map[string]int{
+				"unconfigured/repo:master": 1,
+			},
 		},
 		{
 			name:      "per-record filtering: HasAll semantics - record excluded if Deck lacks any of its IDs",
@@ -776,7 +786,7 @@ func TestFilter(t *testing.T) {
 
 		gotQueries := ta.filterQueries(test.queries)
 		gotPools := ta.filterPools(test.pools)
-		gotHist := ta.filterHistory(test.hist)
+		gotHist, gotHiddenRecords := ta.filterHistory(test.hist)
 		if !equality.Semantic.DeepEqual(gotQueries, test.expectedQueries) {
 			t.Errorf("expected queries:\n%v\ngot queries:\n%v\n", test.expectedQueries, gotQueries)
 		}
@@ -787,6 +797,13 @@ func TestFilter(t *testing.T) {
 		// We don't care about that for this test.
 		if !reflect.DeepEqual(gotHist, test.expectedHist) {
 			t.Errorf("expected history:\n%v\ngot history:\n%v\n", test.expectedHist, gotHist)
+		}
+		// Normalize nil to empty map for comparison
+		if test.expectedHiddenRecords == nil {
+			test.expectedHiddenRecords = map[string]int{}
+		}
+		if !reflect.DeepEqual(gotHiddenRecords, test.expectedHiddenRecords) {
+			t.Errorf("expected hiddenRecords:\n%v\ngot hiddenRecords:\n%v\n", test.expectedHiddenRecords, gotHiddenRecords)
 		}
 	}
 }
