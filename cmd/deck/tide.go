@@ -187,23 +187,55 @@ func noTenantIDOrDefaultTenantID(ids []string) bool {
 	return true
 }
 
-func recordIDs(records []history.Record) sets.Set[string] {
-	res := sets.Set[string]{}
-	for _, record := range records {
-		res.Insert(record.TenantIDs...)
+func (ta *tideAgent) matchRecordIDs(rec history.Record, orgRepoID string) bool {
+	effectiveIDs := sets.New[string](rec.TenantIDs...)
+	if orgRepoID != "" && orgRepoID != config.DefaultTenantID {
+		effectiveIDs.Insert(orgRepoID)
 	}
-	return res
+	if len(ta.tenantIDs) > 0 {
+		return effectiveIDs.Len() > 0 && ta.tenantIDs.HasAll(sets.List(effectiveIDs)...)
+	}
+	return noTenantIDOrDefaultTenantID(sets.List(effectiveIDs))
 }
 
 func (ta *tideAgent) filterHistory(hist map[string][]history.Record) map[string][]history.Record {
 	filtered := make(map[string][]history.Record, len(hist))
 	for pool, records := range hist {
 		orgRepo := strings.Split(pool, ":")[0]
-		curIDs := recordIDs(records).Insert()
 		orgRepoID := ta.cfg().GetProwJobDefault(orgRepo, "*").TenantID
 		needsHide := matches(orgRepo, ta.hiddenRepos())
-		if match := ta.filter(orgRepoID, curIDs, needsHide); match {
-			filtered[pool] = records
+
+		// When Deck has no tenantIDs, use pool-level hidden/default logic (unchanged)
+		if len(ta.tenantIDs) == 0 {
+			if needsHide {
+				if ta.showHidden || ta.hiddenOnly {
+					filtered[pool] = records
+				}
+			} else if !ta.hiddenOnly {
+				// Compute pool-level IDs for the default-tenant check
+				poolIDs := sets.New[string]()
+				for _, rec := range records {
+					poolIDs.Insert(rec.TenantIDs...)
+				}
+				if orgRepoID != "" && orgRepoID != config.DefaultTenantID {
+					poolIDs.Insert(orgRepoID)
+				}
+				if noTenantIDOrDefaultTenantID(sets.List(poolIDs)) {
+					filtered[pool] = records
+				}
+			}
+			continue
+		}
+
+		// When Deck has tenantIDs, filter per-record
+		var kept []history.Record
+		for _, rec := range records {
+			if ta.matchRecordIDs(rec, orgRepoID) {
+				kept = append(kept, rec)
+			}
+		}
+		if len(kept) > 0 {
+			filtered[pool] = kept
 		}
 	}
 	return filtered

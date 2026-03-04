@@ -535,7 +535,7 @@ func TestFilter(t *testing.T) {
 			},
 			expectedHist: map[string][]history.Record{
 				"tenanted/test:master":         {{Action: "TRIGGER_BATCH"}, {Action: "MERGE_BATCH"}},
-				"clustered-tenant/test:master": {{Action: "TRIGGER_BATCH", TenantIDs: []string{"t"}}, {Action: "MERGE_BATCH"}},
+				"clustered-tenant/test:master": {{Action: "TRIGGER_BATCH", TenantIDs: []string{"t"}}},
 			},
 		},
 		{
@@ -589,7 +589,7 @@ func TestFilter(t *testing.T) {
 			},
 			expectedHist: map[string][]history.Record{
 				"tenanted/test:master":         {{Action: "TRIGGER_BATCH"}, {Action: "MERGE_BATCH"}},
-				"clustered-tenant/test:master": {{Action: "TRIGGER_BATCH", TenantIDs: []string{"t"}}, {Action: "MERGE_BATCH"}},
+				"clustered-tenant/test:master": {{Action: "TRIGGER_BATCH", TenantIDs: []string{"t"}}},
 			},
 		},
 		{
@@ -710,6 +710,53 @@ func TestFilter(t *testing.T) {
 				"kubernetes/test-infra:master": {{Action: "MERGE", TenantIDs: []string{config.DefaultTenantID}}, {Action: "TRIGGER"}},
 				"kubernetes/kubernetes:master": {{Action: "TRIGGER_BATCH", TenantIDs: []string{config.DefaultTenantID}}, {Action: "MERGE_BATCH"}},
 			},
+		},
+		{
+			name:      "per-record filtering: mixed tenant IDs keep only matching records",
+			cfg:       exampleConfigNoDefaults,
+			tenantIDs: []string{"t"},
+			hist: map[string][]history.Record{
+				"unconfigured/repo:master": {
+					{Action: "TRIGGER", TenantIDs: []string{"t"}},
+					{Action: "MERGE", TenantIDs: []string{config.DefaultTenantID, "qe-private"}},
+					{Action: "TRIGGER_BATCH", TenantIDs: []string{"t"}},
+				},
+			},
+			expectedQueries: []config.TideQuery{},
+			expectedPools:   []tide.Pool{},
+			expectedHist: map[string][]history.Record{
+				"unconfigured/repo:master": {
+					{Action: "TRIGGER", TenantIDs: []string{"t"}},
+					{Action: "TRIGGER_BATCH", TenantIDs: []string{"t"}},
+				},
+			},
+		},
+		{
+			name:      "per-record filtering: HasAll semantics - record excluded if Deck lacks any of its IDs",
+			cfg:       exampleConfigNoDefaults,
+			tenantIDs: []string{"t"},
+			hist: map[string][]history.Record{
+				"unconfigured/repo:master": {
+					{Action: "MERGE", TenantIDs: []string{"t", "other"}},
+				},
+			},
+			expectedQueries: []config.TideQuery{},
+			expectedPools:   []tide.Pool{},
+			expectedHist:    map[string][]history.Record{},
+		},
+		{
+			name:      "per-record filtering: pool excluded when all records have non-matching IDs",
+			cfg:       exampleConfigNoDefaults,
+			tenantIDs: []string{"t"},
+			hist: map[string][]history.Record{
+				"other/repo:master": {
+					{Action: "TRIGGER", TenantIDs: []string{"qe-private"}},
+					{Action: "MERGE", TenantIDs: []string{"something-else"}},
+				},
+			},
+			expectedQueries: []config.TideQuery{},
+			expectedPools:   []tide.Pool{},
+			expectedHist:    map[string][]history.Record{},
 		},
 	}
 
