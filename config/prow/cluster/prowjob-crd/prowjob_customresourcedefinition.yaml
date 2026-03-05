@@ -1559,6 +1559,16 @@ spec:
                       SkipCloning determines if we should clone source code in the
                       initcontainers for jobs that specify refs
                     type: boolean
+                  sparse_checkout_files:
+                    description: |-
+                      SparseCheckoutFiles limits the working tree to only the listed paths.
+                      Accepts the same patterns as git sparse-checkout set (file names,
+                      directory names, gitignore-style globs). When set, clonerefs performs a
+                      sparse checkout instead of a full clone. Applied to the primary ref for
+                      presubmit/postsubmit jobs. Not applied to extra refs.
+                    items:
+                      type: string
+                    type: array
                   ssh_host_fingerprints:
                     description: |-
                       SSHHostFingerprints are the fingerprints of known SSH hosts

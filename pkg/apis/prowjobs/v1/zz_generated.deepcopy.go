@@ -129,6 +129,11 @@ func (in *DecorationConfig) DeepCopyInto(out *DecorationConfig) {
 		*out = new(bool)
 		**out = **in
 	}
+	if in.SparseCheckoutFiles != nil {
+		in, out := &in.SparseCheckoutFiles, &out.SparseCheckoutFiles
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	if in.SkipCloning != nil {
 		in, out := &in.SkipCloning, &out.SkipCloning
 		*out = new(bool)
