@@ -1492,7 +1492,15 @@ func (c *syncController) takeAction(sp subpool, batchPending, successes, pending
 	// Merge the batch!
 	if len(batchMerges) > 0 {
 		merged, err = c.provider.mergePRs(sp, batchMerges, c.statusUpdate.dontUpdateStatus)
-		return MergeBatch, batchMerges, err
+		// If the entire batch failed to merge (e.g., due to conflicts), fall through
+		// to attempt merging individual PRs to break the tie.
+		if len(merged) > 0 {
+			return MergeBatch, batchMerges, err
+		}
+		if ok, pr := pickHighestPriorityPR(sp.log, batchMerges, sp.cc, c.isPassingTests, c.config().Tide.Priority); ok {
+			merged, err = c.provider.mergePRs(sp, []CodeReviewCommon{pr}, c.statusUpdate.dontUpdateStatus)
+			return Merge, []CodeReviewCommon{pr}, err
+		}
 	}
 	// Do not merge PRs while waiting for a batch to complete. We don't want to
 	// invalidate the old batch result.
