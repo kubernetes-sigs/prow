@@ -36,7 +36,6 @@ type storedState struct {
 type statusClient interface {
 	Load() (chan config.Delta, error)
 	Save() error
-	Healthy() bool
 }
 
 // opener has methods to read and write paths
@@ -46,10 +45,11 @@ type opener interface {
 }
 
 type statusController struct {
-	logger     *logrus.Entry
-	opener     opener
-	statusURI  string
-	configOpts configflagutil.ConfigOptions
+	logger            *logrus.Entry
+	opener            opener
+	statusURI         string
+	configOpts        configflagutil.ConfigOptions
+	onConfigLoadError func(error)
 
 	storedState
 	config.Agent
@@ -59,12 +59,12 @@ func (s *statusController) Load() (chan config.Delta, error) {
 	s.Agent = config.Agent{}
 	state, err := s.loadState()
 	if err == nil {
-		s.Agent.SetWithoutBroadcast(&state.Config)
+		s.Agent.Set(&state.Config)
 	}
 	changes := make(chan config.Delta)
 	s.Agent.Subscribe(changes)
 
-	if _, err := s.configOpts.ConfigAgent(&s.Agent); err != nil {
+	if _, err := s.configOpts.ConfigAgentWithErrorHandling(s.onConfigLoadError, &s.Agent); err != nil {
 		s.logger.WithError(err).Error("Error starting config agent.")
 		return nil, err
 	}
@@ -132,8 +132,4 @@ func (s *statusController) loadState() (storedState, error) {
 
 func (s *statusController) Config() *config.Config {
 	return s.Agent.Config()
-}
-
-func (s *statusController) Healthy() bool {
-	return s.Agent.Healthy()
 }

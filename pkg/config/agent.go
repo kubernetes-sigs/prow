@@ -41,10 +41,9 @@ type DeltaChan = chan<- Delta
 // Agent watches a path and automatically loads the config stored
 // therein.
 type Agent struct {
-	mut                      sync.RWMutex // do not export Lock, etc methods
-	c                        *Config
-	subscriptions            []DeltaChan
-	lastConfigLoadSuccessful bool
+	mut           sync.RWMutex // do not export Lock, etc methods
+	c             *Config
+	subscriptions []DeltaChan
 }
 
 // IsConfigMapMount determines whether the provided directory is a configmap mounted directory
@@ -201,11 +200,13 @@ func ListCMsAndDirs(path string) (cms sets.Set[string], dirs sets.Set[string], e
 	return cms, dirs, err
 }
 
-func watchConfigs(ca *Agent, prowConfig, jobConfig string, supplementalProwConfigDirs []string, supplementalProwConfigsFileNameSuffix string, additionals ...func(*Config) error) error {
+func watchConfigs(ca *Agent, onError func(error), prowConfig, jobConfig string, supplementalProwConfigDirs []string, supplementalProwConfigsFileNameSuffix string, additionals ...func(*Config) error) error {
 	cmEventFunc := func() error {
 		c, err := Load(prowConfig, jobConfig, supplementalProwConfigDirs, supplementalProwConfigsFileNameSuffix, additionals...)
 		if err != nil {
-			ca.setHealthy(false)
+			if onError != nil {
+				onError(err)
+			}
 			return err
 		}
 		ca.Set(c)
@@ -215,7 +216,9 @@ func watchConfigs(ca *Agent, prowConfig, jobConfig string, supplementalProwConfi
 	dirsEventFunc := func(w *fsnotify.Watcher) error {
 		c, err := Load(prowConfig, jobConfig, supplementalProwConfigDirs, supplementalProwConfigsFileNameSuffix, additionals...)
 		if err != nil {
-			ca.setHealthy(false)
+			if onError != nil {
+				onError(err)
+			}
 			return err
 		}
 		ca.Set(c)
@@ -305,14 +308,23 @@ func watchConfigs(ca *Agent, prowConfig, jobConfig string, supplementalProwConfi
 // will log the failure message but continue attempting to load.
 // This function will replace Start in a future release.
 func (ca *Agent) StartWatch(prowConfig, jobConfig string, supplementalProwConfigDirs []string, supplementalProwConfigsFileNameSuffix string, additionals ...func(*Config) error) error {
-	ca.setHealthy(false)
+	return ca.StartWatchWithErrorHandler(nil, prowConfig, jobConfig, supplementalProwConfigDirs, supplementalProwConfigsFileNameSuffix, additionals...)
+}
+
+// StartWatchWithErrorHandler behaves like StartWatch and calls onError on config load failures.
+func (ca *Agent) StartWatchWithErrorHandler(onError func(error), prowConfig, jobConfig string, supplementalProwConfigDirs []string, supplementalProwConfigsFileNameSuffix string, additionals ...func(*Config) error) error {
 	c, err := Load(prowConfig, jobConfig, supplementalProwConfigDirs, supplementalProwConfigsFileNameSuffix, additionals...)
 	if err != nil {
+		if onError != nil {
+			onError(err)
+		}
 		return err
 	}
 	ca.Set(c)
-	if err := watchConfigs(ca, prowConfig, jobConfig, supplementalProwConfigDirs, supplementalProwConfigsFileNameSuffix, additionals...); err != nil {
-		ca.setHealthy(false)
+	if err := watchConfigs(ca, onError, prowConfig, jobConfig, supplementalProwConfigDirs, supplementalProwConfigsFileNameSuffix, additionals...); err != nil {
+		if onError != nil {
+			onError(err)
+		}
 		return err
 	}
 	return nil
@@ -346,13 +358,20 @@ func lastConfigModTime(prowConfig, jobConfig string) (time.Time, error) {
 // fails, Start will return the error and abort. Future load failures will log
 // the failure message but continue attempting to load.
 func (ca *Agent) Start(prowConfig, jobConfig string, additionalProwConfigDirs []string, supplementalProwConfigsFileNameSuffix string, additionals ...func(*Config) error) error {
-	ca.setHealthy(false)
+	return ca.StartWithErrorHandler(nil, prowConfig, jobConfig, additionalProwConfigDirs, supplementalProwConfigsFileNameSuffix, additionals...)
+}
+
+// StartWithErrorHandler behaves like Start and calls onError on config load failures.
+func (ca *Agent) StartWithErrorHandler(onError func(error), prowConfig, jobConfig string, additionalProwConfigDirs []string, supplementalProwConfigsFileNameSuffix string, additionals ...func(*Config) error) error {
 	lastModTime, err := lastConfigModTime(prowConfig, jobConfig)
 	if err != nil {
 		lastModTime = time.Time{}
 	}
 	c, err := Load(prowConfig, jobConfig, additionalProwConfigDirs, supplementalProwConfigsFileNameSuffix, additionals...)
 	if err != nil {
+		if onError != nil {
+			onError(err)
+		}
 		return err
 	}
 	ca.Set(c)
@@ -374,7 +393,9 @@ func (ca *Agent) Start(prowConfig, jobConfig string, additionalProwConfigDirs []
 				lastModTime = recentModTime
 			}
 			if c, err := Load(prowConfig, jobConfig, additionalProwConfigDirs, supplementalProwConfigsFileNameSuffix, additionals...); err != nil {
-				ca.setHealthy(false)
+				if onError != nil {
+					onError(err)
+				}
 				logrus.WithField("prowConfig", prowConfig).
 					WithField("jobConfig", jobConfig).
 					WithError(err).Error("Error loading config.")
@@ -407,19 +428,6 @@ func (ca *Agent) Config() *Config {
 	return ca.c
 }
 
-// Healthy returns whether the last attempt to load config into the agent succeeded.
-func (ca *Agent) Healthy() bool {
-	ca.mut.RLock()
-	defer ca.mut.RUnlock()
-	return ca.lastConfigLoadSuccessful
-}
-
-func (ca *Agent) setHealthy(healthy bool) {
-	ca.mut.Lock()
-	defer ca.mut.Unlock()
-	ca.lastConfigLoadSuccessful = healthy
-}
-
 // Set sets the config. Useful for testing.
 // Also used by statusreconciler to load last known config
 func (ca *Agent) Set(c *Config) {
@@ -431,7 +439,6 @@ func (ca *Agent) Set(c *Config) {
 	}
 	delta := Delta{oldConfig, *c}
 	ca.c = c
-	ca.lastConfigLoadSuccessful = true
 	for _, subscription := range ca.subscriptions {
 		go func(sub DeltaChan) { // wait a minute to send each event
 			end := time.NewTimer(time.Minute)

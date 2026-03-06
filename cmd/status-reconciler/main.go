@@ -32,6 +32,7 @@ import (
 	pluginsflagutil "sigs.k8s.io/prow/pkg/flagutil/plugins"
 	"sigs.k8s.io/prow/pkg/interrupts"
 	"sigs.k8s.io/prow/pkg/logrusutil"
+	"sigs.k8s.io/prow/pkg/metrics"
 	"sigs.k8s.io/prow/pkg/pjutil"
 	"sigs.k8s.io/prow/pkg/statusreconciler"
 )
@@ -119,6 +120,7 @@ func main() {
 	if err != nil {
 		logrus.WithError(err).Fatal("Error starting config agent.")
 	}
+	metrics.ExposeMetrics("status-reconciler", configAgent.Config().PushGateway, o.instrumentationOptions.MetricsPort)
 
 	pluginAgent, err := o.pluginsConfig.PluginAgent()
 	if err != nil {

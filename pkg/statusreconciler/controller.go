@@ -47,7 +47,7 @@ func NewController(continueOnError bool, addedPresubmitDenylist, addedPresubmitD
 		configOpts: configOpts,
 	}
 
-	return &Controller{
+	controller := &Controller{
 		continueOnError:           continueOnError,
 		addedPresubmitDenylist:    addedPresubmitDenylist,
 		addedPresubmitDenylistAll: addedPresubmitDenylistAll,
@@ -68,6 +68,10 @@ func NewController(continueOnError bool, addedPresubmitDenylist, addedPresubmitD
 		},
 		statusClient: sc,
 	}
+	controller.setHealthy(true)
+	controller.setActuationEnabled(false)
+	sc.onConfigLoadError = controller.onConfigLoadError
+	return controller
 }
 
 type statusMigrator interface {
@@ -156,22 +160,28 @@ type Controller struct {
 	trustedChecker            trustedChecker
 	statusClient              statusClient
 
-	healthInitialized uint32
+	healthy          uint32
+	actuationEnabled uint32
 }
 
 // Run monitors the incoming configuration changes to determine when statuses need to be
 // reconciled on PRs in flight when blocking presubmits change
 func (c *Controller) Run(ctx context.Context) {
 	changes, err := c.statusClient.Load()
-	c.markHealthInitialized()
 	if err != nil {
+		c.setHealthy(false)
+		c.setActuationEnabled(false)
 		logrus.WithError(err).Error("Error loading saved status.")
 		return
 	}
+	c.setHealthy(true)
+	c.setActuationEnabled(true)
 
 	for {
 		select {
 		case change := <-changes:
+			c.setHealthy(true)
+			c.setActuationEnabled(true)
 			start := time.Now()
 			log := logrus.WithField("old_config_revision", change.Before.ConfigVersionSHA).WithField("config_revision", change.After.ConfigVersionSHA)
 			if err := c.reconcile(change, log); err != nil {
@@ -186,19 +196,46 @@ func (c *Controller) Run(ctx context.Context) {
 	}
 }
 
-// Healthy reports whether status-reconciler should be considered live.
-// Before the controller attempts its first config load it reports healthy to
-// avoid transient startup liveness failures. Afterwards it mirrors config load
-// health from the status client.
+// Healthy reports whether status-reconciler currently considers itself live.
 func (c *Controller) Healthy() bool {
-	if atomic.LoadUint32(&c.healthInitialized) == 0 {
-		return true
-	}
-	return c.statusClient.Healthy()
+	return atomic.LoadUint32(&c.healthy) == 1
 }
 
-func (c *Controller) markHealthInitialized() {
-	atomic.StoreUint32(&c.healthInitialized, 1)
+// ActuationEnabled reports whether status-reconciler should process reconciliation.
+func (c *Controller) ActuationEnabled() bool {
+	return atomic.LoadUint32(&c.actuationEnabled) == 1
+}
+
+func (c *Controller) setHealthy(healthy bool) {
+	atomic.StoreUint32(&c.healthy, boolToUint32(healthy))
+	statusReconcilerMetrics.controllerHealthy.Set(boolToFloat64(healthy))
+}
+
+func (c *Controller) setActuationEnabled(enabled bool) {
+	atomic.StoreUint32(&c.actuationEnabled, boolToUint32(enabled))
+	statusReconcilerMetrics.actuationEnabled.Set(boolToFloat64(enabled))
+}
+
+func (c *Controller) onConfigLoadError(err error) {
+	if err != nil {
+		logrus.WithError(err).Error("Config load failed; disabling status-reconciler actuation.")
+	}
+	c.setHealthy(false)
+	c.setActuationEnabled(false)
+}
+
+func boolToFloat64(value bool) float64 {
+	if value {
+		return 1
+	}
+	return 0
+}
+
+func boolToUint32(value bool) uint32 {
+	if value {
+		return 1
+	}
+	return 0
 }
 
 func (c *Controller) reconcile(delta config.Delta, log *logrus.Entry) error {
