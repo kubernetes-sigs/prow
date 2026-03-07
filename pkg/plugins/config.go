@@ -97,6 +97,7 @@ type Configuration struct {
 	Welcome              []Welcome                    `json:"welcome,omitempty"`
 	Override             Override                     `json:"override,omitempty"`
 	Help                 Help                         `json:"help,omitempty"`
+	InvalidCommitMsg     []InvalidCommitMsg           `json:"invalid_commit_msg,omitempty"`
 }
 
 type Help struct {
@@ -2385,4 +2386,13 @@ func (c *Configuration) HasConfigFor() (global bool, orgs sets.Set[string], repo
 	}
 
 	return global, orgs, repos
+}
+
+// InvalidCommitMsg holds configuration for the invalidcommitmsg plugin.
+type InvalidCommitMsg struct {
+	// Repos is either of the form org/repo or just org.
+	Repos []string `json:"repos,omitempty"`
+
+	// DisableFixupCheck allows opting out of the fixup!/amend! commit check.
+	DisableFixupCheck bool `json:"disable_fixup_check,omitempty"`
 }

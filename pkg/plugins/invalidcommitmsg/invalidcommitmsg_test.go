@@ -26,6 +26,7 @@ import (
 
 	"sigs.k8s.io/prow/pkg/github"
 	"sigs.k8s.io/prow/pkg/github/fakegithub"
+	"sigs.k8s.io/prow/pkg/plugins"
 )
 
 type fakePruner struct{}
@@ -189,6 +190,24 @@ func TestHandlePullRequest(t *testing.T) {
 			hasInvalidCommitMessageLabel: true,
 			removedLabel:                 fmt.Sprintf("k/k#3:%s", invalidCommitMsgLabel),
 		},
+		{
+			name:   "fixup commit -> add fixup label and comment",
+			action: github.PullRequestActionOpened,
+			commits: []github.RepositoryCommit{
+				{SHA: "sha1", Commit: github.GitCommit{Message: "fixup! update tests"}},
+			},
+			hasInvalidCommitMessageLabel: false,
+
+			addedLabel: fmt.Sprintf("k/k#3:%s", fixupCommitMsgLabel),
+
+			addedComments: []string{
+				fmt.Sprintf(
+					"k/k#3:"+fixupCommitMsgCommentBody,
+					"- [sha1](https://github.com/k/k/commits/sha1) fixup! update tests",
+					plugins.AboutThisBot,
+				),
+			},
+		},
 	}
 
 	for _, tc := range testcases {
@@ -209,7 +228,7 @@ func TestHandlePullRequest(t *testing.T) {
 			if tc.hasInvalidCommitMessageLabel {
 				fc.IssueLabelsAdded = append(fc.IssueLabelsAdded, fmt.Sprintf("k/k#3:%s", invalidCommitMsgLabel))
 			}
-			if err := handle(fc, logrus.WithField("plugin", pluginName), event, &fakePruner{}); err != nil {
+			if err := handle(fc, logrus.WithField("plugin", pluginName), event, &fakePruner{}, &plugins.Configuration{}); err != nil {
 				t.Errorf("For case %s, didn't expect error from invalidcommitmsg plugin: %v", tc.name, err)
 			}
 
