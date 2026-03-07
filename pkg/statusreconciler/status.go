@@ -58,6 +58,12 @@ type statusController struct {
 func (s *statusController) Load() (chan config.Delta, error) {
 	s.Agent = config.Agent{}
 	state, err := s.loadState()
+	if err != nil && !io.IsNotExist(err) {
+		if s.onConfigLoadError != nil {
+			s.onConfigLoadError(err)
+		}
+		return nil, err
+	}
 	if err == nil {
 		s.Agent.Set(&state.Config)
 	}
