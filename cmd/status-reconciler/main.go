@@ -32,6 +32,8 @@ import (
 	pluginsflagutil "sigs.k8s.io/prow/pkg/flagutil/plugins"
 	"sigs.k8s.io/prow/pkg/interrupts"
 	"sigs.k8s.io/prow/pkg/logrusutil"
+	"sigs.k8s.io/prow/pkg/metrics"
+	"sigs.k8s.io/prow/pkg/pjutil"
 	"sigs.k8s.io/prow/pkg/statusreconciler"
 )
 
@@ -111,11 +113,14 @@ func main() {
 	defer interrupts.WaitForGracefulShutdown()
 
 	pprof.Instrument(o.instrumentationOptions)
+	health := pjutil.NewHealthOnPort(o.instrumentationOptions.HealthPort)
+	health.ServeReady()
 
 	configAgent, err := o.config.ConfigAgent()
 	if err != nil {
 		logrus.WithError(err).Fatal("Error starting config agent.")
 	}
+	metrics.ExposeMetrics("status-reconciler", configAgent.Config().PushGateway, o.instrumentationOptions.MetricsPort)
 
 	pluginAgent, err := o.pluginsConfig.PluginAgent()
 	if err != nil {
@@ -140,6 +145,7 @@ func main() {
 	}
 
 	c := statusreconciler.NewController(o.continueOnError, o.getDenyList(), o.getDenyListAll(), opener, o.config, o.statusURI, prowJobClient, githubClient, pluginAgent)
+	health.ServeLive(c.Healthy)
 	interrupts.Run(func(ctx context.Context) {
 		c.Run(ctx)
 	})

@@ -200,10 +200,13 @@ func ListCMsAndDirs(path string) (cms sets.Set[string], dirs sets.Set[string], e
 	return cms, dirs, err
 }
 
-func watchConfigs(ca *Agent, prowConfig, jobConfig string, supplementalProwConfigDirs []string, supplementalProwConfigsFileNameSuffix string, additionals ...func(*Config) error) error {
+func watchConfigs(ca *Agent, onError func(error), prowConfig, jobConfig string, supplementalProwConfigDirs []string, supplementalProwConfigsFileNameSuffix string, additionals ...func(*Config) error) error {
 	cmEventFunc := func() error {
 		c, err := Load(prowConfig, jobConfig, supplementalProwConfigDirs, supplementalProwConfigsFileNameSuffix, additionals...)
 		if err != nil {
+			if onError != nil {
+				onError(err)
+			}
 			return err
 		}
 		ca.Set(c)
@@ -213,6 +216,9 @@ func watchConfigs(ca *Agent, prowConfig, jobConfig string, supplementalProwConfi
 	dirsEventFunc := func(w *fsnotify.Watcher) error {
 		c, err := Load(prowConfig, jobConfig, supplementalProwConfigDirs, supplementalProwConfigsFileNameSuffix, additionals...)
 		if err != nil {
+			if onError != nil {
+				onError(err)
+			}
 			return err
 		}
 		ca.Set(c)
@@ -302,12 +308,25 @@ func watchConfigs(ca *Agent, prowConfig, jobConfig string, supplementalProwConfi
 // will log the failure message but continue attempting to load.
 // This function will replace Start in a future release.
 func (ca *Agent) StartWatch(prowConfig, jobConfig string, supplementalProwConfigDirs []string, supplementalProwConfigsFileNameSuffix string, additionals ...func(*Config) error) error {
+	return ca.StartWatchWithErrorHandler(nil, prowConfig, jobConfig, supplementalProwConfigDirs, supplementalProwConfigsFileNameSuffix, additionals...)
+}
+
+// StartWatchWithErrorHandler behaves like StartWatch and calls onError on config load failures.
+func (ca *Agent) StartWatchWithErrorHandler(onError func(error), prowConfig, jobConfig string, supplementalProwConfigDirs []string, supplementalProwConfigsFileNameSuffix string, additionals ...func(*Config) error) error {
 	c, err := Load(prowConfig, jobConfig, supplementalProwConfigDirs, supplementalProwConfigsFileNameSuffix, additionals...)
 	if err != nil {
+		if onError != nil {
+			onError(err)
+		}
 		return err
 	}
 	ca.Set(c)
-	watchConfigs(ca, prowConfig, jobConfig, supplementalProwConfigDirs, supplementalProwConfigsFileNameSuffix, additionals...)
+	if err := watchConfigs(ca, onError, prowConfig, jobConfig, supplementalProwConfigDirs, supplementalProwConfigsFileNameSuffix, additionals...); err != nil {
+		if onError != nil {
+			onError(err)
+		}
+		return err
+	}
 	return nil
 }
 
@@ -339,12 +358,20 @@ func lastConfigModTime(prowConfig, jobConfig string) (time.Time, error) {
 // fails, Start will return the error and abort. Future load failures will log
 // the failure message but continue attempting to load.
 func (ca *Agent) Start(prowConfig, jobConfig string, additionalProwConfigDirs []string, supplementalProwConfigsFileNameSuffix string, additionals ...func(*Config) error) error {
+	return ca.StartWithErrorHandler(nil, prowConfig, jobConfig, additionalProwConfigDirs, supplementalProwConfigsFileNameSuffix, additionals...)
+}
+
+// StartWithErrorHandler behaves like Start and calls onError on config load failures.
+func (ca *Agent) StartWithErrorHandler(onError func(error), prowConfig, jobConfig string, additionalProwConfigDirs []string, supplementalProwConfigsFileNameSuffix string, additionals ...func(*Config) error) error {
 	lastModTime, err := lastConfigModTime(prowConfig, jobConfig)
 	if err != nil {
 		lastModTime = time.Time{}
 	}
 	c, err := Load(prowConfig, jobConfig, additionalProwConfigDirs, supplementalProwConfigsFileNameSuffix, additionals...)
 	if err != nil {
+		if onError != nil {
+			onError(err)
+		}
 		return err
 	}
 	ca.Set(c)
@@ -366,6 +393,9 @@ func (ca *Agent) Start(prowConfig, jobConfig string, additionalProwConfigDirs []
 				lastModTime = recentModTime
 			}
 			if c, err := Load(prowConfig, jobConfig, additionalProwConfigDirs, supplementalProwConfigsFileNameSuffix, additionals...); err != nil {
+				if onError != nil {
+					onError(err)
+				}
 				logrus.WithField("prowConfig", prowConfig).
 					WithField("jobConfig", jobConfig).
 					WithError(err).Error("Error loading config.")
