@@ -604,12 +604,6 @@ func testCherryPickPR(clients localgit.Clients, t *testing.T) {
 	expectedFn := func(branch string) string {
 		expectedTitle := fmt.Sprintf("[%s] This is a fix for Y", branch)
 		expectedBody := fmt.Sprintf("This is an automated cherry-pick of #%d", prNumber)
-		if branch == "release-1.3" {
-			expectedBody = fmt.Sprintf("%s\n\n/cherrypick release-1.2", expectedBody)
-		}
-		if branch == "release-1.12" {
-			expectedBody = fmt.Sprintf("%s\n\n/cherrypick release-1.11 release-1.10 release-1.9", expectedBody)
-		}
 		expectedHead := fmt.Sprintf(botUser.Login+":"+cherryPickBranchFmt, prNumber, branch)
 		expectedLabels := s.labels
 		return fmt.Sprintf(expectedFmt, expectedTitle, expectedBody, expectedHead, branch, expectedLabels)
@@ -1010,7 +1004,13 @@ func testCherryPickPRWithLabels(clients localgit.Clients, t *testing.T) {
 						labelPrefix:     tc.labelPrefix,
 					}
 
-					if _, err := s.handlePullRequest(logrus.NewEntry(logrus.StandardLogger()), pr(evt)); err != nil {
+					event := pr(evt)
+
+					if evt == github.PullRequestActionLabeled && len(tc.prLabels) > 0 {
+						event.Label = tc.prLabels[0]
+					}
+
+					if _, err := s.handlePullRequest(logrus.NewEntry(logrus.StandardLogger()), event); err != nil {
 						t.Fatalf("unexpected error: %v", err)
 					}
 
@@ -1022,12 +1022,19 @@ func testCherryPickPRWithLabels(clients localgit.Clients, t *testing.T) {
 						return fmt.Sprintf(expectedFmt, expectedTitle, expectedBody, expectedHead, branch, expectedLabels)
 					}
 
-					expectedPRs := 2
-					if len(tc.prLabels) == 0 {
-						if evt == github.PullRequestActionLabeled {
+					var expectedPRs int
+
+					if evt == github.PullRequestActionLabeled {
+						if len(tc.prLabels) == 0 {
 							expectedPRs = 0
 						} else {
 							expectedPRs = 1
+						}
+					} else {
+						if len(tc.prLabels) == 0 {
+							expectedPRs = 1
+						} else {
+							expectedPRs = 2
 						}
 					}
 					if len(ghc.prs) != expectedPRs {
@@ -1330,6 +1337,98 @@ func TestGetPusherAndOrg(t *testing.T) {
 			assert.Equal(t, tc.expected, res)
 			assert.Equal(t, tc.expectedOrg, pushOrg)
 		})
+	}
+}
+
+func TestHandlePullRequestLabelAdded_BaseEqualsTarget(t *testing.T) {
+	t.Parallel()
+
+	prNumber := fakePR.GetPRNumber()
+
+	ghc := &fghc{
+		isMember: true,
+	}
+
+	botUser := &github.UserData{Login: "ci-robot"}
+
+	s := &Server{
+		botUser:     botUser,
+		ghc:         ghc,
+		labelPrefix: defaultLabelPrefix,
+	}
+
+	event := github.PullRequestEvent{
+		Action: github.PullRequestActionLabeled,
+		Label:  github.Label{Name: "cherrypick/master"},
+		PullRequest: github.PullRequest{
+			Number: prNumber,
+			Merged: true,
+			User:   github.User{Login: "dev"},
+			Base: github.PullRequestBranch{
+				Ref: "master",
+				Repo: github.Repo{
+					Owner: github.User{Login: "foo"},
+					Name:  "bar",
+				},
+			},
+		},
+	}
+
+	_, err := s.handlePullRequest(logrus.NewEntry(logrus.StandardLogger()), event)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(ghc.comments) == 0 {
+		t.Fatalf("expected comment to be created")
+	}
+
+	if !strings.Contains(ghc.comments[0], "needs to differ") {
+		t.Fatalf("expected base/target conflict message, got %v", ghc.comments[0])
+	}
+}
+
+func TestHandlePullRequestLabelAdded_NonMemberRejected(t *testing.T) {
+	t.Parallel()
+
+	prNumber := fakePR.GetPRNumber()
+
+	ghc := &fghc{
+		isMember: false,
+	}
+
+	s := &Server{
+		ghc:         ghc,
+		labelPrefix: defaultLabelPrefix,
+	}
+
+	event := github.PullRequestEvent{
+		Action: github.PullRequestActionLabeled,
+		Label:  github.Label{Name: "cherrypick/release-1.9"},
+		PullRequest: github.PullRequest{
+			Number: prNumber,
+			Merged: true,
+			User:   github.User{Login: "outsider"},
+			Base: github.PullRequestBranch{
+				Ref: "master",
+				Repo: github.Repo{
+					Owner: github.User{Login: "foo"},
+					Name:  "bar"},
+			},
+		},
+	}
+
+	_, err := s.handlePullRequest(logrus.NewEntry(logrus.StandardLogger()), event)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(ghc.comments) == 0 {
+		t.Fatalf("expected rejection comment")
+	}
+
+	if !strings.Contains(ghc.comments[0], "only [foo]") {
+		t.Fatalf("expected org membership rejection, got %v", ghc.comments[0])
 	}
 }
 
