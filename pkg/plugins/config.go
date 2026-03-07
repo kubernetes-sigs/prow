@@ -344,7 +344,7 @@ type Approve struct {
 	// CommandHelpLink is the link to the help page which shows the available commands for each repo.
 	// The default value is "https://go.k8s.io/bot-commands". The command help page is served by Deck
 	// and available under https://<deck-url>/command-help, e.g. "https://prow.k8s.io/command-help"
-	CommandHelpLink string `json:"commandHelpLink"`
+	CommandHelpLink string `json:"commandHelpLink,omitempty"`
 	// PrProcessLink is the link to the help page which explains the code review process.
 	// The default value is "https://git.k8s.io/community/contributors/guide/owners.md#the-code-review-process".
 	PrProcessLink string `json:"pr_process_link,omitempty"`
