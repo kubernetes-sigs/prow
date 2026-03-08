@@ -604,6 +604,12 @@ func testCherryPickPR(clients localgit.Clients, t *testing.T) {
 	expectedFn := func(branch string) string {
 		expectedTitle := fmt.Sprintf("[%s] This is a fix for Y", branch)
 		expectedBody := fmt.Sprintf("This is an automated cherry-pick of #%d", prNumber)
+		if branch == "release-1.3" {
+			expectedBody = fmt.Sprintf("%s\n\n/cherrypick release-1.2", expectedBody)
+		}
+		if branch == "release-1.12" {
+			expectedBody = fmt.Sprintf("%s\n\n/cherrypick release-1.11 release-1.10 release-1.9", expectedBody)
+		}
 		expectedHead := fmt.Sprintf(botUser.Login+":"+cherryPickBranchFmt, prNumber, branch)
 		expectedLabels := s.labels
 		return fmt.Sprintf(expectedFmt, expectedTitle, expectedBody, expectedHead, branch, expectedLabels)

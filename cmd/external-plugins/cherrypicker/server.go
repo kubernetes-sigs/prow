@@ -333,7 +333,7 @@ func (s *Server) handlePullRequest(log logrus.FieldLogger, pre github.PullReques
 	case github.PullRequestActionLabeled:
 		return s.handlePullRequestLabelAdded(log, pre)
 	case github.PullRequestActionClosed:
-		return s.handlePullRequestMerged(log, pre)
+		return s.handlePullRequestClosed(log, pre)
 	default:
 		return log, nil
 	}
@@ -341,42 +341,36 @@ func (s *Server) handlePullRequest(log logrus.FieldLogger, pre github.PullReques
 
 func (s *Server) handlePullRequestLabelAdded(log logrus.FieldLogger, pre github.PullRequestEvent) (logrus.FieldLogger, error) {
 	pr := pre.PullRequest
-
 	// Ignore non cherrypick labels
 	if pre.Label.Name == "" || !strings.HasPrefix(pre.Label.Name, s.labelPrefix) {
 		return log, nil
 	}
-
 	org := pr.Base.Repo.Owner.Login
 	repo := pr.Base.Repo.Name
 	num := pr.Number
 	baseBranch := pr.Base.Ref
 	targetBranch := strings.TrimPrefix(pre.Label.Name, s.labelPrefix)
-
 	log = log.WithFields(logrus.Fields{
 		github.OrgLogField:  org,
 		github.RepoLogField: repo,
 		github.PrLogField:   num,
 	})
-
-	requester := pr.User.Login
+	prAuthor := pr.User.Login
 
 	if !s.allowAll {
 		// Only org members should be able to do cherry-picks.
-		ok, err := s.ghc.IsMember(org, requester)
+		ok, err := s.ghc.IsMember(org, prAuthor)
 		if err != nil {
 			return log, err
 		}
 		if !ok {
-			resp := fmt.Sprintf(notOrgMemberMessageTemplate, org, org, org, requester)
+			resp := fmt.Sprintf(notOrgMemberMessageTemplate, org, org, org, prAuthor)
 			if err := s.createComment(log, org, repo, num, nil, resp); err != nil {
 				log.WithError(err).WithField("response", resp).Error("Failed to create comment.")
 			}
 			return log, nil
 		}
-
 	}
-
 	if targetBranch == baseBranch {
 		resp := fmt.Sprintf("base branch (%s) needs to differ from target branch (%s)", baseBranch, targetBranch)
 		return log, s.createComment(log, org, repo, num, nil, resp)
@@ -386,7 +380,7 @@ func (s *Server) handlePullRequestLabelAdded(log logrus.FieldLogger, pre github.
 	if !pr.Merged {
 		resp := fmt.Sprintf(
 			"@%s once the present PR merges, I will cherry-pick it on top of `%s` in a new PR and assign it to you.",
-			requester,
+			prAuthor,
 			targetBranch,
 		)
 		return log, s.createComment(log, org, repo, num, nil, resp)
@@ -394,10 +388,10 @@ func (s *Server) handlePullRequestLabelAdded(log logrus.FieldLogger, pre github.
 
 	return log, s.handle(
 		log.WithFields(logrus.Fields{
-			"requester":     requester,
+			"requester":     prAuthor,
 			"target_branch": targetBranch,
 		}),
-		requester,
+		prAuthor,
 		nil,
 		org,
 		repo,
@@ -410,9 +404,8 @@ func (s *Server) handlePullRequestLabelAdded(log logrus.FieldLogger, pre github.
 	)
 }
 
-func (s *Server) handlePullRequestMerged(log logrus.FieldLogger, pre github.PullRequestEvent) (logrus.FieldLogger, error) {
+func (s *Server) handlePullRequestClosed(log logrus.FieldLogger, pre github.PullRequestEvent) (logrus.FieldLogger, error) {
 	pr := pre.PullRequest
-
 	if !pr.Merged || pr.MergeSHA == nil {
 		return log, nil
 	}
@@ -435,8 +428,10 @@ func (s *Server) handlePullRequestMerged(log logrus.FieldLogger, pre github.Pull
 		return log, fmt.Errorf("failed to list comments: %w", err)
 	}
 
-	// requester -> set of target branches requested for cherry-pick
-	requesterToBranches := make(map[string]sets.Set[string])
+	// requester -> target branch -> issue comment
+	requesterToComments := make(map[string]map[string]*github.IssueComment)
+	// target branch -> chain branches (eg. "release-1.6" -> []string{"release-1.5", "release-1.4"})
+	targetBranchToChainBranches := make(map[string][]string)
 
 	// treat PR body/description as a comment
 	comments = append([]github.IssueComment{{
@@ -448,33 +443,32 @@ func (s *Server) handlePullRequestMerged(log logrus.FieldLogger, pre github.Pull
 	for _, comment := range comments {
 		commands := parseComment(comment)
 
-		for targetBranch := range commands {
-			if requesterToBranches[comment.User.Login] == nil {
-				requesterToBranches[comment.User.Login] = sets.New[string]()
+		for targetBranch, chainedBranches := range commands {
+			if requesterToComments[comment.User.Login] == nil {
+				requesterToComments[comment.User.Login] = make(map[string]*github.IssueComment)
 			}
-			requesterToBranches[comment.User.Login].Insert(targetBranch)
+			requesterToComments[comment.User.Login][targetBranch] = &comment
+
+			if len(chainedBranches) > 0 {
+				targetBranchToChainBranches[targetBranch] = chainedBranches
+			}
 		}
 	}
-
 	labels, err := s.ghc.GetIssueLabels(org, repo, num)
 	if err != nil {
 		return log, fmt.Errorf("failed to get issue labels: %w", err)
 	}
-
+	if requesterToComments[pr.User.Login] == nil {
+		requesterToComments[pr.User.Login] = make(map[string]*github.IssueComment)
+	}
 	for _, label := range labels {
 		if strings.HasPrefix(label.Name, s.labelPrefix) {
-			targetBranch := strings.TrimPrefix(label.Name, s.labelPrefix)
-			if requesterToBranches[pr.User.Login] == nil {
-				requesterToBranches[pr.User.Login] = sets.New[string]()
-			}
-			requesterToBranches[pr.User.Login].Insert(targetBranch)
+			requesterToComments[pr.User.Login][label.Name[len(s.labelPrefix):]] = nil // leave this nil which indicates a label-initiated cherry-pick
 		}
 	}
-
-	if len(requesterToBranches) == 0 {
+	if len(requesterToComments) == 0 {
 		return log, nil
 	}
-
 	// Figure out membership.
 	if !s.allowAll {
 		// TODO: Possibly cache this.
@@ -482,35 +476,41 @@ func (s *Server) handlePullRequestMerged(log logrus.FieldLogger, pre github.Pull
 		if err != nil {
 			return log, err
 		}
-		for requester := range requesterToBranches {
+		for requester := range requesterToComments {
 			isMember := slices.ContainsFunc(members, func(member github.TeamMember) bool {
 				return requester == member.Login
 			})
 			if !isMember {
-				delete(requesterToBranches, requester)
+				delete(requesterToComments, requester)
 			}
 		}
 	}
 
+	// Handle multiple comments serially. Make sure to filter out
+	// comments targeting the same branch.
+	handledBranches := make(map[string]bool)
 	var errs []error
-	handledBranches := sets.New[string]()
-
-	for requester, branches := range requesterToBranches {
-		for targetBranch := range branches {
-			if handledBranches.Has(targetBranch) {
+	for requester, branches := range requesterToComments {
+		for targetBranch, ic := range branches {
+			if handledBranches[targetBranch] {
+				// Branch already handled. Skip.
 				continue
 			}
-			handledBranches.Insert(targetBranch)
-
 			if targetBranch == baseBranch {
+				resp := fmt.Sprintf("base branch (%s) needs to differ from target branch (%s)", baseBranch, targetBranch)
+				log.Info(resp)
+				if err := s.createComment(log, org, repo, num, ic, resp); err != nil {
+					log.WithError(err).WithField("response", resp).Error("Failed to create comment.")
+				}
 				continue
 			}
+			handledBranches[targetBranch] = true
 			branchLog := log.WithFields(logrus.Fields{
 				"requester":     requester,
 				"target_branch": targetBranch,
 			})
 			branchLog.Debug("Cherrypick request.")
-			err := s.handle(branchLog, requester, nil, org, repo, targetBranch, baseBranch, nil, title, body, num)
+			err := s.handle(branchLog, requester, ic, org, repo, targetBranch, baseBranch, targetBranchToChainBranches[targetBranch], title, body, num)
 			if err != nil {
 				errs = append(errs, fmt.Errorf("failed to create cherrypick: %w", err))
 			}
