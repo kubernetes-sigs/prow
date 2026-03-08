@@ -1549,6 +1549,7 @@ func testTakeAction(clients localgit.Clients, t *testing.T) {
 		triggered        int
 		triggeredBatches int
 		action           Action
+		expectErr        bool
 	}{
 		{
 			name: "no prs to test, should do nothing",
@@ -1903,6 +1904,7 @@ func testTakeAction(clients localgit.Clients, t *testing.T) {
 			merged:      2,
 			triggered:   0,
 			action:      MergeBatch,
+			expectErr:   true,
 		},
 		{
 			name: "batch merge errors but continues if a PR has changed",
@@ -1912,6 +1914,7 @@ func testTakeAction(clients localgit.Clients, t *testing.T) {
 			merged:      2,
 			triggered:   0,
 			action:      MergeBatch,
+			expectErr:   true,
 		},
 		{
 			name: "batch merge errors but continues on unknown error",
@@ -1921,6 +1924,7 @@ func testTakeAction(clients localgit.Clients, t *testing.T) {
 			merged:      2,
 			triggered:   0,
 			action:      MergeBatch,
+			expectErr:   true,
 		},
 		{
 			name: "batch merge stops on auth error",
@@ -1930,6 +1934,7 @@ func testTakeAction(clients localgit.Clients, t *testing.T) {
 			merged:      1,
 			triggered:   0,
 			action:      MergeBatch,
+			expectErr:   true,
 		},
 		{
 			name: "batch merge stops on invalid merge method error",
@@ -1939,6 +1944,7 @@ func testTakeAction(clients localgit.Clients, t *testing.T) {
 			merged:      1,
 			triggered:   0,
 			action:      MergeBatch,
+			expectErr:   true,
 		},
 		{
 			name: "pending batch, should trigger serial in scheduling state",
@@ -2103,8 +2109,32 @@ func testTakeAction(clients localgit.Clients, t *testing.T) {
 			if tc.batchPending {
 				batchPending = []CodeReviewCommon{{}}
 			}
-			if act, _, _ := c.takeAction(sp, batchPending, genPulls(tc.successes), genPulls(tc.pendings), genPulls(tc.nones), genPulls(tc.batchMerges), sp.presubmits); act != tc.action {
+			act, _, err := c.takeAction(sp, batchPending, genPulls(tc.successes), genPulls(tc.pendings), genPulls(tc.nones), genPulls(tc.batchMerges), sp.presubmits)
+			if act != tc.action {
 				t.Errorf("Wrong action. Got %v, wanted %v.", act, tc.action)
+			}
+			if tc.expectErr && err == nil {
+				t.Error("Expected an error from takeAction, got nil.")
+			} else if !tc.expectErr && err != nil {
+				t.Errorf("Unexpected error from takeAction: %v", err)
+			}
+			if tc.expectErr && err != nil {
+				mf, ok := err.(*mergeFailure)
+				if !ok {
+					t.Errorf("Expected error to be *mergeFailure, got %T", err)
+				} else {
+					if mf.operatorError() != nil {
+						t.Errorf("Expected no operator errors for user merge errors, got: %v", mf.operatorError())
+					}
+					if mf.historyMessage() == "" {
+						t.Error("Expected non-empty history message")
+					}
+					for _, me := range mf.errs {
+						if !me.userFacing {
+							t.Errorf("Expected all merge errors to be user-facing, PR #%d is not", me.pr)
+						}
+					}
+				}
 			}
 
 			prowJobs := &prowapi.ProwJobList{}
