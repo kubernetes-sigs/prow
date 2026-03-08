@@ -165,6 +165,7 @@ type githubClient interface {
 	ApproveGitHubWorkflowRun(org, repo string, id int) error
 	DeleteStaleComments(org, repo string, number int, comments []github.IssueComment, isStale func(github.IssueComment) bool) error
 	GetIssueLabels(org, repo string, number int) ([]github.Label, error)
+	FindIssuesWithOrg(org, query, sort string, asc bool) ([]github.Issue, error)
 }
 
 type trustedPullRequestClient interface {

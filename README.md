@@ -3,6 +3,7 @@
 [![Go Report Card](https://goreportcard.com/badge/sigs.k8s.io/prow)](https://goreportcard.com/report/sigs.k8s.io/prow)
 [![LICENSE](https://img.shields.io/github/license/kubernetes-sigs/prow.svg)](https://github.com/kubernetes-sigs/prow/blob/main/LICENSE)
 [![Slack Status](https://img.shields.io/badge/slack-join_chat-white.svg?logo=slack&style=social)](https://kubernetes.slack.com/archives/CDECRSC5U)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/kubernetes-sigs/prow)
 
 ![Prow Logo](./site/static/images/logo-horizontal.svg)
 

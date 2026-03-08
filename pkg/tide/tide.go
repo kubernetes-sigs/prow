@@ -1916,6 +1916,9 @@ type PullRequest struct {
 	Author struct {
 		Login githubql.String
 	}
+	AuthorMetadata struct {
+		TypeName githubql.String `graphql:"__typename"`
+	} `graphql:"authorMetadata:author"`
 	BaseRef struct {
 		Name   githubql.String
 		Prefix githubql.String

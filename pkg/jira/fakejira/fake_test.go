@@ -71,6 +71,52 @@ func TestFakeClient_SearchWithContext(t *testing.T) {
 	}
 }
 
+func TestFakeClient_SearchV2JqlWithContext(t *testing.T) {
+	s := make(map[SearchRequest]SearchResponse)
+	issueList := []jira.Issue{
+		{
+			ID:     "123",
+			Fields: &jira.IssueFields{Project: jira.Project{Name: "test"}},
+		},
+		{
+			ID:     "1234",
+			Fields: &jira.IssueFields{Project: jira.Project{Name: "test"}},
+		},
+		{
+			ID:     "12345",
+			Fields: &jira.IssueFields{Project: jira.Project{Name: "test"}},
+		},
+	}
+	searchOptions := &jira.SearchOptionsV2{MaxResults: 50}
+
+	s[SearchRequest{query: "project=test", optionsV2: searchOptions}] = SearchResponse{
+		issues:   issueList,
+		response: &jira.Response{StartAt: 0, MaxResults: 3, Total: 3},
+		error:    nil,
+	}
+	fakeClient := &FakeClient{SearchResponses: s}
+
+	r, v, err := fakeClient.SearchV2JqlWithContext(context.Background(), "project=test", searchOptions)
+	if err != nil {
+		t.Fatalf("unexpected error from search: %s", err)
+	}
+	cmpOption := cmpopts.IgnoreUnexported(jira.Date{})
+	if diff := cmp.Diff(r, issueList, cmpOption); diff != "" {
+		t.Fatalf("incorrect issues from search: %v", diff)
+	}
+	if diff := cmp.Diff(&jira.Response{StartAt: 0, MaxResults: 3, Total: 3}, v, cmpOption); diff != "" {
+		t.Fatalf("incorrect metadata from search: %v", diff)
+	}
+
+	r, _, err = fakeClient.SearchV2JqlWithContext(context.Background(), "unknown_query=fail", searchOptions)
+	if r != nil {
+		t.Fatalf("expected empty result for an invalid query, but got: %v", r)
+	}
+	if err == nil {
+		t.Fatal("expected invalid query to fail, but got no error")
+	}
+}
+
 func TestFakeClient_GetProjectVersions(t *testing.T) {
 	fakeClient := &FakeClient{
 		ProjectVersions: map[string][]*jira.Version{

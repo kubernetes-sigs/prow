@@ -84,6 +84,7 @@ type Configuration struct {
 	Lgtm                 []Lgtm                       `json:"lgtm,omitempty"`
 	Jira                 *Jira                        `json:"jira,omitempty"`
 	MilestoneApplier     map[string]BranchToMilestone `json:"milestone_applier,omitempty"`
+	ReleaseNote          ReleaseNote                  `json:"release_note,omitempty"`
 	RepoMilestone        map[string]Milestone         `json:"repo_milestone,omitempty"`
 	Project              ProjectConfig                `json:"project_config,omitempty"`
 	ProjectManager       ProjectManager               `json:"project_manager,omitempty"`
@@ -343,7 +344,7 @@ type Approve struct {
 	// CommandHelpLink is the link to the help page which shows the available commands for each repo.
 	// The default value is "https://go.k8s.io/bot-commands". The command help page is served by Deck
 	// and available under https://<deck-url>/command-help, e.g. "https://prow.k8s.io/command-help"
-	CommandHelpLink string `json:"commandHelpLink"`
+	CommandHelpLink string `json:"commandHelpLink,omitempty"`
 	// PrProcessLink is the link to the help page which explains the code review process.
 	// The default value is "https://git.k8s.io/community/contributors/guide/owners.md#the-code-review-process".
 	PrProcessLink string `json:"pr_process_link,omitempty"`
@@ -525,6 +526,19 @@ type Heart struct {
 	// Compiles into CommentRe during config load.
 	CommentRegexp string         `json:"commentregexp,omitempty"`
 	CommentRe     *regexp.Regexp `json:"-"`
+}
+
+// ReleaseNote contains the configuration options for the release note plugin
+type ReleaseNote struct {
+	// GuidelinesURL is the URL to the release note guidelines that users should follow
+	// Defaults to the Kubernetes community guide: https://git.k8s.io/community/contributors/guide/release-notes.md
+	GuidelinesURL string `json:"guidelines_url,omitempty"`
+}
+
+func (r *ReleaseNote) setDefaults() {
+	if r.GuidelinesURL == "" {
+		r.GuidelinesURL = "https://git.k8s.io/community/contributors/guide/release-notes.md"
+	}
 }
 
 // Milestone contains the configuration options for the milestone and
@@ -1206,6 +1220,8 @@ func (c *Configuration) setDefaults() {
 			c.RequireMatchingLabel[i].GracePeriod = "5s"
 		}
 	}
+
+	c.ReleaseNote.setDefaults()
 }
 
 // validatePluginsDupes will return an error if there are duplicated plugins.

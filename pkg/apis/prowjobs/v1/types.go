@@ -1232,6 +1232,18 @@ type Refs struct {
 	// using the --filter=blob:none flag. If unspecified, defaults to
 	// DecorationConfig.BloblessFetch.
 	BloblessFetch *bool `json:"blobless_fetch,omitempty"`
+	// SparseCheckoutFiles limits the working tree to only the listed paths.
+	// Accepts the same patterns as git sparse-checkout set: file names,
+	// directory names, and gitignore-style globs (e.g. "Makefile",
+	// "pkg/operator", "config/**/*.yaml").
+	//
+	// When set, clonerefs will:
+	//   1. run git sparse-checkout init to enable sparse mode
+	//   2. run git fetch with --depth 1 --filter=blob:none --no-tags
+	//   3. run git sparse-checkout set <paths> before checkout
+	//
+	// Only the blobs needed for the requested paths are downloaded.
+	SparseCheckoutFiles []string `json:"sparse_checkout_files,omitempty"`
 }
 
 func (r Refs) String() string {

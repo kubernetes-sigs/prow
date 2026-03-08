@@ -611,6 +611,93 @@ func TestCommandsForRefs(t *testing.T) {
 			},
 		},
 		{
+			name: "sparse checkout single dir",
+			refs: prowapi.Refs{
+				Org:                 "org",
+				Repo:                "repo",
+				BaseRef:             "master",
+				SparseCheckoutFiles: []string{"pkg/operator"},
+			},
+			dir: "/go",
+			expectedBase: []runnable{
+				cloneCommand{dir: "/", command: "mkdir", args: []string{"-p", "/go/src/github.com/org/repo"}},
+				cloneCommand{dir: "/go/src/github.com/org/repo", command: "git", args: []string{"init"}},
+				cloneCommand{dir: "/go/src/github.com/org/repo", command: "git", args: []string{"sparse-checkout", "init"}},
+				retryCommand{
+					cloneCommand{dir: "/go/src/github.com/org/repo", command: "git", args: []string{"fetch", "--depth", "1", "--filter=blob:none", "--no-tags", "https://github.com/org/repo.git", "master"}},
+					fetchRetries,
+				},
+				cloneCommand{dir: "/go/src/github.com/org/repo", command: "git", args: []string{"sparse-checkout", "set", "pkg/operator"}},
+				cloneCommand{dir: "/go/src/github.com/org/repo", command: "git", args: []string{"checkout", "FETCH_HEAD"}},
+				cloneCommand{dir: "/go/src/github.com/org/repo", command: "git", args: []string{"branch", "--force", "master", "FETCH_HEAD"}},
+				cloneCommand{dir: "/go/src/github.com/org/repo", command: "git", args: []string{"checkout", "master"}},
+			},
+			expectedPull: []runnable{
+				cloneCommand{dir: "/go/src/github.com/org/repo", command: "git", args: []string{"submodule", "update", "--init", "--recursive"}},
+			},
+		},
+		{
+			name: "sparse checkout multiple dirs",
+			refs: prowapi.Refs{
+				Org:                 "org",
+				Repo:                "repo",
+				BaseRef:             "master",
+				SparseCheckoutFiles: []string{"Dockerfile", "Makefile"},
+			},
+			dir: "/go",
+			expectedBase: []runnable{
+				cloneCommand{dir: "/", command: "mkdir", args: []string{"-p", "/go/src/github.com/org/repo"}},
+				cloneCommand{dir: "/go/src/github.com/org/repo", command: "git", args: []string{"init"}},
+				cloneCommand{dir: "/go/src/github.com/org/repo", command: "git", args: []string{"sparse-checkout", "init"}},
+				retryCommand{
+					cloneCommand{dir: "/go/src/github.com/org/repo", command: "git", args: []string{"fetch", "--depth", "1", "--filter=blob:none", "--no-tags", "https://github.com/org/repo.git", "master"}},
+					fetchRetries,
+				},
+				cloneCommand{dir: "/go/src/github.com/org/repo", command: "git", args: []string{"sparse-checkout", "set", "Dockerfile", "Makefile"}},
+				cloneCommand{dir: "/go/src/github.com/org/repo", command: "git", args: []string{"checkout", "FETCH_HEAD"}},
+				cloneCommand{dir: "/go/src/github.com/org/repo", command: "git", args: []string{"branch", "--force", "master", "FETCH_HEAD"}},
+				cloneCommand{dir: "/go/src/github.com/org/repo", command: "git", args: []string{"checkout", "master"}},
+			},
+			expectedPull: []runnable{
+				cloneCommand{dir: "/go/src/github.com/org/repo", command: "git", args: []string{"submodule", "update", "--init", "--recursive"}},
+			},
+		},
+		{
+			name: "sparse checkout with pr ref",
+			refs: prowapi.Refs{
+				Org:                 "org",
+				Repo:                "repo",
+				BaseRef:             "master",
+				BaseSHA:             "base-sha",
+				SparseCheckoutFiles: []string{"images/ci-operator/Dockerfile"},
+				Pulls: []prowapi.Pull{
+					{Number: 1, SHA: "pull-sha"},
+				},
+			},
+			dir: "/go",
+			expectedBase: []runnable{
+				cloneCommand{dir: "/", command: "mkdir", args: []string{"-p", "/go/src/github.com/org/repo"}},
+				cloneCommand{dir: "/go/src/github.com/org/repo", command: "git", args: []string{"init"}},
+				cloneCommand{dir: "/go/src/github.com/org/repo", command: "git", args: []string{"sparse-checkout", "init"}},
+				retryCommand{
+					cloneCommand{dir: "/go/src/github.com/org/repo", command: "git", args: []string{"fetch", "--depth", "1", "--filter=blob:none", "--no-tags", "https://github.com/org/repo.git", "base-sha"}},
+					fetchRetries,
+				},
+				cloneCommand{dir: "/go/src/github.com/org/repo", command: "git", args: []string{"sparse-checkout", "set", "images/ci-operator/Dockerfile"}},
+				cloneCommand{dir: "/go/src/github.com/org/repo", command: "git", args: []string{"checkout", "base-sha"}},
+				cloneCommand{dir: "/go/src/github.com/org/repo", command: "git", args: []string{"branch", "--force", "master", "base-sha"}},
+				cloneCommand{dir: "/go/src/github.com/org/repo", command: "git", args: []string{"checkout", "master"}},
+			},
+			expectedPull: []runnable{
+				retryCommand{
+					cloneCommand{dir: "/go/src/github.com/org/repo", command: "git", args: []string{"fetch", "--filter=blob:none", "https://github.com/org/repo.git", "pull-sha"}},
+					fetchRetries,
+				},
+				cloneCommand{dir: "/go/src/github.com/org/repo", command: "git", args: []string{"merge", "--no-ff", "pull-sha"}, env: gitTimestampEnvs(fakeTimestamp + 1)},
+				cloneCommand{dir: "/go/src/github.com/org/repo", command: "git", args: []string{"submodule", "update", "--init", "--recursive"}},
+			},
+		},
+		{
 			name: "refs with pr ref with specific sha",
 			refs: prowapi.Refs{
 				Org:     "org",

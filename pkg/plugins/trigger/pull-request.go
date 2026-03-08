@@ -39,7 +39,8 @@ import (
 )
 
 const (
-	abortedDescription = "Aborted by trigger plugin."
+	abortedDescription                      = "Aborted by trigger plugin."
+	mergedPRCountForProminentJoinOrgMessage = 3
 )
 
 func handlePR(c Client, trigger plugins.Trigger, pr github.PullRequestEvent) error {
@@ -91,7 +92,7 @@ func handlePR(c Client, trigger plugins.Trigger, pr github.PullRequestEvent) err
 			return buildAllButDrafts(c, &pr.PullRequest, pr.GUID, baseSHA, presubmits)
 		}
 		c.Logger.Infof("Welcome message to PR author %q.", author)
-		if err := welcomeMsg(c.GitHubClient, trigger, pr.PullRequest); err != nil {
+		if err := welcomeMsg(c, trigger, pr.PullRequest); err != nil {
 			return fmt.Errorf("could not welcome non-org member %q: %w", author, err)
 		}
 	case github.PullRequestActionReopened:
@@ -247,7 +248,7 @@ func buildAllIfTrusted(c Client, trigger plugins.Trigger, pr github.PullRequestE
 	return nil
 }
 
-func welcomeMsg(ghc githubClient, trigger plugins.Trigger, pr github.PullRequest) error {
+func welcomeMsg(c Client, trigger plugins.Trigger, pr github.PullRequest) error {
 	var errors []error
 	org, repo, a := orgRepoAuthor(pr)
 	author := string(a)
@@ -278,9 +279,12 @@ I understand the commands that are listed [here](https://go.k8s.io/bot-commands?
 </details>
 `, author, encodedRepoFullName, plugins.AboutThisBotWithoutCommands)
 	} else {
+		membershipGuidance := orgInvitationGuidance(c, org, pr.User, joinOrgURL)
 		comment = fmt.Sprintf(`Hi @%s. Thanks for your PR.
 
-I'm waiting for a [%s](https://%s/orgs/%s/people) %smember to verify that this patch is reasonable to test. If it is, they should reply with `+"`/ok-to-test`"+` on its own line. Until that is done, I will not automatically test new commits in this PR, but the usual testing commands by org members will still work. Regular contributors should [join the org](%s) to skip this step.
+I'm waiting for a [%s](https://%s/orgs/%s/people) %smember to verify that this patch is reasonable to test. If it is, they should reply with `+"`/ok-to-test`"+` on its own line. Until that is done, I will not automatically test new commits in this PR, but the usual testing commands by org members will still work.
+
+%s
 
 Once the patch is verified, the new status will be reflected by the `+"`%s`"+` label.
 
@@ -290,22 +294,22 @@ I understand the commands that are listed [here](https://go.k8s.io/bot-commands?
 
 %s
 </details>
-`, author, org, github.DefaultHost, org, more, joinOrgURL, labels.OkToTest, encodedRepoFullName, plugins.AboutThisBotWithoutCommands)
+`, author, org, github.DefaultHost, org, more, membershipGuidance, labels.OkToTest, encodedRepoFullName, plugins.AboutThisBotWithoutCommands)
 
-		l, err := ghc.GetIssueLabels(org, repo, pr.Number)
+		l, err := c.GitHubClient.GetIssueLabels(org, repo, pr.Number)
 		if err != nil {
 			errors = append(errors, err)
 		} else if !github.HasLabel(labels.OkToTest, l) {
 			// It is possible for bots and other automations to automatically
 			// add the ok-to-test label. If that's the case, then we will not
 			// add the needs-ok-to-test-label any more.
-			if err := ghc.AddLabel(org, repo, pr.Number, labels.NeedsOkToTest); err != nil {
+			if err := c.GitHubClient.AddLabel(org, repo, pr.Number, labels.NeedsOkToTest); err != nil {
 				errors = append(errors, err)
 			}
 		}
 	}
 
-	if err := ghc.CreateComment(org, repo, pr.Number, comment); err != nil {
+	if err := c.GitHubClient.CreateComment(org, repo, pr.Number, comment); err != nil {
 		errors = append(errors, err)
 	}
 
@@ -313,6 +317,32 @@ I understand the commands that are listed [here](https://go.k8s.io/bot-commands?
 		return utilerrors.NewAggregate(errors)
 	}
 	return nil
+}
+
+func orgInvitationGuidance(c Client, org string, author github.User, joinOrgURL string) string {
+	if shouldHighlightJoinOrgMessage(c, org, author) {
+		return fmt.Sprintf(">[!TIP]\n>**We noticed you've done this a few times! Consider [joining the org](%s) to skip this step and gain `/lgtm` and other bot rights.** We recommend asking approvers on your previous PRs to sponsor you.", joinOrgURL)
+	}
+
+	return fmt.Sprintf("Regular contributors should [join the org](%s) to skip this step.", joinOrgURL)
+}
+
+func shouldHighlightJoinOrgMessage(c Client, org string, author github.User) bool {
+	if author.Type == github.UserTypeBot {
+		return false
+	}
+
+	query := fmt.Sprintf("type:pr is:merged org:%s author:%s", org, author.Login)
+	issues, err := c.GitHubClient.FindIssuesWithOrg(org, query, "", false)
+	if err != nil {
+		// Search failures should not block the welcome message; fall back to the default copy.
+		if c.Logger != nil {
+			c.Logger.WithError(err).WithField("author", author.Login).WithField("org", org).Debug("Failed to query merged PRs for join-org guidance")
+		}
+		return false
+	}
+
+	return len(issues) >= mergedPRCountForProminentJoinOrgMessage
 }
 
 func draftMsg(ghc githubClient, pr github.PullRequest) error {

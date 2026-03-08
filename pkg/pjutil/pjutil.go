@@ -112,6 +112,10 @@ func setReportDefault(spec *prowapi.ProwJobSpec) {
 	if spec.ReporterConfig == nil || spec.ReporterConfig.Slack == nil {
 		return
 	}
+	// If `report` is explicitly set, we should respect it.
+	if spec.ReporterConfig.Slack.Report != nil {
+		return
+	}
 	// `job_states_to_report: []` means false
 	if spec.ReporterConfig.Slack.JobStatesToReport != nil && len(spec.ReporterConfig.Slack.JobStatesToReport) == 0 {
 		spec.ReporterConfig.Slack.Report = boolPtr(false)
