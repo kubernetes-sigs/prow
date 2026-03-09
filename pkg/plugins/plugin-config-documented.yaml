@@ -624,7 +624,13 @@ slack:
           repos:
             - ""
 triggers:
-    - # IgnoreOkToTest makes trigger ignore /ok-to-test comments.
+    - # AllowAuthorTestOwnPR allows PR authors to run test commands (/test, /retest) on their own PRs
+      # even if they are not trusted users. They still cannot use /ok-to-test on their own PRs.
+      # This is useful for allowing external contributors to test their changes without waiting for approval,
+      # but still requiring a trusted user to grant permanent trust via /ok-to-test.
+      # WARNING: This allows untrusted code to run in your CI. Use with caution.
+      allow_author_test_own_pr: true
+      # IgnoreOkToTest makes trigger ignore /ok-to-test comments.
       # This is a security mitigation to only allow testing from trusted users.
       ignore_ok_to_test: true
       # JoinOrgURL is a link that redirects users to a location where they

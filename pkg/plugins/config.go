@@ -511,6 +511,12 @@ type Trigger struct {
 	IgnoreOkToTest bool `json:"ignore_ok_to_test,omitempty"`
 	// TriggerGitHubWorkflows enables workflows run by github to be triggered by prow.
 	TriggerGitHubWorkflows bool `json:"trigger_github_workflows,omitempty"`
+	// AllowAuthorTestOwnPR allows PR authors to run test commands (/test, /retest) on their own PRs
+	// even if they are not trusted users. They still cannot use /ok-to-test on their own PRs.
+	// This is useful for allowing external contributors to test their changes without waiting for approval,
+	// but still requiring a trusted user to grant permanent trust via /ok-to-test.
+	// WARNING: This allows untrusted code to run in your CI. Use with caution.
+	AllowAuthorTestOwnPR bool `json:"allow_author_test_own_pr,omitempty"`
 }
 
 // Heart contains the configuration for the heart plugin.

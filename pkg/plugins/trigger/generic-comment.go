@@ -88,22 +88,35 @@ func handleGenericComment(c Client, cp commentPruner, trigger plugins.Trigger, g
 	}
 
 	trusted := trustedResponse.IsTrusted
+
 	var l []github.Label
 	if !trusted {
-		// Skip untrusted PRs.
-		l, trusted, err = TrustedPullRequest(c.GitHubClient, trigger, gc.IssueAuthor.Login, org, repo, number, nil)
-		if err != nil {
-			return err
-		}
-		if !trusted {
-			var resp string
-			if trigger.IgnoreOkToTest {
-				resp = "PRs from untrusted users cannot be marked as trusted with `/ok-to-test` in this repo meaning untrusted PR authors can never trigger tests themselves. Collaborators can still trigger tests on the PR using `/test`."
-			} else {
-				resp = "Cannot trigger testing until a trusted user reviews the PR and leaves an `/ok-to-test` message."
+		// Allow PR authors to test their own PRs (but not use /ok-to-test)
+		if trigger.AllowAuthorTestOwnPR && commentAuthor == gc.IssueAuthor.Login {
+			// Block /ok-to-test from PR authors even with AllowAuthorTestOwnPR
+			if pjutil.OkToTestRe.MatchString(textToCheck) {
+				resp := "PR authors cannot use `/ok-to-test` on their own PRs. A trusted user must approve your PR with `/ok-to-test` before automatic testing will be enabled."
+				c.Logger.Infof("Blocking /ok-to-test from PR author %q (AllowAuthorTestOwnPR enabled but /ok-to-test not allowed)", commentAuthor)
+				return c.GitHubClient.CreateComment(org, repo, number, plugins.FormatResponseRaw(gc.Body, gc.HTMLURL, gc.User.Login, resp))
 			}
-			c.Logger.Infof("Commenting \"%s\".", resp)
-			return c.GitHubClient.CreateComment(org, repo, number, plugins.FormatResponseRaw(gc.Body, gc.HTMLURL, gc.User.Login, resp))
+			// Allow other test commands (/test, /retest, etc.)
+			c.Logger.Infof("AllowAuthorTestOwnPR is enabled, allowing PR author %q to use test commands on their own PR", commentAuthor)
+		} else {
+			// Standard trust check: Is the PR already trusted (author is trusted OR has ok-to-test label)?
+			l, trusted, err = TrustedPullRequest(c.GitHubClient, trigger, gc.IssueAuthor.Login, org, repo, number, nil)
+			if err != nil {
+				return err
+			}
+			if !trusted {
+				var resp string
+				if trigger.IgnoreOkToTest {
+					resp = "PRs from untrusted users cannot be marked as trusted with `/ok-to-test` in this repo meaning untrusted PR authors can never trigger tests themselves. Collaborators can still trigger tests on the PR using `/test`."
+				} else {
+					resp = "Cannot trigger testing until a trusted user reviews the PR and leaves an `/ok-to-test` message."
+				}
+				c.Logger.Infof("Commenting \"%s\".", resp)
+				return c.GitHubClient.CreateComment(org, repo, number, plugins.FormatResponseRaw(gc.Body, gc.HTMLURL, gc.User.Login, resp))
+			}
 		}
 	}
 

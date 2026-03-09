@@ -94,9 +94,10 @@ func helpProvider(config *plugins.Configuration, enabledRepos []config.OrgRepo) 
 					"org/repo1",
 					"org/repo2",
 				},
-				JoinOrgURL:     "https://github.com/kubernetes/community/blob/master/community-membership.md",
-				OnlyOrgMembers: true,
-				IgnoreOkToTest: true,
+				JoinOrgURL:           "https://github.com/kubernetes/community/blob/master/community-membership.md",
+				OnlyOrgMembers:       true,
+				IgnoreOkToTest:       true,
+				AllowAuthorTestOwnPR: false,
 			},
 		},
 	})

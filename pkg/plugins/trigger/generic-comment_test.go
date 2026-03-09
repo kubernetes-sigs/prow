@@ -58,21 +58,22 @@ func (cp *fakeCommentPruner) PruneComments(shouldPrune func(github.IssueComment)
 type testcase struct {
 	name string
 
-	Author         string
-	PRAuthor       string
-	Body           string
-	State          string
-	IsPR           bool
-	Branch         string
-	ShouldBuild    bool
-	AddedLabels    []string
-	RemovedLabels  []string
-	StartsExactly  string
-	Presubmits     map[string][]config.Presubmit
-	IssueLabels    []string
-	IgnoreOkToTest bool
-	AddedComment   string
-	PruneHelp      bool
+	Author               string
+	PRAuthor             string
+	Body                 string
+	State                string
+	IsPR                 bool
+	Branch               string
+	ShouldBuild          bool
+	AddedLabels          []string
+	RemovedLabels        []string
+	StartsExactly        string
+	Presubmits           map[string][]config.Presubmit
+	IssueLabels          []string
+	IgnoreOkToTest       bool
+	AddedComment         string
+	PruneHelp            bool
+	AllowAuthorTestOwnPR bool
 }
 
 func TestHandleGenericComment(t *testing.T) {
@@ -1424,6 +1425,95 @@ func TestHandleGenericComment(t *testing.T) {
 				"The following commands are available to trigger optional jobs:\n```\n/test jub\n```\n\n" +
 				"Use `/test all` to run all jobs.",
 		},
+		// Feature flag tests: AllowAuthorTestOwnPR
+		{
+			name:                 "AllowAuthorTestOwnPR: untrusted PR author uses /test all on own PR - should be allowed",
+			Author:               "untrusted-author",
+			PRAuthor:             "untrusted-author",
+			Body:                 "/test all",
+			State:                "open",
+			IsPR:                 true,
+			ShouldBuild:          true,
+			AllowAuthorTestOwnPR: true,
+			PruneHelp:            true,
+		},
+		{
+			name:                 "AllowAuthorTestOwnPR: untrusted PR author uses /test job on own PR - should be allowed",
+			Author:               "untrusted-author",
+			PRAuthor:             "untrusted-author",
+			Body:                 "/test job",
+			State:                "open",
+			IsPR:                 true,
+			ShouldBuild:          true,
+			AllowAuthorTestOwnPR: true,
+			PruneHelp:            true,
+		},
+		{
+			name:                 "AllowAuthorTestOwnPR: untrusted PR author uses /retest on own PR - should be allowed",
+			Author:               "untrusted-author",
+			PRAuthor:             "untrusted-author",
+			Body:                 "/retest",
+			State:                "open",
+			IsPR:                 true,
+			ShouldBuild:          true,
+			AllowAuthorTestOwnPR: true,
+			PruneHelp:            true,
+		},
+		{
+			name:                 "AllowAuthorTestOwnPR: untrusted PR author uses /ok-to-test on own PR - should be BLOCKED",
+			Author:               "untrusted-author",
+			PRAuthor:             "untrusted-author",
+			Body:                 "/ok-to-test",
+			State:                "open",
+			IsPR:                 true,
+			ShouldBuild:          false,
+			AllowAuthorTestOwnPR: true,
+			AddedComment:         "PR authors cannot use `/ok-to-test` on their own PRs",
+		},
+		{
+			name:                 "AllowAuthorTestOwnPR: untrusted user uses /test on someone else's PR - should be BLOCKED",
+			Author:               "random-user",
+			PRAuthor:             "untrusted-author",
+			Body:                 "/test all",
+			State:                "open",
+			IsPR:                 true,
+			ShouldBuild:          false,
+			AllowAuthorTestOwnPR: true,
+			AddedComment:         "Cannot trigger testing until a trusted user reviews the PR",
+		},
+		{
+			name:                 "AllowAuthorTestOwnPR: trusted user uses /ok-to-test - should be allowed",
+			Author:               "trusted-member",
+			PRAuthor:             "untrusted-author",
+			Body:                 "/ok-to-test",
+			State:                "open",
+			IsPR:                 true,
+			ShouldBuild:          true,
+			AllowAuthorTestOwnPR: true,
+			AddedLabels:          issueLabels(labels.OkToTest),
+		},
+		// Feature flag tests: Default behavior
+		{
+			name:                 "Default: untrusted PR author uses /test all on own PR - should be BLOCKED",
+			Author:               "untrusted-author",
+			PRAuthor:             "untrusted-author",
+			Body:                 "/test all",
+			State:                "open",
+			IsPR:                 true,
+			ShouldBuild:          false,
+			AllowAuthorTestOwnPR: false,
+			AddedComment:         "Cannot trigger testing until a trusted user reviews the PR",
+		},
+		{
+			name:                 "Default: untrusted user uses /ok-to-test - should be BLOCKED",
+			Author:               "untrusted-user",
+			PRAuthor:             "another-untrusted",
+			Body:                 "/ok-to-test",
+			State:                "open",
+			IsPR:                 true,
+			ShouldBuild:          false,
+			AllowAuthorTestOwnPR: false,
+		},
 	}
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1519,7 +1609,8 @@ func TestHandleGenericComment(t *testing.T) {
 			}
 
 			trigger := plugins.Trigger{
-				IgnoreOkToTest: tc.IgnoreOkToTest,
+				IgnoreOkToTest:       tc.IgnoreOkToTest,
+				AllowAuthorTestOwnPR: tc.AllowAuthorTestOwnPR,
 			}
 			trigger.SetDefaults()
 
@@ -1684,12 +1775,12 @@ func produceCodeBlock(text string, withNewLine bool) string {
 
 func TestApproveGitHubActionsWorkflowRuns(t *testing.T) {
 	testCases := []struct {
-		name                      string
-		body                      string
-		triggerGitHubWorkflows    bool
-		ignoreOkToTest            bool
-		pendingRuns               []github.WorkflowRun
-		expectApprovalAttempt     bool
+		name                   string
+		body                   string
+		triggerGitHubWorkflows bool
+		ignoreOkToTest         bool
+		pendingRuns            []github.WorkflowRun
+		expectApprovalAttempt  bool
 	}{
 		{
 			name:                   "/ok-to-test with TriggerGitHubWorkflows enabled - should approve",
