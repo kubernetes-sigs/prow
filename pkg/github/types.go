@@ -1760,13 +1760,11 @@ type OrganizationRole struct {
 	Permissions []string `json:"permissions"`
 }
 
-// OrganizationRoleAssignment represents a role assignment to a team or user
+// OrganizationRoleAssignment represents a role assignment to a team or user.
+// For teams: id, slug, assignment are populated. For users: id, login, assignment are populated.
 type OrganizationRoleAssignment struct {
 	ID         int    `json:"id"`
 	Login      string `json:"login,omitempty"`
 	Slug       string `json:"slug,omitempty"`
-	Type       string `json:"type"` // "User" or "Team"
-	RoleID     int    `json:"role_id"`
-	RoleName   string `json:"role_name"`
-	Assignment string `json:"assignment"` // "direct" or "indirect" (indirect = via team membership)
+	Assignment string `json:"assignment,omitempty"` // "direct", "indirect", or "mixed"
 }

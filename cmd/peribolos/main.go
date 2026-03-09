@@ -411,34 +411,37 @@ func dumpOrgConfig(client dumpClient, orgName string, ignoreSecretTeams bool, ap
 		// Get teams with this role
 		teamsWithRole, err := client.ListTeamsWithRole(orgName, role.ID)
 		if err != nil {
-			logrus.WithError(err).Warnf("Failed to list teams with role %s", role.Name)
-			continue
+			return nil, fmt.Errorf("failed to list teams with role %s: %w", role.Name, err)
 		}
 
 		// Get users with this role
 		usersWithRole, err := client.ListUsersWithRole(orgName, role.ID)
 		if err != nil {
-			logrus.WithError(err).Warnf("Failed to list users with role %s", role.Name)
-			continue
+			return nil, fmt.Errorf("failed to list users with role %s: %w", role.Name, err)
 		}
 
-		// Build team and user lists
-		var teamSlugs []string
+		// Build team list, filtering out secret teams when --ignore-secret-teams is set
+		var teamNames []string
 		for _, team := range teamsWithRole {
+			// Only include teams that are in slugToName (secret teams are excluded from this map)
 			if name, ok := slugToName[team.Slug]; ok {
-				teamSlugs = append(teamSlugs, name)
-			} else {
-				teamSlugs = append(teamSlugs, team.Slug)
+				teamNames = append(teamNames, name)
+			} else if !ignoreSecretTeams {
+				teamNames = append(teamNames, team.Slug)
 			}
 		}
 
+		// Build user list, filtering out indirect assignments (users who have the role via team membership)
 		var userLogins []string
 		for _, user := range usersWithRole {
+			if user.Assignment == "indirect" {
+				continue
+			}
 			userLogins = append(userLogins, user.Login)
 		}
 
 		out.Roles[role.Name] = org.Role{
-			Teams: teamSlugs,
+			Teams: teamNames,
 			Users: userLogins,
 		}
 	}
@@ -913,7 +916,7 @@ type inviteClient interface {
 
 func orgInvitations(opt options, client inviteClient, orgName string) (sets.Set[string], error) {
 	invitees := sets.Set[string]{}
-	if (!opt.fixOrgMembers && !opt.fixTeamMembers) || opt.ignoreInvitees {
+	if (!opt.fixOrgMembers && !opt.fixTeamMembers && !opt.fixOrgRoles) || opt.ignoreInvitees {
 		return invitees, nil
 	}
 	is, err := client.ListOrgInvitations(orgName)
@@ -1543,28 +1546,45 @@ type orgRolesClient interface {
 
 // configureOrgRoles configures organization roles for teams and users
 func configureOrgRoles(client orgRolesClient, orgName string, orgConfig org.Config, githubTeams map[string]github.Team, invitees sets.Set[string]) error {
-	// Note: Role configuration is validated at the start of configureOrg() before any API calls
-
 	// Get current organization roles from GitHub
 	roles, err := client.ListOrganizationRoles(orgName)
 	if err != nil {
 		return fmt.Errorf("failed to list organization roles: %w", err)
 	}
 
-	if len(roles) == 0 {
-		logrus.Debugf("No organization roles exist in %s", orgName)
+	if len(roles) == 0 && len(orgConfig.Roles) == 0 {
 		return nil
 	}
 
-	// Create a map of configured role names (lowercase) for quick lookup
-	configuredRoles := make(map[string]org.Role)
-	for roleName, roleConfig := range orgConfig.Roles {
-		configuredRoles[strings.ToLower(roleName)] = roleConfig
+	// Build a lookup of GitHub roles by lowercase name
+	githubRolesByName := make(map[string]github.OrganizationRole, len(roles))
+	for _, role := range roles {
+		githubRolesByName[strings.ToLower(role.Name)] = role
 	}
 
-	unconfiguredCount := len(roles) - len(configuredRoles)
+	// Validate all configured roles exist in GitHub BEFORE any mutations
+	for roleName := range orgConfig.Roles {
+		if _, ok := githubRolesByName[strings.ToLower(roleName)]; !ok {
+			return fmt.Errorf("role %q does not exist in organization %s - create the role in GitHub before assigning it", roleName, orgName)
+		}
+	}
+
+	// Create a set of configured role names (lowercase) for quick lookup
+	configuredRoleNames := make(map[string]bool, len(orgConfig.Roles))
+	for roleName := range orgConfig.Roles {
+		configuredRoleNames[strings.ToLower(roleName)] = true
+	}
+
+	var configuredCount, unconfiguredCount int
+	for _, role := range roles {
+		if configuredRoleNames[strings.ToLower(role.Name)] {
+			configuredCount++
+		} else {
+			unconfiguredCount++
+		}
+	}
 	logrus.Debugf("Processing %d organization roles (%d configured, %d unconfigured to check for cleanup)",
-		len(roles), len(configuredRoles), unconfiguredCount)
+		len(roles), configuredCount, unconfiguredCount)
 
 	var allErrors []error
 
@@ -1572,8 +1592,9 @@ func configureOrgRoles(client orgRolesClient, orgName string, orgConfig org.Conf
 	for _, role := range roles {
 		roleNameLower := strings.ToLower(role.Name)
 
-		if roleConfig, isConfigured := configuredRoles[roleNameLower]; isConfigured {
+		if configuredRoleNames[roleNameLower] {
 			// Role is in config - sync to match desired state
+			roleConfig := orgConfig.Roles[findOriginalRoleName(orgConfig.Roles, roleNameLower)]
 			if err := configureRoleTeamAssignments(client, orgName, role.Name, role.ID, roleConfig.Teams, githubTeams); err != nil {
 				allErrors = append(allErrors, fmt.Errorf("failed to configure team assignments for role %s: %w", role.Name, err))
 			}
@@ -1592,21 +1613,17 @@ func configureOrgRoles(client orgRolesClient, orgName string, orgConfig org.Conf
 		}
 	}
 
-	// Check if any configured roles don't exist in GitHub
-	for roleName := range orgConfig.Roles {
-		found := false
-		for _, role := range roles {
-			if strings.EqualFold(role.Name, roleName) {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return fmt.Errorf("role %q does not exist in organization %s - create the role in GitHub before assigning it", roleName, orgName)
+	return utilerrors.NewAggregate(allErrors)
+}
+
+// findOriginalRoleName returns the original-cased key from the roles map that matches the lowercase name.
+func findOriginalRoleName(roles map[string]org.Role, lowerName string) string {
+	for name := range roles {
+		if strings.ToLower(name) == lowerName {
+			return name
 		}
 	}
-
-	return utilerrors.NewAggregate(allErrors)
+	return lowerName
 }
 
 // configureRoleTeamAssignments configures team assignments for a specific role
@@ -1630,14 +1647,18 @@ func configureRoleTeamAssignments(client orgRolesClient, orgName, roleName strin
 	}
 
 	// Create sets for comparison using slugs
+	var resolveErrors []error
 	wantSet := sets.New[string]()
 	for _, teamName := range wantTeams {
 		// Resolve config team name to slug
 		if slug, ok := normalizedTeams[strings.ToLower(teamName)]; ok {
 			wantSet.Insert(slug)
 		} else {
-			return fmt.Errorf("team %q referenced in role %q could not be resolved to a GitHub team slug - ensure the team exists in your teams configuration and was successfully created", teamName, roleName)
+			resolveErrors = append(resolveErrors, fmt.Errorf("team %q referenced in role %q could not be resolved to a GitHub team slug", teamName, roleName))
 		}
+	}
+	if len(resolveErrors) > 0 {
+		return utilerrors.NewAggregate(resolveErrors)
 	}
 
 	haveSet := sets.New[string]()

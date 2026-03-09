@@ -129,6 +129,16 @@ func (c *Config) ValidateRoles() error {
 		availableUsers[github.NormLogin(user)] = true
 	}
 
+	// Detect case-insensitive role name collisions
+	seenRoles := make(map[string]string) // lowercase -> original
+	for roleName := range c.Roles {
+		lower := strings.ToLower(roleName)
+		if existing, ok := seenRoles[lower]; ok {
+			return fmt.Errorf("role name collision: %q and %q differ only in case", existing, roleName)
+		}
+		seenRoles[lower] = roleName
+	}
+
 	// Validate each role's team and user references
 	var errors []string
 	for roleName, role := range c.Roles {

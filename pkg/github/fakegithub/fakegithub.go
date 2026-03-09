@@ -1334,3 +1334,33 @@ func (f *FakeClient) RequestReview(org, repo string, number int, logins []string
 	f.ReviewersRequested = logins
 	return nil
 }
+
+// Organization roles stubs
+
+func (f *FakeClient) ListOrganizationRoles(org string) ([]github.OrganizationRole, error) {
+	return nil, nil
+}
+
+func (f *FakeClient) AssignOrganizationRoleToTeam(org, teamSlug string, roleID int) error {
+	return nil
+}
+
+func (f *FakeClient) RemoveOrganizationRoleFromTeam(org, teamSlug string, roleID int) error {
+	return nil
+}
+
+func (f *FakeClient) AssignOrganizationRoleToUser(org, user string, roleID int) error {
+	return nil
+}
+
+func (f *FakeClient) RemoveOrganizationRoleFromUser(org, user string, roleID int) error {
+	return nil
+}
+
+func (f *FakeClient) ListTeamsWithRole(org string, roleID int) ([]github.OrganizationRoleAssignment, error) {
+	return nil, nil
+}
+
+func (f *FakeClient) ListUsersWithRole(org string, roleID int) ([]github.OrganizationRoleAssignment, error) {
+	return nil, nil
+}

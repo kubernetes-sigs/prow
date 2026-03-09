@@ -21,6 +21,7 @@ import (
 	"flag"
 	"fmt"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -2045,12 +2046,12 @@ func TestDumpOrgConfig(t *testing.T) {
 				{ID: 2, Name: "billing-manager"},
 			},
 			teamsWithRole: map[int][]github.OrganizationRoleAssignment{
-				1: {{ID: 1, Slug: "security-team", Type: "Team"}},
-				2: {{ID: 2, Slug: "finance-team", Type: "Team"}},
+				1: {{ID: 1, Slug: "security-team"}},
+				2: {{ID: 2, Slug: "finance-team"}},
 			},
 			usersWithRole: map[int][]github.OrganizationRoleAssignment{
-				1: {{ID: 3, Login: "security-admin", Type: "User"}},
-				2: {{ID: 4, Login: "finance-admin", Type: "User"}},
+				1: {{ID: 3, Login: "security-admin"}},
+				2: {{ID: 4, Login: "finance-admin"}},
 			},
 			expected: org.Config{
 				Metadata: org.Metadata{
@@ -4060,120 +4061,8 @@ func TestConfigureCollaborators_PermissionMatrix_PendingInvitationUpdates(t *tes
 	}
 }
 
-// Test organization roles functionality - comprehensive tests
-func TestOrganizationRoles(t *testing.T) {
-	// Test that the functions exist and can be called
-	// This ensures the functions compile and have correct signatures
-	t.Log("Organization roles functions exist and compile correctly")
-
-	// Test basic config structures
-	t.Run("role config structure", func(t *testing.T) {
-		// Test org.Role structure
-		role := org.Role{
-			Teams: []string{"team1", "team2"},
-			Users: []string{"user1", "user2"},
-		}
-
-		if len(role.Teams) != 2 {
-			t.Errorf("Expected 2 teams, got %d", len(role.Teams))
-		}
-		if len(role.Users) != 2 {
-			t.Errorf("Expected 2 users, got %d", len(role.Users))
-		}
-
-		// Test org.Config with roles
-		config := org.Config{
-			Roles: map[string]org.Role{
-				"security-manager": role,
-			},
-		}
-
-		if len(config.Roles) != 1 {
-			t.Errorf("Expected 1 role, got %d", len(config.Roles))
-		}
-
-		secRole, exists := config.Roles["security-manager"]
-		if !exists {
-			t.Error("security-manager role should exist")
-		}
-		if len(secRole.Teams) != 2 {
-			t.Errorf("Expected 2 teams in security-manager role, got %d", len(secRole.Teams))
-		}
-	})
-}
-
-// Test organization roles fail-fast scenarios
-func TestOrganizationRolesFailFast(t *testing.T) {
-	t.Run("validate role assignments correctly handle missing entities", func(t *testing.T) {
-		// Test role mapping logic
-		roleMap := map[string]int{
-			"existing-role": 1,
-		}
-
-		// This would fail - role doesn't exist
-		if roleID, exists := roleMap["non-existent-role"]; exists {
-			t.Errorf("Expected role 'non-existent-role' to not exist, but got ID %d", roleID)
-		}
-
-		// This would succeed - role exists
-		if _, exists := roleMap["existing-role"]; !exists {
-			t.Error("Expected role 'existing-role' to exist")
-		}
-
-		// Test team validation logic
-		githubTeams := map[string]github.Team{
-			"existing-team": {ID: 1, Slug: "existing-team", Name: "Existing Team"},
-		}
-
-		// This would fail - team doesn't exist
-		if _, exists := githubTeams["non-existent-team"]; exists {
-			t.Error("Expected team 'non-existent-team' to not exist")
-		}
-
-		// This would succeed - team exists
-		if _, exists := githubTeams["existing-team"]; !exists {
-			t.Error("Expected team 'existing-team' to exist")
-		}
-	})
-
-	t.Run("error messages contain expected information", func(t *testing.T) {
-		// Test that our error messages contain the expected information
-		testCases := []struct {
-			name             string
-			errorMsg         string
-			expectedContains []string
-		}{
-			{
-				name:             "role not found error",
-				errorMsg:         "role non-existent-role does not exist in organization test-org - check your configuration",
-				expectedContains: []string{"role", "non-existent-role", "does not exist", "organization", "test-org"},
-			},
-			{
-				name:             "team not found error",
-				errorMsg:         "team non-existent-team not found in organization test-org, cannot assign role security-manager - check your team configuration",
-				expectedContains: []string{"team", "non-existent-team", "not found", "organization", "test-org", "security-manager"},
-			},
-			{
-				name:             "user not org member error",
-				errorMsg:         "all users with role assignments must be org members: alice, bob",
-				expectedContains: []string{"users with role assignments", "must be org members", "alice", "bob"},
-			},
-		}
-
-		for _, tc := range testCases {
-			t.Run(tc.name, func(t *testing.T) {
-				for _, expected := range tc.expectedContains {
-					if !strings.Contains(tc.errorMsg, expected) {
-						t.Errorf("Expected error message to contain '%s', but message was: %s", expected, tc.errorMsg)
-					}
-				}
-			})
-		}
-	})
-
-	// Note: User/team reference validation is tested in pkg/config/org/org_test.go (TestValidateRoles)
-	// The validation happens at the start of configureOrg(), before any API calls are made
-
+// Test configureOrgRoles scenarios
+func TestConfigureOrgRoles(t *testing.T) {
 	t.Run("fails when configured role does not exist in GitHub", func(t *testing.T) {
 		orgConfig := org.Config{
 			Admins: []string{"admin-user"},
@@ -4250,10 +4139,10 @@ func TestOrganizationRolesFailFast(t *testing.T) {
 				{ID: 1, Name: "security-manager"},
 			},
 			teamsWithRole: map[int][]github.OrganizationRoleAssignment{
-				1: {{ID: 10, Slug: "old-team", Type: "Team"}}, // Existing team assignment
+				1: {{ID: 10, Slug: "old-team"}}, // Existing team assignment
 			},
 			usersWithRole: map[int][]github.OrganizationRoleAssignment{
-				1: {{ID: 5, Login: "old-user", Type: "User"}}, // Existing user assignment
+				1: {{ID: 5, Login: "old-user"}}, // Existing user assignment
 			},
 		}
 
@@ -4299,11 +4188,11 @@ func TestOrganizationRolesFailFast(t *testing.T) {
 				{ID: 2, Name: "billing-manager"},  // In config - should be synced
 			},
 			teamsWithRole: map[int][]github.OrganizationRoleAssignment{
-				1: {{ID: 10, Slug: "security-team", Type: "Team"}}, // Should be removed
+				1: {{ID: 10, Slug: "security-team"}}, // Should be removed
 				2: {},                                              // No teams
 			},
 			usersWithRole: map[int][]github.OrganizationRoleAssignment{
-				1: {{ID: 5, Login: "security-admin", Type: "User"}}, // Should be removed
+				1: {{ID: 5, Login: "security-admin"}}, // Should be removed
 				2: {},                                               // No users yet
 			},
 		}
@@ -4464,7 +4353,7 @@ func TestConfigureRoleTeamAssignments(t *testing.T) {
 			roleID:    1,
 			wantTeams: []string{},
 			currentTeams: []github.OrganizationRoleAssignment{
-				{ID: 10, Slug: "old-team", Type: "Team"},
+				{ID: 10, Slug: "old-team"},
 			},
 			githubTeams:    map[string]github.Team{},
 			expectAssigned: []string{},
@@ -4476,7 +4365,7 @@ func TestConfigureRoleTeamAssignments(t *testing.T) {
 			roleID:    1,
 			wantTeams: []string{"new-team"},
 			currentTeams: []github.OrganizationRoleAssignment{
-				{ID: 10, Slug: "old-team", Type: "Team"},
+				{ID: 10, Slug: "old-team"},
 			},
 			githubTeams: map[string]github.Team{
 				"new-team": {ID: 20, Slug: "new-team", Name: "New Team"},
@@ -4503,7 +4392,7 @@ func TestConfigureRoleTeamAssignments(t *testing.T) {
 			roleID:    1,
 			wantTeams: []string{"existing-team"},
 			currentTeams: []github.OrganizationRoleAssignment{
-				{ID: 10, Slug: "existing-team", Type: "Team"},
+				{ID: 10, Slug: "existing-team"},
 			},
 			githubTeams: map[string]github.Team{
 				"existing-team": {ID: 10, Slug: "existing-team", Name: "Existing Team"},
@@ -4534,11 +4423,11 @@ func TestConfigureRoleTeamAssignments(t *testing.T) {
 			}
 
 			// Compare slices with nil-safe comparison
-			if !slicesEqual(client.assignedTeamRoles, tc.expectAssigned) {
+			if !slicesEqualUnordered(client.assignedTeamRoles, tc.expectAssigned) {
 				t.Errorf("Assigned teams mismatch:\nExpected: %v\nGot: %v", tc.expectAssigned, client.assignedTeamRoles)
 			}
 
-			if !slicesEqual(client.removedTeamRoles, tc.expectRemoved) {
+			if !slicesEqualUnordered(client.removedTeamRoles, tc.expectRemoved) {
 				t.Errorf("Removed teams mismatch:\nExpected: %v\nGot: %v", tc.expectRemoved, client.removedTeamRoles)
 			}
 		})
@@ -4584,7 +4473,7 @@ func TestConfigureRoleUserAssignments(t *testing.T) {
 			roleID:    1,
 			wantUsers: []string{},
 			currentUsers: []github.OrganizationRoleAssignment{
-				{ID: 5, Login: "old-user", Type: "User"},
+				{ID: 5, Login: "old-user"},
 			},
 			expectAssigned: []string{},
 			expectRemoved:  []string{"test-org/old-user/1"},
@@ -4595,7 +4484,7 @@ func TestConfigureRoleUserAssignments(t *testing.T) {
 			roleID:    1,
 			wantUsers: []string{"new-user"},
 			currentUsers: []github.OrganizationRoleAssignment{
-				{ID: 5, Login: "old-user", Type: "User"},
+				{ID: 5, Login: "old-user"},
 			},
 			expectAssigned: []string{"test-org/new-user/1"},
 			expectRemoved:  []string{"test-org/old-user/1"},
@@ -4606,7 +4495,7 @@ func TestConfigureRoleUserAssignments(t *testing.T) {
 			roleID:    1,
 			wantUsers: []string{"NewUser"},
 			currentUsers: []github.OrganizationRoleAssignment{
-				{ID: 5, Login: "newuser", Type: "User"},
+				{ID: 5, Login: "newuser"},
 			},
 			expectAssigned: []string{},
 			expectRemoved:  []string{},
@@ -4626,8 +4515,8 @@ func TestConfigureRoleUserAssignments(t *testing.T) {
 			roleID:    1,
 			wantUsers: []string{},
 			currentUsers: []github.OrganizationRoleAssignment{
-				{ID: 5, Login: "OldUser", Type: "User"},
-				{ID: 6, Login: "AnotherOldUser", Type: "User"},
+				{ID: 5, Login: "OldUser"},
+				{ID: 6, Login: "AnotherOldUser"},
 			},
 			expectAssigned: []string{},
 			expectRemoved:  []string{"test-org/OldUser/1", "test-org/AnotherOldUser/1"},
@@ -4638,7 +4527,7 @@ func TestConfigureRoleUserAssignments(t *testing.T) {
 			roleID:    1,
 			wantUsers: []string{"existing-user"},
 			currentUsers: []github.OrganizationRoleAssignment{
-				{ID: 5, Login: "existing-user", Type: "User"},
+				{ID: 5, Login: "existing-user"},
 			},
 			expectAssigned: []string{},
 			expectRemoved:  []string{},
@@ -4666,19 +4555,12 @@ func TestConfigureRoleUserAssignments(t *testing.T) {
 				t.Errorf("Unexpected error: %v", err)
 			}
 
-			// Compare slices with nil-safe comparison (sort first since order is non-deterministic)
-			sort.Strings(client.assignedUserRoles)
-			expectedAssigned := append([]string{}, tc.expectAssigned...)
-			sort.Strings(expectedAssigned)
-			if !slicesEqual(client.assignedUserRoles, expectedAssigned) {
-				t.Errorf("Assigned users mismatch:\nExpected: %v\nGot: %v", expectedAssigned, client.assignedUserRoles)
+			if !slicesEqualUnordered(client.assignedUserRoles, tc.expectAssigned) {
+				t.Errorf("Assigned users mismatch:\nExpected: %v\nGot: %v", tc.expectAssigned, client.assignedUserRoles)
 			}
 
-			sort.Strings(client.removedUserRoles)
-			expectedRemoved := append([]string{}, tc.expectRemoved...)
-			sort.Strings(expectedRemoved)
-			if !slicesEqual(client.removedUserRoles, expectedRemoved) {
-				t.Errorf("Removed users mismatch:\nExpected: %v\nGot: %v", expectedRemoved, client.removedUserRoles)
+			if !slicesEqualUnordered(client.removedUserRoles, tc.expectRemoved) {
+				t.Errorf("Removed users mismatch:\nExpected: %v\nGot: %v", tc.expectRemoved, client.removedUserRoles)
 			}
 		})
 	}
@@ -4724,18 +4606,152 @@ func TestConfigureRoleUserAssignmentsSkipsPendingInvitees(t *testing.T) {
 	}
 }
 
-// slicesEqual compares two string slices treating nil and empty slices as equal
-func slicesEqual(a, b []string) bool {
+// Test that indirect user assignments are skipped
+func TestConfigureRoleUserAssignmentsSkipsIndirect(t *testing.T) {
+	client := &fakeOrgRolesClient{
+		usersWithRole: map[int][]github.OrganizationRoleAssignment{
+			1: {
+				{ID: 1, Login: "direct-user", Assignment: "direct"},
+				{ID: 2, Login: "indirect-user", Assignment: "indirect"},
+				{ID: 3, Login: "mixed-user", Assignment: "mixed"},
+			},
+		},
+	}
+
+	// Config wants no users — only direct and mixed assignments should be removed
+	err := configureRoleUserAssignments(client, "test-org", "test-role", 1, []string{}, sets.Set[string]{})
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if !slicesEqualUnordered(client.removedUserRoles, []string{"test-org/direct-user/1", "test-org/mixed-user/1"}) {
+		t.Errorf("Expected direct-user and mixed-user removed, got: %v", client.removedUserRoles)
+	}
+}
+
+// Test error propagation in team assignments
+func TestConfigureRoleTeamAssignmentsErrors(t *testing.T) {
+	t.Run("list teams error", func(t *testing.T) {
+		client := &fakeOrgRolesClient{
+			listTeamsWithRoleErr: fmt.Errorf("api error"),
+		}
+		err := configureRoleTeamAssignments(client, "test-org", "test-role", 1, []string{"team"}, map[string]github.Team{})
+		if err == nil {
+			t.Error("Expected error but got none")
+		}
+	})
+
+	t.Run("assign error", func(t *testing.T) {
+		client := &fakeOrgRolesClient{
+			teamsWithRole:     map[int][]github.OrganizationRoleAssignment{1: {}},
+			assignTeamRoleErr: fmt.Errorf("assign failed"),
+		}
+		githubTeams := map[string]github.Team{
+			"my-team": {ID: 1, Slug: "my-team"},
+		}
+		err := configureRoleTeamAssignments(client, "test-org", "test-role", 1, []string{"my-team"}, githubTeams)
+		if err == nil {
+			t.Error("Expected error but got none")
+		}
+	})
+
+	t.Run("remove error", func(t *testing.T) {
+		client := &fakeOrgRolesClient{
+			teamsWithRole: map[int][]github.OrganizationRoleAssignment{
+				1: {{ID: 1, Slug: "old-team"}},
+			},
+			removeTeamRoleErr: fmt.Errorf("remove failed"),
+		}
+		err := configureRoleTeamAssignments(client, "test-org", "test-role", 1, []string{}, map[string]github.Team{})
+		if err == nil {
+			t.Error("Expected error but got none")
+		}
+	})
+}
+
+// Test error propagation in user assignments
+func TestConfigureRoleUserAssignmentsErrors(t *testing.T) {
+	t.Run("list users error", func(t *testing.T) {
+		client := &fakeOrgRolesClient{
+			listUsersWithRoleErr: fmt.Errorf("api error"),
+		}
+		err := configureRoleUserAssignments(client, "test-org", "test-role", 1, []string{"user"}, sets.Set[string]{})
+		if err == nil {
+			t.Error("Expected error but got none")
+		}
+	})
+
+	t.Run("assign error", func(t *testing.T) {
+		client := &fakeOrgRolesClient{
+			usersWithRole:    map[int][]github.OrganizationRoleAssignment{1: {}},
+			assignUserRoleErr: fmt.Errorf("assign failed"),
+		}
+		err := configureRoleUserAssignments(client, "test-org", "test-role", 1, []string{"user"}, sets.Set[string]{})
+		if err == nil {
+			t.Error("Expected error but got none")
+		}
+	})
+
+	t.Run("remove error", func(t *testing.T) {
+		client := &fakeOrgRolesClient{
+			usersWithRole: map[int][]github.OrganizationRoleAssignment{
+				1: {{ID: 1, Login: "old-user"}},
+			},
+			removeUserRoleErr: fmt.Errorf("remove failed"),
+		}
+		err := configureRoleUserAssignments(client, "test-org", "test-role", 1, []string{}, sets.Set[string]{})
+		if err == nil {
+			t.Error("Expected error but got none")
+		}
+	})
+}
+
+// Test that configureOrgRoles validates roles before making mutations
+func TestConfigureOrgRolesValidatesBeforeMutating(t *testing.T) {
+	// Config references a role that doesn't exist AND a role that does
+	orgConfig := org.Config{
+		Admins: []string{"admin"},
+		Roles: map[string]org.Role{
+			"exists":     {Users: []string{"admin"}},
+			"not-exists": {Users: []string{"admin"}},
+		},
+	}
+
+	client := &fakeOrgRolesClient{
+		roles: []github.OrganizationRole{
+			{ID: 1, Name: "exists"},
+		},
+		usersWithRole: map[int][]github.OrganizationRoleAssignment{1: {}},
+	}
+
+	err := configureOrgRoles(client, "test-org", orgConfig, map[string]github.Team{}, sets.Set[string]{})
+	if err == nil {
+		t.Fatal("Expected error for non-existent role")
+	}
+	if !strings.Contains(err.Error(), "not-exists") {
+		t.Errorf("Expected error about 'not-exists', got: %v", err)
+	}
+
+	// Verify NO mutations were made (validation should have blocked them)
+	if len(client.assignedUserRoles) != 0 {
+		t.Errorf("Expected no mutations before validation, got assignments: %v", client.assignedUserRoles)
+	}
+	if len(client.assignedTeamRoles) != 0 {
+		t.Errorf("Expected no mutations before validation, got team assignments: %v", client.assignedTeamRoles)
+	}
+}
+
+// normalizeSlice returns a sorted copy of a string slice, treating nil as empty.
+func normalizeSlice(s []string) []string {
+	out := append([]string{}, s...)
+	sort.Strings(out)
+	return out
+}
+
+// slicesEqualUnordered compares two string slices ignoring order and treating nil as empty.
+func slicesEqualUnordered(a, b []string) bool {
 	if len(a) == 0 && len(b) == 0 {
 		return true
 	}
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
+	return slices.Equal(normalizeSlice(a), normalizeSlice(b))
 }

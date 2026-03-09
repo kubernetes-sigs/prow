@@ -330,6 +330,21 @@ func TestValidateRoles(t *testing.T) {
 			},
 			expectError: false,
 		},
+		{
+			name: "case-insensitive role name collision",
+			config: Config{
+				Teams: map[string]Team{
+					"team1": {},
+				},
+				Admins: []string{"user1"},
+				Roles: map[string]Role{
+					"Security-Manager": {Teams: []string{"team1"}},
+					"security-manager": {Users: []string{"user1"}},
+				},
+			},
+			expectError: true,
+			errorPart:   "role name collision",
+		},
 	}
 
 	for _, tc := range tests {
