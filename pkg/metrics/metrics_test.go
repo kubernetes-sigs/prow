@@ -49,8 +49,7 @@ func (fls *fakeListenAndServer) CreateServer(handler http.Handler) interrupts.Li
 }
 
 func TestExposeMetrics(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	fls := fakeListenAndServer{ctx: ctx}
 
 	ExposeMetricsWithRegistry("my-component", config.PushGateway{}, flagutil.DefaultMetricsPort, nil, fls.CreateServer)

@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -162,10 +163,8 @@ func (cli *Client) TagExists(imageHost, imageName, currentTag string) (bool, err
 	}
 
 	for _, v := range imageList {
-		for _, tag := range v.Tags {
-			if tag == currentTag {
-				return true, nil
-			}
+		if slices.Contains(v.Tags, currentTag) {
+			return true, nil
 		}
 	}
 

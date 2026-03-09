@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"slices"
 
 	githubql "github.com/shurcooL/githubv4"
 	"github.com/sirupsen/logrus"
@@ -127,7 +128,7 @@ type githubClient interface {
 	FindIssuesWithOrg(org string, query string, sort string, asc bool) ([]github.Issue, error)
 	GetPullRequestChanges(org string, repo string, number int) ([]github.PullRequestChange, error)
 	GetPullRequest(org string, repo string, number int) (*github.PullRequest, error)
-	Query(context.Context, interface{}, map[string]interface{}) error
+	Query(context.Context, any, map[string]any) error
 }
 
 type repoownersClient interface {
@@ -159,10 +160,8 @@ func handlePullRequest(ghc githubClient, roc repoownersClient, log *logrus.Entry
 		return nil
 	}
 	// Ignore PRs submitted by users matching logins set in IgnoreAuthors
-	for _, user := range config.IgnoreAuthors {
-		if user == pr.User.Login {
-			return nil
-		}
+	if slices.Contains(config.IgnoreAuthors, pr.User.Login) {
+		return nil
 	}
 	return handle(
 		ghc,
@@ -290,10 +289,8 @@ func handleStatus(ghc githubClient, roc repoownersClient, log *logrus.Entry, con
 		}
 
 		// Ignore PRs submitted by users matching logins set in IgnoreAuthors
-		for _, user := range config.IgnoreAuthors {
-			if user == pr.User.Login {
-				return nil
-			}
+		if slices.Contains(config.IgnoreAuthors, pr.User.Login) {
+			return nil
 		}
 
 		// Don't add reviewers if there are already requested reviewers
@@ -471,7 +468,7 @@ type githubAvailabilityQuery struct {
 
 func isUserBusy(ghc githubClient, user string) (bool, error) {
 	var query githubAvailabilityQuery
-	vars := map[string]interface{}{
+	vars := map[string]any{
 		"user": githubql.String(user),
 	}
 	ctx := context.Background()

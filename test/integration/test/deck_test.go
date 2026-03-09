@@ -270,7 +270,6 @@ func TestDeckTenantIDs(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -455,7 +454,7 @@ func TestRerun(t *testing.T) {
 		// for this case.
 		waitDur := time.Second * 5
 		var lastErr error
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			lastErr = nil
 			res, err := http.DefaultClient.Do(req)
 			if err != nil {
@@ -493,7 +492,7 @@ func TestRerun(t *testing.T) {
 	// It may take some time for the new ProwJob to show up, so we will
 	// check every 30s interval three times for it to appear
 	latestRun := jobToRerun
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		time.Sleep(30 * time.Second)
 		rerun(t, jobToRerun.Name, "latest")
 		if latestRun = getLatestJob(t, jobName, &latestRun.CreationTimestamp); latestRun.Labels["foo"] == "bar" {
@@ -508,7 +507,7 @@ func TestRerun(t *testing.T) {
 	// Deck scheduled job from latest configuration, rerun with "original"
 	// should still go with original configuration.
 	// check every 30s interval three times for it update
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		time.Sleep(30 * time.Second)
 		rerun(t, jobToRerun.Name, "original")
 		if latestRun = getLatestJob(t, jobName, &latestRun.CreationTimestamp); latestRun.Labels["foo"] == "foo" {

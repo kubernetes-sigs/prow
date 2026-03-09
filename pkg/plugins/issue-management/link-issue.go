@@ -176,7 +176,7 @@ func updateFixesLine(body string, toAdd []string, toRemove []string) string {
 	for i, line := range lines {
 		if m := fixesRegex.FindStringSubmatch(line); m != nil {
 			fixesIndex = i
-			for _, issue := range strings.Fields(m[1]) {
+			for issue := range strings.FieldsSeq(m[1]) {
 				issueSet.Insert(issue)
 			}
 			break

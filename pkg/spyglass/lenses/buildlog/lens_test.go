@@ -439,7 +439,7 @@ func TestBody(t *testing.T) {
 				Path: "foo",
 				Content: func() []byte {
 					var sb strings.Builder
-					for i := 0; i < 100; i++ {
+					for range 100 {
 						sb.WriteString("word\n")
 					}
 					return []byte(sb.String())
@@ -504,7 +504,7 @@ func TestBody(t *testing.T) {
 				Path: "foo",
 				Content: func() []byte {
 					var sb strings.Builder
-					for i := 0; i < 100; i++ {
+					for range 100 {
 						sb.WriteString("word\n")
 					}
 					return []byte(sb.String())
@@ -721,7 +721,7 @@ func TestCallback(t *testing.T) {
 				Path: "foo",
 				Content: func() []byte {
 					var sb strings.Builder
-					for i := 0; i < 100; i++ {
+					for range 100 {
 						sb.WriteString("word\n")
 					}
 					return []byte(sb.String())
@@ -784,7 +784,7 @@ func TestCallback(t *testing.T) {
 				Path: "foo",
 				Content: func() []byte {
 					var sb strings.Builder
-					for i := 0; i < 100; i++ {
+					for range 100 {
 						sb.WriteString("word\n")
 					}
 					return []byte(sb.String())
@@ -846,7 +846,7 @@ func TestCallback(t *testing.T) {
 				Path: "foo",
 				Content: func() []byte {
 					var sb strings.Builder
-					for i := 0; i < 100; i++ {
+					for range 100 {
 						sb.WriteString("word\n")
 					}
 					return []byte(sb.String())
@@ -859,7 +859,7 @@ func TestCallback(t *testing.T) {
 					ArtifactName: pstr("foo"),
 					LogLines: func() []LogLine {
 						out := make([]LogLine, 0, 81)
-						for i := 0; i < 80; i++ {
+						for i := range 80 {
 							out = append(out, LogLine{
 								ArtifactName: pstr("foo"),
 								Number:       i + 1,

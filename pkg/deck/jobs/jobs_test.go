@@ -52,7 +52,7 @@ type fpkc string
 
 func (f fpkc) GetLogs(name, container string) ([]byte, error) {
 	if name == "wowowow" || name == "powowow" {
-		return []byte(fmt.Sprintf("%s.%s", f, container)), nil
+		return fmt.Appendf(nil, "%s.%s", f, container), nil
 	}
 	return nil, fmt.Errorf("pod not found: %s", name)
 }

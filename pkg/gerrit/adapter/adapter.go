@@ -20,6 +20,7 @@ package adapter
 import (
 	"context"
 	"fmt"
+	"maps"
 	"net/url"
 	"strconv"
 	"strings"
@@ -332,11 +333,8 @@ func (c *Controller) processSingleProject(instance, project string) {
 	wg.Add(len(changes))
 	changeChan := make(chan Change)
 
-	poolSize := c.workerPoolSize
-	if poolSize > len(changes) {
-		poolSize = len(changes)
-	}
-	for i := 0; i < poolSize; i++ {
+	poolSize := min(c.workerPoolSize, len(changes))
+	for range poolSize {
 		go c.processChange(latest, changeChan, log, &wg, syncTime)
 	}
 	// We need to call time.Now() outside this loop since <- will block
@@ -448,12 +446,8 @@ func CreateRefs(instance, project, branch, baseSHA string, changes ...client.Cha
 
 func LabelsAndAnnotations(instance string, jobLabels, jobAnnotations map[string]string, changes ...client.ChangeInfo) (labels, annotations map[string]string) {
 	labels, annotations = make(map[string]string), make(map[string]string)
-	for k, v := range jobLabels {
-		labels[k] = v
-	}
-	for k, v := range jobAnnotations {
-		annotations[k] = v
-	}
+	maps.Copy(labels, jobLabels)
+	maps.Copy(annotations, jobAnnotations)
 	annotations[kube.GerritInstance] = instance
 
 	// Labels required for Crier reporting back to Gerrit, batch jobs are not
@@ -634,7 +628,7 @@ func (c *Controller) triggerJobs(logger logrus.FieldLogger, instance string, cha
 		var postsubmits []config.Postsubmit
 		// Gerrit server might be unavailable intermittently, retry inrepoconfig
 		// processing for increased reliability.
-		for attempt := 0; attempt < inRepoConfigRetries; attempt++ {
+		for range inRepoConfigRetries {
 			postsubmits, err = c.inRepoConfigGetter.GetPostsubmits(cloneURI, change.Branch, baseSHAGetter, headSHAGetter)
 			// Break if there was no error, or if there was a merge conflict
 			if err == nil {
@@ -680,7 +674,7 @@ func (c *Controller) triggerJobs(logger logrus.FieldLogger, instance string, cha
 		var presubmits []config.Presubmit
 		// Gerrit server might be unavailable intermittently, retry inrepoconfig
 		// processing for increased reliability.
-		for attempt := 0; attempt < inRepoConfigRetries; attempt++ {
+		for range inRepoConfigRetries {
 			presubmits, err = c.inRepoConfigGetter.GetPresubmits(cloneURI, change.Branch, baseSHAGetter, headSHAGetter)
 			if err == nil {
 				break
@@ -806,10 +800,10 @@ func (c *Controller) triggerJobs(logger logrus.FieldLogger, instance string, cha
 
 	// comment back to gerrit if Report is set for any of the jobs
 	var reportingJobs int
-	var jobList string
+	var jobList strings.Builder
 	for _, job := range triggeredJobs {
 		if job.report {
-			jobList += fmt.Sprintf("\n  * Name: %s", job.name)
+			jobList.WriteString(fmt.Sprintf("\n  * Name: %s", job.name))
 			reportingJobs++
 		}
 	}
@@ -824,7 +818,7 @@ func (c *Controller) triggerJobs(logger logrus.FieldLogger, instance string, cha
 		if link != "" && err == nil {
 			message = message + link
 		} else {
-			message = message + jobList
+			message = message + jobList.String()
 		}
 		if err := c.gc.SetReview(instance, change.ID, change.CurrentRevision, message, nil); err != nil {
 			return err

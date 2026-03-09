@@ -54,7 +54,6 @@ func TestPipelineController(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -187,7 +186,7 @@ func TestPipelineControllerConcurrentJobs(t *testing.T) {
 	t.Logf("Creating %d concurrent ProwJobs", numJobs)
 	jobNames := make([]string, numJobs)
 
-	for i := 0; i < numJobs; i++ {
+	for i := range numJobs {
 		// Use shorter job name to stay under 63 character Kubernetes label limit
 		jobName := fmt.Sprintf("plc-%d-%s", i, RandomString(t)[:8])
 		jobNames[i] = jobName

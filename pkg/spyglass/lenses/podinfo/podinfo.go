@@ -226,7 +226,7 @@ func loadTemplate(path string) (*template.Template, error) {
 		"isProw": func(s string) bool {
 			return strings.HasPrefix(s, "prow.k8s.io/") || strings.HasPrefix(s, "testgrid-") || s == "created-by-prow"
 		},
-		"toYaml": func(o interface{}) (string, error) {
+		"toYaml": func(o any) (string, error) {
 			result, err := yaml.Marshal(o)
 			if err != nil {
 				return "", err

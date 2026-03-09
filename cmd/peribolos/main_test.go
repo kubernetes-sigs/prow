@@ -20,7 +20,9 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"maps"
 	"reflect"
+	"slices"
 	"sort"
 	"testing"
 
@@ -3322,9 +3324,7 @@ func TestConfigureCollaborators(t *testing.T) {
 			}
 
 			// Set up existing collaborators
-			for user, permission := range tc.existingCollaborators {
-				client.collaborators[user] = permission
-			}
+			maps.Copy(client.collaborators, tc.existingCollaborators)
 
 			err := configureCollaborators(client, "test-org", "test-repo", tc.repo)
 
@@ -3496,13 +3496,7 @@ func TestConfigureCollaboratorsRemovePendingInvitations(t *testing.T) {
 	}
 
 	for _, expectedID := range expectedDeletedInvitations {
-		found := false
-		for _, deletedID := range actualDeletedInvitations {
-			if deletedID == expectedID {
-				found = true
-				break
-			}
-		}
+		found := slices.Contains(actualDeletedInvitations, expectedID)
 		if !found {
 			t.Errorf("Expected invitation ID %d to be deleted, but was not", expectedID)
 		}
@@ -3713,12 +3707,12 @@ func TestConfigureCollaboratorsLargeSet(t *testing.T) {
 	const numDesiredAdds = 400
 
 	existing := make(map[string]github.RepoPermissionLevel, numExisting)
-	for i := 0; i < numExisting; i++ {
+	for i := range numExisting {
 		existing[fmt.Sprintf("existing-%04d", i)] = github.Read
 	}
 
 	var invites []github.CollaboratorRepoInvitation
-	for i := 0; i < numInvites; i++ {
+	for i := range numInvites {
 		invites = append(invites, github.CollaboratorRepoInvitation{
 			InvitationID: 10000 + i,
 			Invitee:      &github.User{Login: fmt.Sprintf("invite-%04d", i)},
@@ -3736,7 +3730,7 @@ func TestConfigureCollaboratorsLargeSet(t *testing.T) {
 		desired[fmt.Sprintf("invite-%04d", i)] = github.Write
 	}
 	// Add fresh desired users
-	for i := 0; i < numDesiredAdds; i++ {
+	for i := range numDesiredAdds {
 		desired[fmt.Sprintf("new-%04d", i)] = github.Admin
 	}
 

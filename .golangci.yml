@@ -20,6 +20,9 @@ linters:
         - -QF1003 # ignore using underscores in Go names
         - -QF1008 # ignore omit embbed fields from selector expressions
         - -ST* # disable all staticcheck style checks, we never ran these before
+    modernize:
+      disable:
+        - omitzero # omitempty on struct fields is intentional in this codebase
   exclusions:
     paths:
       - .git
@@ -35,10 +38,11 @@ linters:
           - staticcheck
         # TODO: Is this really supposed to be deprecated? Ref https://github.com/kubernetes/test-infra/issues/14875
         text: "SA1019: t.*.TrustedOrg is deprecated: TrustedOrg functionality is deprecated and will be removed in January 2020"
-  enable:
+  enable: # golangci-lint help linters
     - govet
     - unused
     - misspell
     - ineffassign
     - staticcheck
+    - modernize # A suite of analyzers that suggest simplifications to Go code, using modern language and library features. https://golangci-lint.run/docs/linters/configuration/#modernize
   default: none

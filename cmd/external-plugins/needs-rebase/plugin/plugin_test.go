@@ -108,7 +108,7 @@ func (f *fghc) DeleteStaleCommentsWithContext(_ context.Context, org, repo strin
 	return nil
 }
 
-func (f *fghc) QueryWithGitHubAppsSupport(_ context.Context, q interface{}, _ map[string]interface{}, _ string) error {
+func (f *fghc) QueryWithGitHubAppsSupport(_ context.Context, q any, _ map[string]any, _ string) error {
 	query, ok := q.(*searchQuery)
 	if !ok {
 		return errors.New("invalid query format")

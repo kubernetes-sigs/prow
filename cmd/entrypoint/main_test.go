@@ -39,7 +39,6 @@ func TestCopy(t *testing.T) {
 
 	srcDir := t.TempDir()
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			src := path.Join(srcDir, tc.name)
 			os.WriteFile(src, []byte(tc.name+"\nsome\nother\ncontent"), tc.fileMode)

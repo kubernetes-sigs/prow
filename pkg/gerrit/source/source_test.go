@@ -64,7 +64,6 @@ func TestCloneURIFromOrgRepo(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		if got, want := CloneURIFromOrgRepo(tc.org, tc.repo), tc.want; got != want {
 			t.Errorf("CloneURI mismatch. Want: '%s', got: '%s'", want, got)
 		}
@@ -100,7 +99,6 @@ func TestNormalizeOrg(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		if got, want := NormalizeOrg(tc.org), tc.want; got != want {
 			t.Errorf("CloneURI mismatch. Want: '%s', got: '%s'", want, got)
 		}
@@ -136,7 +134,6 @@ func TestNormalizeCloneURI(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			if got, want := NormalizeCloneURI(tc.cloneURI), tc.want; got != want {
 				t.Errorf("CloneURI mismatch. Want: '%s', got: '%s'", want, got)
@@ -178,7 +175,6 @@ func TestOrgRepoFromCloneURI(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			gotOrg, gotRepo, gotErr := OrgRepoFromCloneURI(tc.cloneURI)
 			if tc.wantErr != nil {
@@ -224,7 +220,6 @@ func TestCodeURL(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			got, gotErr := CodeURL(tc.in)
 			if tc.wantErr {

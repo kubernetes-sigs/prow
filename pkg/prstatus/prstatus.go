@@ -290,14 +290,14 @@ func (da *DashboardAgent) HandlePrStatus(queryHandler pullRequestQueryHandler, c
 }
 
 type githubQuerier interface {
-	QueryWithGitHubAppsSupport(ctx context.Context, q interface{}, vars map[string]interface{}, org string) error
+	QueryWithGitHubAppsSupport(ctx context.Context, q any, vars map[string]any, org string) error
 }
 
 // queryPullRequests is a query function that returns a list of open pull requests owned by the user whose access token
 // is consumed by the github client.
 func (da *DashboardAgent) queryPullRequests(ctx context.Context, ghc githubQuerier, query string) ([]PullRequest, error) {
 	var prs []PullRequest
-	vars := map[string]interface{}{
+	vars := map[string]any{
 		"query":        (githubql.String)(query),
 		"searchCursor": (*githubql.String)(nil),
 	}
@@ -384,8 +384,8 @@ func (da *DashboardAgent) ConstructSearchQuery(login string) string {
 }
 
 func queryConstrainsRepos(q string) bool {
-	tkns := strings.Split(q, " ")
-	for _, tkn := range tkns {
+	tkns := strings.SplitSeq(q, " ")
+	for tkn := range tkns {
 		if strings.HasPrefix(tkn, "org:") || strings.HasPrefix(tkn, "repo:") {
 			return true
 		}

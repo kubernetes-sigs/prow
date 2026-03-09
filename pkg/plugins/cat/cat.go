@@ -216,7 +216,7 @@ func handle(gc githubClient, log *logrus.Entry, e *github.GenericCommentEvent, c
 	repo := e.Repo.Name
 	number := e.Number
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		resp, err := c.readCat(category, movieCat, defaultGrumpyRoot)
 		if err != nil {
 			log.WithError(err).Error("Failed to get cat img")

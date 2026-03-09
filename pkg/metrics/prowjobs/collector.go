@@ -70,7 +70,7 @@ func update(histogramVec *prometheus.HistogramVec, oldJob *prowapi.ProwJob, newJ
 func NewProwJobLifecycleHistogramVec(informer cache.SharedIndexInformer) *prometheus.HistogramVec {
 	histogramVec := newHistogramVec()
 	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		UpdateFunc: func(oldJob, newJob interface{}) {
+		UpdateFunc: func(oldJob, newJob any) {
 			update(histogramVec, oldJob.(*prowapi.ProwJob), newJob.(*prowapi.ProwJob))
 		},
 	})

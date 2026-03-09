@@ -57,7 +57,7 @@ var genConfigs = []genConfig{
 
 type genConfig struct {
 	in     []string
-	format interface{}
+	format any
 	out    string
 }
 

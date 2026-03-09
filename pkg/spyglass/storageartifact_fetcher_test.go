@@ -21,6 +21,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 
@@ -252,13 +253,7 @@ func TestArtifacts_ListGCS(t *testing.T) {
 				nested.Fatalf("Failed to get artifact names: %v", err)
 			}
 			for _, ea := range tc.expectedArtifacts {
-				found := false
-				for _, aa := range actualArtifacts {
-					if ea == aa {
-						found = true
-						break
-					}
-				}
+				found := slices.Contains(actualArtifacts, ea)
 				if !found {
 					nested.Fatalf("failed to retrieve the following artifact: %s\nRetrieved: %s.", ea, actualArtifacts)
 				}

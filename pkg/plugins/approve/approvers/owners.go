@@ -651,7 +651,7 @@ func (ua UnapprovedFile) String() string {
 
 // GenerateTemplate takes a template, name and data, and generates
 // the corresponding string.
-func GenerateTemplate(templ, name string, data interface{}) (string, error) {
+func GenerateTemplate(templ, name string, data any) (string, error) {
 	buf := bytes.NewBufferString("")
 	if messageTempl, err := template.New(name).Parse(templ); err != nil {
 		return "", fmt.Errorf("failed to parse template for %s: %w", name, err)
@@ -717,7 +717,7 @@ Needs approval from an approver in each of these files:
 {{range .ap.GetFiles .baseURL .branch}}{{.}}{{end}}
 Approvers can indicate their approval by writing `+"`/approve`"+` in a comment
 Approvers can cancel approval by writing `+"`/approve cancel`"+` in a comment
-</details>`, "message", map[string]interface{}{"ap": ap, "baseURL": linkURL, "commandHelpLink": commandHelpLink, "prProcessLink": prProcessLink, "org": org, "repo": repo, "branch": branch})
+</details>`, "message", map[string]any{"ap": ap, "baseURL": linkURL, "commandHelpLink": commandHelpLink, "prProcessLink": prProcessLink, "org": org, "repo": repo, "branch": branch})
 	if err != nil {
 		ap.owners.log.WithError(err).Errorf("Error generating message.")
 		return nil

@@ -179,12 +179,10 @@ func TestInterrupts(t *testing.T) {
 	})
 
 	done := sync.WaitGroup{}
-	done.Add(1)
-	go func() {
+	done.Go(func() {
 		WaitForGracefulShutdown()
 		time.Sleep(1 * time.Millisecond) // Ensure graceful shutdown channel closes
-		done.Done()
-	}()
+	})
 
 	if onInterruptCalled {
 		t.Error("work registered with OnInterrupt() was executed before interrupt")

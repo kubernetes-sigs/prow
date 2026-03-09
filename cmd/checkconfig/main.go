@@ -29,6 +29,7 @@ import (
 	"os"
 	"path"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 
@@ -187,13 +188,7 @@ func (o *options) DefaultAndValidate() error {
 		return errors.New("--prow-yaml-repo-path requires --prow-yaml-repo-name to be set")
 	}
 	for _, warning := range o.warnings.Strings() {
-		found := false
-		for _, registeredWarning := range allWarnings {
-			if warning == registeredWarning {
-				found = true
-				break
-			}
-		}
+		found := slices.Contains(allWarnings, warning)
 		if !found {
 			return fmt.Errorf("no such warning %q, valid warnings: %v", warning, allWarnings)
 		}
@@ -569,7 +564,7 @@ func validateURLs(c config.ProwConfig) error {
 	return utilerrors.NewAggregate(validationErrs)
 }
 
-func validateUnknownFields(cfg interface{}, cfgBytes []byte, filePath string) error {
+func validateUnknownFields(cfg any, cfgBytes []byte, filePath string) error {
 	err := yaml.Unmarshal(cfgBytes, &cfg, yaml.DisallowUnknownFields)
 	if err != nil {
 		return fmt.Errorf("unknown fields or bad config in %s: %w", filePath, err)
@@ -1367,21 +1362,22 @@ func validateAdditionalConfigIsInOrgRepoDirectoryStructure(root string, filesyst
 			if !isGlobal && len(targetedOrgs) == 1 && targetedOrgs.Has(expectedTargetOrg) && len(targetedRepos) == 0 {
 				return nil
 			}
-			errMsg := fmt.Sprintf("config %s is invalid: Must contain only config for org %s, but", path, expectedTargetOrg)
+			var errMsg strings.Builder
+			errMsg.WriteString(fmt.Sprintf("config %s is invalid: Must contain only config for org %s, but", path, expectedTargetOrg))
 			var needsAnd bool
 			if isGlobal {
-				errMsg += " contains global config"
+				errMsg.WriteString(" contains global config")
 				needsAnd = true
 			}
 			for _, org := range sets.List(targetedOrgs.Delete(expectedTargetOrg)) {
-				errMsg += prefixWithAndIfNeeded(fmt.Sprintf(" contains config for org %s", org), needsAnd)
+				errMsg.WriteString(prefixWithAndIfNeeded(fmt.Sprintf(" contains config for org %s", org), needsAnd))
 				needsAnd = true
 			}
 			for _, repo := range sets.List(targetedRepos) {
-				errMsg += prefixWithAndIfNeeded(fmt.Sprintf(" contains config for repo %s", repo), needsAnd)
+				errMsg.WriteString(prefixWithAndIfNeeded(fmt.Sprintf(" contains config for repo %s", repo), needsAnd))
 				needsAnd = true
 			}
-			errs = append(errs, errors.New(errMsg))
+			errs = append(errs, errors.New(errMsg.String()))
 			return nil
 		}
 
@@ -1391,21 +1387,22 @@ func validateAdditionalConfigIsInOrgRepoDirectoryStructure(root string, filesyst
 				return nil
 			}
 
-			errMsg := fmt.Sprintf("config %s is invalid: Must only contain config for repo %s, but", path, expectedTargetRepo)
+			var errMsg strings.Builder
+			errMsg.WriteString(fmt.Sprintf("config %s is invalid: Must only contain config for repo %s, but", path, expectedTargetRepo))
 			var needsAnd bool
 			if isGlobal {
-				errMsg += " contains global config"
+				errMsg.WriteString(" contains global config")
 				needsAnd = true
 			}
 			for _, org := range sets.List(targetedOrgs) {
-				errMsg += prefixWithAndIfNeeded(fmt.Sprintf(" contains config for org %s", org), needsAnd)
+				errMsg.WriteString(prefixWithAndIfNeeded(fmt.Sprintf(" contains config for org %s", org), needsAnd))
 				needsAnd = true
 			}
 			for _, repo := range sets.List(targetedRepos.Delete(expectedTargetRepo)) {
-				errMsg += prefixWithAndIfNeeded(fmt.Sprintf(" contains config for repo %s", repo), needsAnd)
+				errMsg.WriteString(prefixWithAndIfNeeded(fmt.Sprintf(" contains config for repo %s", repo), needsAnd))
 				needsAnd = true
 			}
-			errs = append(errs, errors.New(errMsg))
+			errs = append(errs, errors.New(errMsg.String()))
 			return nil
 		}
 

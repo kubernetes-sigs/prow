@@ -25,6 +25,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -720,9 +721,7 @@ func Test_gatherOptions(t *testing.T) {
 			argMap := map[string]string{
 				"--config-path": "yo",
 			}
-			for k, v := range tc.args {
-				argMap[k] = v
-			}
+			maps.Copy(argMap, tc.args)
 			for k := range tc.del {
 				delete(argMap, k)
 			}

@@ -24,6 +24,7 @@ import (
 	"fmt"
 	stdio "io"
 	"net/http"
+	"slices"
 	"sort"
 	"sync"
 	"time"
@@ -117,12 +118,7 @@ func (c *filteringProwJobLister) TenantIDMatch(pj prowapi.ProwJob) bool {
 	if pj.Spec.ProwJobDefault == nil {
 		return false
 	}
-	for _, id := range c.tenantIDs {
-		if id == pj.Spec.ProwJobDefault.TenantID {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(c.tenantIDs, pj.Spec.ProwJobDefault.TenantID)
 }
 
 func tenantIDMissingOrDefault(pj prowapi.ProwJob) bool {

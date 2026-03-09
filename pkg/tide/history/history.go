@@ -77,10 +77,7 @@ func readHistory(maxRecordsPerKey int, opener opener, path string) (map[string]*
 	logsByPool := make(map[string]*recordLog, len(recordsByPool))
 	for poolKey, records := range recordsByPool {
 		logsByPool[poolKey] = newRecordLog(maxRecordsPerKey)
-		limit := maxRecordsPerKey
-		if len(records) < limit {
-			limit = len(records)
-		}
+		limit := min(len(records), maxRecordsPerKey)
 		for i := limit - 1; i >= 0; i-- {
 			logsByPool[poolKey].add(records[i])
 		}

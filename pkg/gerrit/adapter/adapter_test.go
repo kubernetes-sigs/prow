@@ -3206,7 +3206,6 @@ func TestTriggerJobs(t *testing.T) {
 		c: cfg,
 	}
 	for _, tc := range testcases {
-		tc := tc // capture range variable
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 

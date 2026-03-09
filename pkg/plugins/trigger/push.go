@@ -18,6 +18,7 @@ package trigger
 
 import (
 	"context"
+	"maps"
 
 	prowapi "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 	"sigs.k8s.io/prow/pkg/config"
@@ -81,9 +82,7 @@ func handlePE(c Client, pe github.PushEvent) error {
 		}
 		refs := createRefs(pe)
 		labels := make(map[string]string)
-		for k, v := range j.Labels {
-			labels[k] = v
-		}
+		maps.Copy(labels, j.Labels)
 		labels[github.EventGUID] = pe.GUID
 		pj := pjutil.NewProwJob(pjutil.PostsubmitSpec(j, refs), labels, j.Annotations, pjutil.RequireScheduling(c.Config.Scheduler.Enabled))
 		c.Logger.WithFields(pjutil.ProwJobFields(&pj)).Info("Creating a new prowjob.")

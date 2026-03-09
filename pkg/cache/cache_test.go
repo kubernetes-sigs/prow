@@ -28,21 +28,21 @@ import (
 // construction fails.
 func TestGetOrAddSimple(t *testing.T) {
 	valConstructorCalls := 0
-	goodValConstructor := func(val string) func() (interface{}, error) {
-		return func() (interface{}, error) {
+	goodValConstructor := func(val string) func() (any, error) {
+		return func() (any, error) {
 			valConstructorCalls++
 			return "(val)" + val, nil
 		}
 	}
-	badValConstructor := func(key string) func() (interface{}, error) {
-		return func() (interface{}, error) {
+	badValConstructor := func(key string) func() (any, error) {
+		return func() (any, error) {
 			valConstructorCalls++
 			return "", fmt.Errorf("could not construct val")
 		}
 	}
 
-	goodValConstructorForInitialState := func(val string) func() (interface{}, error) {
-		return func() (interface{}, error) {
+	goodValConstructorForInitialState := func(val string) func() (any, error) {
+		return func() (any, error) {
 			return val, nil
 		}
 	}
@@ -217,8 +217,8 @@ func TestGetOrAddBurst(t *testing.T) {
 	// that some CPU cycles will be spent between the time we unlock the
 	// testLock and the time we retrieve the computed value (all within the same
 	// thread).
-	goodValConstructor := func(input int) func() (interface{}, error) {
-		return func() (interface{}, error) {
+	goodValConstructor := func(input int) func() (any, error) {
+		return func() (any, error) {
 			testLock.Lock()
 			valConstructorCalls++
 			testLock.Unlock()
@@ -253,7 +253,7 @@ func TestGetOrAddBurst(t *testing.T) {
 	// Consider the case where all threads perform the same cache lookup.
 	expectedVal := "(val)input=3,steps=7,max=16"
 	wg.Add(maxConcurrentRequests)
-	for i := 0; i < maxConcurrentRequests; i++ {
+	for range maxConcurrentRequests {
 		go func() {
 			// Input of 3 for goodValConstructor will take 7 steps and reach a
 			// maximum value of 16. We check this below.
@@ -286,7 +286,7 @@ func TestGetOrAddBurst(t *testing.T) {
 
 	// Consider the case where all threads perform one of 5 different cache lookups.
 	wg.Add(maxConcurrentRequests)
-	for i := 0; i < maxConcurrentRequests; i++ {
+	for i := range maxConcurrentRequests {
 		j := (i % 5) + 1
 		expectedVal := ""
 		go func() {
@@ -324,13 +324,13 @@ func TestGetOrAddBurst(t *testing.T) {
 }
 
 func TestCallbacks(t *testing.T) {
-	goodValConstructor := func(val string) func() (interface{}, error) {
-		return func() (interface{}, error) {
+	goodValConstructor := func(val string) func() (any, error) {
+		return func() (any, error) {
 			return val, nil
 		}
 	}
-	badValConstructor := func(val string) func() (interface{}, error) {
-		return func() (interface{}, error) {
+	badValConstructor := func(val string) func() (any, error) {
+		return func() (any, error) {
 			return "", fmt.Errorf("could not construct val")
 		}
 	}
@@ -343,7 +343,7 @@ func TestCallbacks(t *testing.T) {
 
 	counterLock := &sync.Mutex{}
 	mkCallback := func(counter *int) EventCallback {
-		callback := func(key interface{}) {
+		callback := func(key any) {
 			counterLock.Lock()
 			(*counter)++
 			counterLock.Unlock()
@@ -354,7 +354,7 @@ func TestCallbacks(t *testing.T) {
 	lookupsCallback := mkCallback(&lookupsCounter)
 	hitsCallback := mkCallback(&hitsCounter)
 	missesCallback := mkCallback(&missesCounter)
-	forcedEvictionsCallback := func(key interface{}, _ interface{}) {
+	forcedEvictionsCallback := func(key any, _ any) {
 		forcedEvictionsCounter++
 	}
 	manualEvictionsCallback := mkCallback(&manualEvictionsCounter)
@@ -388,7 +388,7 @@ func TestCallbacks(t *testing.T) {
 
 	type lookup struct {
 		key            string
-		valConstructor func(val string) func() (interface{}, error)
+		valConstructor func(val string) func() (any, error)
 	}
 
 	for _, tc := range []struct {
@@ -500,22 +500,15 @@ func TestCallbacks(t *testing.T) {
 			// concurrency should have no effect on the operation of the
 			// callbacks.
 			for k, v := range tc.cacheInitialState {
-				k := k
-				v := v
-				wg.Add(1)
-				go func() {
+				wg.Go(func() {
 					cache.GetOrAdd(k, goodValConstructor(v))
-					wg.Done()
-				}()
+				})
 			}
 
 			for _, lookup := range tc.lookups {
-				lookup := lookup
-				wg.Add(1)
-				go func() {
+				wg.Go(func() {
 					cache.GetOrAdd(lookup.key, lookup.valConstructor("(val)"+lookup.key))
-					wg.Done()
-				}()
+				})
 			}
 			wg.Wait()
 
