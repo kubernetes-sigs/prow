@@ -663,7 +663,7 @@ func ParseAliasesConfig(b []byte) (RepoAliases, error) {
 	result := make(RepoAliases)
 
 	config := &struct {
-		Data map[string]interface{} `json:"aliases,omitempty"`
+		Data map[string]any `json:"aliases,omitempty"`
 	}{}
 	if err := yaml.Unmarshal(b, config); err != nil {
 		return result, err
@@ -671,7 +671,7 @@ func ParseAliasesConfig(b []byte) (RepoAliases, error) {
 
 	for alias, expanded := range config.Data {
 		switch v := expanded.(type) {
-		case []interface{}:
+		case []any:
 			// Convert []interface{} to []string
 			var members []string
 			for _, member := range v {
@@ -685,7 +685,7 @@ func ParseAliasesConfig(b []byte) (RepoAliases, error) {
 		case string:
 			// Alias group must contain a list of members.
 			return result, fmt.Errorf("alias group '%s' must contain a list of members", alias)
-		case map[string]interface{}:
+		case map[string]any:
 			// Handle Flow Style Mapping (Inline Dictionary/Object Syntax). Example - aliases: { alias-group: { alias1, alias2 } }
 			var members []string
 			for key := range v {

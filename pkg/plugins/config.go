@@ -463,12 +463,7 @@ func (l Label) RestrictedLabelsFor(org, repo string) map[string]RestrictedLabel 
 }
 
 func (l Label) IsRestrictedLabelInAdditionalLabels(restricted string) bool {
-	for _, additional := range l.AdditionalLabels {
-		if restricted == additional {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(l.AdditionalLabels, restricted)
 }
 
 type RestrictedLabel struct {
@@ -1090,13 +1085,7 @@ func (p *Plugins) UnmarshalJSON(d []byte) error {
 func (c *Configuration) EnabledReposForPlugin(plugin string) (orgs, repos []string, orgExceptions map[string]sets.Set[string]) {
 	orgExceptions = make(map[string]sets.Set[string])
 	for repo, plugins := range c.Plugins {
-		found := false
-		for _, candidate := range plugins.Plugins {
-			if candidate == plugin {
-				found = true
-				break
-			}
-		}
+		found := slices.Contains(plugins.Plugins, plugin)
 		if found {
 			if strings.Contains(repo, "/") {
 				repos = append(repos, repo)
@@ -1422,10 +1411,8 @@ func validateProjectManager(pm ProjectManager) error {
 					return fmt.Errorf("Org/repo: %s, project %s, column %s, has no org configured", orgRepoName, projectName, managedColumn.Name)
 				}
 				sSet := sets.New[string](managedColumn.Labels...)
-				for _, labels := range labelSets {
-					if sSet.Equal(labels) {
-						return fmt.Errorf("Org/repo: %s, project %s, column %s has same labels configured as another column", orgRepoName, projectName, managedColumn.Name)
-					}
+				if slices.ContainsFunc(labelSets, sSet.Equal) {
+					return fmt.Errorf("Org/repo: %s, project %s, column %s has same labels configured as another column", orgRepoName, projectName, managedColumn.Name)
 				}
 				labelSets = append(labelSets, sSet)
 			}
@@ -1784,7 +1771,7 @@ type BugzillaBranchOptions struct {
 	AllowedGroups []string `json:"allowed_groups,omitempty"`
 }
 
-type BugzillaBugStateSet map[BugzillaBugState]interface{}
+type BugzillaBugStateSet map[BugzillaBugState]any
 
 func NewBugzillaBugStateSet(states []BugzillaBugState) BugzillaBugStateSet {
 	set := make(BugzillaBugStateSet, len(states))

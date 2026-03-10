@@ -172,14 +172,18 @@ func updateFixesLine(body string, toAdd []string, toRemove []string) string {
 	fixesIndex := -1
 	issueSet := sets.NewString()
 
-	// Find and parse existing Fixes line
+	// Find existing Fixes line
 	for i, line := range lines {
-		if m := fixesRegex.FindStringSubmatch(line); m != nil {
+		if fixesRegex.MatchString(line) {
 			fixesIndex = i
-			for _, issue := range strings.Fields(m[1]) {
-				issueSet.Insert(issue)
-			}
 			break
+		}
+	}
+	// Parse issues from the found line
+	if fixesIndex >= 0 {
+		m := fixesRegex.FindStringSubmatch(lines[fixesIndex])
+		for issue := range strings.FieldsSeq(m[1]) {
+			issueSet.Insert(issue)
 		}
 	}
 

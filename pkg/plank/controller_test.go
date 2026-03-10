@@ -758,7 +758,7 @@ func TestSyncTriggeredJobs(t *testing.T) {
 			}
 
 			for jobName, numJobsToCreate := range tc.PendingJobs {
-				for i := 0; i < numJobsToCreate; i++ {
+				for i := range numJobsToCreate {
 					if err := fakeProwJobClient.Create(ctx, &prowapi.ProwJob{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      fmt.Sprintf("%s-%d", jobName, i),
@@ -2112,7 +2112,7 @@ func TestMaxConcurrencyWithNewlyTriggeredJobs(t *testing.T) {
 			}
 
 			for jobName, numJobsToCreate := range test.PendingJobs {
-				for i := 0; i < numJobsToCreate; i++ {
+				for i := range numJobsToCreate {
 					if err := fakeProwJobClient.Create(ctx, &prowapi.ProwJob{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      fmt.Sprintf("%s-%d", jobName, i),

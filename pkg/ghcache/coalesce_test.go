@@ -83,7 +83,7 @@ func TestRoundTrip(t *testing.T) {
 	}
 	wg := sync.WaitGroup{}
 	wg.Add(100)
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		go func() {
 			if _, err := runRequest(coalescer, "/resource1", false); err != nil {
 				t.Errorf("Failed to run request: %v.", err)
@@ -137,15 +137,13 @@ func TestCacheModeHeader(t *testing.T) {
 
 	// Queue an initial request for resource1.
 	// This should eventually return ModeMiss.
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		if resp, err := runRequest(coalescer, "/resource1", false); err != nil {
 			t.Errorf("Failed to run request: %v.", err)
 		} else {
 			checkMode(resp, ModeMiss)
 		}
-		wg.Done()
-	}()
+	})
 	// There is a race here and where sleeps are used below.
 	// We need to wait for the initial request to be made
 	// to the coalescer before letting upstream respond, but we don't have a way
@@ -155,15 +153,13 @@ func TestCacheModeHeader(t *testing.T) {
 
 	// Queue a second request for resource1.
 	// This should coalesce and eventually return ModeCoalesced.
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		if resp, err := runRequest(coalescer, "/resource1", false); err != nil {
 			t.Errorf("Failed to run request: %v.", err)
 		} else {
 			checkMode(resp, ModeCoalesced)
 		}
-		wg.Done()
-	}()
+	})
 	time.Sleep(time.Second * 3)
 
 	// Requests should be waiting now. Start responding and wait for all

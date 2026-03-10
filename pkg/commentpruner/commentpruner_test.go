@@ -18,6 +18,7 @@ package commentpruner
 
 import (
 	"reflect"
+	"slices"
 	"sort"
 	"testing"
 
@@ -61,18 +62,10 @@ func newFakeGHClient(commentsToLogins map[int]string) *fakeGHClient {
 
 func testPruneFunc(errorComments *[]int, toPrunes, toErrs []int) func(github.IssueComment) bool {
 	return func(ic github.IssueComment) bool {
-		for _, toErr := range toErrs {
-			if ic.ID == toErr {
-				*errorComments = append(*errorComments, ic.ID)
-				break
-			}
+		if slices.Contains(toErrs, ic.ID) {
+			*errorComments = append(*errorComments, ic.ID)
 		}
-		for _, toPrune := range toPrunes {
-			if ic.ID == toPrune {
-				return true
-			}
-		}
-		return false
+		return slices.Contains(toPrunes, ic.ID)
 	}
 }
 

@@ -20,6 +20,7 @@ import (
 	context "context"
 	"errors"
 	"fmt"
+	"maps"
 	"regexp"
 	"strings"
 	"time"
@@ -466,7 +467,7 @@ func getDecoratedLoggerEntry(allowedApiClient *config.AllowedApiClient, md *meta
 	}
 
 	knownHeaders := cv.GetRequiredMdHeaders()
-	fields := make(map[string]interface{})
+	fields := make(map[string]any)
 	for _, header := range knownHeaders {
 		values := md.Get(header)
 		// Only use the first value. MD stores multiple values in case other
@@ -659,20 +660,12 @@ func mergeMapFields(cjer *CreateJobExecutionRequest, staticLabels, staticAnnotat
 
 	// Overwrite the static definitions with what we received in the
 	// CreateJobExecutionRequest. This order is important.
-	for k, v := range staticLabels {
-		combinedLabels[k] = v
-	}
-	for k, v := range pso.GetLabels() {
-		combinedLabels[k] = v
-	}
+	maps.Copy(combinedLabels, staticLabels)
+	maps.Copy(combinedLabels, pso.GetLabels())
 
 	// Do the same for the annotations.
-	for k, v := range staticAnnotations {
-		combinedAnnotations[k] = v
-	}
-	for k, v := range pso.GetAnnotations() {
-		combinedAnnotations[k] = v
-	}
+	maps.Copy(combinedAnnotations, staticAnnotations)
+	maps.Copy(combinedAnnotations, pso.GetAnnotations())
 
 	return combinedLabels, combinedAnnotations
 }
@@ -907,7 +900,6 @@ func (prh *presubmitJobHandler) getProwJobSpec(mainConfig prowCfgClient, ircg co
 	}
 	var headSHAGetters []func() (string, error)
 	for _, pull := range refs.Pulls {
-		pull := pull
 		headSHAGetters = append(headSHAGetters, func() (string, error) {
 			return pull.SHA, nil
 		})
@@ -932,7 +924,6 @@ func (prh *presubmitJobHandler) getProwJobSpec(mainConfig prowCfgClient, ircg co
 	}
 
 	for _, job := range presubmits {
-		job := job
 		if !job.CouldRun(branch) { // filter out jobs that are not branch matching
 			continue
 		}
@@ -1000,7 +991,6 @@ func (poh *postsubmitJobHandler) getProwJobSpec(mainConfig prowCfgClient, ircg c
 	}
 
 	for _, job := range postsubmits {
-		job := job
 		if !job.CouldRun(branch) { // filter out jobs that are not branch matching
 			continue
 		}

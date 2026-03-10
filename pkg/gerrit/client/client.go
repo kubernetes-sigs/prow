@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"os"
 	"sort"
@@ -147,9 +148,7 @@ func (l LastSyncState) DeepCopy() LastSyncState {
 	result := LastSyncState{}
 	for host, lastSyncs := range l {
 		result[host] = map[string]time.Time{}
-		for projects, lastSync := range lastSyncs {
-			result[host][projects] = lastSync
-		}
+		maps.Copy(result[host], lastSyncs)
 	}
 	return result
 }
@@ -259,9 +258,7 @@ func (c *Client) authenticateOnce() {
 func (c *Client) getAllHandlers() map[string]*gerritInstanceHandler {
 	c.lock.RLock()
 	copied := make(map[string]*gerritInstanceHandler, len(c.handlers))
-	for instance, handler := range c.handlers {
-		copied[instance] = handler
-	}
+	maps.Copy(copied, c.handlers)
 	c.lock.RUnlock()
 	return copied
 }

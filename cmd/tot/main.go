@@ -200,7 +200,7 @@ func (f fallbackHandler) get(jobName string) int {
 
 	var body []byte
 
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		resp, err := http.Get(url)
 		if err == nil {
 			defer resp.Body.Close()

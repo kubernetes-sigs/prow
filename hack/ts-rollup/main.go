@@ -202,7 +202,6 @@ func main() {
 	}
 
 	for _, pi := range pis.Packages {
-		pi := pi
 		wg.Add(1)
 		packageChan <- pi
 	}

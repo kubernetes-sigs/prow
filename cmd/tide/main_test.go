@@ -18,6 +18,7 @@ package main
 
 import (
 	"flag"
+	"maps"
 	"reflect"
 	"testing"
 	"time"
@@ -120,9 +121,7 @@ func Test_gatherOptions(t *testing.T) {
 			argMap := map[string]string{
 				"--config-path": "yo",
 			}
-			for k, v := range tc.args {
-				argMap[k] = v
-			}
+			maps.Copy(argMap, tc.args)
 			for k := range tc.del {
 				delete(argMap, k)
 			}
@@ -241,7 +240,6 @@ func TestProvider(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			if want, got := tc.expect, provider(tc.provider, tc.tideConfig); want != got {
 				t.Errorf("Wrong provider. Want: %s, got: %s", want, got)

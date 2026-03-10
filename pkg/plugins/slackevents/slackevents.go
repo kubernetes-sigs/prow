@@ -19,6 +19,7 @@ package slackevents
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -206,13 +207,7 @@ func echoToSlack(pc client, e github.GenericCommentEvent) error {
 	for _, match := range sigMatches {
 		sig := "sig-" + match[1]
 		// Check if this sig is a slack channel that should be messaged.
-		found := false
-		for _, channel := range pc.SlackConfig.MentionChannels {
-			if channel == sig {
-				found = true
-				break
-			}
-		}
+		found := slices.Contains(pc.SlackConfig.MentionChannels, sig)
 		if !found {
 			continue
 		}

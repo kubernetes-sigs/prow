@@ -88,7 +88,7 @@ func GetBuildID(name, totURL string) (string, error) {
 	}
 	url.Path = path.Join(url.Path, "vend", name)
 	sleepDuration := 100 * time.Millisecond
-	for retries := 0; retries < 10; retries++ {
+	for retries := range 10 {
 		if retries > 0 {
 			sleep(sleepDuration)
 			sleepDuration = sleepDuration * 2

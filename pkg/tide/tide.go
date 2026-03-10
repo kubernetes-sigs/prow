@@ -62,7 +62,7 @@ type githubClient interface {
 	GetRef(string, string, string) (string, error)
 	GetRepo(owner, name string) (github.FullRepo, error)
 	Merge(string, string, int, github.MergeDetails) error
-	QueryWithGitHubAppsSupport(ctx context.Context, q interface{}, vars map[string]interface{}, org string) error
+	QueryWithGitHubAppsSupport(ctx context.Context, q any, vars map[string]any, org string) error
 	ListIssueComments(org, repo string, number int) ([]github.IssueComment, error)
 	BotUserChecker() (func(candidate string) bool, error)
 	DeleteComment(org, repo string, id int) error
@@ -1425,7 +1425,7 @@ func tryMerge(mergeFunc func() error) (bool, error) {
 	var err error
 	const maxRetries = 3
 	backoff := time.Second * 4
-	for retry := 0; retry < maxRetries; retry++ {
+	for retry := range maxRetries {
 		if err = mergeFunc(); err == nil {
 			// Successful merge!
 			return true, nil
@@ -2304,7 +2304,7 @@ func pickBatchWithPreexistingTests(sp subpool, candidates []CodeReviewCommon, ma
 	}
 	prNumbersFromMapKey := func(s string) []int {
 		var result []int
-		for _, element := range strings.Split(s, "|") {
+		for element := range strings.SplitSeq(s, "|") {
 			intVal, err := strconv.Atoi(element)
 			if err != nil {
 				logrus.WithField("element", element).Error("BUG: Found element in pr numbers map that was not parseable as int")

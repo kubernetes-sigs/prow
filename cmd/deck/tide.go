@@ -91,11 +91,11 @@ func (ta *tideAgent) start() {
 	}()
 }
 
-func fetchTideData(log *logrus.Entry, path string, data interface{}) error {
+func fetchTideData(log *logrus.Entry, path string, data any) error {
 	var prevErrs []error
 	var err error
 	backoff := 5 * time.Second
-	for i := 0; i < 4; i++ {
+	for range 4 {
 		var resp *http.Response
 		if err != nil {
 			prevErrs = append(prevErrs, err)

@@ -304,7 +304,7 @@ func (o *opener) Writer(ctx context.Context, p string, opts ...WriterOptions) (i
 	options.apply(nil, &wOpts)
 
 	if options.PreconditionDoesNotExist != nil && *options.PreconditionDoesNotExist {
-		wOpts.BeforeWrite = func(asFunc func(interface{}) bool) error {
+		wOpts.BeforeWrite = func(asFunc func(any) bool) error {
 			_, err := o.Reader(ctx, p)
 			if err != nil {
 				// we got an error, but not object not exists

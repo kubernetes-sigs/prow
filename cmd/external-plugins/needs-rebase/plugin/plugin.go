@@ -53,7 +53,7 @@ type githubClient interface {
 	RemoveLabelWithContext(ctx context.Context, org, repo string, number int, label string) error
 	IsMergeable(org, repo string, number int, sha string) (bool, error)
 	DeleteStaleCommentsWithContext(ctx context.Context, org, repo string, number int, comments []github.IssueComment, isStale func(github.IssueComment) bool) error
-	QueryWithGitHubAppsSupport(ctx context.Context, q interface{}, vars map[string]interface{}, org string) error
+	QueryWithGitHubAppsSupport(ctx context.Context, q any, vars map[string]any, org string) error
 	GetPullRequest(org, repo string, number int) (*github.PullRequest, error)
 }
 
@@ -260,7 +260,7 @@ func shouldPrune(isBot func(string) bool) func(github.IssueComment) bool {
 
 func search(ctx context.Context, log *logrus.Entry, ghc githubClient, q, org string) ([]pullRequest, error) {
 	var ret []pullRequest
-	vars := map[string]interface{}{
+	vars := map[string]any{
 		"query":        githubql.String(q),
 		"searchCursor": (*githubql.String)(nil),
 	}

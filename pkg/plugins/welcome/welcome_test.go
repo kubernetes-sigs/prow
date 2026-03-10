@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"testing"
 
 	"github.com/sirupsen/logrus"
@@ -79,20 +80,16 @@ func (fc *fakeClient) NumComments() int {
 
 // IsMember returns true if user is in org.
 func (fc *fakeClient) IsMember(org, user string) (bool, error) {
-	for _, m := range fc.orgMembers[org] {
-		if m == user {
-			return true, nil
-		}
+	if slices.Contains(fc.orgMembers[org], user) {
+		return true, nil
 	}
 	return false, nil
 }
 
 // IsCollaborator returns true if the user is a collaborator of the repo.
 func (fc *fakeClient) IsCollaborator(org, repo, login string) (bool, error) {
-	for _, collab := range fc.collaborators {
-		if collab == login {
-			return true, nil
-		}
+	if slices.Contains(fc.collaborators, login) {
+		return true, nil
 	}
 	return false, nil
 }

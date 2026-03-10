@@ -20,6 +20,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"maps"
 	"os"
 	"strings"
 
@@ -165,7 +166,7 @@ func main() {
 		if err != nil {
 			logrus.WithError(err).Fatalf("Dump %s failed to collect current data.", o.dump)
 		}
-		var output interface{}
+		var output any
 		if o.dumpFull {
 			output = org.FullConfig{
 				Orgs: map[string]org.Config{o.dump: *ret},
@@ -1176,9 +1177,7 @@ func configureCollaborators(client collaboratorClient, orgName, repoName string,
 	// Create combined map of current direct collaborators + pending invitations
 	// This treats pending invitations as current collaborators for removal purposes
 	combinedCollaboratorsRaw := make(map[string]github.RepoPermissionLevel)
-	for user, permission := range currentCollaboratorsRaw {
-		combinedCollaboratorsRaw[user] = permission
-	}
+	maps.Copy(combinedCollaboratorsRaw, currentCollaboratorsRaw)
 	for user, permission := range pendingInvitations {
 		// Add pending invitations to our combined view (normalized usernames)
 		if _, exists := combinedCollaboratorsRaw[user]; !exists {

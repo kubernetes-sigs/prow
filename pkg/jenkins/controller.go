@@ -325,14 +325,11 @@ func syncProwJobs(
 	syncErrors chan<- error,
 	jbs map[string]Build,
 ) {
-	goroutines := maxSyncRoutines
-	if goroutines > len(jobs) {
-		goroutines = len(jobs)
-	}
+	goroutines := min(maxSyncRoutines, len(jobs))
 	wg := &sync.WaitGroup{}
 	wg.Add(goroutines)
 	l.Debugf("Firing up %d goroutines", goroutines)
-	for i := 0; i < goroutines; i++ {
+	for range goroutines {
 		go func() {
 			defer wg.Done()
 			for pj := range jobs {

@@ -20,6 +20,7 @@ package pjutil
 import (
 	"bytes"
 	"fmt"
+	"maps"
 	"net/url"
 	"path"
 	"strconv"
@@ -158,18 +159,12 @@ func createRefs(pr github.PullRequest, baseSHA string) prowapi.Refs {
 func NewPresubmit(pr github.PullRequest, baseSHA string, job config.Presubmit, eventGUID string, additionalLabels map[string]string, modifiers ...Modifier) prowapi.ProwJob {
 	refs := createRefs(pr, baseSHA)
 	labels := make(map[string]string)
-	for k, v := range job.Labels {
-		labels[k] = v
-	}
-	for k, v := range additionalLabels {
-		labels[k] = v
-	}
+	maps.Copy(labels, job.Labels)
+	maps.Copy(labels, additionalLabels)
 	labels[github.EventGUID] = eventGUID
 	labels[kube.IsOptionalLabel] = strconv.FormatBool(job.Optional)
 	annotations := make(map[string]string)
-	for k, v := range job.Annotations {
-		annotations[k] = v
-	}
+	maps.Copy(annotations, job.Annotations)
 	return NewProwJob(PresubmitSpec(job, refs), labels, annotations, modifiers...)
 }
 

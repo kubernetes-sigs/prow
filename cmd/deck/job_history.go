@@ -177,7 +177,7 @@ func (bucket blobStorageBucket) getPath(ctx context.Context, root, id, fname str
 }
 
 // reads specified JSON file in to `data`
-func readJSON(ctx context.Context, bucket storageBucket, key string, data interface{}) error {
+func readJSON(ctx context.Context, bucket storageBucket, key string, data any) error {
 	rawData, err := bucket.readObject(ctx, key)
 	if err != nil {
 		return fmt.Errorf("failed to read %s: %w", key, err)
@@ -520,7 +520,7 @@ func getJobHistory(ctx context.Context, url *url.URL, cfg config.Getter, opener 
 			bch <- b
 		}(i, buildID)
 	}
-	for i := 0; i < len(shownIDs); i++ {
+	for range shownIDs {
 		b := <-bch
 		tmpl.Builds[b.index] = b
 	}

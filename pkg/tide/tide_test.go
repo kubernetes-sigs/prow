@@ -699,7 +699,7 @@ func TestAccumulate(t *testing.T) {
 type githubClientFuncs struct {
 	GetRepo                    func(ghc githubClient, o, r string) (github.FullRepo, error)
 	GetRef                     func(ghc githubClient, o, r, ref string) (string, error)
-	QueryWithGitHubAppsSupport func(ghc githubClient, ctx context.Context, q interface{}, vars map[string]interface{}, org string) error
+	QueryWithGitHubAppsSupport func(ghc githubClient, ctx context.Context, q any, vars map[string]any, org string) error
 	Merge                      func(ghc githubClient, org, repo string, number int, details github.MergeDetails) error
 	CreateStatus               func(ghc githubClient, org, repo, ref string, s github.Status) error
 	GetCombinedStatus          func(ghc githubClient, org, repo, ref string) (*github.CombinedStatus, error)
@@ -729,7 +729,7 @@ func (f *ghcInterceptor) GetRef(o, r, ref string) (string, error) {
 	return f.c.GetRef(o, r, ref)
 }
 
-func (f *ghcInterceptor) QueryWithGitHubAppsSupport(ctx context.Context, q interface{}, vars map[string]interface{}, org string) error {
+func (f *ghcInterceptor) QueryWithGitHubAppsSupport(ctx context.Context, q any, vars map[string]any, org string) error {
 	if f.interceptors.QueryWithGitHubAppsSupport != nil {
 		return f.interceptors.QueryWithGitHubAppsSupport(f.c, ctx, q, vars, org)
 	}
@@ -829,7 +829,7 @@ func (f *fgc) GetRef(o, r, ref string) (string, error) {
 	return f.refs[o+"/"+r+" "+ref], f.err
 }
 
-func (f *fgc) QueryWithGitHubAppsSupport(ctx context.Context, q interface{}, vars map[string]interface{}, org string) error {
+func (f *fgc) QueryWithGitHubAppsSupport(ctx context.Context, q any, vars map[string]any, org string) error {
 	sq, ok := q.(*searchQuery)
 	if !ok {
 		return errors.New("unexpected query type")
@@ -2381,7 +2381,7 @@ func TestSync(t *testing.T) {
 				string(faultyOrg.Repository.Owner.Login):  {faultyOrg},
 			},
 			ghcFuncs: githubClientFuncs{
-				QueryWithGitHubAppsSupport: func(c githubClient, ctx context.Context, q interface{}, vars map[string]interface{}, org string) error {
+				QueryWithGitHubAppsSupport: func(c githubClient, ctx context.Context, q any, vars map[string]any, org string) error {
 					if isBlockersSearchQueryType(q) {
 						if org == string(faultyOrg.Repository.Owner.Login) {
 							return errors.New("gh app is not installed on this organization")
@@ -3463,7 +3463,6 @@ func TestPresubmitsByPull(t *testing.T) {
 	}
 
 	for _, tc := range testcases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			if tc.initialChangeCache == nil {
 				tc.initialChangeCache = map[changeCacheKey][]string{}
@@ -4511,7 +4510,7 @@ func TestDeduplicateContestsDoesntLoseData(t *testing.T) {
 	// Print the seed so failures can easily be reproduced
 	t.Logf("Seed: %d", seed)
 	fuzzer := fuzz.NewWithSeed(seed)
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			context := Context{}
 			fuzzer.Fuzz(&context)

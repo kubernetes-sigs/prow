@@ -26,6 +26,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -71,13 +72,7 @@ func validateNotEmpty(collection []string) bool {
 
 // validateContainment handles validation for containment of target in collection.
 func validateContainment(collection []string, target string) bool {
-	for _, val := range collection {
-		if val == target {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(collection, target)
 }
 
 // prompt prompts user with a message (and optional default value); return the selection as string.
@@ -206,10 +201,8 @@ func selectProject(choice string) (string, error) {
 	}
 
 	// is this a project from the list?
-	for _, p := range projs {
-		if p == choice {
-			return choice, nil
-		}
+	if slices.Contains(projs, choice) {
+		return choice, nil
 	}
 
 	fmt.Printf("Ensuring %s has access to %s...", who, choice)
@@ -283,7 +276,7 @@ func currentClusters(proj string) (map[string]cluster, error) {
 		return nil, fmt.Errorf("list clusters: %w", err)
 	}
 	options := map[string]cluster{}
-	for _, line := range strings.Split(clusters, "\n") {
+	for line := range strings.SplitSeq(clusters, "\n") {
 		if len(line) == 0 {
 			continue
 		}
@@ -654,12 +647,9 @@ func ingress(kc *kubernetes.Clientset, ns, service string) (url.URL, error) {
 
 			// does it have an ip or hostname?
 			for _, tls := range ing.Spec.TLS {
-				for _, h := range tls.Hosts {
-					if h == maybe.Host {
-						cur = 3
-						maybe.Scheme = "https"
-						break
-					}
+				if slices.Contains(tls.Hosts, maybe.Host) {
+					cur = 3
+					maybe.Scheme = "https"
 				}
 			}
 

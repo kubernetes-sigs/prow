@@ -27,6 +27,7 @@ import (
 	"bytes"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -276,10 +277,5 @@ func matchesAny(str string, regexps []*regexp.Regexp) bool {
 }
 
 func stringInSlice(str string, slice []string) bool {
-	for _, elem := range slice {
-		if elem == str {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(slice, str)
 }

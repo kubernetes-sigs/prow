@@ -101,7 +101,7 @@ func handle(gc gitHubClient, log *logrus.Entry, se github.StatusEvent) error {
 
 	var issues []github.Issue
 	var err error
-	for i := 0; i < maxRetries; i++ {
+	for range maxRetries {
 		issues, err = gc.FindIssues(fmt.Sprintf("%s repo:%s/%s type:pr state:open", se.SHA, org, repo), "", false)
 		if err != nil {
 			return fmt.Errorf("error searching for issues matching commit: %w", err)

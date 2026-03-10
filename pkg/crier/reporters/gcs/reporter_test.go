@@ -347,7 +347,6 @@ func TestReportJobStarted(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
 			cfg := fca{c: config.Config{

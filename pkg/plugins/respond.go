@@ -72,7 +72,7 @@ func FormatResponseRaw(body, bodyURL, login, reply string) string {
 `
 	// Quote the user's comment by prepending ">" to each line.
 	var quoted []string
-	for _, l := range strings.Split(body, "\n") {
+	for l := range strings.SplitSeq(body, "\n") {
 		quoted = append(quoted, ">"+l)
 	}
 	return FormatResponse(login, reply, fmt.Sprintf(format, bodyURL, strings.Join(quoted, "\n")))
