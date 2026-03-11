@@ -308,26 +308,12 @@ func watchConfigs(ca *Agent, onError func(error), prowConfig, jobConfig string, 
 // will log the failure message but continue attempting to load.
 // This function will replace Start in a future release.
 func (ca *Agent) StartWatch(prowConfig, jobConfig string, supplementalProwConfigDirs []string, supplementalProwConfigsFileNameSuffix string, additionals ...func(*Config) error) error {
-	return ca.StartWatchWithErrorHandler(nil, prowConfig, jobConfig, supplementalProwConfigDirs, supplementalProwConfigsFileNameSuffix, additionals...)
-}
-
-// StartWatchWithErrorHandler behaves like StartWatch and calls onError on config load failures.
-func (ca *Agent) StartWatchWithErrorHandler(onError func(error), prowConfig, jobConfig string, supplementalProwConfigDirs []string, supplementalProwConfigsFileNameSuffix string, additionals ...func(*Config) error) error {
 	c, err := Load(prowConfig, jobConfig, supplementalProwConfigDirs, supplementalProwConfigsFileNameSuffix, additionals...)
 	if err != nil {
-		if onError != nil {
-			onError(err)
-		}
 		return err
 	}
 	ca.Set(c)
-	if err := watchConfigs(ca, onError, prowConfig, jobConfig, supplementalProwConfigDirs, supplementalProwConfigsFileNameSuffix, additionals...); err != nil {
-		if onError != nil {
-			onError(err)
-		}
-		return err
-	}
-	return nil
+	return watchConfigs(ca, nil, prowConfig, jobConfig, supplementalProwConfigDirs, supplementalProwConfigsFileNameSuffix, additionals...)
 }
 
 func lastConfigModTime(prowConfig, jobConfig string) (time.Time, error) {

@@ -19,20 +19,23 @@ package statusreconciler
 import "github.com/prometheus/client_golang/prometheus"
 
 var statusReconcilerMetrics = struct {
-	controllerHealthy prometheus.Gauge
-	actuationEnabled  prometheus.Gauge
+	loadedPresubmitCount prometheus.Gauge
+	contextsRetiredTotal *prometheus.CounterVec
 }{
-	controllerHealthy: prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "status_reconciler_controller_healthy",
-		Help: "Whether status-reconciler currently reports healthy for liveness checks.",
+	loadedPresubmitCount: prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "status_reconciler_loaded_presubmit_count",
+		Help: "Number of loaded presubmit jobs in the latest config delta.",
 	}),
-	actuationEnabled: prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "status_reconciler_actuation_enabled",
-		Help: "Whether status-reconciler is currently allowed to actuate status reconciliation.",
-	}),
+	contextsRetiredTotal: prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "status_reconciler_contexts_retired_total",
+			Help: "Total number of retired contexts by org and repo.",
+		},
+		[]string{"org", "repo"},
+	),
 }
 
 func init() {
-	prometheus.MustRegister(statusReconcilerMetrics.controllerHealthy)
-	prometheus.MustRegister(statusReconcilerMetrics.actuationEnabled)
+	prometheus.MustRegister(statusReconcilerMetrics.loadedPresubmitCount)
+	prometheus.MustRegister(statusReconcilerMetrics.contextsRetiredTotal)
 }

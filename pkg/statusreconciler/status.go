@@ -70,7 +70,10 @@ func (s *statusController) Load() (chan config.Delta, error) {
 	changes := make(chan config.Delta)
 	s.Agent.Subscribe(changes)
 
-	if _, err := s.configOpts.ConfigAgentWithErrorHandling(s.onConfigLoadError, &s.Agent); err != nil {
+	if _, err := s.configOpts.ConfigAgent(
+		configflagutil.WithReuseAgent(&s.Agent),
+		configflagutil.WithErrorHandler(s.onConfigLoadError),
+	); err != nil {
 		s.logger.WithError(err).Error("Error starting config agent.")
 		return nil, err
 	}

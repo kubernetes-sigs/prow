@@ -69,7 +69,6 @@ func NewController(continueOnError bool, addedPresubmitDenylist, addedPresubmitD
 		statusClient: sc,
 	}
 	controller.setHealthy(true)
-	controller.setActuationEnabled(false)
 	sc.onConfigLoadError = controller.onConfigLoadError
 	return controller
 }
@@ -160,8 +159,7 @@ type Controller struct {
 	trustedChecker            trustedChecker
 	statusClient              statusClient
 
-	healthy          uint32
-	actuationEnabled uint32
+	healthy uint32
 }
 
 // Run monitors the incoming configuration changes to determine when statuses need to be
@@ -170,18 +168,16 @@ func (c *Controller) Run(ctx context.Context) {
 	changes, err := c.statusClient.Load()
 	if err != nil {
 		c.setHealthy(false)
-		c.setActuationEnabled(false)
 		logrus.WithError(err).Error("Error loading saved status.")
 		return
 	}
 	c.setHealthy(true)
-	c.setActuationEnabled(true)
 
 	for {
 		select {
 		case change := <-changes:
 			c.setHealthy(true)
-			c.setActuationEnabled(true)
+			statusReconcilerMetrics.loadedPresubmitCount.Set(float64(countLoadedPresubmits(change.After.PresubmitsStatic)))
 			start := time.Now()
 			log := logrus.WithField("old_config_revision", change.Before.ConfigVersionSHA).WithField("config_revision", change.After.ConfigVersionSHA)
 			if err := c.reconcile(change, log); err != nil {
@@ -201,34 +197,15 @@ func (c *Controller) Healthy() bool {
 	return atomic.LoadUint32(&c.healthy) == 1
 }
 
-// ActuationEnabled reports whether status-reconciler should process reconciliation.
-func (c *Controller) ActuationEnabled() bool {
-	return atomic.LoadUint32(&c.actuationEnabled) == 1
-}
-
 func (c *Controller) setHealthy(healthy bool) {
 	atomic.StoreUint32(&c.healthy, boolToUint32(healthy))
-	statusReconcilerMetrics.controllerHealthy.Set(boolToFloat64(healthy))
-}
-
-func (c *Controller) setActuationEnabled(enabled bool) {
-	atomic.StoreUint32(&c.actuationEnabled, boolToUint32(enabled))
-	statusReconcilerMetrics.actuationEnabled.Set(boolToFloat64(enabled))
 }
 
 func (c *Controller) onConfigLoadError(err error) {
 	if err != nil {
-		logrus.WithError(err).Error("Config load failed; disabling status-reconciler actuation.")
+		logrus.WithError(err).Error("Config load failed; marking status-reconciler unhealthy.")
 	}
 	c.setHealthy(false)
-	c.setActuationEnabled(false)
-}
-
-func boolToFloat64(value bool) float64 {
-	if value {
-		return 1
-	}
-	return 0
 }
 
 func boolToUint32(value bool) uint32 {
@@ -236,6 +213,14 @@ func boolToUint32(value bool) uint32 {
 		return 1
 	}
 	return 0
+}
+
+func countLoadedPresubmits(presubmits map[string][]config.Presubmit) int {
+	total := 0
+	for _, jobs := range presubmits {
+		total += len(jobs)
+	}
+	return total
 }
 
 func (c *Controller) reconcile(delta config.Delta, log *logrus.Entry) error {
@@ -369,6 +354,7 @@ func (c *Controller) retireRemovedContexts(retiredPresubmits map[string][]config
 				}
 				return err
 			}
+			statusReconcilerMetrics.contextsRetiredTotal.WithLabelValues(org, repo).Inc()
 		}
 	}
 	return utilerrors.NewAggregate(retireErrors)

@@ -79,28 +79,40 @@ func (o *ConfigOptions) ValidateConfigOptional() error {
 	return nil
 }
 
-func (o *ConfigOptions) ConfigAgent(reuse ...*config.Agent) (*config.Agent, error) {
-	return o.ConfigAgentWithErrorHandling(nil, reuse...)
+type ConfigAgentOption func(*configAgentOptions)
+
+type configAgentOptions struct {
+	onError     func(error)
+	additionals []func(*config.Config) error
+	reuse       *config.Agent
 }
 
-// ConfigAgentWithErrorHandling starts the config agent and invokes onError on load failures.
-func (o *ConfigOptions) ConfigAgentWithErrorHandling(onError func(error), reuse ...*config.Agent) (*config.Agent, error) {
-	var ca *config.Agent
-	if n := len(reuse); n > 1 {
-		return nil, fmt.Errorf("got more than one (%d) config agents to re-use", n)
-	} else if n == 1 {
-		ca = reuse[0]
-	} else {
+func WithErrorHandler(fn func(error)) ConfigAgentOption {
+	return func(options *configAgentOptions) {
+		options.onError = fn
+	}
+}
+
+func WithAdditionals(additionals ...func(*config.Config) error) ConfigAgentOption {
+	return func(options *configAgentOptions) {
+		options.additionals = additionals
+	}
+}
+
+func WithReuseAgent(agent *config.Agent) ConfigAgentOption {
+	return func(options *configAgentOptions) {
+		options.reuse = agent
+	}
+}
+
+func (o *ConfigOptions) ConfigAgent(agentOptions ...ConfigAgentOption) (*config.Agent, error) {
+	options := configAgentOptions{}
+	for _, agentOption := range agentOptions {
+		agentOption(&options)
+	}
+	ca := options.reuse
+	if ca == nil {
 		ca = &config.Agent{}
 	}
-	return o.ConfigAgentWithAdditionalsAndErrorHandling(ca, nil, onError)
-}
-
-func (o *ConfigOptions) ConfigAgentWithAdditionals(ca *config.Agent, additionals []func(*config.Config) error) (*config.Agent, error) {
-	return o.ConfigAgentWithAdditionalsAndErrorHandling(ca, additionals, nil)
-}
-
-// ConfigAgentWithAdditionalsAndErrorHandling starts the config agent with custom additionals and optional error handling.
-func (o *ConfigOptions) ConfigAgentWithAdditionalsAndErrorHandling(ca *config.Agent, additionals []func(*config.Config) error, onError func(error)) (*config.Agent, error) {
-	return ca, ca.StartWithErrorHandler(onError, o.ConfigPath, o.JobConfigPath, o.SupplementalProwConfigDirs.Strings(), o.SupplementalProwConfigsFileNameSuffix, additionals...)
+	return ca, ca.StartWithErrorHandler(options.onError, o.ConfigPath, o.JobConfigPath, o.SupplementalProwConfigDirs.Strings(), o.SupplementalProwConfigsFileNameSuffix, options.additionals...)
 }
