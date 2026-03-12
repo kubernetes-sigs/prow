@@ -63,22 +63,9 @@ func handleGenericComment(c Client, cp commentPruner, trigger plugins.Trigger, g
 
 	// Skip comments not germane to this plugin
 	textToCheck := markdown.DropCodeBlock(gc.Body)
-	if !pjutil.RetestRe.MatchString(textToCheck) &&
-		!pjutil.RetestRequiredRe.MatchString(textToCheck) &&
-		!pjutil.OkToTestRe.MatchString(textToCheck) &&
-		!pjutil.TestAllRe.MatchString(textToCheck) &&
-		!pjutil.MayNeedHelpComment(textToCheck) {
-		matched := false
-		for _, presubmit := range presubmits {
-			matched = matched || presubmit.TriggerMatches(textToCheck)
-			if matched {
-				break
-			}
-		}
-		if !matched {
-			c.Logger.Debug("Comment doesn't match any triggering regex, skipping.")
-			return nil
-		}
+	if !commentMatchesTrigger(textToCheck, presubmits) {
+		c.Logger.Debug("Comment doesn't match any triggering regex, skipping.")
+		return nil
 	}
 
 	// Skip untrusted users comments.
@@ -126,6 +113,25 @@ func handleGenericComment(c Client, cp commentPruner, trigger plugins.Trigger, g
 		if err := c.GitHubClient.RemoveLabel(org, repo, number, labels.NeedsOkToTest); err != nil {
 			return err
 		}
+	}
+
+	isOkToTestCancel := HonorOkToTest(trigger) && pjutil.OkToTestCancelRe.MatchString(textToCheck)
+	if isOkToTestCancel {
+		if !trustedResponse.IsTrusted {
+			resp := "Only trusted users can revoke `/ok-to-test`."
+			return c.GitHubClient.CreateComment(org, repo, number, plugins.FormatResponseRaw(gc.Body, gc.HTMLURL, gc.User.Login, resp))
+		}
+		if github.HasLabel(labels.OkToTest, l) {
+			if err := c.GitHubClient.RemoveLabel(org, repo, number, labels.OkToTest); err != nil {
+				return err
+			}
+		}
+		if !github.HasLabel(labels.NeedsOkToTest, l) {
+			if err := c.GitHubClient.AddLabel(org, repo, number, labels.NeedsOkToTest); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 
 	pr, err := refGetter.PullRequest()
@@ -202,6 +208,26 @@ func handleGenericComment(c Client, cp commentPruner, trigger plugins.Trigger, g
 
 func HonorOkToTest(trigger plugins.Trigger) bool {
 	return !trigger.IgnoreOkToTest
+}
+
+// commentMatchesTrigger reports whether the comment text is relevant to the
+// trigger plugin - i.e. it contains a known trigger command or matches a
+// presubmit trigger pattern.
+func commentMatchesTrigger(text string, presubmits []config.Presubmit) bool {
+	if pjutil.RetestRe.MatchString(text) ||
+		pjutil.RetestRequiredRe.MatchString(text) ||
+		pjutil.OkToTestRe.MatchString(text) ||
+		pjutil.OkToTestCancelRe.MatchString(text) ||
+		pjutil.TestAllRe.MatchString(text) ||
+		pjutil.MayNeedHelpComment(text) {
+		return true
+	}
+	for _, presubmit := range presubmits {
+		if presubmit.TriggerMatches(text) {
+			return true
+		}
+	}
+	return false
 }
 
 type GitHubClient interface {

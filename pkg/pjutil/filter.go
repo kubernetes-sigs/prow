@@ -37,6 +37,9 @@ var RetestRequiredRe = regexp.MustCompile(`(?m)^/retest-required\s*$`)
 
 var OkToTestRe = regexp.MustCompile(`(?m)^/ok-to-test\s*$`)
 
+// OkToTestCancelRe checks for cancellation of the `/ok-to-test` approval
+var OkToTestCancelRe = regexp.MustCompile(`(?m)^/ok-to-test\s+cancel\s*$`)
+
 // AvailablePresubmits returns 3 sets of presubmits:
 // 1. presubmits that can be run with '/test all' command.
 // 2. optional presubmits commands that can be run with their trigger, e.g. '/test job'
