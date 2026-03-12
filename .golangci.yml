@@ -19,6 +19,7 @@ linters:
         - -QF1002
         - -QF1003 # ignore using underscores in Go names
         - -QF1008 # ignore omit embbed fields from selector expressions
+        - -QF1012 # ignore use fmt.Fprintf instead of WriteString(fmt.Sprintf(...))
         - -ST* # disable all staticcheck style checks, we never ran these before
     modernize:
       disable:
