@@ -785,40 +785,66 @@ func handleProwJobs(ja *jobs.JobAgent, log *logrus.Entry) http.HandlerFunc {
 		setHeadersNoCaching(w)
 		jobs := ja.ProwJobs()
 		omit := r.URL.Query().Get("omit")
+		omitSet := sets.New(strings.Split(omit, ",")...)
 
-		if set := sets.New[string](strings.Split(omit, ",")...); set.Len() > 0 {
-			for i := range jobs {
-				jobs[i].ManagedFields = nil
-				if set.Has(Annotations) {
-					jobs[i].Annotations = nil
+		org := r.URL.Query().Get("org")
+		repo := r.URL.Query().Get("repo")
+		owner := r.URL.Query().Get("owner")
+
+		ownerMatch := func(job prowapi.ProwJob, owner string) bool {
+			if job.Spec.Refs == nil {
+				return false
+			}
+			for _, pull := range job.Spec.Refs.Pulls {
+				if pull.Author == owner {
+					return true
 				}
-				if set.Has(Labels) {
-					jobs[i].Labels = nil
-				}
-				if set.Has(DecorationConfig) {
-					jobs[i].Spec.DecorationConfig = nil
-				}
-				if set.Has(PodSpec) {
-					// when we omit the podspec, we don't set it completely to nil
-					// instead, we set it to a new podspec that just has an empty container for each container that exists in the actual podspec
-					// this is so we can determine how many containers there are for a given prowjob without fetching all of the podspec details
-					// this is necessary for prow/cmd/deck/static/prow/pkg.ts to determine whether the logIcon should link to a log endpoint or to spyglass
-					if jobs[i].Spec.PodSpec != nil {
-						emptyContainers := []coreapi.Container{}
-						for range jobs[i].Spec.PodSpec.Containers {
-							emptyContainers = append(emptyContainers, coreapi.Container{})
-						}
-						jobs[i].Spec.PodSpec = &coreapi.PodSpec{
-							Containers: emptyContainers,
-						}
+			}
+			return false
+		}
+
+		finalJobs := make([]prowapi.ProwJob, 0)
+		for i := range jobs {
+			if org != "" && (jobs[i].Spec.Refs == nil || jobs[i].Spec.Refs.Org != org) {
+				continue
+			}
+			if repo != "" && (jobs[i].Spec.Refs == nil || jobs[i].Spec.Refs.Repo != repo) {
+				continue
+			}
+			if owner != "" && !ownerMatch(jobs[i], owner) {
+				continue
+			}
+			jobs[i].ManagedFields = nil
+			if omitSet.Has(Annotations) {
+				jobs[i].Annotations = nil
+			}
+			if omitSet.Has(Labels) {
+				jobs[i].Labels = nil
+			}
+			if omitSet.Has(DecorationConfig) {
+				jobs[i].Spec.DecorationConfig = nil
+			}
+			if omitSet.Has(PodSpec) {
+				// when we omit the podspec, we don't set it completely to nil
+				// instead, we set it to a new podspec that just has an empty container for each container that exists in the actual podspec
+				// this is so we can determine how many containers there are for a given prowjob without fetching all of the podspec details
+				// this is necessary for prow/cmd/deck/static/prow/pkg.ts to determine whether the logIcon should link to a log endpoint or to spyglass
+				if jobs[i].Spec.PodSpec != nil {
+					emptyContainers := []coreapi.Container{}
+					for range jobs[i].Spec.PodSpec.Containers {
+						emptyContainers = append(emptyContainers, coreapi.Container{})
+					}
+					jobs[i].Spec.PodSpec = &coreapi.PodSpec{
+						Containers: emptyContainers,
 					}
 				}
 			}
+			finalJobs = append(finalJobs, jobs[i])
 		}
 
 		jd, err := json.Marshal(struct {
 			Items []prowapi.ProwJob `json:"items"`
-		}{jobs})
+		}{finalJobs})
 		if err != nil {
 			log.WithError(err).Error("Error marshaling jobs.")
 			jd = []byte("{}")
