@@ -150,18 +150,18 @@ func EnvForSpec(spec JobSpec) (map[string]string, error) {
 	srcBase := fmt.Sprintf("%s/%s", spec.Refs.Org, spec.Refs.Repo)
 
 	if spec.Refs.PathAlias != "" {
-		srcHost = spec.Refs.PathAlias
-		if idx := strings.Index(spec.Refs.PathAlias, "/"); idx != -1 {
-			srcHost = spec.Refs.PathAlias[:idx]
-			srcBase = spec.Refs.PathAlias[idx+1:]
+		if h, b, ok := strings.Cut(spec.Refs.PathAlias, "/"); ok {
+			srcHost, srcBase = h, b
+		} else {
+			srcHost = spec.Refs.PathAlias
 		}
 	} else if spec.Refs.RepoLink != "" {
 		parts := strings.Split(spec.Refs.RepoLink, "://")
 		hostAndPath := parts[len(parts)-1]
-		srcHost = hostAndPath
-		if idx := strings.Index(hostAndPath, "/"); idx != -1 {
-			srcHost = hostAndPath[:idx]
-			srcBase = hostAndPath[idx+1:]
+		if h, b, ok := strings.Cut(hostAndPath, "/"); ok {
+			srcHost, srcBase = h, b
+		} else {
+			srcHost = hostAndPath
 		}
 	}
 	env[SrcHostEnv] = srcHost
