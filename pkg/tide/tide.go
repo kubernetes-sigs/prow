@@ -1711,7 +1711,6 @@ func (c *syncController) presubmitsByPull(sp *subpool) (map[int][]config.Presubm
 				return nil, err
 			}
 			if !shouldRun {
-				log.WithField("context", ps.Context).Debug("Presubmit excluded by ps.ShouldRun")
 				continue
 			}
 
@@ -1766,7 +1765,6 @@ func (c *syncController) presubmitsForBatch(prs []CodeReviewCommon, org, repo, b
 			return nil, err
 		}
 		if !shouldRun {
-			log.WithField("context", ps.Context).Debug("Presubmit excluded by ps.ShouldRun")
 			continue
 		}
 
