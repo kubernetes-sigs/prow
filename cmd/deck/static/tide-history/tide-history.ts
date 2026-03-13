@@ -233,10 +233,27 @@ function redraw(): void {
   }
   // Sort by descending time.
   filteredRecs = filteredRecs.sort((a, b) => a.time > b.time ? -1 : (a.time < b.time ? 1 : 0));
-  redrawRecords(filteredRecs);
+
+  // Compute hidden record count for pools visible in the current view
+  const hiddenMap: {[key: string]: number} = typeof tideHistory !== 'undefined' && tideHistory.HiddenRecords ? tideHistory.HiddenRecords : {};
+  let totalHidden = 0;
+  for (const poolKey of poolKeys) {
+    const [repo, branch] = repoBranchFromPoolKey(poolKey);
+    if (repo === "") {
+      continue;
+    }
+    if (!equalSelected(repoSel, repo) || !equalSelected(branchSel, branch)) {
+      continue;
+    }
+    if (hiddenMap[poolKey]) {
+      totalHidden += hiddenMap[poolKey];
+    }
+  }
+
+  redrawRecords(filteredRecs, totalHidden);
 }
 
-function redrawRecords(recs: FilteredRecord[]): void {
+function redrawRecords(recs: FilteredRecord[], totalHidden: number): void {
   const records = document.getElementById("records")!.getElementsByTagName(
     "tbody")[0];
   while (records.firstChild) {
@@ -280,7 +297,11 @@ function redrawRecords(recs: FilteredRecord[]): void {
     records.appendChild(r);
   }
   const recCount = document.getElementById("record-count")!;
-  recCount.textContent = `Showing ${displayCount}/${recs.length} records`;
+  let countText = `Showing ${displayCount}/${recs.length} records`;
+  if (totalHidden > 0) {
+    countText += ` (${totalHidden} hidden by tenant filter)`;
+  }
+  recCount.textContent = countText;
 }
 
 function targetCell(rec: FilteredRecord): HTMLTableDataCellElement {

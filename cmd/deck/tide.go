@@ -40,7 +40,8 @@ type tidePools struct {
 }
 
 type tideHistory struct {
-	History map[string][]history.Record
+	History       map[string][]history.Record
+	HiddenRecords map[string]int `json:"HiddenRecords,omitempty"`
 }
 
 type tideAgent struct {
@@ -57,8 +58,9 @@ type tideAgent struct {
 	cfg       func() *config.Config
 
 	sync.Mutex
-	pools   []tide.Pool
-	history map[string][]history.Record
+	pools         []tide.Pool
+	history       map[string][]history.Record
+	hiddenRecords map[string]int
 }
 
 func (ta *tideAgent) start() {
@@ -151,11 +153,12 @@ func (ta *tideAgent) updateHistory() error {
 	if err := fetchTideData(ta.log, path, &history); err != nil {
 		return err
 	}
-	history = ta.filterHistory(history)
+	history, hiddenRecords := ta.filterHistory(history)
 
 	ta.Lock()
 	defer ta.Unlock()
 	ta.history = history
+	ta.hiddenRecords = hiddenRecords
 	return nil
 }
 
@@ -187,26 +190,66 @@ func noTenantIDOrDefaultTenantID(ids []string) bool {
 	return true
 }
 
-func recordIDs(records []history.Record) sets.Set[string] {
-	res := sets.Set[string]{}
-	for _, record := range records {
-		res.Insert(record.TenantIDs...)
+func (ta *tideAgent) matchRecordIDs(rec history.Record, orgRepoID string) bool {
+	effectiveIDs := sets.New[string](rec.TenantIDs...)
+	if orgRepoID != "" && orgRepoID != config.DefaultTenantID {
+		effectiveIDs.Insert(orgRepoID)
 	}
-	return res
+	if len(ta.tenantIDs) > 0 {
+		// Records with no tenant IDs are treated as belonging to the default tenant
+		if effectiveIDs.Len() == 0 {
+			return ta.tenantIDs.Has(config.DefaultTenantID)
+		}
+		return ta.tenantIDs.HasAll(sets.List(effectiveIDs)...)
+	}
+	return noTenantIDOrDefaultTenantID(sets.List(effectiveIDs))
 }
 
-func (ta *tideAgent) filterHistory(hist map[string][]history.Record) map[string][]history.Record {
+func (ta *tideAgent) filterHistory(hist map[string][]history.Record) (map[string][]history.Record, map[string]int) {
 	filtered := make(map[string][]history.Record, len(hist))
+	hidden := make(map[string]int)
 	for pool, records := range hist {
 		orgRepo := strings.Split(pool, ":")[0]
-		curIDs := recordIDs(records).Insert()
 		orgRepoID := ta.cfg().GetProwJobDefault(orgRepo, "*").TenantID
 		needsHide := matches(orgRepo, ta.hiddenRepos())
-		if match := ta.filter(orgRepoID, curIDs, needsHide); match {
-			filtered[pool] = records
+
+		// When Deck has no tenantIDs, use pool-level hidden/default logic (unchanged)
+		if len(ta.tenantIDs) == 0 {
+			if needsHide {
+				if ta.showHidden || ta.hiddenOnly {
+					filtered[pool] = records
+				}
+			} else if !ta.hiddenOnly {
+				// Compute pool-level IDs for the default-tenant check
+				poolIDs := sets.New[string]()
+				for _, rec := range records {
+					poolIDs.Insert(rec.TenantIDs...)
+				}
+				if orgRepoID != "" && orgRepoID != config.DefaultTenantID {
+					poolIDs.Insert(orgRepoID)
+				}
+				if noTenantIDOrDefaultTenantID(sets.List(poolIDs)) {
+					filtered[pool] = records
+				}
+			}
+			continue
+		}
+
+		// When Deck has tenantIDs, filter per-record
+		var kept []history.Record
+		for _, rec := range records {
+			if ta.matchRecordIDs(rec, orgRepoID) {
+				kept = append(kept, rec)
+			}
+		}
+		if len(kept) > 0 {
+			filtered[pool] = kept
+			if dropped := len(records) - len(kept); dropped > 0 {
+				hidden[pool] = dropped
+			}
 		}
 	}
-	return filtered
+	return filtered, hidden
 }
 
 func (ta *tideAgent) filter(orgRepoID string, curIDs sets.Set[string], needsHide bool) bool {
