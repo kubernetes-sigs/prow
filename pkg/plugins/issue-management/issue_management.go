@@ -18,14 +18,18 @@ limitations under the License.
 package issuemanagement
 
 import (
+	"context"
 	"regexp"
 	"strings"
+
+	githubql "github.com/shurcooL/githubv4"
 
 	"github.com/sirupsen/logrus"
 	"sigs.k8s.io/prow/pkg/config"
 	"sigs.k8s.io/prow/pkg/github"
 	"sigs.k8s.io/prow/pkg/pluginhelp"
 	"sigs.k8s.io/prow/pkg/plugins"
+	"sigs.k8s.io/prow/pkg/repoowners"
 )
 
 const pluginName = "issue-management"
@@ -33,6 +37,8 @@ const pluginName = "issue-management"
 var (
 	linkIssueRegex   = regexp.MustCompile(`(?mi)^/link-issue\s+(.+)$`)
 	unlinkIssueRegex = regexp.MustCompile(`(?mi)^/unlink-issue\s+(.+)$`)
+	pinRegex         = regexp.MustCompile(`(?mi)^/pin-issue\s*$`)
+	unpinRegex       = regexp.MustCompile(`(?mi)^/unpin-issue\s*$`)
 )
 
 type githubClient interface {
@@ -42,11 +48,16 @@ type githubClient interface {
 	GetRepo(org, name string) (github.FullRepo, error)
 	IsMember(org, user string) (bool, error)
 	UpdatePullRequest(org, repo string, number int, title, body *string, open *bool, branch *string, canModify *bool) error
+	MutateWithGitHubAppsSupport(context.Context, any, githubql.Input, map[string]any, string) error
+}
+
+type ownersClient interface {
+	LoadRepoOwners(org, repo, base string) (repoowners.RepoOwner, error)
 }
 
 func helpProvider(_ *plugins.Configuration, _ []config.OrgRepo) (*pluginhelp.PluginHelp, error) {
 	pluginHelp := &pluginhelp.PluginHelp{
-		Description: "The issue management plugin provides commands for linking and unlinking issues to a PR.",
+		Description: "The issue management plugin provides commands for managing issues in a repository.",
 	}
 	pluginHelp.AddCommand(pluginhelp.Command{
 		Usage:       "/link-issue <issue(s)>",
@@ -60,6 +71,18 @@ func helpProvider(_ *plugins.Configuration, _ []config.OrgRepo) (*pluginhelp.Plu
 		WhoCanUse:   "Org members",
 		Examples:    []string{"/unlink-issue 1234", "/unlink-issue org/repo#789"},
 	})
+	pluginHelp.AddCommand(pluginhelp.Command{
+		Usage:       "/pin-issue",
+		Description: "Pins an issue to the repository",
+		WhoCanUse:   "Approvers from the top-level OWNERS file",
+		Examples:    []string{"/pin-issue"},
+	})
+	pluginHelp.AddCommand(pluginhelp.Command{
+		Usage:       "/unpin-issue",
+		Description: "Unpins an issue from the repository",
+		WhoCanUse:   "Approvers from the top-level OWNERS file",
+		Examples:    []string{"/unpin-issue"},
+	})
 	return pluginHelp, nil
 }
 
@@ -68,7 +91,7 @@ func init() {
 }
 
 func handleGenericComment(pc plugins.Agent, e github.GenericCommentEvent) error {
-	return handleIssues(pc.GitHubClient, pc.Logger.WithFields(logrus.Fields{
+	return handleIssues(pc.GitHubClient, pc.OwnersClient, pc.Logger.WithFields(logrus.Fields{
 		"org":    e.Repo.Owner.Login,
 		"repo":   e.Repo.Name,
 		"number": e.Number,
@@ -76,13 +99,21 @@ func handleGenericComment(pc plugins.Agent, e github.GenericCommentEvent) error 
 	}), e)
 }
 
-func handleIssues(gc githubClient, log *logrus.Entry, e github.GenericCommentEvent) error {
+func handleIssues(gc githubClient, oc ownersClient, log *logrus.Entry, e github.GenericCommentEvent) error {
 	toLink, toUnlink, err := parseCommentForLinkCommands(e.Body)
 	if err != nil {
 		return err
 	}
 	if len(toLink) > 0 || len(toUnlink) > 0 {
 		return handleLinkIssue(gc, log, e, toLink, toUnlink)
+	}
+
+	if pinRegex.MatchString(e.Body) {
+		return handlePinOrUnpinIssue(gc, oc, log, e, true)
+	}
+
+	if unpinRegex.MatchString(e.Body) {
+		return handlePinOrUnpinIssue(gc, oc, log, e, false)
 	}
 
 	return nil
