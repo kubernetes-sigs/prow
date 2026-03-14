@@ -61,7 +61,9 @@ When GitHub merges a Pull Request, the title is included in the merge commit. To
 	invalidTitleCommentPruneBody = "not allowed in the title of a Pull Request"
 	fixupCommitMsgCommentBody    = `Temporary commits like fixup! or amend! are not allowed in the commit history.
 
-Please squash or rebase your commits before merging.
+Please squash or rebase your commits before merging. You can use
+[git rebase --autosquash](https://git-scm.com/docs/git-rebase#Documentation/git-rebase.txt---autosquash)
+to automatically squash these commits.
 
 **The list of fixup/amend commits**:
 
@@ -84,7 +86,6 @@ func init() {
 }
 
 func helpProvider(config *plugins.Configuration, _ []config.OrgRepo) (*pluginhelp.PluginHelp, error) {
-	// Only the Description field is specified because this plugin is not triggered with commands and is not configurable.
 	return &pluginhelp.PluginHelp{
 			Description: "The invalidcommitmsg plugin applies the '" + invalidCommitMsgLabel + "' label to pull requests whose commit messages and titles contain keywords which can automatically close issues and applies the '" + fixupCommitMsgLabel + "' label to pull requests containing temporary commits such as fixup! or amend!",
 		},
@@ -124,15 +125,11 @@ func handle(gc githubClient, log *logrus.Entry, pr github.PullRequestEvent, cp c
 		title  = pr.PullRequest.Title
 	)
 
+	invalidCommitCfg := cfg.InvalidCommitMsgFor(org, repo)
+
 	checkFixup := true
-	for _, c := range cfg.InvalidCommitMsg {
-		for _, r := range c.Repos {
-			if r == org || r == org+"/"+repo {
-				if c.DisableFixupCheck {
-					checkFixup = false
-				}
-			}
-		}
+	if invalidCommitCfg.DisableFixupCheck {
+		checkFixup = false
 	}
 
 	labels, err := gc.GetIssueLabels(org, repo, number)
@@ -155,7 +152,7 @@ func handle(gc githubClient, log *logrus.Entry, pr github.PullRequestEvent, cp c
 		msg := commit.Commit.Message
 		subject := strings.Split(msg, "\n")[0]
 
-		if CloseIssueRegex.MatchString(subject) {
+		if CloseIssueRegex.MatchString(msg) {
 			invalidCommits = append(invalidCommits, commit)
 		}
 
@@ -184,6 +181,9 @@ func handle(gc githubClient, log *logrus.Entry, pr github.PullRequestEvent, cp c
 		if err := gc.RemoveLabel(org, repo, number, fixupCommitMsgLabel); err != nil {
 			log.WithError(err).Errorf("GitHub failed to remove the following label: %s", fixupCommitMsgLabel)
 		}
+		cp.PruneComments(func(comment github.IssueComment) bool {
+			return strings.Contains(comment.Body, fixupCommitMsgCommentPruneBody)
+		})
 	}
 
 	// if we don't have the label and

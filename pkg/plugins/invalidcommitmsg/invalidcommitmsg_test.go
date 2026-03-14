@@ -83,6 +83,8 @@ func TestHandlePullRequest(t *testing.T) {
 		commits                      []github.RepositoryCommit
 		title                        string
 		hasInvalidCommitMessageLabel bool
+		hasFixupCommitMsgLabel       bool
+		disableFixupCheck            bool
 
 		// expectations
 		addedLabel    string
@@ -208,6 +210,61 @@ func TestHandlePullRequest(t *testing.T) {
 				),
 			},
 		},
+		{
+			name:   "amend commit -> add fixup label and comment",
+			action: github.PullRequestActionOpened,
+			commits: []github.RepositoryCommit{
+				{SHA: "sha1", Commit: github.GitCommit{Message: "amend! update tests"}},
+			},
+			hasInvalidCommitMessageLabel: false,
+
+			addedLabel: fmt.Sprintf("k/k#3:%s", fixupCommitMsgLabel),
+
+			addedComments: []string{
+				fmt.Sprintf(
+					"k/k#3:"+fixupCommitMsgCommentBody,
+					"- [sha1](https://github.com/k/k/commits/sha1) amend! update tests",
+					plugins.AboutThisBot,
+				),
+			},
+		},
+		{
+			name:   "fixup commit ignored when disable_fixup_check is true",
+			action: github.PullRequestActionOpened,
+			commits: []github.RepositoryCommit{
+				{SHA: "sha1", Commit: github.GitCommit{Message: "fixup! update tests"}},
+			},
+			disableFixupCheck: true,
+		},
+		{
+			name:   "commit with fixup and close keyword",
+			action: github.PullRequestActionOpened,
+			commits: []github.RepositoryCommit{
+				{SHA: "sha1", Commit: github.GitCommit{Message: "fixup! fixes #123"}},
+			},
+			addedLabel: fmt.Sprintf("k/k#3:%s", invalidCommitMsgLabel),
+			addedComments: []string{
+				fmt.Sprintf(
+					"k/k#3:"+invalidCommitMsgCommentBody,
+					"- [sha1](https://github.com/k/k/commits/sha1) fixup! fixes #123",
+					plugins.AboutThisBot,
+				),
+				fmt.Sprintf(
+					"k/k#3:"+fixupCommitMsgCommentBody,
+					"- [sha1](https://github.com/k/k/commits/sha1) fixup! fixes #123",
+					plugins.AboutThisBot,
+				),
+			},
+		},
+		{
+			name:   "fixup commits removed -> remove fixup label",
+			action: github.PullRequestActionOpened,
+			commits: []github.RepositoryCommit{
+				{SHA: "sha1", Commit: github.GitCommit{Message: "normal commit"}},
+			},
+			hasFixupCommitMsgLabel: true,
+			removedLabel:           fmt.Sprintf("k/k#3:%s", fixupCommitMsgLabel),
+		},
 	}
 
 	for _, tc := range testcases {
@@ -228,7 +285,18 @@ func TestHandlePullRequest(t *testing.T) {
 			if tc.hasInvalidCommitMessageLabel {
 				fc.IssueLabelsAdded = append(fc.IssueLabelsAdded, fmt.Sprintf("k/k#3:%s", invalidCommitMsgLabel))
 			}
-			if err := handle(fc, logrus.WithField("plugin", pluginName), event, &fakePruner{}, &plugins.Configuration{}); err != nil {
+			if tc.hasFixupCommitMsgLabel {
+				fc.IssueLabelsAdded = append(fc.IssueLabelsAdded, fmt.Sprintf("k/k#3:%s", fixupCommitMsgLabel))
+			}
+			cfg := &plugins.Configuration{}
+
+			if tc.disableFixupCheck {
+				cfg.InvalidCommitMsg = []plugins.InvalidCommitMsg{
+					{Repos: []string{"k/k"}, DisableFixupCheck: true},
+				}
+			}
+
+			if err := handle(fc, logrus.WithField("plugin", pluginName), event, &fakePruner{}, cfg); err != nil {
 				t.Errorf("For case %s, didn't expect error from invalidcommitmsg plugin: %v", tc.name, err)
 			}
 

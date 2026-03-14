@@ -2739,3 +2739,98 @@ func TestConfigMapSpecIsAllowed(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateInvalidCommitMsg(t *testing.T) {
+	tests := []struct {
+		name    string
+		cfg     []InvalidCommitMsg
+		wantErr bool
+	}{
+		{
+			name: "valid org",
+			cfg: []InvalidCommitMsg{
+				{Repos: []string{"kubernetes"}},
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid org & repo",
+			cfg: []InvalidCommitMsg{
+				{Repos: []string{"kubernetes/test-infra"}},
+			},
+			wantErr: false,
+		},
+		{
+			name: "empty repo entry",
+			cfg: []InvalidCommitMsg{
+				{Repos: []string{""}},
+			},
+			wantErr: true,
+		},
+		{
+			name: "malformed repo name",
+			cfg: []InvalidCommitMsg{
+				{Repos: []string{"a//c"}},
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateInvalidCommitMsg(tc.cfg)
+
+			if tc.wantErr && err == nil {
+				t.Fatalf("expected error but got none")
+			}
+
+			if !tc.wantErr && err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+func TestInvalidCommitMsgFor(t *testing.T) {
+	config := Configuration{
+		InvalidCommitMsg: []InvalidCommitMsg{
+			{Repos: []string{"org"}},
+			{Repos: []string{"org/repo"}},
+		},
+	}
+
+	tests := []struct {
+		name     string
+		org      string
+		repo     string
+		expected []string
+	}{
+		{
+			name:     "repo config takes precedence",
+			org:      "org",
+			repo:     "repo",
+			expected: []string{"org/repo"},
+		},
+		{
+			name:     "org config used if repo config not found",
+			org:      "org",
+			repo:     "other",
+			expected: []string{"org"},
+		},
+		{
+			name:     "no config returns empty",
+			org:      "x",
+			repo:     "y",
+			expected: nil,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			res := config.InvalidCommitMsgFor(tc.org, tc.repo)
+			if !reflect.DeepEqual(res.Repos, tc.expected) {
+				t.Fatalf("expected %v got %v", tc.expected, res.Repos)
+			}
+		})
+	}
+}

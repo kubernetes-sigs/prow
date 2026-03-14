@@ -1039,6 +1039,29 @@ func (t *Trigger) SetDefaults() {
 	}
 }
 
+// InvalidCommitMsgFor finds the InvalidCommitMsg configuration for a repo, if one exists.
+// A configuration can be listed for the repo itself or for the owning organization.
+func (c *Configuration) InvalidCommitMsgFor(org, repo string) *InvalidCommitMsg {
+	fullName := fmt.Sprintf("%s/%s", org, repo)
+	// Prioritize repo level triggers over org level triggers.
+	for _, cfg := range c.InvalidCommitMsg {
+		if !sets.New[string](cfg.Repos...).Has(fullName) {
+			continue
+		}
+		return &cfg
+	}
+	// If you don't find anything, loop again looking for an org config
+	for _, cfg := range c.InvalidCommitMsg {
+		if !sets.New[string](cfg.Repos...).Has(org) {
+			continue
+		}
+		return &cfg
+	}
+
+	return &InvalidCommitMsg{}
+
+}
+
 // DcoFor finds the Dco for a repo, if one exists
 // a Dco can be listed for the repo itself or for the
 // owning organization
@@ -1433,6 +1456,27 @@ func validateTrigger(triggers []Trigger) error {
 	return nil
 }
 
+func validateInvalidCommitMsg(cfgs []InvalidCommitMsg) error {
+	var errs []error
+
+	for i, cfg := range cfgs {
+		for _, repo := range cfg.Repos {
+			if strings.TrimSpace(repo) == "" {
+				errs = append(errs, fmt.Errorf(
+					"error validating invalid_commit_msg config #%d: repo entry cannot be empty", i))
+				continue
+			}
+
+			if strings.Count(repo, "/") > 1 {
+				errs = append(errs, fmt.Errorf(
+					"error validating invalid_commit_msg config #%d: repo %q must be of form org or org/repo", i, repo))
+			}
+		}
+	}
+
+	return utilerrors.NewAggregate(errs)
+}
+
 var warnRepoMilestone time.Time
 
 func validateRepoMilestone(milestones map[string]Milestone) {
@@ -1546,6 +1590,12 @@ func (c *Configuration) Validate() error {
 		return err
 	}
 	if err := validateRepoDupes(c.Welcome); err != nil {
+		return err
+	}
+	if err := validateInvalidCommitMsg(c.InvalidCommitMsg); err != nil {
+		return err
+	}
+	if err := validateRepoDupes(c.InvalidCommitMsg); err != nil {
 		return err
 	}
 	validateRepoMilestone(c.RepoMilestone)
@@ -2382,4 +2432,8 @@ type InvalidCommitMsg struct {
 
 	// DisableFixupCheck allows opting out of the fixup!/amend! commit check.
 	DisableFixupCheck bool `json:"disable_fixup_check,omitempty"`
+}
+
+func (c InvalidCommitMsg) getRepos() []string {
+	return c.Repos
 }
