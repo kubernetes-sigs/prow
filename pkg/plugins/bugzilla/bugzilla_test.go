@@ -18,6 +18,7 @@ package bugzilla
 
 import (
 	"fmt"
+	"maps"
 	"reflect"
 	"testing"
 
@@ -1759,7 +1760,6 @@ Instructions for interacting with me using PR comments are available [here](http
 				gc.IssueLabelsExisting = append(gc.IssueLabelsExisting, fmt.Sprintf("%s/%s#%d:%s", e.org, e.repo, e.number, label))
 			}
 			for _, pr := range testCase.prs {
-				pr := pr
 				gc.PullRequests[pr.Number] = &pr
 			}
 			bc := bugzilla.Fake{
@@ -1780,9 +1780,7 @@ Instructions for interacting with me using PR comments are available [here](http
 			for _, externalBug := range testCase.externalBugs {
 				bc.ExternalBugs[externalBug.BugzillaBugID] = append(bc.ExternalBugs[externalBug.BugzillaBugID], externalBug)
 			}
-			for id, subComponent := range testCase.subComponents {
-				bc.SubComponents[id] = subComponent
-			}
+			maps.Copy(bc.SubComponents, testCase.subComponents)
 			e.missing = testCase.missing
 			e.merged = testCase.merged
 			e.closed = testCase.closed || testCase.merged

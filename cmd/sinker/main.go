@@ -25,6 +25,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -414,11 +415,8 @@ func (c *controller) clean() {
 	for cluster, client := range c.podClients {
 		log := c.logger.WithField("cluster", cluster)
 		var isClusterExcluded bool
-		for _, excludeCluster := range c.config().Sinker.ExcludeClusters {
-			if excludeCluster == cluster {
-				isClusterExcluded = true
-				break
-			}
+		if slices.Contains(c.config().Sinker.ExcludeClusters, cluster) {
+			isClusterExcluded = true
 		}
 		if isClusterExcluded {
 			log.Debugf("Cluster %q is excluded, skipping pods deletion.", cluster)

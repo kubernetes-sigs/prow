@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -87,7 +88,7 @@ type checker interface {
 	CloseBody(*http.Response) error
 	ReadAllBody(*http.Response) ([]byte, error)
 	UnmarshalProwJobs([]byte) (*v1.ProwJobList, error)
-	UnmarshalProwConfig([]byte) (interface{}, error)
+	UnmarshalProwConfig([]byte) (any, error)
 }
 
 type defaultChecker struct{}
@@ -128,10 +129,8 @@ func (c *Checker) inCodeFreeze(branch string) (bool, error) {
 	for _, query := range prowConfig.Tide.Queries {
 		for _, repo := range query.Repos {
 			if repo == kubernetesRepo {
-				for _, excludedBranch := range query.ExcludedBranches {
-					if excludedBranch == branch {
-						return true, nil
-					}
+				if slices.Contains(query.ExcludedBranches, branch) {
+					return true, nil
 				}
 			}
 		}
@@ -295,7 +294,7 @@ func (*defaultChecker) UnmarshalProwJobs(data []byte) (*v1.ProwJobList, error) {
 	return prowJobs, nil
 }
 
-func (*defaultChecker) UnmarshalProwConfig(data []byte) (interface{}, error) {
+func (*defaultChecker) UnmarshalProwConfig(data []byte) (any, error) {
 	prowConfig := &ProwConfig{}
 	if err := yaml.Unmarshal(data, prowConfig); err != nil {
 		return nil, err

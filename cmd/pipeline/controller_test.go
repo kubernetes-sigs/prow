@@ -172,24 +172,24 @@ func (fl *fakeLimiter) ShutDown() {}
 func (fl *fakeLimiter) ShuttingDown() bool {
 	return false
 }
-func (fl *fakeLimiter) Get() (interface{}, bool) {
+func (fl *fakeLimiter) Get() (any, bool) {
 	return "not implemented", true
 }
-func (fl *fakeLimiter) Done(interface{})   {}
-func (fl *fakeLimiter) Forget(interface{}) {}
-func (fl *fakeLimiter) AddRateLimited(a interface{}) {
+func (fl *fakeLimiter) Done(any)   {}
+func (fl *fakeLimiter) Forget(any) {}
+func (fl *fakeLimiter) AddRateLimited(a any) {
 	fl.added = a.(string)
 }
-func (fl *fakeLimiter) Add(a interface{}) {
+func (fl *fakeLimiter) Add(a any) {
 	fl.added = a.(string)
 }
-func (fl *fakeLimiter) AddAfter(a interface{}, d time.Duration) {
+func (fl *fakeLimiter) AddAfter(a any, d time.Duration) {
 	fl.added = a.(string)
 }
 func (fl *fakeLimiter) Len() int {
 	return 0
 }
-func (fl *fakeLimiter) NumRequeues(item interface{}) int {
+func (fl *fakeLimiter) NumRequeues(item any) int {
 	return 0
 }
 
@@ -197,7 +197,7 @@ func TestEnqueueKey(t *testing.T) {
 	cases := []struct {
 		name     string
 		context  string
-		obj      interface{}
+		obj      any
 		expected string
 	}{
 		{

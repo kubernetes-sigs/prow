@@ -103,17 +103,17 @@ func TestCheckTimestamps(t *testing.T) {
 func TestFlattenMetadata(t *testing.T) {
 	tests := []struct {
 		name        string
-		metadata    map[string]interface{}
+		metadata    map[string]any
 		expectedMap map[string]string
 	}{
 		{
 			name:        "Empty map",
-			metadata:    map[string]interface{}{},
+			metadata:    map[string]any{},
 			expectedMap: map[string]string{},
 		},
 		{
 			name: "Test metadata",
-			metadata: map[string]interface{}{
+			metadata: map[string]any{
 				"field1": "value1",
 				"field2": "value2",
 				"field3": "value3",
@@ -126,7 +126,7 @@ func TestFlattenMetadata(t *testing.T) {
 		},
 		{
 			name: "Test metadata with non-strings",
-			metadata: map[string]interface{}{
+			metadata: map[string]any{
 				"field1": "value1",
 				"field2": 2,
 				"field3": true,
@@ -139,13 +139,13 @@ func TestFlattenMetadata(t *testing.T) {
 		},
 		{
 			name: "Test nested metadata",
-			metadata: map[string]interface{}{
+			metadata: map[string]any{
 				"field1": "value1",
 				"field2": "value2",
-				"field3": map[string]interface{}{
+				"field3": map[string]any{
 					"nest1-field1": "nest1-value1",
 					"nest1-field2": "nest1-value2",
-					"nest1-field3": map[string]interface{}{
+					"nest1-field3": map[string]any{
 						"nest2-field1": "nest2-value1",
 						"nest2-field2": "nest2-value2",
 					},

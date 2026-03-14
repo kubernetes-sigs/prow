@@ -153,7 +153,6 @@ this-is-from-repoTestGangway1
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 
 			// Set up a connection to gangway.
@@ -481,7 +480,6 @@ func TestGangwayBulkJobStatusChange(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			c, err := gangwayGoogleClient.NewInsecure(":32000", "123")
 			if err != nil {
@@ -684,7 +682,6 @@ func TestGangwayListJobs(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			list, err := c.GRPC.ListJobExecutions(ctx, tt.listMsg)
 			if err != nil {

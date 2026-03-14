@@ -107,6 +107,7 @@ func helpProvider(config *plugins.Configuration, enabledRepos []config.OrgRepo) 
 		Description: `The trigger plugin starts jobs in reaction to various events.
 <br>Presubmit jobs are run automatically on pull requests that are trusted and not in a draft state with file changes matching the file filters and targeting a branch matching the branch filters.
 <br>A pull request is considered trusted if the author is a member of the 'trusted organization' for the repository or if such a member has left an '/ok-to-test' command on the PR.
+<br>Trusted status granted by '/ok-to-test' can be revoked by a trusted user with '/ok-to-test cancel', which restores the 'needs-ok-to-test' label.
 <br>Trigger will not automatically start jobs for a PR in draft state, and if a PR is changed to draft it cancels pending jobs.
 <br>If jobs are not run automatically for a PR because it is not trusted or is in draft state, a trusted user can still start jobs manually via the '/test' command.
 <br>The '/retest' command can be used to rerun jobs that have reported failure.
@@ -120,6 +121,13 @@ func helpProvider(config *plugins.Configuration, enabledRepos []config.OrgRepo) 
 		Featured:    false,
 		WhoCanUse:   "Members of the trusted organization for the repo.",
 		Examples:    []string{"/ok-to-test"},
+	})
+	pluginHelp.AddCommand(pluginhelp.Command{
+		Usage:       "/ok-to-test cancel",
+		Description: "Revokes trusted status previously granted by '/ok-to-test', removing the 'ok-to-test' label and restoring 'needs-ok-to-test'.",
+		Featured:    false,
+		WhoCanUse:   "Members of the trusted organization for the repo.",
+		Examples:    []string{"/ok-to-test cancel"},
 	})
 	pluginHelp.AddCommand(pluginhelp.Command{
 		Usage:       "/test [<job name>|all]",

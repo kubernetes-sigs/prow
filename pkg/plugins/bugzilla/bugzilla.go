@@ -323,7 +323,7 @@ type githubClient interface {
 	AddLabel(owner, repo string, number int, label string) error
 	RemoveLabel(owner, repo string, number int, label string) error
 	WasLabelAddedByHuman(org, repo string, num int, label string) (bool, error)
-	Query(ctx context.Context, q interface{}, vars map[string]interface{}) error
+	Query(ctx context.Context, q any, vars map[string]any) error
 }
 
 func handleGenericComment(pc plugins.Agent, e github.GenericCommentEvent) (err error) {
@@ -571,11 +571,12 @@ func processQuery(query *emailToLoginQuery, email string, log *logrus.Entry) str
 	case 1:
 		return fmt.Sprintf("Requesting review from QA contact:\n/cc @%s", query.Search.Edges[0].Node.User.Login)
 	default:
-		response := fmt.Sprintf("Multiple GitHub users were found matching the public email listed for the QA contact in Bugzilla (%s), skipping review request. List of users with matching email:", email)
+		var response strings.Builder
+		response.WriteString(fmt.Sprintf("Multiple GitHub users were found matching the public email listed for the QA contact in Bugzilla (%s), skipping review request. List of users with matching email:", email))
 		for _, edge := range query.Search.Edges {
-			response += fmt.Sprintf("\n\t- %s", edge.Node.User.Login)
+			response.WriteString(fmt.Sprintf("\n\t- %s", edge.Node.User.Login))
 		}
-		return response
+		return response.String()
 	}
 }
 
@@ -590,16 +591,17 @@ func handle(e event, gc githubClient, bc bugzilla.Client, options plugins.Bugzil
 		if !isBugAllowed(bug, options.AllowedGroups) {
 			// ignore bugs that are in non-allowed groups for this repo
 			if e.opened || refreshCommandMatch.MatchString(e.body) {
-				response := fmt.Sprintf(bugLink+" is in a bug group that is not in the allowed groups for this repo.", e.bugId, bc.Endpoint(), e.bugId)
+				var response strings.Builder
+				response.WriteString(fmt.Sprintf(bugLink+" is in a bug group that is not in the allowed groups for this repo.", e.bugId, bc.Endpoint(), e.bugId))
 				if len(options.AllowedGroups) > 0 {
-					response += "\nAllowed groups for this repo are:"
+					response.WriteString("\nAllowed groups for this repo are:")
 					for _, group := range options.AllowedGroups {
-						response += "\n- " + group
+						response.WriteString("\n- " + group)
 					}
 				} else {
-					response += " There are no allowed bug groups configured for this repo."
+					response.WriteString(" There are no allowed bug groups configured for this repo.")
 				}
-				return comment(response)
+				return comment(response.String())
 			}
 			return nil
 		}
@@ -697,7 +699,7 @@ To reference a bug, add 'Bug XXX:' to the title of this pull request and request
 			} else {
 				query := &emailToLoginQuery{}
 				email := bug.QAContactDetail.Email
-				queryVars := map[string]interface{}{
+				queryVars := map[string]any{
 					"email": githubql.String(email),
 				}
 				err := gc.Query(context.Background(), query, queryVars)
@@ -712,13 +714,13 @@ To reference a bug, add 'Bug XXX:' to the title of this pull request and request
 			}
 		} else {
 			log.Debug("Invalid bug found.")
-			var formattedReasons string
+			var formattedReasons strings.Builder
 			for _, reason := range why {
-				formattedReasons += fmt.Sprintf(" - %s\n", reason)
+				formattedReasons.WriteString(fmt.Sprintf(" - %s\n", reason))
 			}
 			response = fmt.Sprintf(`This pull request references `+bugLink+`, which is invalid:
 %s
-Comment <code>/bugzilla refresh</code> to re-evaluate validity if changes to the Bugzilla bug are made, or edit the title of this pull request to link to a different bug.`, e.bugId, bc.Endpoint(), e.bugId, formattedReasons)
+Comment <code>/bugzilla refresh</code> to re-evaluate validity if changes to the Bugzilla bug are made, or edit the title of this pull request to link to a different bug.`, e.bugId, bc.Endpoint(), e.bugId, formattedReasons.String())
 		}
 	}
 

@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -586,13 +587,7 @@ func deserialize(s string, j *Job) error {
 		}
 
 		state = strings.ToLower(state)
-		validProwJobState := false
-		for _, pjState := range v1.GetAllProwJobStates() {
-			if v1.ProwJobState(state) == pjState {
-				validProwJobState = true
-				break
-			}
-		}
+		validProwJobState := slices.Contains(v1.GetAllProwJobStates(), v1.ProwJobState(state))
 		if !validProwJobState {
 			return fmt.Errorf("invalid prow job state %q", state)
 		}

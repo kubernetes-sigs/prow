@@ -138,7 +138,7 @@ func (rt httpRoundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
 	return rt(r)
 }
 
-func jsonResponse(body interface{}, statusCode int) (*http.Response, error) {
+func jsonResponse(body any, statusCode int) (*http.Response, error) {
 	serialized, err := json.Marshal(body)
 	if err != nil {
 		return nil, err

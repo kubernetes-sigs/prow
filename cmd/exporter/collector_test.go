@@ -82,7 +82,7 @@ func TestKubeLabelsToPrometheusLabels(t *testing.T) {
 	}
 }
 
-func assertEqual(t *testing.T, actual, expected interface{}) {
+func assertEqual(t *testing.T, actual, expected any) {
 	if !reflect.DeepEqual(actual, expected) {
 		t.Errorf("actual differs from expected:\n%s", cmp.Diff(expected, actual))
 	}

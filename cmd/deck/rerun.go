@@ -99,7 +99,6 @@ func getPreOrPostSpec[p preOrPostsubmit](jobGetter func(string) []p, creator fun
 	orgRepo := setRerunOrgRepo(refs, labels)
 	nameFound := false
 	for _, job := range jobGetter(orgRepo) {
-		job := job
 		if job.GetName() != name {
 			continue
 		}

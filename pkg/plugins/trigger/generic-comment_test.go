@@ -1684,12 +1684,12 @@ func produceCodeBlock(text string, withNewLine bool) string {
 
 func TestApproveGitHubActionsWorkflowRuns(t *testing.T) {
 	testCases := []struct {
-		name                      string
-		body                      string
-		triggerGitHubWorkflows    bool
-		ignoreOkToTest            bool
-		pendingRuns               []github.WorkflowRun
-		expectApprovalAttempt     bool
+		name                   string
+		body                   string
+		triggerGitHubWorkflows bool
+		ignoreOkToTest         bool
+		pendingRuns            []github.WorkflowRun
+		expectApprovalAttempt  bool
 	}{
 		{
 			name:                   "/ok-to-test with TriggerGitHubWorkflows enabled - should approve",

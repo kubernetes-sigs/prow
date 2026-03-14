@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"mime"
 	"net/url"
 	"strings"
@@ -1025,9 +1026,7 @@ func (g *GCSConfiguration) ApplyDefault(def *GCSConfiguration) *GCSConfiguration
 		merged.MediaTypes = map[string]string{}
 	}
 
-	for extension, mediaType := range def.MediaTypes {
-		merged.MediaTypes[extension] = mediaType
-	}
+	maps.Copy(merged.MediaTypes, def.MediaTypes)
 
 	if merged.JobURLPrefix == "" {
 		merged.JobURLPrefix = def.JobURLPrefix

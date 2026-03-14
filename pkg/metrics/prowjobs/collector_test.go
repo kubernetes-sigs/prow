@@ -253,7 +253,7 @@ func assertMetrics(t *testing.T, actual, expected []*dto.Metric, lastState prowa
 		t.Errorf("actual length differs from expected: %v, %v", len(actual), len(expected))
 		return
 	}
-	for x := 0; x < len(actual); x++ {
+	for x := range actual {
 		expected[x].Label[3] = toLabelPair("last_state", string(lastState))
 		expected[x].Label[6] = toLabelPair("state", string(state))
 		if !reflect.DeepEqual(actual[x].Label, expected[x].Label) {

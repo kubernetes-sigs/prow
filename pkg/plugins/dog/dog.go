@@ -162,7 +162,7 @@ func handle(gc githubClient, log *logrus.Entry, e *github.GenericCommentEvent, p
 	repo := e.Repo.Name
 	number := e.Number
 
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		resp, err := p.readDog(url)
 		if err != nil {
 			log.WithError(err).Println("Failed to get dog img")

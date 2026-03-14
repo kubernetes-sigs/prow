@@ -159,7 +159,7 @@ func TestSyncTimeThreadSafe(t *testing.T) {
 
 	// This is for detecting threading issue, running 100 times should be
 	// sufficient for catching the issue.
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		// Two threads, one update foo1, the other update foo2
 		var wg sync.WaitGroup
 		wg.Add(2)

@@ -384,7 +384,7 @@ func TestOrgRepoUnion(t *testing.T) {
 func TestValidateUnknownFields(t *testing.T) {
 	testCases := []struct {
 		name, filename string
-		cfg            interface{}
+		cfg            any
 		configBytes    []byte
 		expectedErr    string
 	}{

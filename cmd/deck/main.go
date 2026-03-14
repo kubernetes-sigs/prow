@@ -1479,7 +1479,7 @@ func handleProwJob(prowJobClient prowv1.ProwJobInterface, log *logrus.Entry) htt
 	}
 }
 
-func handleSerialize(w http.ResponseWriter, name string, data interface{}, l *logrus.Entry) {
+func handleSerialize(w http.ResponseWriter, name string, data any, l *logrus.Entry) {
 	setHeadersNoCaching(w)
 	b, err := yaml.Marshal(data)
 	if err != nil {

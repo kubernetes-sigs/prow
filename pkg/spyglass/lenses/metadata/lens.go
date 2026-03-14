@@ -92,7 +92,7 @@ func (lens Lens) Body(artifacts []api.Artifact, resourceDir string, data string,
 		Errored      bool
 		Elapsed      time.Duration
 		Hint         string
-		Metadata     map[string]interface{}
+		Metadata     map[string]any
 	}
 	metadataViewData := MetadataViewData{}
 	started := metadata.Started{}
@@ -152,7 +152,7 @@ func (lens Lens) Body(artifacts []api.Artifact, resourceDir string, data string,
 		metadataViewData.Elapsed = metadataViewData.Elapsed.Round(time.Second)
 	}
 
-	metadataViewData.Metadata = map[string]interface{}{"node": started.Node}
+	metadataViewData.Metadata = map[string]any{"node": started.Node}
 
 	metadatas := []metadata.Metadata{started.Metadata, finished.Metadata}
 	for _, m := range metadatas {
@@ -280,11 +280,11 @@ func hintFromProwJob(buf []byte) (string, bool) {
 }
 
 // flattenMetadata flattens the metadata for use by Body.
-func (lens Lens) flattenMetadata(metadata map[string]interface{}) map[string]string {
+func (lens Lens) flattenMetadata(metadata map[string]any) map[string]string {
 	results := map[string]string{}
 
 	for k1, v1 := range metadata {
-		if s, ok := v1.(map[string]interface{}); ok && len(s) > 0 {
+		if s, ok := v1.(map[string]any); ok && len(s) > 0 {
 			subObjectResults := lens.flattenMetadata(s)
 			for k2, v2 := range subObjectResults {
 				results[fmt.Sprintf("%s.%s", k1, k2)] = v2

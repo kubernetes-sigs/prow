@@ -94,7 +94,7 @@ func main() {
 	interrupts.ListenAndServe(server, 5*time.Second)
 }
 
-func unmarshal(r *http.Request, data interface{}) error {
+func unmarshal(r *http.Request, data any) error {
 	d := json.NewDecoder(r.Body)
 	d.DisallowUnknownFields()
 
@@ -104,7 +104,7 @@ func unmarshal(r *http.Request, data interface{}) error {
 	return nil
 }
 
-func response(f func(*http.Request) (interface{}, int, error)) http.Handler {
+func response(f func(*http.Request) (any, int, error)) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		msg, statusCode, err := f(r)
 		logrus.Infof("request: %s - %s. responses: %s, %d, %v", r.URL.Path, r.Method, msg, statusCode, err)
@@ -123,16 +123,16 @@ func response(f func(*http.Request) (interface{}, int, error)) http.Handler {
 	})
 }
 
-func defaultHandler() func(*http.Request) (interface{}, int, error) {
-	return func(r *http.Request) (interface{}, int, error) {
+func defaultHandler() func(*http.Request) (any, int, error) {
+	return func(r *http.Request) (any, int, error) {
 		logrus.Infof("Not supported: %s, %s", r.URL.Path, r.Method)
 		return "", http.StatusNotFound,
 			fmt.Errorf("{\"error\": \"API not supported\"}, %s, %s", r.URL.Path, r.Method)
 	}
 }
 
-func userHandler(ghc *fakegithub.FakeClient) func(*http.Request) (interface{}, int, error) {
-	return func(r *http.Request) (interface{}, int, error) {
+func userHandler(ghc *fakegithub.FakeClient) func(*http.Request) (any, int, error) {
+	return func(r *http.Request) (any, int, error) {
 		logrus.Infof("Serving: %s, %s", r.URL.Path, r.Method)
 		userData, err := ghc.BotUser()
 		if err != nil {
@@ -144,8 +144,8 @@ func userHandler(ghc *fakegithub.FakeClient) func(*http.Request) (interface{}, i
 	}
 }
 
-func statusHandler(ghc *fakegithub.FakeClient) func(*http.Request) (interface{}, int, error) {
-	return func(r *http.Request) (interface{}, int, error) {
+func statusHandler(ghc *fakegithub.FakeClient) func(*http.Request) (any, int, error) {
+	return func(r *http.Request) (any, int, error) {
 		logrus.Infof("Serving: %s, %s", r.URL.Path, r.Method)
 		vars := mux.Vars(r)
 		org, repo, SHA := vars["org"], vars["repo"], vars["sha"]
@@ -171,8 +171,8 @@ func statusHandler(ghc *fakegithub.FakeClient) func(*http.Request) (interface{},
 	}
 }
 
-func issueHandler(ghc *fakegithub.FakeClient) func(*http.Request) (interface{}, int, error) {
-	return func(r *http.Request) (interface{}, int, error) {
+func issueHandler(ghc *fakegithub.FakeClient) func(*http.Request) (any, int, error) {
+	return func(r *http.Request) (any, int, error) {
 		logrus.Infof("Serving: %s, %s", r.URL.Path, r.Method)
 		vars := mux.Vars(r)
 		org, repo := vars["org"], vars["repo"]
@@ -185,8 +185,8 @@ func issueHandler(ghc *fakegithub.FakeClient) func(*http.Request) (interface{}, 
 	}
 }
 
-func issueCommentHandler(ghc *fakegithub.FakeClient) func(*http.Request) (interface{}, int, error) {
-	return func(r *http.Request) (interface{}, int, error) {
+func issueCommentHandler(ghc *fakegithub.FakeClient) func(*http.Request) (any, int, error) {
+	return func(r *http.Request) (any, int, error) {
 		logrus.Infof("Serving: %s, %s", r.URL.Path, r.Method)
 		vars := mux.Vars(r)
 		org, repo := vars["org"], vars["repo"]
@@ -238,8 +238,8 @@ func issueCommentHandler(ghc *fakegithub.FakeClient) func(*http.Request) (interf
 // GetIssueLabels(org, repo string, number int) ([]Label, error) # fmt.Sprintf("/repos/%s/%s/issues/%d/labels", org, repo, number)
 // AddLabel(org, repo string, number int, label string) # fmt.Sprintf("/repos/%s/%s/issues/%d/labels", org, repo, number)
 // AddRepoLabel(org, repo, label, description, color string) error # fmt.Sprintf("/repos/%s/%s/labels", org, repo),
-func labelHandler(ghc *fakegithub.FakeClient) func(*http.Request) (interface{}, int, error) {
-	return func(r *http.Request) (interface{}, int, error) {
+func labelHandler(ghc *fakegithub.FakeClient) func(*http.Request) (any, int, error) {
+	return func(r *http.Request) (any, int, error) {
 		logrus.Infof("Serving: %s, %s", r.URL.Path, r.Method)
 		vars := mux.Vars(r)
 		org, repo := vars["org"], vars["repo"]

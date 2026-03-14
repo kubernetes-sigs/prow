@@ -152,7 +152,7 @@ func newController(opts controllerOptions) (*controller, error) {
 
 	// Reconcile whenever a prowjob changes
 	opts.pji.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
+		AddFunc: func(obj any) {
 			pj, ok := obj.(*prowjobv1.ProwJob)
 			if !ok {
 				logrus.Warnf("Ignoring bad prowjob add: %v", obj)
@@ -160,7 +160,7 @@ func newController(opts controllerOptions) (*controller, error) {
 			}
 			c.enqueueKey(pjutil.ClusterToCtx(pj.Spec.Cluster), pj)
 		},
-		UpdateFunc: func(old, new interface{}) {
+		UpdateFunc: func(old, new any) {
 			pj, ok := new.(*prowjobv1.ProwJob)
 			if !ok {
 				logrus.Warnf("Ignoring bad prowjob update: %v", new)
@@ -168,7 +168,7 @@ func newController(opts controllerOptions) (*controller, error) {
 			}
 			c.enqueueKey(pjutil.ClusterToCtx(pj.Spec.Cluster), pj)
 		},
-		DeleteFunc: func(obj interface{}) {
+		DeleteFunc: func(obj any) {
 			pj, ok := obj.(*prowjobv1.ProwJob)
 			if !ok {
 				logrus.Warnf("Ignoring bad prowjob delete: %v", obj)
@@ -180,15 +180,14 @@ func newController(opts controllerOptions) (*controller, error) {
 
 	for ctx, cfg := range opts.pipelineConfigs {
 		// Reconcile whenever a pipelinerun changes.
-		ctx := ctx // otherwise it will change
 		cfg.informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-			AddFunc: func(obj interface{}) {
+			AddFunc: func(obj any) {
 				c.enqueueKey(ctx, obj)
 			},
-			UpdateFunc: func(old, new interface{}) {
+			UpdateFunc: func(old, new any) {
 				c.enqueueKey(ctx, new)
 			},
-			DeleteFunc: func(obj interface{}) {
+			DeleteFunc: func(obj any) {
 				c.enqueueKey(ctx, obj)
 			},
 		})
@@ -209,7 +208,7 @@ func (c *controller) Run(threads int, stop <-chan struct{}) error {
 	}
 
 	logrus.Info("Starting workers")
-	for i := 0; i < threads; i++ {
+	for range threads {
 		go wait.Until(c.runWorker, time.Second, stop)
 	}
 
@@ -253,7 +252,7 @@ func fromKey(key string) (string, string, string, error) {
 }
 
 // enqueueKey schedules an item for reconciliation
-func (c *controller) enqueueKey(ctx string, obj interface{}) {
+func (c *controller) enqueueKey(ctx string, obj any) {
 	switch o := obj.(type) {
 	case *prowjobv1.ProwJob:
 		ns := o.Spec.Namespace

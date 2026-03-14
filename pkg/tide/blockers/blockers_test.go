@@ -438,10 +438,10 @@ func TestBlockers(t *testing.T) {
 type fakeGitHubClient struct {
 	lock      sync.Mutex
 	queries   map[string][]string
-	injectErr func(ctx context.Context, q interface{}, vars map[string]interface{}, org string) error
+	injectErr func(ctx context.Context, q any, vars map[string]any, org string) error
 }
 
-func (fghc *fakeGitHubClient) QueryWithGitHubAppsSupport(ctx context.Context, q interface{}, vars map[string]interface{}, org string) error {
+func (fghc *fakeGitHubClient) QueryWithGitHubAppsSupport(ctx context.Context, q any, vars map[string]any, org string) error {
 	if fghc.injectErr != nil {
 		if err := fghc.injectErr(ctx, q, vars, org); err != nil {
 			return err
@@ -475,7 +475,7 @@ func TestBlockersFindAll(t *testing.T) {
 	testCases := []struct {
 		name            string
 		usesAppsAuth    bool
-		injectQueryErr  func(ctx context.Context, q interface{}, vars map[string]interface{}, org string) error
+		injectQueryErr  func(ctx context.Context, q any, vars map[string]any, org string) error
 		expectedQueries map[string][]string
 		expectedErr     error
 	}{
@@ -498,7 +498,7 @@ func TestBlockersFindAll(t *testing.T) {
 		{
 			name:         "One org query fails, the other succeed",
 			usesAppsAuth: true,
-			injectQueryErr: func(ctx context.Context, q interface{}, vars map[string]interface{}, org string) error {
+			injectQueryErr: func(ctx context.Context, q any, vars map[string]any, org string) error {
 				if org == "org-c" {
 					return errors.New("fault")
 				}

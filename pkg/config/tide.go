@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -583,7 +584,7 @@ func (tq *TideQuery) constructQuery() (map[string][]string, string) {
 	}
 	for _, l := range tq.Labels {
 		var orOperands []string
-		for _, alt := range strings.Split(l, ",") {
+		for alt := range strings.SplitSeq(l, ",") {
 			orOperands = append(orOperands, fmt.Sprintf("\"%s\"", alt))
 		}
 		queryString = append(queryString, fmt.Sprintf("label:%s", strings.Join(orOperands, ",")))
@@ -639,19 +640,9 @@ func (tq TideQuery) ForRepo(repo OrgRepo) bool {
 			continue
 		}
 		// Check for repos excluded from the org.
-		for _, excludedRepo := range tq.ExcludedRepos {
-			if excludedRepo == repo.String() {
-				return false
-			}
-		}
-		return true
+		return !slices.Contains(tq.ExcludedRepos, repo.String())
 	}
-	for _, queryRepo := range tq.Repos {
-		if queryRepo == repo.String() {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(tq.Repos, repo.String())
 }
 
 func reposInOrg(org string, repos []string) []string {

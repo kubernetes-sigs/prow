@@ -121,7 +121,7 @@ func TestRoundTrip(t *testing.T) {
 	}
 }
 
-func serializeOrDie(in interface{}) io.ReadCloser {
+func serializeOrDie(in any) io.ReadCloser {
 	rawData, err := json.Marshal(in)
 	if err != nil {
 		panic(fmt.Sprintf("Serialization failed: %v", err))

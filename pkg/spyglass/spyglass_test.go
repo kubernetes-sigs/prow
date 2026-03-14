@@ -65,7 +65,7 @@ type fpkc string
 
 func (f fpkc) GetLogs(name, container string) ([]byte, error) {
 	if name == "wowowow" || name == "powowow" {
-		return []byte(fmt.Sprintf("%s.%s", f, container)), nil
+		return fmt.Appendf(nil, "%s.%s", f, container), nil
 	}
 	return nil, fmt.Errorf("pod not found: %s", name)
 }
@@ -79,9 +79,9 @@ func (ca fca) Config() *config.Config {
 }
 
 func TestMain(m *testing.M) {
-	var longLog string
-	for i := 0; i < 300; i++ {
-		longLog += "here a log\nthere a log\neverywhere a log log\n"
+	var longLog strings.Builder
+	for range 300 {
+		longLog.WriteString("here a log\nthere a log\neverywhere a log log\n")
 	}
 	fakeGCSServer = fakestorage.NewServer([]fakestorage.Object{
 		{
@@ -95,7 +95,7 @@ func TestMain(m *testing.M) {
 		{
 			BucketName: "test-bucket",
 			Name:       "logs/example-ci-run/403/long-log.txt",
-			Content:    []byte(longLog),
+			Content:    []byte(longLog.String()),
 		},
 		{
 			BucketName: "test-bucket",

@@ -377,7 +377,7 @@ type refID struct {
 }
 
 type fakeGitHubClient struct {
-	statusesRetrieved map[refID]interface{}
+	statusesRetrieved map[refID]any
 }
 
 func (c *fakeGitHubClient) GetCombinedStatus(org, repo, ref string) (*github.CombinedStatus, error) {
@@ -409,7 +409,7 @@ func TestProcessPR(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		client := fakeGitHubClient{statusesRetrieved: map[refID]interface{}{}}
+		client := fakeGitHubClient{statusesRetrieved: map[refID]any{}}
 		var filteredBranch string
 		migrator := Migrator{
 			org:  "org",
