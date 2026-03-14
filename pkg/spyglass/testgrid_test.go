@@ -17,6 +17,7 @@ limitations under the License.
 package spyglass
 
 import (
+	"slices"
 	"testing"
 
 	tgconf "github.com/GoogleCloudPlatform/testgrid/pb/config"
@@ -278,13 +279,7 @@ func TestFindQuery(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Unexpected error: %v", err)
 			}
-			found := false
-			for _, expectation := range tc.expected {
-				if result == expectation {
-					found = true
-					break
-				}
-			}
+			found := slices.Contains(tc.expected, result)
 			if !found {
 				t.Fatalf("Expected one of %v, but got %q", tc.expected, result)
 			}

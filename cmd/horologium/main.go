@@ -20,6 +20,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"maps"
 	"os"
 	"strconv"
 	"time"
@@ -214,9 +215,7 @@ func sync(prowJobClient ctrlruntimeclient.Client, cfg *config.Config, cr cronCli
 		var labels map[string]string
 		if p.Labels != nil {
 			labels = make(map[string]string)
-			for k, v := range p.Labels {
-				labels[k] = v
-			}
+			maps.Copy(labels, p.Labels)
 		}
 
 		if !previousFound || shouldTrigger || shouldTriggerFailedRun(j, p, now, logger, &labels) {
@@ -262,10 +261,7 @@ func shouldTriggerFailedRun(j v1.ProwJob, p config.Periodic, now time.Time, logg
 		runCount = count + 1
 	}
 
-	maxForJob := p.Retry.Attempts
-	if maxForJob > maxRetries {
-		maxForJob = maxRetries
-	}
+	maxForJob := min(p.Retry.Attempts, maxRetries)
 	if runCount > maxForJob {
 		return false
 	}

@@ -21,6 +21,7 @@ import (
 	"math/rand"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -106,13 +107,7 @@ func handleIC(c client, adorees []string, commentRe *regexp.Regexp, ic github.Is
 	if !ic.Issue.IsPullRequest() || ic.Action != github.IssueCommentActionCreated {
 		return nil
 	}
-	adoredLogin := false
-	for _, login := range adorees {
-		if ic.Comment.User.Login == login {
-			adoredLogin = true
-			break
-		}
-	}
+	adoredLogin := slices.Contains(adorees, ic.Comment.User.Login)
 	if !adoredLogin {
 		return nil
 	}

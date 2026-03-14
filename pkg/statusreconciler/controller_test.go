@@ -566,7 +566,7 @@ type orgRepo struct {
 	org, repo string
 }
 
-type orgRepoSet map[orgRepo]interface{}
+type orgRepoSet map[orgRepo]any
 
 func (s orgRepoSet) has(item orgRepo) bool {
 	_, contained := s[item]
@@ -577,7 +577,7 @@ type migration struct {
 	from, to string
 }
 
-type migrationSet map[migration]interface{}
+type migrationSet map[migration]any
 
 func (s migrationSet) insert(items ...migration) {
 	for _, item := range items {
@@ -730,7 +730,7 @@ type prAuthor struct {
 	author string
 }
 
-type prAuthorSet map[prAuthor]interface{}
+type prAuthorSet map[prAuthor]any
 
 func (s prAuthorSet) has(item prAuthor) bool {
 	_, contained := s[item]

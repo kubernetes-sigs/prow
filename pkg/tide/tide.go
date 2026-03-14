@@ -62,7 +62,7 @@ type githubClient interface {
 	GetRef(string, string, string) (string, error)
 	GetRepo(owner, name string) (github.FullRepo, error)
 	Merge(string, string, int, github.MergeDetails) error
-	QueryWithGitHubAppsSupport(ctx context.Context, q interface{}, vars map[string]interface{}, org string) error
+	QueryWithGitHubAppsSupport(ctx context.Context, q any, vars map[string]any, org string) error
 	ListIssueComments(org, repo string, number int) ([]github.IssueComment, error)
 	BotUserChecker() (func(candidate string) bool, error)
 	DeleteComment(org, repo string, id int) error
@@ -1358,6 +1358,65 @@ func prHasSuccessfulTideStatusContext(pr CodeReviewCommon) bool {
 	return false
 }
 
+// mergeErr represents a single categorized merge error for a specific PR.
+// Every error must be at least one of userFacing or operatorFacing.
+type mergeErr struct {
+	err            error
+	pr             int
+	userFacing     bool // include message in Tide history for PR authors
+	operatorFacing bool // surface through error-level logs and poolErrors metric
+}
+
+// mergeFailure aggregates categorized merge errors with audience-aware
+// reporting. Error() returns the full message. historyMessage() returns
+// user-appropriate text (with placeholders for operator-only errors).
+// operatorError() returns only operator-facing errors for metrics and logs.
+type mergeFailure struct {
+	errs  []mergeErr
+	batch string // batch context (e.g. " from batch [1 2 3], partial merge [1]")
+}
+
+func (mf *mergeFailure) failedPRs() []int {
+	prs := make([]int, 0, len(mf.errs))
+	for _, me := range mf.errs {
+		prs = append(prs, me.pr)
+	}
+	return prs
+}
+
+func (mf *mergeFailure) Error() string {
+	msgs := make([]string, 0, len(mf.errs))
+	for _, me := range mf.errs {
+		msgs = append(msgs, fmt.Sprintf("#%d: %v", me.pr, me.err))
+	}
+	return fmt.Sprintf("failed merging %v%s: %s", mf.failedPRs(), mf.batch, strings.Join(msgs, "; "))
+}
+
+func (mf *mergeFailure) historyMessage() string {
+	msgs := make([]string, 0, len(mf.errs))
+	for _, me := range mf.errs {
+		if me.userFacing {
+			msgs = append(msgs, fmt.Sprintf("#%d: %v", me.pr, me.err))
+		} else {
+			msgs = append(msgs, fmt.Sprintf("#%d: merge error (contact Prow admin)", me.pr))
+		}
+	}
+	return fmt.Sprintf("failed merging %v%s: %s", mf.failedPRs(), mf.batch, strings.Join(msgs, "; "))
+}
+
+func (mf *mergeFailure) operatorError() error {
+	var msgs []string
+	for _, me := range mf.errs {
+		if me.operatorFacing {
+			msgs = append(msgs, fmt.Sprintf("#%d: %v", me.pr, me.err))
+		}
+	}
+	if len(msgs) == 0 {
+		return nil
+	}
+	return fmt.Errorf("failed merging %v%s: %s", mf.failedPRs(), mf.batch, strings.Join(msgs, "; "))
+}
+
 // tryMerge attempts 1 merge and returns a bool indicating if we should try
 // to merge the remaining PRs and possibly an error.
 //
@@ -1366,7 +1425,7 @@ func tryMerge(mergeFunc func() error) (bool, error) {
 	var err error
 	const maxRetries = 3
 	backoff := time.Second * 4
-	for retry := 0; retry < maxRetries; retry++ {
+	for retry := range maxRetries {
 		if err = mergeFunc(); err == nil {
 			// Successful merge!
 			return true, nil
@@ -1652,7 +1711,6 @@ func (c *syncController) presubmitsByPull(sp *subpool) (map[int][]config.Presubm
 				return nil, err
 			}
 			if !shouldRun {
-				log.WithField("context", ps.Context).Debug("Presubmit excluded by ps.ShouldRun")
 				continue
 			}
 
@@ -1707,7 +1765,6 @@ func (c *syncController) presubmitsForBatch(prs []CodeReviewCommon, org, repo, b
 			return nil, err
 		}
 		if !shouldRun {
-			log.WithField("context", ps.Context).Debug("Presubmit excluded by ps.ShouldRun")
 			continue
 		}
 
@@ -1740,7 +1797,11 @@ func (c *syncController) syncSubpool(sp subpool, blocks []blockers.Blocker) (Poo
 	} else {
 		act, targets, err = c.takeAction(sp, batchPending, successes, pendings, missings, batchMerge, missingSerialTests)
 		if err != nil {
-			errorString = err.Error()
+			if mf, ok := err.(*mergeFailure); ok {
+				errorString = mf.historyMessage()
+			} else {
+				errorString = err.Error()
+			}
 		}
 		if recordableActions[act] {
 			c.History.Record(
@@ -1752,6 +1813,16 @@ func (c *syncController) syncSubpool(sp subpool, blocks []blockers.Blocker) (Poo
 				tenantIDs,
 			)
 		}
+	}
+
+	// Extract only operator-facing errors for metrics and logs.
+	// All errors (including user-facing) are already recorded in Tide
+	// history above via errorString.
+	var operatorErr error
+	if mf, ok := err.(*mergeFailure); ok {
+		operatorErr = mf.operatorError()
+	} else {
+		operatorErr = err
 	}
 
 	sp.log.WithFields(logrus.Fields{
@@ -1786,7 +1857,7 @@ func (c *syncController) syncSubpool(sp subpool, blocks []blockers.Blocker) (Poo
 
 			TenantIDs: tenantIDs,
 		},
-		err
+		operatorErr
 }
 
 func prMeta(prs ...CodeReviewCommon) []prowapi.Pull {
@@ -2231,7 +2302,7 @@ func pickBatchWithPreexistingTests(sp subpool, candidates []CodeReviewCommon, ma
 	}
 	prNumbersFromMapKey := func(s string) []int {
 		var result []int
-		for _, element := range strings.Split(s, "|") {
+		for element := range strings.SplitSeq(s, "|") {
 			intVal, err := strconv.Atoi(element)
 			if err != nil {
 				logrus.WithField("element", element).Error("BUG: Found element in pr numbers map that was not parseable as int")

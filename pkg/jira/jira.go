@@ -572,11 +572,11 @@ func unsetProblematicFields(issue *jira.Issue, responseBody string) (*jira.Issue
 	if err != nil {
 		return nil, err
 	}
-	issueMap := make(map[string]interface{})
+	issueMap := make(map[string]any)
 	if err := json.Unmarshal(marshalledIssue, &issueMap); err != nil {
 		return nil, err
 	}
-	fieldsMap := issueMap["fields"].(map[string]interface{})
+	fieldsMap := issueMap["fields"].(map[string]any)
 	for field := range processedResponse.Errors {
 		delete(fieldsMap, field)
 	}
@@ -774,14 +774,14 @@ func HandleJiraError(response *jira.Response, err error) error {
 
 // toCurl is a slightly adjusted copy of https://github.com/kubernetes/kubernetes/blob/74053d555d71a14e3853b97e204d7d6415521375/staging/src/k8s.io/client-go/transport/round_trippers.go#L339
 func toCurl(r *http.Request) string {
-	headers := ""
+	var headers strings.Builder
 	for key, values := range r.Header {
 		for _, value := range values {
-			headers += fmt.Sprintf(` -H %q`, fmt.Sprintf("%s: %s", key, maskAuthorizationHeader(key, value)))
+			headers.WriteString(fmt.Sprintf(` -H %q`, fmt.Sprintf("%s: %s", key, maskAuthorizationHeader(key, value))))
 		}
 	}
 
-	return fmt.Sprintf("curl -k -v -X%s %s '%s'", r.Method, headers, r.URL.String())
+	return fmt.Sprintf("curl -k -v -X%s %s '%s'", r.Method, headers.String(), r.URL.String())
 }
 
 type retryableHTTPLogrusWrapper struct {
@@ -791,7 +791,7 @@ type retryableHTTPLogrusWrapper struct {
 // fieldsForContext translates a list of context fields to a
 // logrus format; any items that don't conform to our expectations
 // are omitted
-func (l *retryableHTTPLogrusWrapper) fieldsForContext(context ...interface{}) logrus.Fields {
+func (l *retryableHTTPLogrusWrapper) fieldsForContext(context ...any) logrus.Fields {
 	fields := logrus.Fields{}
 	for i := 0; i < len(context)-1; i += 2 {
 		key, ok := context[i].(string)
@@ -803,19 +803,19 @@ func (l *retryableHTTPLogrusWrapper) fieldsForContext(context ...interface{}) lo
 	return fields
 }
 
-func (l *retryableHTTPLogrusWrapper) Error(msg string, context ...interface{}) {
+func (l *retryableHTTPLogrusWrapper) Error(msg string, context ...any) {
 	l.log.WithFields(l.fieldsForContext(context...)).Error(msg)
 }
 
-func (l *retryableHTTPLogrusWrapper) Info(msg string, context ...interface{}) {
+func (l *retryableHTTPLogrusWrapper) Info(msg string, context ...any) {
 	l.log.WithFields(l.fieldsForContext(context...)).Info(msg)
 }
 
-func (l *retryableHTTPLogrusWrapper) Debug(msg string, context ...interface{}) {
+func (l *retryableHTTPLogrusWrapper) Debug(msg string, context ...any) {
 	l.log.WithFields(l.fieldsForContext(context...)).Debug(msg)
 }
 
-func (l *retryableHTTPLogrusWrapper) Warn(msg string, context ...interface{}) {
+func (l *retryableHTTPLogrusWrapper) Warn(msg string, context ...any) {
 	l.log.WithFields(l.fieldsForContext(context...)).Warn(msg)
 }
 
@@ -841,7 +841,7 @@ func (jc *client) SearchV2JqlWithContext(ctx context.Context, jql string, option
 	return issues, response, nil
 }
 
-func GetUnknownField(field string, issue *jira.Issue, fn func() interface{}) error {
+func GetUnknownField(field string, issue *jira.Issue, fn func() any) error {
 	obj := fn()
 	unknownField, ok := issue.Fields.Unknowns[field]
 	if !ok {
@@ -866,7 +866,7 @@ func GetIssueSecurityLevel(issue *jira.Issue) (*SecurityLevel, error) {
 	// as part of the issue fields
 	// See https://github.com/andygrunwald/go-jira/issues/456
 	var obj *SecurityLevel
-	err := GetUnknownField("security", issue, func() interface{} {
+	err := GetUnknownField("security", issue, func() any {
 		obj = &SecurityLevel{}
 		return obj
 	})
@@ -879,7 +879,7 @@ func (jc *client) GetIssueSecurityLevel(issue *jira.Issue) (*SecurityLevel, erro
 
 func GetIssueQaContact(issue *jira.Issue) (*jira.User, error) {
 	var obj *jira.User
-	err := GetUnknownField("customfield_12316243", issue, func() interface{} {
+	err := GetUnknownField("customfield_12316243", issue, func() any {
 		obj = &jira.User{}
 		return obj
 	})
@@ -892,7 +892,7 @@ func (jc *client) GetIssueQaContact(issue *jira.Issue) (*jira.User, error) {
 
 func GetIssueTargetVersion(issue *jira.Issue) (*[]*jira.Version, error) {
 	var obj *[]*jira.Version
-	err := GetUnknownField("customfield_12319940", issue, func() interface{} {
+	err := GetUnknownField("customfield_12319940", issue, func() any {
 		obj = &[]*jira.Version{{}}
 		return obj
 	})

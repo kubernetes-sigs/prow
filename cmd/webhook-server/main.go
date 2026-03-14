@@ -153,9 +153,6 @@ func main() {
 			logrus.WithError(err).Fatal("Unable to create secretmanager client", err)
 		}
 		client = newGCPClient(secretManagerClient, o.secretID)
-		if err != nil {
-			logrus.WithError(err).Fatal("Unable to create secret manager client")
-		}
 	}
 	if o.fileSystemPath != "" {
 		absPath, err := filepath.Abs(o.fileSystemPath)

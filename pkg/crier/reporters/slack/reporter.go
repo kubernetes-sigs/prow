@@ -21,6 +21,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"text/template"
 
 	"github.com/sirupsen/logrus"
@@ -115,11 +116,8 @@ func (sr *slackReporter) ShouldReport(_ context.Context, logger *logrus.Entry, p
 
 	var typeShouldReport bool
 	if globalSlackConfig.JobTypesToReport != nil {
-		for _, tp := range globalSlackConfig.JobTypesToReport {
-			if tp == pj.Spec.Type {
-				typeShouldReport = true
-				break
-			}
+		if slices.Contains(globalSlackConfig.JobTypesToReport, pj.Spec.Type) {
+			typeShouldReport = true
 		}
 	}
 
@@ -140,11 +138,8 @@ func (sr *slackReporter) ShouldReport(_ context.Context, logger *logrus.Entry, p
 			logger.WithField("job_states_to_report", merged.JobStatesToReport).Debug("Skip slack reporting as 'report: false', could result from 'job_states_to_report: []'.")
 			return false
 		}
-		for _, stateToReport := range merged.JobStatesToReport {
-			if pj.Status.State == stateToReport {
-				stateShouldReport = true
-				break
-			}
+		if slices.Contains(merged.JobStatesToReport, pj.Status.State) {
+			stateShouldReport = true
 		}
 	}
 

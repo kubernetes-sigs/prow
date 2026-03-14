@@ -86,7 +86,7 @@ func handleGenericComment(pc plugins.Agent, e github.GenericCommentEvent) error 
 
 func parseLogins(text string) []string {
 	var parts []string
-	for _, p := range strings.Split(text, " ") {
+	for p := range strings.SplitSeq(text, " ") {
 		t := strings.Trim(p, "@ ")
 		if t == "" {
 			continue

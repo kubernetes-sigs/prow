@@ -18,6 +18,7 @@ package main
 
 import (
 	"flag"
+	"maps"
 	"reflect"
 	"strings"
 	"testing"
@@ -95,9 +96,7 @@ func TestGatherOptions(t *testing.T) {
 				"--hmac-token-secret-name": "hmac-token",
 				"--hmac-token-key":         "hmac",
 			}
-			for k, v := range tc.args {
-				argMap[k] = v
-			}
+			maps.Copy(argMap, tc.args)
 			for k := range tc.del {
 				delete(argMap, k)
 			}

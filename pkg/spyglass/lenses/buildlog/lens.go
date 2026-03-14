@@ -601,7 +601,7 @@ func groupLines(artifact *string, start, end int, logLines ...LogLine) []LineGro
 }
 
 // LogViewTemplate executes the log viewer template ready for rendering
-func executeTemplate(resourceDir, templateName string, data interface{}) string {
+func executeTemplate(resourceDir, templateName string, data any) string {
 	t := template.New("template.html")
 	_, err := t.ParseFiles(filepath.Join(resourceDir, "template.html"))
 	if err != nil {

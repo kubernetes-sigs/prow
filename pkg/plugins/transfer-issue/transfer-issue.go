@@ -43,7 +43,7 @@ type githubClient interface {
 	GetRepo(org, name string) (github.FullRepo, error)
 	CreateComment(org, repo string, number int, comment string) error
 	IsMember(org, user string) (bool, error)
-	MutateWithGitHubAppsSupport(context.Context, interface{}, githubql.Input, map[string]interface{}, string) error
+	MutateWithGitHubAppsSupport(context.Context, any, githubql.Input, map[string]any, string) error
 }
 
 func init() {

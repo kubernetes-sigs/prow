@@ -89,7 +89,7 @@ func sanitizeFilename(s string) string {
 
 // CompareWithSerializedFixture compares an object that can be marshalled with a golden file containing the
 // serialized version of the data.
-func CompareWithSerializedFixture(t *testing.T, data interface{}) {
+func CompareWithSerializedFixture(t *testing.T, data any) {
 	t.Helper()
 	tempFile, err := os.CreateTemp("", "tmp-serialized")
 	if err != nil {

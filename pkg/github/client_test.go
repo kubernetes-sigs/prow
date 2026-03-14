@@ -3811,15 +3811,15 @@ func TestGetPendingApprovalActionRuns(t *testing.T) {
 
 func TestApproveGitHubWorkflowRun(t *testing.T) {
 	const (
-		org    = "k8s"
-		repo   = "kuber"
-		runID  = 12345
+		org   = "k8s"
+		repo  = "kuber"
+		runID = 12345
 	)
 
 	testCases := []struct {
-		name           string
-		statusCode     int
-		expectError    bool
+		name        string
+		statusCode  int
+		expectError bool
 	}{
 		{
 			name:        "successful approval",

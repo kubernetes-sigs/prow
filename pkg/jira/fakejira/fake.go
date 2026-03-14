@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"strconv"
 	"strings"
 
@@ -174,8 +175,8 @@ func (f *FakeClient) CreateIssue(issue *jira.Issue) (*jira.Issue, error) {
 		if intID > highestID {
 			highestID = intID
 		}
-		if strings.HasPrefix(issue.Key, keyPrefix) {
-			stringID := strings.TrimPrefix(issue.Key, keyPrefix)
+		if after, ok := strings.CutPrefix(issue.Key, keyPrefix); ok {
+			stringID := after
 			intID, _ := strconv.Atoi(stringID)
 			if intID > highestKeyID {
 				highestKeyID = intID
@@ -321,7 +322,7 @@ func (f *FakeClient) UpdateIssue(issue *jira.Issue) (*jira.Issue, error) {
 	}
 	// convert `fields` field of both retrieved and provided issue to interfaces and update the non-nil
 	// fields from the provided issue to the retrieved one
-	var issueFields, retrievedFields map[string]interface{}
+	var issueFields, retrievedFields map[string]any
 	issueBytes, err := json.Marshal(issue.Fields)
 	if err != nil {
 		return nil, fmt.Errorf("error converting provided issue to json: %v", err)
@@ -336,9 +337,7 @@ func (f *FakeClient) UpdateIssue(issue *jira.Issue) (*jira.Issue, error) {
 	if err := json.Unmarshal(retrievedIssueBytes, &retrievedFields); err != nil {
 		return nil, fmt.Errorf("failed converting original issue to map: %v", err)
 	}
-	for key, value := range issueFields {
-		retrievedFields[key] = value
-	}
+	maps.Copy(retrievedFields, issueFields)
 	updatedIssueBytes, err := json.Marshal(retrievedFields)
 	if err != nil {
 		return nil, fmt.Errorf("error converting updated issue to json: %v", err)

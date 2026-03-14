@@ -181,7 +181,7 @@ func RegisterGenericCommentHandler(name string, fn GenericCommentHandler, help H
 
 type PluginGitHubClient interface {
 	github.Client
-	Query(ctx context.Context, q interface{}, vars map[string]interface{}) error
+	Query(ctx context.Context, q any, vars map[string]any) error
 }
 
 // Agent may be used concurrently, so each entry must be thread-safe.
@@ -598,6 +598,6 @@ type githubV4OrgAddingWrapper struct {
 	github.Client
 }
 
-func (c *githubV4OrgAddingWrapper) Query(ctx context.Context, q interface{}, args map[string]interface{}) error {
+func (c *githubV4OrgAddingWrapper) Query(ctx context.Context, q any, args map[string]any) error {
 	return c.QueryWithGitHubAppsSupport(ctx, q, args, c.org)
 }

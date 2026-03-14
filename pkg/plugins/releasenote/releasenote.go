@@ -19,6 +19,7 @@ package releasenote
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -229,12 +230,7 @@ func shouldHandlePR(pr *github.PullRequestEvent) bool {
 
 	// Ignoring unrelated PR labels prevents duplicate release note messages
 	if pr.Action == github.PullRequestActionLabeled {
-		for _, rnLabel := range allRNLabels {
-			if pr.Label.Name == rnLabel {
-				return true
-			}
-		}
-		return false
+		return slices.Contains(allRNLabels, pr.Label.Name)
 	}
 
 	return true

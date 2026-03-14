@@ -140,7 +140,7 @@ func handle(gc githubClient, log *logrus.Entry, e *github.GenericCommentEvent, p
 	var respBuilder strings.Builder
 	var tagsSpecified bool
 	for _, tag := range mat {
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			if tag[1] != "" {
 				tagsSpecified = true
 			}

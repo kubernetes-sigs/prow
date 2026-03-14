@@ -64,7 +64,6 @@ func (fc *FakeClient) ListBuildsByTag(ctx context.Context, project string, tags 
 		return nil, nil
 	}
 	for _, bld := range bldsInProj {
-		bld := bld
 		if sets.New[string](bld.Tags...).HasAll(tags...) {
 			res = append(res, bld)
 		}

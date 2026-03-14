@@ -69,7 +69,7 @@ func (lens Lens) Header(artifacts []api.Artifact, resourceDir string, config jso
 	return output
 }
 
-func renderTemplate(resourceDir, block string, params interface{}) (string, error) {
+func renderTemplate(resourceDir, block string, params any) (string, error) {
 	t, err := template.ParseFiles(filepath.Join(resourceDir, "template.html"))
 	if err != nil {
 		return "", fmt.Errorf("Failed to parse template: %w", err)
@@ -96,8 +96,8 @@ func humanReadableName(name string) string {
 }
 
 func clickableLink(link string, spyglassConfig config.Spyglass) string {
-	if strings.HasPrefix(link, "gs://") {
-		return spyglassConfig.GCSBrowserPrefix + strings.TrimPrefix(link, "gs://")
+	if after, ok := strings.CutPrefix(link, "gs://"); ok {
+		return spyglassConfig.GCSBrowserPrefix + after
 	}
 	if strings.HasPrefix(link, "http://") || strings.HasPrefix(link, "https://") {
 		// Use https://google.com/url?q=[url] redirect to avoid leaking referer.

@@ -26,6 +26,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -526,11 +527,8 @@ func loadSecrets(paths, iniFilenames []string) ([][]byte, error) {
 			if info.Name() == ".dockerconfigjson" {
 				parser = loadDockerconfigJsonAuths
 			}
-			for _, filename := range iniFilenames {
-				if info.Name() == filename {
-					parser = loadIniData
-					break
-				}
+			if slices.Contains(iniFilenames, info.Name()) {
+				parser = loadIniData
 			}
 			extra, parseErr := parser(raw)
 			if parseErr != nil {

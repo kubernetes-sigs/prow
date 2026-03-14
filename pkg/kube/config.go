@@ -19,6 +19,7 @@ package kube
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -51,9 +52,7 @@ func kubeConfigs(loader clientcmd.ClientConfigLoader) (map[string]rest.Config, s
 
 func mergeConfigs(local *rest.Config, foreign map[string]rest.Config, currentContext string) (map[string]rest.Config, error) {
 	ret := map[string]rest.Config{}
-	for ctx, cfg := range foreign {
-		ret[ctx] = cfg
-	}
+	maps.Copy(ret, foreign)
 	if local != nil {
 		ret[InClusterContext] = *local
 	} else if currentContext != "" {

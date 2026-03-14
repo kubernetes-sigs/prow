@@ -104,7 +104,7 @@ func main() {
 	interrupts.ListenAndServe(server, 5*time.Second)
 }
 
-func response(f func(*http.Request) (interface{}, int, error)) http.Handler {
+func response(f func(*http.Request) (any, int, error)) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		msg, statusCode, err := f(r)
 		logrus.Infof("request: %s - %s. responses: %s, %d, %v", r.URL.Path, r.Method, msg, statusCode, err)
@@ -123,16 +123,16 @@ func response(f func(*http.Request) (interface{}, int, error)) http.Handler {
 	})
 }
 
-func defaultHandler() func(*http.Request) (interface{}, int, error) {
-	return func(r *http.Request) (interface{}, int, error) {
+func defaultHandler() func(*http.Request) (any, int, error) {
+	return func(r *http.Request) (any, int, error) {
 		logrus.Infof("Not supported: %s, %s", r.URL.Path, r.Method)
 		return "", http.StatusOK, nil
 	}
 }
 
 // GetBranch
-func projectHandler(fgc *fakegerrit.FakeGerrit) func(*http.Request) (interface{}, int, error) {
-	return func(r *http.Request) (interface{}, int, error) {
+func projectHandler(fgc *fakegerrit.FakeGerrit) func(*http.Request) (any, int, error) {
+	return func(r *http.Request) (any, int, error) {
 		vars := mux.Vars(r)
 		projectName := vars["project-name"]
 		branchID := vars["branch-id"]
@@ -148,8 +148,8 @@ func projectHandler(fgc *fakegerrit.FakeGerrit) func(*http.Request) (interface{}
 }
 
 // Admin endpoint to add a change to the Fake Gerrit Server
-func addChangeHandler(fgc *fakegerrit.FakeGerrit) func(*http.Request) (interface{}, int, error) {
-	return func(r *http.Request) (interface{}, int, error) {
+func addChangeHandler(fgc *fakegerrit.FakeGerrit) func(*http.Request) (any, int, error) {
+	return func(r *http.Request) (any, int, error) {
 		vars := mux.Vars(r)
 		project := vars["project"]
 		change := gerrit.ChangeInfo{}
@@ -163,8 +163,8 @@ func addChangeHandler(fgc *fakegerrit.FakeGerrit) func(*http.Request) (interface
 }
 
 // Admin endpoint to add a change to the Fake Gerrit Server
-func addAccountHandler(fgc *fakegerrit.FakeGerrit) func(*http.Request) (interface{}, int, error) {
-	return func(r *http.Request) (interface{}, int, error) {
+func addAccountHandler(fgc *fakegerrit.FakeGerrit) func(*http.Request) (any, int, error) {
+	return func(r *http.Request) (any, int, error) {
 		account := gerrit.AccountInfo{}
 		if err := unmarshal(r, &account); err != nil {
 			logrus.Infof("Error unmarshalling: %v", err)
@@ -176,8 +176,8 @@ func addAccountHandler(fgc *fakegerrit.FakeGerrit) func(*http.Request) (interfac
 }
 
 // Admin endpoint to add a change to the Fake Gerrit Server
-func loginHandler(fgc *fakegerrit.FakeGerrit) func(*http.Request) (interface{}, int, error) {
-	return func(r *http.Request) (interface{}, int, error) {
+func loginHandler(fgc *fakegerrit.FakeGerrit) func(*http.Request) (any, int, error) {
+	return func(r *http.Request) (any, int, error) {
 		vars := mux.Vars(r)
 		id := vars["id"]
 
@@ -189,8 +189,8 @@ func loginHandler(fgc *fakegerrit.FakeGerrit) func(*http.Request) (interface{}, 
 }
 
 // Admin endpoint to add a change to the Fake Gerrit Server
-func addBranchHandler(fgc *fakegerrit.FakeGerrit) func(*http.Request) (interface{}, int, error) {
-	return func(r *http.Request) (interface{}, int, error) {
+func addBranchHandler(fgc *fakegerrit.FakeGerrit) func(*http.Request) (any, int, error) {
+	return func(r *http.Request) (any, int, error) {
 		vars := mux.Vars(r)
 		branchName := vars["branch-name"]
 		project := vars["project"]
@@ -205,16 +205,16 @@ func addBranchHandler(fgc *fakegerrit.FakeGerrit) func(*http.Request) (interface
 }
 
 // Admin endpoint to reset the Fake Gerrit Server
-func resetHandler(fgc *fakegerrit.FakeGerrit) func(*http.Request) (interface{}, int, error) {
-	return func(r *http.Request) (interface{}, int, error) {
+func resetHandler(fgc *fakegerrit.FakeGerrit) func(*http.Request) (any, int, error) {
+	return func(r *http.Request) (any, int, error) {
 		fgc.Reset()
 		return "", http.StatusOK, nil
 	}
 }
 
 // Handles ListChangeComments
-func handleGetComments(fgc *fakegerrit.FakeGerrit) func(*http.Request) (interface{}, int, error) {
-	return func(r *http.Request) (interface{}, int, error) {
+func handleGetComments(fgc *fakegerrit.FakeGerrit) func(*http.Request) (any, int, error) {
+	return func(r *http.Request) (any, int, error) {
 		logrus.Infof("Serving: %s, %s", r.URL.Path, r.Method)
 		vars := mux.Vars(r)
 		id := vars["change-id"]
@@ -235,8 +235,8 @@ func processQueryString(query string) string {
 }
 
 // Handles QueryChanges
-func handleQueryChanges(fgc *fakegerrit.FakeGerrit) func(*http.Request) (interface{}, int, error) {
-	return func(r *http.Request) (interface{}, int, error) {
+func handleQueryChanges(fgc *fakegerrit.FakeGerrit) func(*http.Request) (any, int, error) {
+	return func(r *http.Request) (any, int, error) {
 		logrus.Infof("Serving: %s, %s", r.URL.Path, r.Method)
 		query := r.URL.Query().Get("q")
 		start := r.URL.Query().Get("start")
@@ -264,8 +264,8 @@ func handleQueryChanges(fgc *fakegerrit.FakeGerrit) func(*http.Request) (interfa
 }
 
 // Handles GetAccount and SetUsername
-func accountHandler(fgc *fakegerrit.FakeGerrit) func(*http.Request) (interface{}, int, error) {
-	return func(r *http.Request) (interface{}, int, error) {
+func accountHandler(fgc *fakegerrit.FakeGerrit) func(*http.Request) (any, int, error) {
+	return func(r *http.Request) (any, int, error) {
 		logrus.Infof("Serving: %s, %s", r.URL.Path, r.Method)
 		vars := mux.Vars(r)
 		id := vars["account-id"]
@@ -297,8 +297,8 @@ func accountHandler(fgc *fakegerrit.FakeGerrit) func(*http.Request) (interface{}
 }
 
 // Handles GetChange and SetReview
-func changesHandler(fgc *fakegerrit.FakeGerrit) func(*http.Request) (interface{}, int, error) {
-	return func(r *http.Request) (interface{}, int, error) {
+func changesHandler(fgc *fakegerrit.FakeGerrit) func(*http.Request) (any, int, error) {
+	return func(r *http.Request) (any, int, error) {
 		logrus.Infof("Serving: %s, %s", r.URL.Path, r.Method)
 		vars := mux.Vars(r)
 		id := vars["change-id"]
@@ -325,7 +325,7 @@ func changesHandler(fgc *fakegerrit.FakeGerrit) func(*http.Request) (interface{}
 	}
 }
 
-func unmarshal(r *http.Request, data interface{}) error {
+func unmarshal(r *http.Request, data any) error {
 	d := json.NewDecoder(r.Body)
 	d.DisallowUnknownFields()
 

@@ -1093,7 +1093,6 @@ func TestOrgRepoMatchMergeMethod(t *testing.T) {
 		},
 	}
 	for _, test := range testCases {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			actual := test.config.OrgRepoBranchMergeMethod(OrgRepo{Org: test.org, Repo: test.repo}, test.branch)
 			if actual != test.expected {

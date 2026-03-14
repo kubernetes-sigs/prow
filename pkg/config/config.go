@@ -24,12 +24,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/url"
 	"os"
 	"path"
 	"path/filepath"
 	"regexp"
 	"runtime/debug"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -272,10 +274,8 @@ func (c *Config) InRepoConfigEnabled(identifier string) bool {
 // Assumes that config will not include http:// or https://
 func (c *Config) InRepoConfigAllowsCluster(clusterName, identifier string) bool {
 	for _, key := range keysForIdentifier(identifier) {
-		for _, allowedCluster := range c.InRepoConfig.AllowedClusters[key] {
-			if allowedCluster == clusterName {
-				return true
-			}
+		if slices.Contains(c.InRepoConfig.AllowedClusters[key], clusterName) {
+			return true
 		}
 	}
 	return false
@@ -1920,7 +1920,7 @@ func loadConfig(prowConfig, jobConfig string, additionalProwConfigDirs []string,
 }
 
 // yamlToConfig converts a yaml file into a Config object.
-func yamlToConfig(path string, nc interface{}, opts ...yaml.JSONOpt) error {
+func yamlToConfig(path string, nc any, opts ...yaml.JSONOpt) error {
 	b, err := ReadFileMaybeGZIP(path)
 	if err != nil {
 		return fmt.Errorf("error reading %s: %w", path, err)
@@ -2031,18 +2031,14 @@ func mergeJobConfigs(a, b JobConfig) (JobConfig, error) {
 
 	// *** Presubmits ***
 	c.PresubmitsStatic = make(map[string][]Presubmit)
-	for repo, jobs := range a.PresubmitsStatic {
-		c.PresubmitsStatic[repo] = jobs
-	}
+	maps.Copy(c.PresubmitsStatic, a.PresubmitsStatic)
 	for repo, jobs := range b.PresubmitsStatic {
 		c.PresubmitsStatic[repo] = append(c.PresubmitsStatic[repo], jobs...)
 	}
 
 	// *** Postsubmits ***
 	c.PostsubmitsStatic = make(map[string][]Postsubmit)
-	for repo, jobs := range a.PostsubmitsStatic {
-		c.PostsubmitsStatic[repo] = jobs
-	}
+	maps.Copy(c.PostsubmitsStatic, a.PostsubmitsStatic)
 	for repo, jobs := range b.PostsubmitsStatic {
 		c.PostsubmitsStatic[repo] = append(c.PostsubmitsStatic[repo], jobs...)
 	}
@@ -2869,10 +2865,8 @@ func parseTideMergeType(tideMergeTypes map[string]TideOrgMergeType) utilerrors.A
 
 func validateLabels(labels map[string]string) error {
 	for label, value := range labels {
-		for _, prowLabel := range decorate.Labels() {
-			if label == prowLabel {
-				return fmt.Errorf("label %s is reserved for decoration", label)
-			}
+		if slices.Contains(decorate.Labels(), label) {
+			return fmt.Errorf("label %s is reserved for decoration", label)
 		}
 		if errs := validation.IsQualifiedName(label); len(errs) != 0 {
 			return fmt.Errorf("invalid label %s: %v", label, errs)

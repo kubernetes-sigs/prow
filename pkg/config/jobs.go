@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -427,12 +428,7 @@ func (br Brancher) Intersects(other Brancher) bool {
 
 		// Actually test our branches against the other brancher - if there are regex skip lists, simple comparison
 		// is insufficient.
-		for _, b := range sets.List(baseBranches) {
-			if other.ShouldRun(b) {
-				return true
-			}
-		}
-		return false
+		return slices.ContainsFunc(sets.List(baseBranches), other.ShouldRun)
 	}
 	if len(other.Branches) == 0 {
 		// There can only be one Brancher with skip_branches.
@@ -692,11 +688,8 @@ func (c *JobConfig) AllStaticPresubmits(repos []string) []Presubmit {
 		if len(repos) == 0 {
 			res = append(res, v...)
 		} else {
-			for _, r := range repos {
-				if r == repo {
-					res = append(res, v...)
-					break
-				}
+			if slices.Contains(repos, repo) {
+				res = append(res, v...)
 			}
 		}
 	}
@@ -716,11 +709,8 @@ func (c *JobConfig) AllStaticPostsubmits(repos []string) []Postsubmit {
 		if len(repos) == 0 {
 			res = append(res, v...)
 		} else {
-			for _, r := range repos {
-				if r == repo {
-					res = append(res, v...)
-					break
-				}
+			if slices.Contains(repos, repo) {
+				res = append(res, v...)
 			}
 		}
 	}

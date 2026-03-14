@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	stdio "io"
+	"maps"
 	"net/http"
 	"net/url"
 	"strings"
@@ -84,7 +85,7 @@ type Parameter struct {
 	// This needs to be an interface so we won't clobber
 	// json unmarshalling when the Jenkins job has more
 	// parameter types than strings.
-	Value interface{} `json:"value"`
+	Value any `json:"value"`
 }
 
 // Build holds information about an instance of a jenkins job.
@@ -382,7 +383,7 @@ func (c *Client) request(method, path string, params url.Values, measure bool) (
 	}
 
 	start := time.Now()
-	for retries := 0; retries < maxRetries; retries++ {
+	for retries := range maxRetries {
 		resp, err = c.doRequest(method, urlPath)
 		if err == nil && resp.StatusCode < 500 {
 			break
@@ -674,9 +675,7 @@ func (c *Client) ListBuilds(jobs []BuildQueryParams) (map[string]Build, error) {
 	}
 
 	for builds := range buildChan {
-		for id, build := range builds {
-			jenkinsBuilds[id] = build
-		}
+		maps.Copy(jenkinsBuilds, builds)
 	}
 
 	return jenkinsBuilds, nil
