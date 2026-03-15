@@ -458,11 +458,11 @@ func (s *Server) handlePullRequestClosed(log logrus.FieldLogger, pre github.Pull
 	if err != nil {
 		return log, fmt.Errorf("failed to get issue labels: %w", err)
 	}
-	if requesterToComments[pr.User.Login] == nil {
-		requesterToComments[pr.User.Login] = make(map[string]*github.IssueComment)
-	}
 	for _, label := range labels {
 		if strings.HasPrefix(label.Name, s.labelPrefix) {
+			if requesterToComments[pr.User.Login] == nil {
+				requesterToComments[pr.User.Login] = make(map[string]*github.IssueComment)
+			}
 			requesterToComments[pr.User.Login][label.Name[len(s.labelPrefix):]] = nil // leave this nil which indicates a label-initiated cherry-pick
 		}
 	}
