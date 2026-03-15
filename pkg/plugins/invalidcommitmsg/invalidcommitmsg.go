@@ -35,6 +35,7 @@ import (
 const (
 	pluginName                  = "invalidcommitmsg"
 	invalidCommitMsgLabel       = "do-not-merge/invalid-commit-message"
+	fixupCommitMsgLabel         = "do-not-merge/fixup-commits"
 	invalidCommitMsgCommentBody = `[Keywords](https://help.github.com/articles/closing-issues-using-keywords) which can automatically close issues and hashtag(#) mentions are not allowed in commit messages.
 
 **The list of commits with invalid commit messages**:
@@ -58,18 +59,35 @@ When GitHub merges a Pull Request, the title is included in the merge commit. To
 </details>
 `
 	invalidTitleCommentPruneBody = "not allowed in the title of a Pull Request"
+	fixupCommitMsgCommentBody    = `Temporary commits like fixup! or amend! are not allowed in the commit history.
+
+Please squash or rebase your commits before merging. You can use
+[git rebase --autosquash](https://git-scm.com/docs/git-rebase#Documentation/git-rebase.txt---autosquash)
+to automatically squash these commits.
+
+**The list of fixup/amend commits**:
+
+%s
+
+<details>
+
+%s
+</details>
+`
+
+	fixupCommitMsgCommentPruneBody = "**The list of fixup/amend commits**:"
 )
 
 var CloseIssueRegex = regexp.MustCompile(`((?i)(clos(?:e[sd]?))|(fix(?:(es|ed)?))|(resolv(?:e[sd]?)))[\s:]+(\w+/\w+)?#(\d+)`)
+var FixupCommitRegex = regexp.MustCompile(`^(fixup!|amend!)`)
 
 func init() {
 	plugins.RegisterPullRequestHandler(pluginName, handlePullRequest, helpProvider)
 }
 
 func helpProvider(config *plugins.Configuration, _ []config.OrgRepo) (*pluginhelp.PluginHelp, error) {
-	// Only the Description field is specified because this plugin is not triggered with commands and is not configurable.
 	return &pluginhelp.PluginHelp{
-			Description: "The invalidcommitmsg plugin applies the '" + invalidCommitMsgLabel + "' label to pull requests whose commit messages and titles contain keywords which can automatically close issues.",
+			Description: "The invalidcommitmsg plugin applies the '" + invalidCommitMsgLabel + "' label to pull requests whose commit messages and titles contain keywords which can automatically close issues and applies the '" + fixupCommitMsgLabel + "' label to pull requests containing temporary commits such as fixup! or amend!",
 		},
 		nil
 }
@@ -91,10 +109,10 @@ func handlePullRequest(pc plugins.Agent, pr github.PullRequestEvent) error {
 	if err != nil {
 		return err
 	}
-	return handle(pc.GitHubClient, pc.Logger, pr, cp)
+	return handle(pc.GitHubClient, pc.Logger, pr, cp, pc.PluginConfig)
 }
 
-func handle(gc githubClient, log *logrus.Entry, pr github.PullRequestEvent, cp commentPruner) error {
+func handle(gc githubClient, log *logrus.Entry, pr github.PullRequestEvent, cp commentPruner, cfg *plugins.Configuration) error {
 	// Only consider actions indicating that the code diffs may have changed.
 	if !hasPRChanged(pr) {
 		return nil
@@ -107,11 +125,16 @@ func handle(gc githubClient, log *logrus.Entry, pr github.PullRequestEvent, cp c
 		title  = pr.PullRequest.Title
 	)
 
+	invalidCommitCfg := cfg.InvalidCommitMsgFor(org, repo)
+
+	checkFixup := !invalidCommitCfg.DisableFixupCheck
+
 	labels, err := gc.GetIssueLabels(org, repo, number)
 	if err != nil {
 		return err
 	}
 	hasInvalidCommitMsgLabel := github.HasLabel(invalidCommitMsgLabel, labels)
+	hasFixupCommitMsgLabel := github.HasLabel(fixupCommitMsgLabel, labels)
 
 	allCommits, err := gc.ListPullRequestCommits(org, repo, number)
 	if err != nil {
@@ -120,9 +143,18 @@ func handle(gc githubClient, log *logrus.Entry, pr github.PullRequestEvent, cp c
 	log.Debugf("Found %d commits in PR", len(allCommits))
 
 	var invalidCommits []github.RepositoryCommit
+	var fixupCommits []github.RepositoryCommit
+
 	for _, commit := range allCommits {
-		if CloseIssueRegex.MatchString(commit.Commit.Message) {
+		msg := commit.Commit.Message
+		subject := strings.Split(msg, "\n")[0]
+
+		if CloseIssueRegex.MatchString(msg) {
 			invalidCommits = append(invalidCommits, commit)
+		}
+
+		if checkFixup && FixupCommitRegex.MatchString(subject) {
+			fixupCommits = append(fixupCommits, commit)
 		}
 	}
 
@@ -142,12 +174,26 @@ func handle(gc githubClient, log *logrus.Entry, pr github.PullRequestEvent, cp c
 		})
 	}
 
+	if hasFixupCommitMsgLabel && len(fixupCommits) == 0 {
+		if err := gc.RemoveLabel(org, repo, number, fixupCommitMsgLabel); err != nil {
+			log.WithError(err).Errorf("GitHub failed to remove the following label: %s", fixupCommitMsgLabel)
+		}
+		cp.PruneComments(func(comment github.IssueComment) bool {
+			return strings.Contains(comment.Body, fixupCommitMsgCommentPruneBody)
+		})
+	}
+
 	// if we don't have the label and
 	// if the PR title is invalid OR there are invalid commits
 	// add the label
 	if !hasInvalidCommitMsgLabel && (len(invalidCommits) != 0 || invalidPRTitle) {
 		if err := gc.AddLabel(org, repo, number, invalidCommitMsgLabel); err != nil {
 			log.WithError(err).Errorf("GitHub failed to add the following label: %s", invalidCommitMsgLabel)
+		}
+	}
+	if !hasFixupCommitMsgLabel && len(fixupCommits) != 0 {
+		if err := gc.AddLabel(org, repo, number, fixupCommitMsgLabel); err != nil {
+			log.WithError(err).Errorf("GitHub failed to add the following label: %s", fixupCommitMsgLabel)
 		}
 	}
 
@@ -161,6 +207,21 @@ func handle(gc githubClient, log *logrus.Entry, pr github.PullRequestEvent, cp c
 		log.Debug("Commenting on PR to advise users of invalid commit messages")
 		if err := gc.CreateComment(org, repo, number, fmt.Sprintf(invalidCommitMsgCommentBody, dco.MarkdownSHAList(org, repo, invalidCommits), plugins.AboutThisBot)); err != nil {
 			log.WithError(err).Error("Could not create comment for invalid commit messages")
+		}
+	}
+
+	// if there are fixup commits, add a comment
+	if len(fixupCommits) != 0 {
+		cp.PruneComments(func(comment github.IssueComment) bool {
+			return strings.Contains(comment.Body, fixupCommitMsgCommentPruneBody)
+		})
+
+		log.Debug("Commenting on PR to advise users of fixup/amend commits")
+		if err := gc.CreateComment(org, repo, number,
+			fmt.Sprintf(fixupCommitMsgCommentBody,
+				dco.MarkdownSHAList(org, repo, fixupCommits),
+				plugins.AboutThisBot)); err != nil {
+			log.WithError(err).Error("Could not create comment for fixup commits")
 		}
 	}
 
