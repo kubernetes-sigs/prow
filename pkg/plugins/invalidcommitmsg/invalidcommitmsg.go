@@ -127,10 +127,7 @@ func handle(gc githubClient, log *logrus.Entry, pr github.PullRequestEvent, cp c
 
 	invalidCommitCfg := cfg.InvalidCommitMsgFor(org, repo)
 
-	checkFixup := true
-	if invalidCommitCfg.DisableFixupCheck {
-		checkFixup = false
-	}
+	checkFixup := !invalidCommitCfg.DisableFixupCheck
 
 	labels, err := gc.GetIssueLabels(org, repo, number)
 	if err != nil {
