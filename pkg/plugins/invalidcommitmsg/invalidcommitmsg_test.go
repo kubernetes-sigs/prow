@@ -26,6 +26,7 @@ import (
 
 	"sigs.k8s.io/prow/pkg/github"
 	"sigs.k8s.io/prow/pkg/github/fakegithub"
+	"sigs.k8s.io/prow/pkg/plugins"
 )
 
 type fakePruner struct{}
@@ -82,6 +83,8 @@ func TestHandlePullRequest(t *testing.T) {
 		commits                      []github.RepositoryCommit
 		title                        string
 		hasInvalidCommitMessageLabel bool
+		hasFixupCommitMsgLabel       bool
+		enableFixupEnv               bool
 
 		// expectations
 		addedLabel    string
@@ -189,6 +192,99 @@ func TestHandlePullRequest(t *testing.T) {
 			hasInvalidCommitMessageLabel: true,
 			removedLabel:                 fmt.Sprintf("k/k#3:%s", invalidCommitMsgLabel),
 		},
+		{
+			name:   "fixup commit -> add label and comment",
+			action: github.PullRequestActionOpened,
+			commits: []github.RepositoryCommit{
+				{SHA: "sha1", Commit: github.GitCommit{Message: "fixup! update tests"}},
+			},
+			hasInvalidCommitMessageLabel: false,
+			enableFixupEnv:               true,
+
+			addedLabel: fmt.Sprintf("k/k#3:%s", fixupCommitMsgLabel),
+
+			addedComments: []string{
+				fmt.Sprintf(
+					"k/k#3:"+fixupCommitMsgCommentBody,
+					"- [sha1](https://github.com/k/k/commits/sha1) fixup! update tests",
+					plugins.AboutThisBot,
+				),
+			},
+		},
+		{
+			name:   "amend commit -> add label and comment",
+			action: github.PullRequestActionOpened,
+			commits: []github.RepositoryCommit{
+				{SHA: "sha1", Commit: github.GitCommit{Message: "amend! update tests"}},
+			},
+			hasInvalidCommitMessageLabel: false,
+			enableFixupEnv:               true,
+
+			addedLabel: fmt.Sprintf("k/k#3:%s", fixupCommitMsgLabel),
+
+			addedComments: []string{
+				fmt.Sprintf(
+					"k/k#3:"+fixupCommitMsgCommentBody,
+					"- [sha1](https://github.com/k/k/commits/sha1) amend! update tests",
+					plugins.AboutThisBot,
+				),
+			},
+		},
+		{
+			name:   "fixup commit ignored when feature flag disabled",
+			action: github.PullRequestActionOpened,
+			commits: []github.RepositoryCommit{
+				{SHA: "sha1", Commit: github.GitCommit{Message: "fixup! update tests"}},
+			},
+			enableFixupEnv: false,
+		},
+		{
+			name:   "fixup commit detected when feature flag enabled",
+			action: github.PullRequestActionOpened,
+			commits: []github.RepositoryCommit{
+				{SHA: "sha1", Commit: github.GitCommit{Message: "fixup! update tests"}},
+			},
+			addedLabel: fmt.Sprintf("k/k#3:%s", fixupCommitMsgLabel),
+
+			addedComments: []string{
+				fmt.Sprintf(
+					"k/k#3:"+fixupCommitMsgCommentBody,
+					"- [sha1](https://github.com/k/k/commits/sha1) fixup! update tests",
+					plugins.AboutThisBot,
+				),
+			},
+			enableFixupEnv: true,
+		},
+		{
+			name:   "commit with fixup and close keyword",
+			action: github.PullRequestActionOpened,
+			commits: []github.RepositoryCommit{
+				{SHA: "sha1", Commit: github.GitCommit{Message: "fixup! fixes #123"}},
+			},
+			enableFixupEnv: true,
+			addedLabel:     fmt.Sprintf("k/k#3:%s", invalidCommitMsgLabel),
+			addedComments: []string{
+				fmt.Sprintf(
+					"k/k#3:"+invalidCommitMsgCommentBody,
+					"- [sha1](https://github.com/k/k/commits/sha1) fixup! fixes #123",
+					plugins.AboutThisBot,
+				),
+				fmt.Sprintf(
+					"k/k#3:"+fixupCommitMsgCommentBody,
+					"- [sha1](https://github.com/k/k/commits/sha1) fixup! fixes #123",
+					plugins.AboutThisBot,
+				),
+			},
+		},
+		{
+			name:   "fixup commits removed -> remove fixup label",
+			action: github.PullRequestActionOpened,
+			commits: []github.RepositoryCommit{
+				{SHA: "sha1", Commit: github.GitCommit{Message: "normal commit"}},
+			},
+			hasFixupCommitMsgLabel: true,
+			removedLabel:           fmt.Sprintf("k/k#3:%s", fixupCommitMsgLabel),
+		},
 	}
 
 	for _, tc := range testcases {
@@ -209,6 +305,16 @@ func TestHandlePullRequest(t *testing.T) {
 			if tc.hasInvalidCommitMessageLabel {
 				fc.IssueLabelsAdded = append(fc.IssueLabelsAdded, fmt.Sprintf("k/k#3:%s", invalidCommitMsgLabel))
 			}
+			if tc.hasFixupCommitMsgLabel {
+				fc.IssueLabelsAdded = append(fc.IssueLabelsAdded, fmt.Sprintf("k/k#3:%s", fixupCommitMsgLabel))
+			}
+
+			if tc.enableFixupEnv {
+				t.Setenv("ENABLE_FIXUP_CHECK", "true")
+			} else {
+				t.Setenv("ENABLE_FIXUP_CHECK", "false")
+			}
+
 			if err := handle(fc, logrus.WithField("plugin", pluginName), event, &fakePruner{}); err != nil {
 				t.Errorf("For case %s, didn't expect error from invalidcommitmsg plugin: %v", tc.name, err)
 			}
