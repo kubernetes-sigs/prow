@@ -329,11 +329,82 @@ func parseComment(comment github.IssueComment) cherrypickCommands {
 }
 
 func (s *Server) handlePullRequest(log logrus.FieldLogger, pre github.PullRequestEvent) (logrus.FieldLogger, error) {
-	// Only consider newly merged PRs
-	if pre.Action != github.PullRequestActionClosed && pre.Action != github.PullRequestActionLabeled && pre.Action != github.PullRequestActionOpened {
+	switch pre.Action {
+	case github.PullRequestActionLabeled:
+		return s.handlePullRequestLabelAdded(log, pre)
+	case github.PullRequestActionClosed:
+		return s.handlePullRequestClosed(log, pre)
+	default:
 		return log, nil
 	}
+}
 
+func (s *Server) handlePullRequestLabelAdded(log logrus.FieldLogger, pre github.PullRequestEvent) (logrus.FieldLogger, error) {
+	pr := pre.PullRequest
+	// Ignore non cherrypick labels
+	if pre.Label.Name == "" || !strings.HasPrefix(pre.Label.Name, s.labelPrefix) {
+		return log, nil
+	}
+	org := pr.Base.Repo.Owner.Login
+	repo := pr.Base.Repo.Name
+	num := pr.Number
+	baseBranch := pr.Base.Ref
+	targetBranch := strings.TrimPrefix(pre.Label.Name, s.labelPrefix)
+	log = log.WithFields(logrus.Fields{
+		github.OrgLogField:  org,
+		github.RepoLogField: repo,
+		github.PrLogField:   num,
+	})
+	prAuthor := pr.User.Login
+
+	if !s.allowAll {
+		// Only org members should be able to do cherry-picks.
+		ok, err := s.ghc.IsMember(org, prAuthor)
+		if err != nil {
+			return log, err
+		}
+		if !ok {
+			resp := fmt.Sprintf(notOrgMemberMessageTemplate, org, org, org, prAuthor)
+			if err := s.createComment(log, org, repo, num, nil, resp); err != nil {
+				log.WithError(err).WithField("response", resp).Error("Failed to create comment.")
+			}
+			return log, nil
+		}
+	}
+	if targetBranch == baseBranch {
+		resp := fmt.Sprintf("base branch (%s) needs to differ from target branch (%s)", baseBranch, targetBranch)
+		return log, s.createComment(log, org, repo, num, nil, resp)
+	}
+
+	// Cherry-pick only merged PRs.
+	if !pr.Merged {
+		resp := fmt.Sprintf(
+			"@%s once the present PR merges, I will cherry-pick it on top of `%s` in a new PR and assign it to you.",
+			prAuthor,
+			targetBranch,
+		)
+		return log, s.createComment(log, org, repo, num, nil, resp)
+	}
+
+	return log, s.handle(
+		log.WithFields(logrus.Fields{
+			"requester":     prAuthor,
+			"target_branch": targetBranch,
+		}),
+		prAuthor,
+		nil,
+		org,
+		repo,
+		targetBranch,
+		baseBranch,
+		nil,
+		pr.Title,
+		pr.Body,
+		num,
+	)
+}
+
+func (s *Server) handlePullRequestClosed(log logrus.FieldLogger, pre github.PullRequestEvent) (logrus.FieldLogger, error) {
 	pr := pre.PullRequest
 	if !pr.Merged || pr.MergeSHA == nil {
 		return log, nil
@@ -383,35 +454,21 @@ func (s *Server) handlePullRequest(log logrus.FieldLogger, pre github.PullReques
 			}
 		}
 	}
-
-	foundCherryPickComments := len(requesterToComments) != 0
-
-	// now look for our special labels
 	labels, err := s.ghc.GetIssueLabels(org, repo, num)
 	if err != nil {
 		return log, fmt.Errorf("failed to get issue labels: %w", err)
 	}
-
-	if requesterToComments[pr.User.Login] == nil {
-		requesterToComments[pr.User.Login] = make(map[string]*github.IssueComment)
-	}
-
-	foundCherryPickLabels := false
 	for _, label := range labels {
 		if strings.HasPrefix(label.Name, s.labelPrefix) {
+			if requesterToComments[pr.User.Login] == nil {
+				requesterToComments[pr.User.Login] = make(map[string]*github.IssueComment)
+			}
 			requesterToComments[pr.User.Login][label.Name[len(s.labelPrefix):]] = nil // leave this nil which indicates a label-initiated cherry-pick
-			foundCherryPickLabels = true
 		}
 	}
-
-	if !foundCherryPickComments && !foundCherryPickLabels {
+	if len(requesterToComments) == 0 {
 		return log, nil
 	}
-
-	if !foundCherryPickLabels && pre.Action == github.PullRequestActionLabeled {
-		return log, nil
-	}
-
 	// Figure out membership.
 	if !s.allowAll {
 		// TODO: Possibly cache this.
