@@ -302,14 +302,6 @@ func (f *FakeClient) GetIssueSecurityLevel(issue *jira.Issue) (*jiraclient.Secur
 	return jiraclient.GetIssueSecurityLevel(issue)
 }
 
-func (f *FakeClient) GetIssueQaContact(issue *jira.Issue) (*jira.User, error) {
-	return jiraclient.GetIssueQaContact(issue)
-}
-
-func (f *FakeClient) GetIssueTargetVersion(issue *jira.Issue) (*[]*jira.Version, error) {
-	return jiraclient.GetIssueTargetVersion(issue)
-}
-
 func (f *FakeClient) UpdateIssue(issue *jira.Issue) (*jira.Issue, error) {
 	if f.UpdateIssueError != nil {
 		if err, ok := f.UpdateIssueError[issue.Key]; ok {
