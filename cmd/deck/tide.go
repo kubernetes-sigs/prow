@@ -210,11 +210,18 @@ func (ta *tideAgent) filterHistory(hist map[string][]history.Record) map[string]
 }
 
 func (ta *tideAgent) filter(orgRepoID string, curIDs sets.Set[string], needsHide bool) bool {
-	// If the orgrepo is associated with no tenantID OR the default tenantID we ignore it here.
-	// This prevents already IDd History from getting the default ID assigned to them when their orgrepo is not associated with an OrgRepo.
-	// History with no tenantID and with default tenantID behave the same, so adding the default ID just causes issues
+	// Only add a non-default orgRepoID to curIDs. Adding DefaultTenantID here
+	// would poison curIDs for pools that already have non-default IDs from their
+	// records, because matchingIDs uses HasAll: a pool with {"t", DefaultTenantID}
+	// would fail to match a Deck configured with just {"t"}.
 	if orgRepoID != "" && orgRepoID != config.DefaultTenantID {
 		curIDs.Insert(orgRepoID)
+	}
+	// When curIDs is still empty (e.g. repos with no Prow jobs produce history
+	// records with no tenant IDs, and orgRepoID was empty or default), treat the
+	// pool as belonging to the default tenant so it can be matched.
+	if len(curIDs) == 0 {
+		curIDs.Insert(config.DefaultTenantID)
 	}
 	if len(ta.tenantIDs) > 0 {
 		if ta.matchingIDs(sets.List(curIDs)) {
