@@ -73,10 +73,6 @@ type Client interface {
 	// is set for the issue, the returned SecurityLevel and error will both be nil and
 	// the issue will follow the default project security level.
 	GetIssueSecurityLevel(*jira.Issue) (*SecurityLevel, error)
-	// GetIssueQaContact get the user details for the QA contact. The QA contact is a custom field in Jira
-	GetIssueQaContact(*jira.Issue) (*jira.User, error)
-	// GetIssueTargetVersion get the issue Target Release. The target release is a custom field in Jira
-	GetIssueTargetVersion(issue *jira.Issue) (*[]*jira.Version, error)
 	// FindUser returns all users with a field matching the queryParam (ex: email, display name, etc.)
 	FindUser(queryParam string) ([]*jira.User, error)
 	GetRemoteLinks(id string) ([]jira.RemoteLink, error)
@@ -875,32 +871,6 @@ func GetIssueSecurityLevel(issue *jira.Issue) (*SecurityLevel, error) {
 
 func (jc *client) GetIssueSecurityLevel(issue *jira.Issue) (*SecurityLevel, error) {
 	return GetIssueSecurityLevel(issue)
-}
-
-func GetIssueQaContact(issue *jira.Issue) (*jira.User, error) {
-	var obj *jira.User
-	err := GetUnknownField("customfield_12316243", issue, func() any {
-		obj = &jira.User{}
-		return obj
-	})
-	return obj, err
-}
-
-func (jc *client) GetIssueQaContact(issue *jira.Issue) (*jira.User, error) {
-	return GetIssueQaContact(issue)
-}
-
-func GetIssueTargetVersion(issue *jira.Issue) (*[]*jira.Version, error) {
-	var obj *[]*jira.Version
-	err := GetUnknownField("customfield_12319940", issue, func() any {
-		obj = &[]*jira.Version{{}}
-		return obj
-	})
-	return obj, err
-}
-
-func (jc *client) GetIssueTargetVersion(issue *jira.Issue) (*[]*jira.Version, error) {
-	return GetIssueTargetVersion(issue)
 }
 
 // GetProjectVersions returns the list of all the Versions defined in a Project
