@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -57,6 +58,7 @@ type options struct {
 	fixTeams          bool
 	fixTeamRepos      bool
 	fixRepos          bool
+	fixForks          bool
 	fixCollaborators  bool
 	ignoreInvitees    bool
 	ignoreSecretTeams bool
@@ -93,6 +95,7 @@ func (o *options) parseArgs(flags *flag.FlagSet, args []string) error {
 	flags.BoolVar(&o.fixTeamMembers, "fix-team-members", false, "Add/remove team members if set")
 	flags.BoolVar(&o.fixTeamRepos, "fix-team-repos", false, "Add/remove team permissions on repos if set")
 	flags.BoolVar(&o.fixRepos, "fix-repos", false, "Create/update repositories if set")
+	flags.BoolVar(&o.fixForks, "fix-forks", false, "Create repository forks from upstream. Inherits from --fix-repos if not explicitly set")
 	flags.BoolVar(&o.fixCollaborators, "fix-collaborators", false, "Add/remove/update repository collaborators if set")
 	flags.BoolVar(&o.allowRepoArchival, "allow-repo-archival", false, "If set, archiving repos is allowed while updating repos")
 	flags.BoolVar(&o.allowRepoPublish, "allow-repo-publish", false, "If set, making private repos public is allowed while updating repos")
@@ -100,6 +103,17 @@ func (o *options) parseArgs(flags *flag.FlagSet, args []string) error {
 	o.github.AddCustomizedFlags(flags, flagutil.ThrottlerDefaults(defaultTokens, defaultBurst))
 	if err := flags.Parse(args); err != nil {
 		return err
+	}
+
+	// If --fix-forks was not explicitly set, inherit from --fix-repos
+	fixForksExplicitlySet := false
+	flags.Visit(func(f *flag.Flag) {
+		if f.Name == "fix-forks" {
+			fixForksExplicitlySet = true
+		}
+	})
+	if !fixForksExplicitlySet {
+		o.fixForks = o.fixRepos
 	}
 
 	level, err := logrus.ParseLevel(o.logLevel)
@@ -377,6 +391,13 @@ func dumpOrgConfig(client dumpClient, orgName string, ignoreSecretTeams bool, ap
 			},
 			// Collaborators will be set conditionally below
 		})
+
+		// If repo is a fork, record the upstream
+		if full.Fork && full.Parent.FullName != "" {
+			forkFrom := full.Parent.FullName
+			repoConfig.ForkFrom = &forkFrom
+			logrus.WithFields(logrus.Fields{"repo": full.FullName, "upstream": forkFrom}).Debug("Recording fork upstream.")
+		}
 
 		// Get direct collaborators (explicitly added) via GraphQL
 		if directCollabs, err := client.ListDirectCollaboratorsWithPermissions(orgName, repo.Name); err != nil {
@@ -891,10 +912,24 @@ func configureOrg(opt options, client github.Client, orgName string, orgConfig o
 		return fmt.Errorf("failed to configure %s members: %w", orgName, err)
 	}
 
+	// Create repository forks from upstream (must run before configureRepos so forkNames is available)
+	// forkNames maps config repo name -> actual GitHub repo name (for renamed forks)
+	var forkNames map[string]string
+	if !opt.fixForks {
+		logrus.Info("Skipping repository forks configuration")
+		forkNames = make(map[string]string)
+	} else {
+		var err error
+		forkNames, err = configureForks(client, orgName, orgConfig)
+		if err != nil {
+			return fmt.Errorf("failed to configure %s forks: %w", orgName, err)
+		}
+	}
+
 	// Create repositories in the org
 	if !opt.fixRepos {
 		logrus.Info("Skipping org repositories configuration")
-	} else if err := configureRepos(opt, client, orgName, orgConfig); err != nil {
+	} else if err := configureRepos(opt, client, orgName, orgConfig, forkNames); err != nil {
 		return fmt.Errorf("failed to configure %s repos: %w", orgName, err)
 	}
 
@@ -903,7 +938,7 @@ func configureOrg(opt options, client github.Client, orgName string, orgConfig o
 		logrus.Info("Skipping repository collaborators configuration")
 	} else {
 		for repoName, repo := range orgConfig.Repos {
-			if err := configureCollaborators(client, orgName, repoName, repo); err != nil {
+			if err := configureCollaborators(client, orgName, repoName, repo, forkNames); err != nil {
 				return fmt.Errorf("failed to configure %s/%s collaborators: %w", orgName, repoName, err)
 			}
 		}
@@ -1053,7 +1088,7 @@ func sanitizeRepoDelta(opt options, delta *github.RepoUpdateRequest) []error {
 	return errs
 }
 
-func configureRepos(opt options, client repoClient, orgName string, orgConfig org.Config) error {
+func configureRepos(opt options, client repoClient, orgName string, orgConfig org.Config, forkNames map[string]string) error {
 	if err := validateRepos(orgConfig.Repos); err != nil {
 		return err
 	}
@@ -1071,10 +1106,25 @@ func configureRepos(opt options, client repoClient, orgName string, orgConfig or
 	var allErrors []error
 
 	for wantName, wantRepo := range orgConfig.Repos {
+		// Determine the actual GitHub repo name (may differ for forks)
+		actualName := wantName
+		if mappedName, ok := forkNames[wantName]; ok {
+			actualName = mappedName
+		}
 		repoLogger := logrus.WithField("repo", wantName)
+		if actualName != wantName {
+			repoLogger = repoLogger.WithField("actual_name", actualName)
+		}
 		pastErrors := len(allErrors)
 		var existing *github.FullRepo = nil
-		for _, possibleName := range append([]string{wantName}, wantRepo.Previously...) {
+
+		// For forks, also check if the repo exists with the actual name (which may differ from config key)
+		namesToCheck := append([]string{wantName}, wantRepo.Previously...)
+		if actualName != wantName {
+			namesToCheck = append([]string{actualName}, namesToCheck...)
+		}
+
+		for _, possibleName := range namesToCheck {
 			if repo, exists := byName[strings.ToLower(possibleName)]; exists {
 				switch {
 				case existing == nil:
@@ -1095,7 +1145,15 @@ func configureRepos(opt options, client repoClient, orgName string, orgConfig or
 			continue
 		}
 
+		// Check if this is a fork repo
+		isFork := wantRepo.ForkFrom != nil && *wantRepo.ForkFrom != ""
+
 		if existing == nil {
+			// Skip repos that should be created as forks - they're handled by configureForks
+			if isFork {
+				repoLogger.Debug("repo has fork_from set, skipping creation (will be handled by --fix-forks)")
+				continue
+			}
 			if wantRepo.Archived != nil && *wantRepo.Archived {
 				repoLogger.Error("repo does not exist but is configured as archived: not creating")
 				allErrors = append(allErrors, fmt.Errorf("nonexistent repo configured as archived: %s", wantName))
@@ -1119,7 +1177,16 @@ func configureRepos(opt options, client repoClient, orgName string, orgConfig or
 				}
 			}
 			repoLogger.Info("repo exists, considering an update")
-			delta := newRepoUpdateRequest(*existing, wantName, wantRepo)
+			// For forks, use the actual name to avoid trying to rename
+			updateName := wantName
+			if isFork && actualName != wantName {
+				updateName = actualName
+			}
+			// Note on fork metadata: Forks inherit metadata from their upstream repository.
+			// If a metadata field is set in the config, it will override the inherited value.
+			// If a metadata field is not set (nil), the fork keeps its current value (which
+			// may be inherited from upstream or previously modified).
+			delta := newRepoUpdateRequest(*existing, updateName, wantRepo)
 			if deltaErrors := sanitizeRepoDelta(opt, &delta); len(deltaErrors) > 0 {
 				for _, err := range deltaErrors {
 					repoLogger.WithError(err).Error("requested repo change is not allowed, removing from delta")
@@ -1139,6 +1206,203 @@ func configureRepos(opt options, client repoClient, orgName string, orgConfig or
 	return utilerrors.NewAggregate(allErrors)
 }
 
+type forkClient interface {
+	GetRepo(owner, name string) (github.FullRepo, error)
+	GetRepos(org string, isUser bool) ([]github.Repo, error)
+	CreateForkInOrg(owner, repo, targetOrg string, defaultBranchOnly bool, name string) (string, error)
+}
+
+// waitForFork polls until the fork repository is available.
+// GitHub's fork API returns HTTP 202 (accepted) and creates the fork asynchronously.
+// This function polls GetRepo until the fork exists or the timeout is reached.
+// It only retries on 404 (fork not ready yet); other errors are returned immediately.
+func waitForFork(client forkClient, org, repo string, timeout, interval time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	logger := logrus.WithFields(logrus.Fields{"org": org, "repo": repo})
+
+	for time.Now().Before(deadline) {
+		_, err := client.GetRepo(org, repo)
+		if err == nil {
+			logger.Debug("fork is now available")
+			return nil
+		}
+
+		if !github.IsNotFound(err) {
+			return fmt.Errorf("unexpected error waiting for fork %s/%s: %w", org, repo, err)
+		}
+
+		logger.Debug("fork not yet available, waiting...")
+		time.Sleep(interval)
+	}
+
+	return fmt.Errorf("timeout waiting for fork %s/%s to become available after %v", org, repo, timeout)
+}
+
+// configureForks creates repository forks from upstream repositories as specified in the config.
+// This function only creates forks - it does not delete existing forks that are not in the config.
+// Returns a mapping of config repo names to actual GitHub repo names (for forks that were renamed).
+func configureForks(client forkClient, orgName string, orgConfig org.Config) (map[string]string, error) {
+	// forkNames maps config repo name -> actual GitHub repo name
+	// This is needed because GitHub may rename forks to avoid conflicts
+	forkNames := make(map[string]string)
+
+	// Get existing repos in the org
+	repoList, err := client.GetRepos(orgName, false)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get repos: %w", err)
+	}
+	logrus.Debugf("Found %d repositories", len(repoList))
+
+	// Build maps for lookups
+	byName := make(map[string]github.Repo, len(repoList))
+	for _, repo := range repoList {
+		byName[strings.ToLower(repo.Name)] = repo
+	}
+
+	var allErrors []error
+
+	for repoName, repoCfg := range orgConfig.Repos {
+		// Skip repos that don't have ForkFrom configured
+		if repoCfg.ForkFrom == nil || *repoCfg.ForkFrom == "" {
+			continue
+		}
+
+		repoLogger := logrus.WithFields(logrus.Fields{
+			"repo":     repoName,
+			"upstream": *repoCfg.ForkFrom,
+		})
+
+		// Parse upstream owner/repo
+		parts := strings.SplitN(*repoCfg.ForkFrom, "/", 2)
+		if len(parts) != 2 {
+			err := fmt.Errorf("invalid fork_from format %q, expected 'owner/repo'", *repoCfg.ForkFrom)
+			repoLogger.WithError(err).Error("invalid fork configuration")
+			allErrors = append(allErrors, err)
+			continue
+		}
+		expectedUpstream := fmt.Sprintf("%s/%s", parts[0], parts[1])
+		upstreamRepoName := parts[1]
+
+		// Check candidate repos that might already be a fork of this upstream.
+		// Instead of scanning all forks in the org (O(n) API calls), we only
+		// check repos whose names match the config key or the upstream repo name,
+		// since GitHub names forks after the upstream repo by default.
+		candidates := []string{strings.ToLower(repoName)}
+		if !strings.EqualFold(repoName, upstreamRepoName) {
+			candidates = append(candidates, strings.ToLower(upstreamRepoName))
+		}
+
+		// Check candidates for an existing fork of this upstream.
+		// Track the result for the config-name repo to avoid a duplicate API call.
+		type parentResult struct {
+			fullName string
+			err      error
+		}
+		var configNameResult *parentResult
+		found := false
+		for _, candidate := range candidates {
+			repo, exists := byName[candidate]
+			if !exists || !repo.Fork {
+				continue
+			}
+			fullRepo, err := client.GetRepo(orgName, repo.Name)
+			if candidate == strings.ToLower(repoName) {
+				configNameResult = &parentResult{fullName: fullRepo.Parent.FullName, err: err}
+			}
+			if err != nil {
+				repoLogger.WithError(err).WithField("candidate", repo.Name).Error("failed to get fork parent info")
+				allErrors = append(allErrors, fmt.Errorf("failed to get repo info for %s: %w", repo.Name, err))
+				continue
+			}
+			if strings.EqualFold(fullRepo.Parent.FullName, expectedUpstream) {
+				forkNames[repoName] = repo.Name
+				if strings.EqualFold(repo.Name, repoName) {
+					repoLogger.Debug("fork already exists with correct upstream")
+				} else {
+					repoLogger.WithField("actual_name", repo.Name).Info("fork of upstream already exists with different name")
+				}
+				found = true
+				break
+			}
+		}
+		if found {
+			continue
+		}
+
+		// Check if a repo with the config name already exists but is not a fork of our upstream
+		existingRepo, exists := byName[strings.ToLower(repoName)]
+		if exists {
+			if existingRepo.Fork {
+				// It's a fork, but of a different upstream.
+				// Reuse the cached result if we already called GetRepo on this repo.
+				if configNameResult != nil {
+					if configNameResult.err != nil {
+						// Error was already appended above
+					} else {
+						err := fmt.Errorf("repo %s exists as fork of %s, but config specifies %s", repoName, configNameResult.fullName, expectedUpstream)
+						repoLogger.WithError(err).Error("fork upstream mismatch")
+						allErrors = append(allErrors, err)
+					}
+				} else {
+					fullRepo, err := client.GetRepo(orgName, existingRepo.Name)
+					if err != nil {
+						repoLogger.WithError(err).Error("failed to get full repo info")
+						allErrors = append(allErrors, err)
+					} else {
+						err := fmt.Errorf("repo %s exists as fork of %s, but config specifies %s", repoName, fullRepo.Parent.FullName, expectedUpstream)
+						repoLogger.WithError(err).Error("fork upstream mismatch")
+						allErrors = append(allErrors, err)
+					}
+				}
+			} else {
+				// It's not a fork at all
+				err := fmt.Errorf("repo %s already exists but is not a fork", repoName)
+				repoLogger.WithError(err).Error("cannot create fork - repo exists")
+				allErrors = append(allErrors, err)
+			}
+			continue
+		}
+
+		// No fork of this upstream exists - create it
+		defaultBranchOnly := false
+		if repoCfg.DefaultBranchOnly != nil {
+			defaultBranchOnly = *repoCfg.DefaultBranchOnly
+		}
+
+		repoLogger.Info("creating fork from upstream")
+		// Pass the config key as the desired fork name - GitHub will use this exact name
+		// (or return an error if a repo with that name already exists)
+		createdName, err := client.CreateForkInOrg(parts[0], parts[1], orgName, defaultBranchOnly, repoName)
+		if err != nil {
+			repoLogger.WithError(err).Error("failed to create fork")
+			allErrors = append(allErrors, err)
+			continue
+		}
+
+		// In dry-run mode, CreateForkInOrg returns an empty name (no API call is made).
+		// Skip waiting for the fork since it was not actually created.
+		if createdName == "" {
+			repoLogger.Info("dry-run: fork creation skipped")
+			forkNames[repoName] = repoName
+			continue
+		}
+
+		// Wait for the fork to become available (GitHub creates forks asynchronously)
+		repoLogger.Info("waiting for fork to become available")
+		if err := waitForFork(client, orgName, repoName, 5*time.Minute, 10*time.Second); err != nil {
+			repoLogger.WithError(err).Error("fork creation timed out")
+			allErrors = append(allErrors, err)
+			continue
+		}
+
+		// Record the mapping for configureRepos and configureCollaborators
+		forkNames[repoName] = repoName
+		repoLogger.Info("fork created successfully")
+	}
+
+	return forkNames, utilerrors.NewAggregate(allErrors)
+}
+
 type collaboratorClient interface {
 	ListCollaborators(org, repo string) ([]github.User, error)
 	ListDirectCollaboratorsWithPermissions(org, repo string) (map[string]github.RepoPermissionLevel, error)
@@ -1154,21 +1418,33 @@ type collaboratorClient interface {
 // configureCollaborators updates the list of repository collaborators when necessary
 // This function uses GraphQL to get only direct collaborators (explicitly added) and manages them
 // according to the configuration. Org members with inherited access are not affected.
-func configureCollaborators(client collaboratorClient, orgName, repoName string, repo org.Repo) error {
+func configureCollaborators(client collaboratorClient, orgName, repoName string, repo org.Repo, forkNames map[string]string) error {
+	// Use the actual GitHub repo name if this fork was renamed
+	actualRepoName := repoName
+	if mappedName, ok := forkNames[repoName]; ok {
+		actualRepoName = mappedName
+		if actualRepoName != repoName {
+			logrus.WithFields(logrus.Fields{
+				"config_name": repoName,
+				"actual_name": actualRepoName,
+			}).Debug("using actual fork name for collaborators")
+		}
+	}
+
 	want := repo.Collaborators
 	if want == nil {
 		want = map[string]github.RepoPermissionLevel{}
 	}
 
 	// Get current direct collaborators (only explicitly added ones) with their permissions via GraphQL
-	currentCollaboratorsRaw, err := client.ListDirectCollaboratorsWithPermissions(orgName, repoName)
+	currentCollaboratorsRaw, err := client.ListDirectCollaboratorsWithPermissions(orgName, actualRepoName)
 	if err != nil {
 		return fmt.Errorf("failed to list direct collaborators for %s/%s: %w", orgName, repoName, err)
 	}
 	logrus.Debugf("Found %d direct collaborators", len(currentCollaboratorsRaw))
 
 	// Get pending repository invitations with their permission levels and IDs
-	pendingInvitations, pendingInvitationIDs, err := repoInvitationsData(client, orgName, repoName)
+	pendingInvitations, pendingInvitationIDs, err := repoInvitationsData(client, orgName, actualRepoName)
 	if err != nil {
 		logrus.WithError(err).Warnf("Failed to list repository invitations for %s/%s, may send duplicate invitations", orgName, repoName)
 		pendingInvitations = map[string]github.RepoPermissionLevel{} // Continue with empty map
@@ -1253,7 +1529,7 @@ func configureCollaborators(client collaboratorClient, orgName, repoName string,
 			normalizedUser := github.NormLogin(user)
 			if invitationID, hasPendingInvitation := pendingInvitationIDs[normalizedUser]; hasPendingInvitation {
 				// Use DeleteRepoInvitation (DELETE) for pending invitations with invitation ID
-				err = client.DeleteCollaboratorRepoInvitation(orgName, repoName, invitationID)
+				err = client.DeleteCollaboratorRepoInvitation(orgName, actualRepoName, invitationID)
 				if err != nil {
 					logrus.WithError(err).Warnf("Failed to delete pending invitation for %s", user)
 				} else {
@@ -1261,7 +1537,7 @@ func configureCollaborators(client collaboratorClient, orgName, repoName string,
 				}
 			} else {
 				// Use RemoveCollaborator (DELETE) for actual collaborators
-				err = client.RemoveCollaborator(orgName, repoName, user)
+				err = client.RemoveCollaborator(orgName, actualRepoName, user)
 				if err != nil {
 					logrus.WithError(err).Warnf("Failed to remove collaborator %s", user)
 				} else {
@@ -1273,7 +1549,7 @@ func configureCollaborators(client collaboratorClient, orgName, repoName string,
 			normalizedUser := github.NormLogin(user)
 			if invitationID, hasPendingInvitation := pendingInvitationIDs[normalizedUser]; hasPendingInvitation {
 				// Use UpdateRepoInvitation (PATCH) for pending invitations with invitation ID
-				err = client.UpdateCollaboratorRepoInvitation(orgName, repoName, invitationID, permission)
+				err = client.UpdateCollaboratorRepoInvitation(orgName, actualRepoName, invitationID, permission)
 				if err != nil {
 					logrus.WithError(err).Warnf("Failed to update pending invitation for %s to %s permission", user, permission)
 				} else {
@@ -1281,7 +1557,7 @@ func configureCollaborators(client collaboratorClient, orgName, repoName string,
 				}
 			} else {
 				// Use AddCollaborator (PUT) for new invitations or existing collaborators
-				err = client.AddCollaborator(orgName, repoName, user, permission)
+				err = client.AddCollaborator(orgName, actualRepoName, user, permission)
 				if err != nil {
 					logrus.WithError(err).Warnf("Failed to set %s permission for collaborator %s", permission, user)
 				} else {

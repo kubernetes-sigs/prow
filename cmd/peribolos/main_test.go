@@ -25,11 +25,11 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/prow/pkg/config/org"
 	"sigs.k8s.io/prow/pkg/flagutil"
 	"sigs.k8s.io/prow/pkg/github"
-
-	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 func TestOptions(t *testing.T) {
@@ -143,6 +143,45 @@ func TestOptions(t *testing.T) {
 				fixTeams:       true,
 				fixTeamMembers: true,
 				logLevel:       "debug",
+			},
+		},
+		{
+			name: "--fix-forks inherits from --fix-repos when not set",
+			args: []string{"--config-path=foo", "--fix-repos"},
+			expected: &options{
+				config:       "foo",
+				minAdmins:    defaultMinAdmins,
+				requireSelf:  true,
+				maximumDelta: defaultDelta,
+				fixRepos:     true,
+				fixForks:     true, // Inherited from --fix-repos
+				logLevel:     "info",
+			},
+		},
+		{
+			name: "--fix-forks=false overrides --fix-repos inheritance",
+			args: []string{"--config-path=foo", "--fix-repos", "--fix-forks=false"},
+			expected: &options{
+				config:       "foo",
+				minAdmins:    defaultMinAdmins,
+				requireSelf:  true,
+				maximumDelta: defaultDelta,
+				fixRepos:     true,
+				fixForks:     false, // Explicitly set to false
+				logLevel:     "info",
+			},
+		},
+		{
+			name: "--fix-forks=true without --fix-repos",
+			args: []string{"--config-path=foo", "--fix-forks=true"},
+			expected: &options{
+				config:       "foo",
+				minAdmins:    defaultMinAdmins,
+				requireSelf:  true,
+				maximumDelta: defaultDelta,
+				fixRepos:     false,
+				fixForks:     true, // Explicitly set to true
+				logLevel:     "info",
 			},
 		},
 	}
@@ -2729,6 +2768,16 @@ func TestConfigureRepos(t *testing.T) {
 			expectedRepos: []github.Repo{newRepo, oldRepo},
 		},
 		{
+			description: "repo with fork_from is skipped (handled by configureForks)",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					"forked-repo": {ForkFrom: ptr.To("upstream/repo")},
+				},
+			},
+			repos:         []github.FullRepo{},
+			expectedRepos: []github.Repo{}, // Should NOT create the repo
+		},
+		{
 			description:     "GetRepos failure is propagated",
 			orgNameOverride: "fail",
 			orgConfig: org.Config{
@@ -2976,9 +3025,9 @@ func TestConfigureRepos(t *testing.T) {
 			fc := makeFakeRepoClient(t, tc.repos...)
 			var err error
 			if len(tc.orgNameOverride) > 0 {
-				err = configureRepos(tc.opts, fc, tc.orgNameOverride, tc.orgConfig)
+				err = configureRepos(tc.opts, fc, tc.orgNameOverride, tc.orgConfig, map[string]string{})
 			} else {
-				err = configureRepos(tc.opts, fc, orgName, tc.orgConfig)
+				err = configureRepos(tc.opts, fc, orgName, tc.orgConfig, map[string]string{})
 			}
 			if err != nil && !tc.expectError {
 				t.Errorf("%s: unexpected error: %v", tc.description, err)
@@ -2996,6 +3045,64 @@ func TestConfigureRepos(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestConfigureReposWithForkNames(t *testing.T) {
+	orgName := "test-org"
+	isOrg := false
+	newDescription := "updated description"
+
+	// Test that fork metadata is applied using actual GitHub name from forkNames
+	t.Run("fork metadata applied using actual name from forkNames", func(t *testing.T) {
+		forkName := "my-fork"
+		actualName := "upstream-repo" // GitHub renamed it
+
+		fc := makeFakeRepoClient(t, github.FullRepo{
+			Repo: github.Repo{
+				Name:        actualName,
+				Fork:        true,
+				Description: "old description",
+				Parent: github.ParentRepo{
+					FullName: "upstream-org/upstream-repo",
+				},
+			},
+		})
+
+		upstream := "upstream-org/upstream-repo"
+		orgConfig := org.Config{
+			Repos: map[string]org.Repo{
+				forkName: {
+					ForkFrom: &upstream,
+					RepoMetadata: org.RepoMetadata{
+						Description: &newDescription,
+					},
+				},
+			},
+		}
+
+		forkNames := map[string]string{
+			forkName: actualName,
+		}
+
+		err := configureRepos(options{}, fc, orgName, orgConfig, forkNames)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		// Verify the repo was updated
+		repos, err := fc.GetRepos(orgName, isOrg)
+		if err != nil {
+			t.Fatalf("failed to get repos: %v", err)
+		}
+
+		if len(repos) != 1 {
+			t.Fatalf("expected 1 repo, got %d", len(repos))
+		}
+
+		if repos[0].Description != newDescription {
+			t.Errorf("expected description %q, got %q", newDescription, repos[0].Description)
+		}
+	})
 }
 
 func TestValidateRepos(t *testing.T) {
@@ -3338,7 +3445,7 @@ func TestConfigureCollaborators(t *testing.T) {
 				client.collaborators[user] = permission
 			}
 
-			err := configureCollaborators(client, "test-org", "test-repo", tc.repo)
+			err := configureCollaborators(client, "test-org", "test-repo", tc.repo, map[string]string{})
 
 			if tc.expectedErr && err == nil {
 				t.Errorf("Expected error but got none")
@@ -3493,7 +3600,7 @@ func TestConfigureCollaboratorsRemovePendingInvitations(t *testing.T) {
 		// Note: "remove-pending" is NOT in the config, so their invitation should be removed
 	}
 
-	err := configureCollaborators(client, "test-org", "test-repo", repo)
+	err := configureCollaborators(client, "test-org", "test-repo", repo, map[string]string{})
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -3576,7 +3683,7 @@ func TestConfigureCollaboratorsInvitationManagement(t *testing.T) {
 		},
 	}
 
-	err := configureCollaborators(client, "test-org", "test-repo", repo)
+	err := configureCollaborators(client, "test-org", "test-repo", repo, map[string]string{})
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -3639,7 +3746,7 @@ func TestConfigureCollaboratorsInvitationPermissionChecking(t *testing.T) {
 		},
 	}
 
-	err := configureCollaborators(client, "test-org", "test-repo", repo)
+	err := configureCollaborators(client, "test-org", "test-repo", repo, map[string]string{})
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -3761,7 +3868,7 @@ func TestConfigureCollaboratorsLargeSet(t *testing.T) {
 	}
 
 	repo := org.Repo{Collaborators: desired}
-	if err := configureCollaborators(client, "org", "repo", repo); err != nil {
+	if err := configureCollaborators(client, "org", "repo", repo, map[string]string{}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -3805,7 +3912,7 @@ func TestConfigureCollaboratorsCorrectAPIEndpoints(t *testing.T) {
 		},
 	}
 
-	err := configureCollaborators(client, "test-org", "test-repo", repo)
+	err := configureCollaborators(client, "test-org", "test-repo", repo, map[string]string{})
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -3858,7 +3965,7 @@ func TestConfigureCollaboratorsInvitationVsCollaboratorRemoval(t *testing.T) {
 		},
 	}
 
-	err := configureCollaborators(client, "test-org", "test-repo", repo)
+	err := configureCollaborators(client, "test-org", "test-repo", repo, map[string]string{})
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -3893,7 +4000,7 @@ func TestConfigureCollaborators_Idempotent_NoChangeForDirectCollaborator(t *test
 		},
 	}
 
-	err := configureCollaborators(client, "test-org", "test-repo", repo)
+	err := configureCollaborators(client, "test-org", "test-repo", repo, map[string]string{})
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -3924,7 +4031,7 @@ func TestConfigureCollaborators_PermissionMatrix_TransitionsExistingCollaborator
 
 				repo := org.Repo{Collaborators: map[string]github.RepoPermissionLevel{"user": to}}
 
-				err := configureCollaborators(client, "org", "repo", repo)
+				err := configureCollaborators(client, "org", "repo", repo, map[string]string{})
 				if err != nil {
 					t.Fatalf("unexpected error: %v", err)
 				}
@@ -3966,7 +4073,7 @@ func TestConfigureCollaborators_PermissionMatrix_PendingInvitationUpdates(t *tes
 
 				repo := org.Repo{Collaborators: map[string]github.RepoPermissionLevel{"user": to}}
 
-				err := configureCollaborators(client, "org", "repo", repo)
+				err := configureCollaborators(client, "org", "repo", repo, map[string]string{})
 				if err != nil {
 					t.Fatalf("unexpected error: %v", err)
 				}
@@ -3980,5 +4087,431 @@ func TestConfigureCollaborators_PermissionMatrix_PendingInvitationUpdates(t *tes
 				}
 			})
 		}
+	}
+}
+
+// forkCreation tracks details of a fork creation call
+type forkCreation struct {
+	upstream          string // "owner/repo"
+	defaultBranchOnly bool
+	name              string // requested fork name
+}
+
+// fakeForkClient implements the forkClient interface for testing
+type fakeForkClient struct {
+	repos         map[string]github.Repo     // repo name -> repo
+	fullRepos     map[string]github.FullRepo // repo name -> full repo
+	createdForks  []forkCreation             // list of fork creation calls with details
+	createForkErr error
+	getRepoErr    error
+	getReposErr   error
+}
+
+func (f *fakeForkClient) GetRepo(owner, name string) (github.FullRepo, error) {
+	if f.getRepoErr != nil {
+		return github.FullRepo{}, f.getRepoErr
+	}
+	if repo, ok := f.fullRepos[name]; ok {
+		return repo, nil
+	}
+	return github.FullRepo{}, fmt.Errorf("repo not found: %s/%s", owner, name)
+}
+
+func (f *fakeForkClient) GetRepos(org string, isUser bool) ([]github.Repo, error) {
+	if f.getReposErr != nil {
+		return nil, f.getReposErr
+	}
+	var repos []github.Repo
+	for _, r := range f.repos {
+		repos = append(repos, r)
+	}
+	return repos, nil
+}
+
+func (f *fakeForkClient) CreateForkInOrg(owner, repo, targetOrg string, defaultBranchOnly bool, name string) (string, error) {
+	if f.createForkErr != nil {
+		return "", f.createForkErr
+	}
+	f.createdForks = append(f.createdForks, forkCreation{
+		upstream:          fmt.Sprintf("%s/%s", owner, repo),
+		defaultBranchOnly: defaultBranchOnly,
+		name:              name,
+	})
+	// Use the requested name if provided, otherwise fall back to repo name
+	createdName := name
+	if createdName == "" {
+		createdName = repo
+	}
+	// Simulate fork becoming available for waitForFork
+	if f.fullRepos == nil {
+		f.fullRepos = make(map[string]github.FullRepo)
+	}
+	f.fullRepos[createdName] = github.FullRepo{
+		Repo: github.Repo{
+			Name: createdName,
+			Fork: true,
+			Parent: github.ParentRepo{
+				FullName: fmt.Sprintf("%s/%s", owner, repo),
+			},
+		},
+	}
+	return createdName, nil
+}
+
+func TestConfigureForks(t *testing.T) {
+	upstream := "upstream-org/upstream-repo"
+	forkName := "upstream-repo"
+
+	testCases := []struct {
+		description   string
+		orgConfig     org.Config
+		existingRepos map[string]github.Repo
+		fullRepos     map[string]github.FullRepo
+		createForkErr error
+		getReposErr   error
+		getRepoErr    error
+
+		expectError   bool
+		expectedForks []forkCreation
+	}{
+		{
+			description: "no forks configured - does nothing",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					"regular-repo": {RepoMetadata: org.RepoMetadata{Description: ptr.To("a regular repo")}},
+				},
+			},
+			existingRepos: map[string]github.Repo{},
+			expectedForks: nil,
+		},
+		{
+			description: "creates fork when repo doesn't exist",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					forkName: {ForkFrom: ptr.To(upstream)},
+				},
+			},
+			existingRepos: map[string]github.Repo{},
+			expectedForks: []forkCreation{{upstream: upstream, defaultBranchOnly: false, name: forkName}},
+		},
+		{
+			description: "skips fork when repo already exists as correct fork",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					forkName: {ForkFrom: ptr.To(upstream)},
+				},
+			},
+			existingRepos: map[string]github.Repo{
+				forkName: {Name: forkName, Fork: true},
+			},
+			fullRepos: map[string]github.FullRepo{
+				forkName: {
+					Repo: github.Repo{Name: forkName, Fork: true, Parent: github.ParentRepo{FullName: upstream}},
+				},
+			},
+			expectedForks: nil,
+		},
+		{
+			description: "errors when repo exists but is not a fork",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					forkName: {ForkFrom: ptr.To(upstream)},
+				},
+			},
+			existingRepos: map[string]github.Repo{
+				forkName: {Name: forkName, Fork: false},
+			},
+			fullRepos: map[string]github.FullRepo{
+				forkName: {Repo: github.Repo{Name: forkName, Fork: false}},
+			},
+			expectError: true,
+		},
+		{
+			description: "errors when fork exists from different upstream",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					forkName: {ForkFrom: ptr.To(upstream)},
+				},
+			},
+			existingRepos: map[string]github.Repo{
+				forkName: {Name: forkName, Fork: true},
+			},
+			fullRepos: map[string]github.FullRepo{
+				forkName: {
+					Repo: github.Repo{Name: forkName, Fork: true, Parent: github.ParentRepo{FullName: "other-org/other-repo"}},
+				},
+			},
+			expectError: true,
+		},
+		{
+			description: "errors on invalid fork_from format",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					forkName: {ForkFrom: ptr.To("invalid-format")},
+				},
+			},
+			existingRepos: map[string]github.Repo{},
+			expectError:   true,
+		},
+		{
+			description: "handles CreateForkInOrg error (e.g., generic failure)",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					forkName: {ForkFrom: ptr.To(upstream)},
+				},
+			},
+			existingRepos: map[string]github.Repo{},
+			createForkErr: errors.New("failed to create fork"),
+			expectError:   true,
+		},
+		{
+			description: "errors when upstream repo does not exist (404)",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					forkName: {ForkFrom: ptr.To("nonexistent-org/nonexistent-repo")},
+				},
+			},
+			existingRepos: map[string]github.Repo{},
+			createForkErr: errors.New("Not Found"),
+			expectError:   true,
+		},
+		{
+			description: "creates multiple forks",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					"fork1": {ForkFrom: ptr.To("org1/repo1")},
+					"fork2": {ForkFrom: ptr.To("org2/repo2")},
+				},
+			},
+			existingRepos: map[string]github.Repo{},
+			expectedForks: []forkCreation{
+				{upstream: "org1/repo1", defaultBranchOnly: false, name: "fork1"},
+				{upstream: "org2/repo2", defaultBranchOnly: false, name: "fork2"},
+			},
+		},
+		// New test cases for full coverage
+		{
+			description:   "GetRepos failure is propagated",
+			orgConfig:     org.Config{Repos: map[string]org.Repo{forkName: {ForkFrom: ptr.To(upstream)}}},
+			existingRepos: map[string]github.Repo{},
+			getReposErr:   errors.New("failed to get repos"),
+			expectError:   true,
+		},
+		{
+			description: "GetRepo failure when checking existing fork parent",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					forkName: {ForkFrom: ptr.To(upstream)},
+				},
+			},
+			existingRepos: map[string]github.Repo{
+				forkName: {Name: forkName, Fork: true},
+			},
+			getRepoErr:  errors.New("failed to get repo details"),
+			expectError: true,
+		},
+		{
+			description: "empty fork_from string is skipped",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					"repo-with-empty-fork": {ForkFrom: ptr.To("")},
+					"regular-repo":         {RepoMetadata: org.RepoMetadata{Description: ptr.To("normal")}},
+				},
+			},
+			existingRepos: map[string]github.Repo{},
+			expectedForks: nil, // No forks should be created
+		},
+		{
+			description: "case-insensitive repo name matching",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					"My-Fork": {ForkFrom: ptr.To(upstream)}, // Config uses different case
+				},
+			},
+			existingRepos: map[string]github.Repo{
+				"my-fork": {Name: "my-fork", Fork: true}, // Org has lowercase
+			},
+			fullRepos: map[string]github.FullRepo{
+				"my-fork": {
+					Repo: github.Repo{Name: "my-fork", Fork: true, Parent: github.ParentRepo{FullName: upstream}},
+				},
+			},
+			expectedForks: nil, // Should recognize existing fork despite case difference
+		},
+		{
+			description: "DefaultBranchOnly parameter is passed correctly",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					forkName: {ForkFrom: ptr.To(upstream), DefaultBranchOnly: ptr.To(true)},
+				},
+			},
+			existingRepos: map[string]github.Repo{},
+			expectedForks: []forkCreation{{upstream: upstream, defaultBranchOnly: true, name: forkName}},
+		},
+		{
+			description: "mixed success and failure - one fork succeeds, one fails",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					"good-fork":    {ForkFrom: ptr.To("good-org/good-repo")},
+					"invalid-fork": {ForkFrom: ptr.To("no-slash")}, // Invalid format
+				},
+			},
+			existingRepos: map[string]github.Repo{},
+			expectError:   true,                                                                                          // Should error due to invalid fork
+			expectedForks: []forkCreation{{upstream: "good-org/good-repo", defaultBranchOnly: false, name: "good-fork"}}, // But good fork should still be created
+		},
+		{
+			description:   "nil Repos map does nothing",
+			orgConfig:     org.Config{Repos: nil},
+			existingRepos: map[string]github.Repo{},
+			expectedForks: nil,
+		},
+		{
+			description:   "empty Repos map does nothing",
+			orgConfig:     org.Config{Repos: map[string]org.Repo{}},
+			existingRepos: map[string]github.Repo{},
+			expectedForks: nil,
+		},
+		// Idempotency tests: fork lookup by upstream parent
+		{
+			description: "idempotency: fork exists with different name than config (renamed by GitHub)",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					"my-custom-name": {ForkFrom: ptr.To(upstream)}, // Config uses custom name
+				},
+			},
+			existingRepos: map[string]github.Repo{
+				// GitHub created it as "upstream-repo" (upstream's name), not "my-custom-name"
+				"upstream-repo": {Name: "upstream-repo", Fork: true},
+			},
+			fullRepos: map[string]github.FullRepo{
+				"upstream-repo": {
+					Repo: github.Repo{Name: "upstream-repo", Fork: true, Parent: github.ParentRepo{FullName: upstream}},
+				},
+			},
+			expectedForks: nil,   // Should NOT try to create - fork of upstream already exists
+			expectError:   false, // No error - just logs that fork exists with different name
+		},
+		{
+			description: "idempotency: fork exists with same name and correct upstream (standard case)",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					"upstream-repo": {ForkFrom: ptr.To(upstream)},
+				},
+			},
+			existingRepos: map[string]github.Repo{
+				"upstream-repo": {Name: "upstream-repo", Fork: true},
+			},
+			fullRepos: map[string]github.FullRepo{
+				"upstream-repo": {
+					Repo: github.Repo{Name: "upstream-repo", Fork: true, Parent: github.ParentRepo{FullName: upstream}},
+				},
+			},
+			expectedForks: nil, // Should NOT try to create - already exists correctly
+			expectError:   false,
+		},
+		{
+			description: "idempotency: case-insensitive upstream matching",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					"my-fork": {ForkFrom: ptr.To("UPSTREAM-ORG/UPSTREAM-REPO")}, // Uppercase in config
+				},
+			},
+			existingRepos: map[string]github.Repo{
+				// GitHub names forks after the upstream repo name by default
+				"upstream-repo": {Name: "upstream-repo", Fork: true},
+			},
+			fullRepos: map[string]github.FullRepo{
+				"upstream-repo": {
+					Repo: github.Repo{Name: "upstream-repo", Fork: true, Parent: github.ParentRepo{FullName: "upstream-org/upstream-repo"}}, // Lowercase from GitHub
+				},
+			},
+			expectedForks: nil, // Should match despite case difference
+			expectError:   false,
+		},
+		{
+			description: "idempotency: no existing fork of upstream - creates new fork",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					"my-fork": {ForkFrom: ptr.To(upstream)},
+				},
+			},
+			existingRepos: map[string]github.Repo{
+				// Org has other forks, but none from our target upstream
+				"other-fork": {Name: "other-fork", Fork: true},
+			},
+			fullRepos: map[string]github.FullRepo{
+				"other-fork": {
+					Repo: github.Repo{Name: "other-fork", Fork: true, Parent: github.ParentRepo{FullName: "different-org/different-repo"}},
+				},
+			},
+			expectedForks: []forkCreation{{upstream: upstream, defaultBranchOnly: false, name: "my-fork"}}, // Should create since no fork of upstream exists
+			expectError:   false,
+		},
+		{
+			description: "idempotency: multiple configs, one upstream already forked",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					"fork-a": {ForkFrom: ptr.To("org-a/repo-a")}, // Already forked (exists as "repo-a")
+					"fork-b": {ForkFrom: ptr.To("org-b/repo-b")}, // Not yet forked
+				},
+			},
+			existingRepos: map[string]github.Repo{
+				"repo-a": {Name: "repo-a", Fork: true}, // Fork of org-a/repo-a exists with different name
+			},
+			fullRepos: map[string]github.FullRepo{
+				"repo-a": {
+					Repo: github.Repo{Name: "repo-a", Fork: true, Parent: github.ParentRepo{FullName: "org-a/repo-a"}},
+				},
+			},
+			expectedForks: []forkCreation{{upstream: "org-b/repo-b", defaultBranchOnly: false, name: "fork-b"}}, // Only fork-b should be created
+			expectError:   false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.description, func(t *testing.T) {
+			client := &fakeForkClient{
+				repos:         tc.existingRepos,
+				fullRepos:     tc.fullRepos,
+				createForkErr: tc.createForkErr,
+				getReposErr:   tc.getReposErr,
+				getRepoErr:    tc.getRepoErr,
+			}
+
+			forkNames, err := configureForks(client, "test-org", tc.orgConfig)
+
+			if tc.expectError {
+				if err == nil {
+					t.Error("expected error but got none")
+				}
+			} else {
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+				}
+				// Verify forkNames is not nil on success
+				if forkNames == nil {
+					t.Error("forkNames should not be nil on success")
+				}
+			}
+
+			// Check created forks
+			if tc.expectedForks == nil {
+				if len(client.createdForks) != 0 {
+					t.Errorf("expected no forks to be created, but got: %v", client.createdForks)
+				}
+			} else {
+				// Sort both slices for comparison
+				sort.Slice(client.createdForks, func(i, j int) bool {
+					return client.createdForks[i].upstream < client.createdForks[j].upstream
+				})
+				sort.Slice(tc.expectedForks, func(i, j int) bool {
+					return tc.expectedForks[i].upstream < tc.expectedForks[j].upstream
+				})
+				if !reflect.DeepEqual(client.createdForks, tc.expectedForks) {
+					t.Errorf("created forks mismatch:\nexpected: %v\ngot: %v", tc.expectedForks, client.createdForks)
+				}
+			}
+		})
 	}
 }
