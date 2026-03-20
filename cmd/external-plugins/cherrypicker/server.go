@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+        "bufio"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -26,6 +27,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+        "os/exec"
 
 	"github.com/sirupsen/logrus"
 
@@ -103,6 +105,8 @@ type Server struct {
 	allowAll bool
 	// Create an issue on cherrypick conflict.
 	issueOnConflict bool
+        // Add original commit ID to cherry-picked commit messages.
+	addOriginalCommitID bool
 	// Set a custom label prefix.
 	labelPrefix string
 
@@ -573,6 +577,20 @@ func (s *Server) handle(logger logrus.FieldLogger, requester string, comment *gi
 
 		return utilerrors.NewAggregate(errs)
 	}
+        
+        // Add original commit ID if flag is enabled
+	if s.addOriginalCommitID {
+		// Extract original commit SHA from patch
+		originalSHA, err := extractOriginalSHA(localPath)
+		if err != nil {
+			logger.WithError(err).Warn("Failed to extract original SHA from patch")
+		} else {
+			// Append cherry-pick message
+			if err := appendCherryPickMessage(r.Directory(), originalSHA); err != nil {
+				logger.WithError(err).Warn("Failed to append cherry-pick message")
+			}
+		}
+	}
 
 	// Push the new branch
 	if err := p.Push(r, newBranch, true); err != nil {
@@ -717,4 +735,57 @@ func releaseNoteFromParentPR(body string) string {
 		return ""
 	}
 	return fmt.Sprintf("```release-note\n%s\n```", strings.TrimSpace(potentialMatch[1]))
+}
+
+// extractOriginalSHA extracts the original commit SHA from a patch file.
+// Patch files contain lines like "From <SHA> Mon Sep 17 00:00:00 2001" at the start.
+func extractOriginalSHA(patchPath string) (string, error) {
+	file, err := os.Open(patchPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to open patch file: %w", err)
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.HasPrefix(line, "From ") {
+			parts := strings.Split(line, " ")
+			if len(parts) > 1 {
+				return strings.TrimSpace(parts[1]), nil
+			}
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return "", fmt.Errorf("error reading patch file: %w", err)
+	}
+
+	return "", fmt.Errorf("no original SHA found in patch file")
+}
+
+// appendCherryPickMessage amends the most recent commit with a cherry-pick message.
+func appendCherryPickMessage(repoPath string, originalSHA string) error {
+	// Get current commit message
+	cmd := exec.Command("git", "log", "-1", "--pretty=%B")
+	cmd.Dir = repoPath
+	output, err := cmd.Output()
+	if err != nil {
+		return fmt.Errorf("failed to get commit message: %w", err)
+	}
+
+	currentMessage := strings.TrimSpace(string(output))
+
+	// Construct new message with cherry-pick line
+	newMessage := fmt.Sprintf("%s\n\n(cherry picked from commit %s)", currentMessage, originalSHA)
+
+	// Amend commit with new message
+	amendCmd := exec.Command("git", "commit", "--amend", "-m", newMessage)
+	amendCmd.Dir = repoPath
+
+	if err := amendCmd.Run(); err != nil {
+		return fmt.Errorf("failed to amend commit: %w", err)
+	}
+
+	return nil
 }
