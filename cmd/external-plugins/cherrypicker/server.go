@@ -577,22 +577,23 @@ func (s *Server) handle(logger logrus.FieldLogger, requester string, comment *gi
 
 		return utilerrors.NewAggregate(errs)
 	}
-        
-        // Add original commit ID if flag is enabled
-	if s.addOriginalCommitID {
-		// Extract original commit SHA from patch
-		originalSHA, err := extractOriginalSHA(localPath)
-		if err != nil {
-			logger.WithError(err).Warn("Failed to extract original SHA from patch")
-		} else {
-			// Append cherry-pick message
-			if err := appendCherryPickMessage(r.Directory(), originalSHA); err != nil {
-				logger.WithError(err).Warn("Failed to append cherry-pick message")
-			}
-		}
-	}
 
-	// Push the new branch
+        // Add original commit ID if flag is enabled        
+        if s.addOriginalCommitID {
+	    // Extract original commit SHA from patch
+	    originalSHA, err := extractOriginalSHA(localPath)
+	    if err != nil {
+		logger.WithError(err).Warn("Failed to extract original SHA from patch")
+	    } else {
+		// Append cherry-pick message
+		if err := appendCherryPickMessage(r.Directory(), originalSHA); err != nil {
+		    logger.WithError(err).Warn("Failed to append cherry-pick message")
+		} else {
+		    logger.WithField("original_sha", originalSHA).Info("Successfully added original commit ID to cherry-picked commit")
+		}
+	    } 
+        }
+
 	if err := p.Push(r, newBranch, true); err != nil {
 		logger.WithError(err).Warn("failed to push chery-picked changes to GitHub")
 		resp := fmt.Sprintf("failed to push cherry-picked changes in GitHub: %v", err)
@@ -766,9 +767,8 @@ func extractOriginalSHA(patchPath string) (string, error) {
 
 // appendCherryPickMessage amends the most recent commit with a cherry-pick message.
 func appendCherryPickMessage(repoPath string, originalSHA string) error {
-	// Get current commit message
-	cmd := exec.Command("git", "log", "-1", "--pretty=%B")
-	cmd.Dir = repoPath
+	// Get current commit message using git log with proper format
+	cmd := exec.Command("git", "-C", repoPath, "log", "-1", "--pretty=%B")
 	output, err := cmd.Output()
 	if err != nil {
 		return fmt.Errorf("failed to get commit message: %w", err)
@@ -780,9 +780,7 @@ func appendCherryPickMessage(repoPath string, originalSHA string) error {
 	newMessage := fmt.Sprintf("%s\n\n(cherry picked from commit %s)", currentMessage, originalSHA)
 
 	// Amend commit with new message
-	amendCmd := exec.Command("git", "commit", "--amend", "-m", newMessage)
-	amendCmd.Dir = repoPath
-
+	amendCmd := exec.Command("git", "-C", repoPath, "commit", "--amend", "-m", newMessage)
 	if err := amendCmd.Run(); err != nil {
 		return fmt.Errorf("failed to amend commit: %w", err)
 	}
