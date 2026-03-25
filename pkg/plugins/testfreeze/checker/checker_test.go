@@ -66,12 +66,52 @@ func TestInTestFreeze(t *testing.T) {
 					releaseBranch("1.22"),
 					tag("1.22.0"),
 				}, nil)
+				prowConfig := &ProwConfig{}
+				mock.HttpGetReturns(&http.Response{
+					Body: io.NopCloser(strings.NewReader("")),
+				}, nil)
+				mock.ReadAllBodyReturns([]byte{}, nil)
+				mock.UnmarshalProwConfigReturns(prowConfig, nil)
 			},
 			assert: func(res *Result, err error) {
+				assert.False(t, res.InCodeFreeze)
 				assert.False(t, res.InTestFreeze)
 				assert.Equal(t, "release-1.23", res.Branch)
 				assert.Equal(t, "v1.23.0", res.Tag)
 				assert.Empty(t, res.LastFastForward)
+				assert.Nil(t, err)
+			},
+		},
+		{
+			name: "success code freeze for next release before branch creation",
+			prepare: func(mock *checkerfakes.FakeChecker) {
+				mock.ListRefsReturns([]*plumbing.Reference{
+					releaseBranch("1.35"),
+					tag("1.35.0"),
+					releaseBranch("1.34"),
+					tag("1.34.0"),
+				}, nil)
+				prowConfig := &ProwConfig{}
+				prowConfig.Tide.Queries = []struct {
+					Repos            []string `yaml:"repos"`
+					ExcludedBranches []string `yaml:"excludedBranches"`
+				}{
+					{
+						Repos:            []string{"kubernetes/kubernetes"},
+						ExcludedBranches: []string{"master", "release-1.36"},
+					},
+				}
+				mock.HttpGetReturns(&http.Response{
+					Body: io.NopCloser(strings.NewReader("")),
+				}, nil)
+				mock.ReadAllBodyReturns([]byte{}, nil)
+				mock.UnmarshalProwConfigReturns(prowConfig, nil)
+			},
+			assert: func(res *Result, err error) {
+				assert.True(t, res.InCodeFreeze)
+				assert.False(t, res.InTestFreeze)
+				assert.Equal(t, "release-1.36", res.Branch)
+				assert.Equal(t, "v1.36.0", res.Tag)
 				assert.Nil(t, err)
 			},
 		},
