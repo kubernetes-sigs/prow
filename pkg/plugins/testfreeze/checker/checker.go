@@ -101,42 +101,57 @@ func New(log *logrus.Entry) *Checker {
 	}
 }
 
-// inCodeFreeze checks if the given branch is excluded in the Prow Tide configuration,
-// which indicates Code Freeze is active.
-func (c *Checker) inCodeFreeze(branch string) (bool, error) {
+// fetchProwConfig fetches and parses the Prow Tide configuration.
+func (c *Checker) fetchProwConfig() (*ProwConfig, error) {
 	resp, err := c.checker.HttpGet(prowConfigURL)
 	if err != nil {
-		return false, fmt.Errorf("get prow config: %w", err)
+		return nil, fmt.Errorf("get prow config: %w", err)
 	}
 	defer c.checker.CloseBody(resp)
 
 	body, err := c.checker.ReadAllBody(resp)
 	if err != nil {
-		return false, fmt.Errorf("read response body: %w", err)
+		return nil, fmt.Errorf("read response body: %w", err)
 	}
 
 	configInterface, err := c.checker.UnmarshalProwConfig(body)
 	if err != nil {
-		return false, fmt.Errorf("unmarshal prow config: %w", err)
+		return nil, fmt.Errorf("unmarshal prow config: %w", err)
 	}
 
 	prowConfig, ok := configInterface.(*ProwConfig)
 	if !ok {
-		return false, errors.New("failed to type assert prow config")
+		return nil, errors.New("failed to type assert prow config")
 	}
 
-	// Check if the branch is excluded in any Tide query for kubernetes/kubernetes
-	for _, query := range prowConfig.Tide.Queries {
+	return prowConfig, nil
+}
+
+// branchExcludedFromTide checks if the given branch is excluded in the
+// Prow Tide configuration for kubernetes/kubernetes.
+func branchExcludedFromTide(config *ProwConfig, branch string) bool {
+	for _, query := range config.Tide.Queries {
 		for _, repo := range query.Repos {
 			if repo == kubernetesRepo {
 				if slices.Contains(query.ExcludedBranches, branch) {
-					return true, nil
+					return true
 				}
 			}
 		}
 	}
 
-	return false, nil
+	return false
+}
+
+// inCodeFreeze checks if the given branch is excluded in the Prow Tide configuration,
+// which indicates Code Freeze is active.
+func (c *Checker) inCodeFreeze(branch string) (bool, error) {
+	config, err := c.fetchProwConfig()
+	if err != nil {
+		return false, err
+	}
+
+	return branchExcludedFromTide(config, branch), nil
 }
 
 // InTestFreeze returns if we're in Test Freeze:
@@ -203,10 +218,33 @@ func (c *Checker) InTestFreeze() (*Result, error) {
 			// Found the latest minor version on the latest release branch,
 			// which means we're not in Test Freeze.
 			if latestSemver.EQ(parsed) {
-				// Check if we're still in Code Freeze
-				inCodeFreeze, err := c.inCodeFreeze(latestBranch)
+				config, err := c.fetchProwConfig()
 				if err != nil {
-					c.log.WithError(err).Error("Unable to check Code Freeze status.")
+					c.log.WithError(err).Error("Unable to fetch Prow config for Code Freeze check.")
+					return &Result{
+						InTestFreeze: false,
+						Branch:       latestBranch,
+						Tag:          "v" + tag,
+					}, nil
+				}
+
+				inCodeFreeze := branchExcludedFromTide(config, latestBranch)
+
+				// If the current release branch is not in code freeze,
+				// check if the next release is. This covers the window
+				// between code freeze start and release branch creation,
+				// where the Tide config already excludes the next branch.
+				if !inCodeFreeze {
+					nextBranch := fmt.Sprintf("release-%d.%d", latestSemver.Major, latestSemver.Minor+1)
+					nextTag := fmt.Sprintf("v%d.%d.0", latestSemver.Major, latestSemver.Minor+1)
+					if branchExcludedFromTide(config, nextBranch) {
+						return &Result{
+							InCodeFreeze: true,
+							InTestFreeze: false,
+							Branch:       nextBranch,
+							Tag:          nextTag,
+						}, nil
+					}
 				}
 
 				return &Result{
@@ -230,9 +268,12 @@ func (c *Checker) InTestFreeze() (*Result, error) {
 	// Latest minor version not found in latest release branch,
 	// we're in Test Freeze.
 	// Check if we're also in Code Freeze
-	inCodeFreeze, err := c.inCodeFreeze(latestBranch)
+	var inCodeFreeze bool
+	config, err := c.fetchProwConfig()
 	if err != nil {
-		c.log.WithError(err).Error("Unable to check Code Freeze status.")
+		c.log.WithError(err).Error("Unable to fetch Prow config for Code Freeze check.")
+	} else {
+		inCodeFreeze = branchExcludedFromTide(config, latestBranch)
 	}
 
 	return &Result{
