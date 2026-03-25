@@ -73,6 +73,8 @@ type Client interface {
 	// is set for the issue, the returned SecurityLevel and error will both be nil and
 	// the issue will follow the default project security level.
 	GetIssueSecurityLevel(*jira.Issue) (*SecurityLevel, error)
+	// GetUser returns a single user by their Jira account ID.
+	GetUser(accountID string) (*jira.User, error)
 	// FindUser returns all users with a field matching the queryParam (ex: email, display name, etc.)
 	FindUser(queryParam string) ([]*jira.User, error)
 	GetRemoteLinks(id string) ([]jira.RemoteLink, error)
@@ -389,6 +391,17 @@ func DeleteRemoteLinkViaURL(jc Client, issueID, url string) (bool, error) {
 
 func (jc *client) DeleteRemoteLinkViaURL(issueID, url string) (bool, error) {
 	return DeleteRemoteLinkViaURL(jc, issueID, url)
+}
+
+func (jc *client) GetUser(accountID string) (*jira.User, error) {
+	user, response, err := jc.upstream.User.Get(accountID)
+	if err != nil {
+		if response != nil && response.StatusCode == http.StatusNotFound {
+			return nil, NotFoundError{err}
+		}
+		return nil, HandleJiraError(response, err)
+	}
+	return user, nil
 }
 
 func (jc *client) FindUser(queryParam string) ([]*jira.User, error) {

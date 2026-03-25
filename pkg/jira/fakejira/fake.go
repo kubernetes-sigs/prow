@@ -281,6 +281,15 @@ func (f *FakeClient) DoTransition(issueID, transitionID string) error {
 	return nil
 }
 
+func (f *FakeClient) GetUser(accountID string) (*jira.User, error) {
+	for _, user := range f.Users {
+		if user.AccountID == accountID {
+			return user, nil
+		}
+	}
+	return nil, jiraclient.NewNotFoundError(fmt.Errorf("no user with accountId %s found", accountID))
+}
+
 func (f *FakeClient) FindUser(property string) ([]*jira.User, error) {
 	var foundUsers []*jira.User
 	for _, user := range f.Users {
