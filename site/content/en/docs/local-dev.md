@@ -115,17 +115,12 @@ to a running `hook` instance. Use it to test plugin behavior without a real
 repository:
 
 ```bash
-# Retrieve the HMAC token used to sign webhooks:
-HMAC=$(kubectl --context=kind-kind-prow-integration \
-  get secret hmac-token -o jsonpath='{.data.hmac}' | base64 -d)
-
-# Send a fake issue_comment event:
-go run ./cmd/phony \
-  --address=http://localhost:8080/hook \
-  --hmac="${HMAC}" \
-  --event=issue_comment \
-  --payload=<path-to-payload.json>
+hack/phony.sh --event=issue_comment --payload=<path-to-payload.json>
 ```
+
+`hack/phony.sh` reads the HMAC token from the cluster automatically and
+defaults `--address` to `http://localhost:8080/hook`. Set `DEV_HTTP_PORT` to
+override the port. Any additional flags are passed through to `phony`.
 
 ### Validate config files without deploying
 
@@ -178,7 +173,7 @@ The most common development target is a hook plugin. The minimal loop is:
 
 1. Edit code in `pkg/plugins/<your-plugin>/`.
 2. Rebuild and redeploy hook: `hack/dev-env.sh -rebuild=hook`.
-3. Send a fake webhook with `phony` (see above).
+3. Send a fake webhook with `hack/phony.sh` (see above).
 4. Check hook logs: `kubectl --context=kind-kind-prow-integration logs -f -l app=hook`.
 
 See [Adding new plugins](/docs/getting-started-develop/#how-to-add-new-plugins)
