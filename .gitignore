@@ -78,3 +78,7 @@ hugo.linux
 # Folders of common IDEs
 .idea/
 .vscode/
+
+# Tilt local developer settings and personal Tiltfile overrides
+tilt-settings.yaml
+tilt.d/*.tiltfile
