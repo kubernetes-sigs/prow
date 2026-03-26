@@ -35,6 +35,19 @@ integration:
 test: unit
 .PHONY: test
 ################################################################################
+# ============================== Development ===================================
+# local development environment (kind cluster with fake external services)
+.PHONY: dev
+dev:
+	hack/dev-env.sh
+# full dev environment with all Prow components (heavier, matches integration tests)
+.PHONY: dev-full
+dev-full:
+	hack/dev-env.sh -profile=full
+.PHONY: dev-teardown
+dev-teardown:
+	hack/dev-env.sh -teardown
+################################################################################
 # ================================= Cleanup ====================================
 # standard cleanup target
 clean:
