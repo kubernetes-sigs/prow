@@ -578,18 +578,19 @@ func (s *Server) handle(logger logrus.FieldLogger, requester string, comment *gi
 		return utilerrors.NewAggregate(errs)
 	}
 
-	// Add original commit ID if flag is enabled
+	// Add original commit IDs if flag is enabled
 	if s.addOriginalCommitID {
-		// Extract original commit SHA from patch
-		originalSHA, err := extractOriginalSHA(localPath)
+		// Extract all original commit SHAs from patch
+		originalSHAs, err := extractOriginalSHAs(localPath)
 		if err != nil {
-			logger.WithError(err).Warn("Failed to extract original SHA from patch")
-		} else {
-			// Append cherry-pick message
-			if err := appendCherryPickMessage(r.Directory(), originalSHA); err != nil {
-				logger.WithError(err).Warn("Failed to append cherry-pick message")
+			logger.WithError(err).Warn("Failed to extract original SHAs from patch")
+		} else if len(originalSHAs) > 0 {
+			// Append cherry-pick messages to all commits created by git am
+			if err := appendCherryPickMessages(r.Directory(), originalSHAs); err != nil {
+				logger.WithError(err).Warn("Failed to append cherry-pick messages")
 			} else {
-				logger.WithField("original_sha", originalSHA).Info("Successfully added original commit ID to cherry-picked commit")
+				logger.WithField("commit_count", len(originalSHAs)).
+					Info("Successfully added original commit IDs to cherry-picked commits")
 			}
 		}
 	}
@@ -738,51 +739,103 @@ func releaseNoteFromParentPR(body string) string {
 	return fmt.Sprintf("```release-note\n%s\n```", strings.TrimSpace(potentialMatch[1]))
 }
 
-// extractOriginalSHA extracts the original commit SHA from a patch file.
-// Patch files contain lines like "From <SHA> Mon Sep 17 00:00:00 2001" at the start.
-func extractOriginalSHA(patchPath string) (string, error) {
+// extractOriginalSHAs extracts all original commit SHAs from a patch file.
+// Each commit in a patch starts with: "From <SHA> Mon Sep 17 00:00:00 2001"
+func extractOriginalSHAs(patchPath string) ([]string, error) {
 	file, err := os.Open(patchPath)
 	if err != nil {
-		return "", fmt.Errorf("failed to open patch file: %w", err)
+		return nil, fmt.Errorf("failed to open patch file: %w", err)
 	}
 	defer file.Close()
 
+	var shas []string
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := scanner.Text()
 		if strings.HasPrefix(line, "From ") {
 			parts := strings.Split(line, " ")
 			if len(parts) > 1 {
-				return strings.TrimSpace(parts[1]), nil
+				shas = append(shas, strings.TrimSpace(parts[1]))
 			}
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
-		return "", fmt.Errorf("error reading patch file: %w", err)
+		return nil, fmt.Errorf("error reading patch file: %w", err)
 	}
 
-	return "", fmt.Errorf("no original SHA found in patch file")
+	if len(shas) == 0 {
+		return nil, fmt.Errorf("no original SHAs found in patch file")
+	}
+
+	return shas, nil
 }
 
-// appendCherryPickMessage amends the most recent commit with a cherry-pick message.
-func appendCherryPickMessage(repoPath string, originalSHA string) error {
-	// Get current commit message using git log with proper format
-	cmd := exec.Command("git", "-C", repoPath, "log", "-1", "--pretty=%B")
-	output, err := cmd.Output()
+// appendCherryPickMessages appends "(cherry picked from commit <sha>)"
+// to all commits created by git am (supports single and multi-commit PRs).
+func appendCherryPickMessages(repoPath string, originalSHAs []string) error {
+	numCommits := len(originalSHAs)
+
+	// Get commits created by git am (oldest → newest)
+	cmd := exec.Command("git", "-C", repoPath,
+		"rev-list", "--reverse",
+		fmt.Sprintf("HEAD~%d..HEAD", numCommits),
+	)
+	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("failed to get commit message: %w", err)
+		return fmt.Errorf("failed to list commits: %w, output: %s", err, string(out))
 	}
 
-	currentMessage := strings.TrimSpace(string(output))
+	commits := strings.Split(strings.TrimSpace(string(out)), "\n")
+	if len(commits) != numCommits {
+		return fmt.Errorf("commit count mismatch: expected %d, got %d", numCommits, len(commits))
+	}
 
-	// Construct new message with cherry-pick line
-	newMessage := fmt.Sprintf("%s\n\n(cherry picked from commit %s)", currentMessage, originalSHA)
+	// Build msg-filter script
+	scriptContent := "#!/bin/sh\n"
+	scriptContent += "MSG=$(cat)\n"
+	scriptContent += "case \"$GIT_COMMIT\" in\n"
 
-	// Amend commit with new message
-	amendCmd := exec.Command("git", "-C", repoPath, "commit", "--amend", "-m", newMessage)
-	if err := amendCmd.Run(); err != nil {
-		return fmt.Errorf("failed to amend commit: %w", err)
+	for i, commitSHA := range commits {
+		originalSHA := originalSHAs[i]
+		scriptContent += fmt.Sprintf("  %s)\n", commitSHA)
+		scriptContent += fmt.Sprintf(
+			"    printf '%%s\\n\\n(cherry picked from commit %s)' \"$MSG\"\n",
+			originalSHA,
+		)
+		scriptContent += "    ;;\n"
+	}
+
+	scriptContent += "  *)\n"
+	scriptContent += "    printf '%s\n' \"$MSG\"\n"
+	scriptContent += "    ;;\n"
+	scriptContent += "esac\n"
+
+	// Write script to temp file
+	tmpfile, err := os.CreateTemp("", "cherrypick-msg-filter-*.sh")
+	if err != nil {
+		return fmt.Errorf("failed to create temp script: %w", err)
+	}
+	defer os.Remove(tmpfile.Name())
+
+	if err := os.WriteFile(tmpfile.Name(), []byte(scriptContent), 0755); err != nil {
+		return fmt.Errorf("failed to write script: %w", err)
+	}
+
+	// Ensure executable
+	if err := os.Chmod(tmpfile.Name(), 0755); err != nil {
+		return fmt.Errorf("failed to chmod script: %w", err)
+	}
+
+	// Rewrite only last N commits
+	filterCmd := exec.Command("git", "-C", repoPath,
+		"filter-branch", "-f",
+		"--msg-filter", tmpfile.Name(),
+		fmt.Sprintf("HEAD~%d..HEAD", numCommits),
+	)
+
+	if out, err := filterCmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to rewrite commits: %w, output: %s", err, string(out))
 	}
 
 	return nil
