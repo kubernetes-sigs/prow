@@ -282,6 +282,7 @@ declare -ra PROW_DEPLOYMENT_ORDER=(
 declare -ra PROW_COMPONENTS_CORE=(
   crier
   deck
+  deck-tenanted
   fakegcsserver
   fakegitserver
   fakeghserver
@@ -291,25 +292,23 @@ declare -ra PROW_COMPONENTS_CORE=(
   sinker
 )
 
-# Core subset of PROW_IMAGES. Includes pod utilities because
-# prow-controller-manager needs them to run job pods.
-declare -rA PROW_IMAGES_CORE=(
-  [crier]=cmd/crier
-  [deck]=cmd/deck
-  [hook]=cmd/hook
-  [horologium]=cmd/horologium
-  [prow-controller-manager]=cmd/prow-controller-manager
-  [sinker]=cmd/sinker
-  # Fakes.
-  [fakegcsserver]=test/integration/cmd/fakegcsserver
-  [fakegitserver]=test/integration/cmd/fakegitserver
-  [fakeghserver]=test/integration/cmd/fakeghserver
-  # Pod utilities (run as init/sidecar containers inside job pods).
-  [clonerefs]=cmd/clonerefs
-  [initupload]=cmd/initupload
-  [entrypoint]=cmd/entrypoint
-  [sidecar]=cmd/sidecar
-)
+# Core subset of PROW_IMAGES. Derived from PROW_COMPONENTS_CORE, plus pod
+# utilities because prow-controller-manager needs them to run job pods.
+# Note: some components (e.g. deck-tenanted) share an image with another
+# component and have no entry in PROW_IMAGES, so we skip those here.
+declare -A PROW_IMAGES_CORE=()
+for _component in "${PROW_COMPONENTS_CORE[@]}"; do
+  if [[ -v "PROW_IMAGES[${_component}]" ]]; then
+    PROW_IMAGES_CORE[$_component]="${PROW_IMAGES[$_component]}"
+  fi
+done
+unset _component
+# Pod utilities (run as init/sidecar containers inside job pods).
+PROW_IMAGES_CORE[clonerefs]=cmd/clonerefs
+PROW_IMAGES_CORE[initupload]=cmd/initupload
+PROW_IMAGES_CORE[entrypoint]=cmd/entrypoint
+PROW_IMAGES_CORE[sidecar]=cmd/sidecar
+declare -r PROW_IMAGES_CORE
 
 # Deployment order for the core profile. Contains the same infrastructure
 # pieces as PROW_DEPLOYMENT_ORDER but only the core Prow services.
@@ -393,12 +392,14 @@ declare -ra PROW_DEPLOYMENT_ORDER_CORE=(
   deck_rbac.yaml
   deck_service.yaml
   deck_deployment.yaml
+  deck_tenant_deployment.yaml
   WAIT_FOR_RESOURCE_roles,deck,default
   WAIT_FOR_RESOURCE_roles,deck,test-pods
   WAIT_FOR_RESOURCE_rolebindings,deck,default
   WAIT_FOR_RESOURCE_rolebindings,deck,test-pods
   WAIT_FOR_RESOURCE_serviceaccounts,deck,default
   WAIT_deck
+  WAIT_deck-tenanted
 )
 
 function do_kubectl() {

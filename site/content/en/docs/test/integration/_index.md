@@ -47,10 +47,11 @@ Assume we want to add `most-awesome-component` (source code in `cmd/most-awesome
 
    - **If the component belongs in the lightweight dev environment** (i.e. it is
      a core Prow service or a fake that most developers need day-to-day), also
-     add it to `PROW_COMPONENTS_CORE` and `PROW_IMAGES_CORE` in the same file.
-     These are the subsets used by `make dev` / `hack/dev-env.sh` (the default
-     `core` profile). If unsure, leave it out of the `_CORE` arrays and it can
-     always be added later.
+     add it to `PROW_COMPONENTS_CORE` in the same file. `PROW_IMAGES_CORE` is
+     derived automatically from `PROW_COMPONENTS_CORE` at runtime, so no
+     separate update is needed. These are the subsets used by `make dev` /
+     `hack/dev-env.sh` (the default `core` profile). If unsure, leave it out of
+     `PROW_COMPONENTS_CORE` and it can always be added later.
 
 2. Add the component's deployment steps to the appropriate deployment-order
    array(s) in `lib.sh`:
