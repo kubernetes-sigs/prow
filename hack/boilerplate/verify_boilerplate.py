@@ -138,10 +138,11 @@ def file_passes(filename, refs, regexs):  # pylint: disable=too-many-locals,too-
         if year.search(datum):
             return False
 
-    # Replace all occurrences of the regex "2017|2016|2015|2014" with "YEAR"
+    # Normalize "Copyright [YEAR ]" to "Copyright " to match the template.
+    # Handles both files with a year and files with no year in the copyright line.
     when = regexs["date"]
     for idx, datum in enumerate(data):
-        (data[idx], found) = when.subn('YEAR', datum)
+        (data[idx], found) = when.subn('Copyright ', datum)
         if found != 0:
             break
 
@@ -214,8 +215,8 @@ def get_files(extensions):
 
 
 def get_dates():
-    years = datetime.datetime.now().year
-    return '(%s)' % '|'.join((str(year) for year in range(2014, years + 1)))
+    year_alternatives = '|'.join((str(year) for year in range(2014, 2026)))
+    return r'Copyright (?:(?:%s) )?' % year_alternatives
 
 
 def get_regexs():
