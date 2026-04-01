@@ -1007,29 +1007,62 @@ func (c *Configuration) LgtmFor(org, repo string) *Lgtm {
 	return &Lgtm{}
 }
 
-// TriggerFor finds the Trigger for a repo, if one exists
-// a trigger can be listed for the repo itself or for the
-// owning organization
+// TriggerFor finds the Trigger for a repo, if one exists.
+// A trigger can be listed for the repo itself or for the
+// owning organization. A trigger entry with an empty Repos
+// list serves as a default and its TrustedApps are merged
+// into every result.
 func (c *Configuration) TriggerFor(org, repo string) Trigger {
 	fullName := fmt.Sprintf("%s/%s", org, repo)
+
+	var defaultTrigger *Trigger
+	for i, trigger := range c.Triggers {
+		if len(trigger.Repos) == 0 {
+			defaultTrigger = &c.Triggers[i]
+			break
+		}
+	}
+
 	// Prioritize repo level triggers over org level triggers.
 	for _, trigger := range c.Triggers {
 		if !sets.NewString(trigger.Repos...).Has(fullName) {
 			continue
 		}
-		return trigger
+		return mergeDefaultTrustedApps(trigger, defaultTrigger)
 	}
 	// If you don't find anything, loop again looking for an org config
 	for _, trigger := range c.Triggers {
 		if !sets.NewString(trigger.Repos...).Has(org) {
 			continue
 		}
-		return trigger
+		return mergeDefaultTrustedApps(trigger, defaultTrigger)
+	}
+
+	if defaultTrigger != nil {
+		tr := *defaultTrigger
+		tr.SetDefaults()
+		return tr
 	}
 
 	var tr Trigger
 	tr.SetDefaults()
 	return tr
+}
+
+// mergeDefaultTrustedApps appends TrustedApps from the default trigger
+// into the matched trigger, avoiding duplicates.
+func mergeDefaultTrustedApps(trigger Trigger, defaultTrigger *Trigger) Trigger {
+	if defaultTrigger == nil || len(defaultTrigger.TrustedApps) == 0 {
+		return trigger
+	}
+	existing := sets.NewString(trigger.TrustedApps...)
+	for _, app := range defaultTrigger.TrustedApps {
+		if !existing.Has(app) {
+			trigger.TrustedApps = append(trigger.TrustedApps, app)
+			existing.Insert(app)
+		}
+	}
+	return trigger
 }
 
 func (t *Trigger) SetDefaults() {

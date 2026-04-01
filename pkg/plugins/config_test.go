@@ -276,6 +276,105 @@ func TestTriggerFor(t *testing.T) {
 	}
 }
 
+func TestTriggerForDefaultTrustedApps(t *testing.T) {
+	testCases := []struct {
+		name                string
+		triggers            []Trigger
+		org, repo           string
+		expectedTrustedApps []string
+	}{
+		{
+			name: "default trusted apps applied when no repo/org match",
+			triggers: []Trigger{
+				{TrustedApps: []string{"app-a", "app-b"}},
+			},
+			org:                 "unknown",
+			repo:                "unknown",
+			expectedTrustedApps: []string{"app-a", "app-b"},
+		},
+		{
+			name: "default trusted apps merged into repo-level match",
+			triggers: []Trigger{
+				{
+					Repos:       []string{"org/repo"},
+					TrustedApps: []string{"repo-app"},
+				},
+				{TrustedApps: []string{"global-app"}},
+			},
+			org:                 "org",
+			repo:                "repo",
+			expectedTrustedApps: []string{"repo-app", "global-app"},
+		},
+		{
+			name: "default trusted apps merged into org-level match",
+			triggers: []Trigger{
+				{
+					Repos:       []string{"myorg"},
+					TrustedApps: []string{"org-app"},
+				},
+				{TrustedApps: []string{"global-app"}},
+			},
+			org:                 "myorg",
+			repo:                "somerepo",
+			expectedTrustedApps: []string{"org-app", "global-app"},
+		},
+		{
+			name: "no duplicates when repo already lists a default app",
+			triggers: []Trigger{
+				{
+					Repos:       []string{"org/repo"},
+					TrustedApps: []string{"shared-app", "repo-app"},
+				},
+				{TrustedApps: []string{"shared-app", "global-app"}},
+			},
+			org:                 "org",
+			repo:                "repo",
+			expectedTrustedApps: []string{"shared-app", "repo-app", "global-app"},
+		},
+		{
+			name: "no duplicates when default list has duplicates",
+			triggers: []Trigger{
+				{
+					Repos:       []string{"org/repo"},
+					TrustedApps: []string{"repo-app"},
+				},
+				{TrustedApps: []string{"global-app", "global-app"}},
+			},
+			org:                 "org",
+			repo:                "repo",
+			expectedTrustedApps: []string{"repo-app", "global-app"},
+		},
+		{
+			name: "no default trigger entry means no global apps",
+			triggers: []Trigger{
+				{
+					Repos:       []string{"org/repo"},
+					TrustedApps: []string{"repo-app"},
+				},
+			},
+			org:                 "org",
+			repo:                "repo",
+			expectedTrustedApps: []string{"repo-app"},
+		},
+		{
+			name:                "no triggers at all returns empty",
+			triggers:            nil,
+			org:                 "org",
+			repo:                "repo",
+			expectedTrustedApps: nil,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			config := Configuration{Triggers: tc.triggers}
+			actual := config.TriggerFor(tc.org, tc.repo)
+			if !reflect.DeepEqual(actual.TrustedApps, tc.expectedTrustedApps) {
+				t.Errorf("expected TrustedApps %v, got %v", tc.expectedTrustedApps, actual.TrustedApps)
+			}
+		})
+	}
+}
+
 func TestSetApproveDefaults(t *testing.T) {
 	c := &Configuration{
 		Approve: []Approve{
