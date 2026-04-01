@@ -2197,6 +2197,216 @@ func testTakeAction(clients localgit.Clients, t *testing.T) {
 	}
 }
 
+func TestTakeActionSkipsExcludedPRs(t *testing.T) {
+	// This test verifies that when a PR fails to merge with UnmergablePRError
+	// (e.g. due to branch protection requiring more reviews), Tide excludes it
+	// on the next sync cycle and advances to the next mergeable PR.
+	// See https://github.com/kubernetes-sigs/prow/issues/673
+	sleep = func(time.Duration) {}
+	defer func() { sleep = time.Sleep }()
+
+	lg, gc, err := localgit.NewV2()
+	if err != nil {
+		t.Fatalf("Error making local git: %v", err)
+	}
+	defer gc.Clean()
+	defer lg.Clean()
+	if err := lg.MakeFakeRepo("o", "r"); err != nil {
+		t.Fatalf("Error making fake repo: %v", err)
+	}
+	if err := lg.AddCommit("o", "r", map[string][]byte{"foo": []byte("foo")}); err != nil {
+		t.Fatalf("Adding initial commit: %v", err)
+	}
+
+	// Create two PRs: #1 (unmergeable) and #2 (mergeable).
+	// pickHighestPriorityPR picks lowest-numbered first, so #1 will always
+	// be picked before #2 unless excluded.
+	sp := subpool{
+		log:        logrus.WithField("component", "tide"),
+		presubmits: map[int][]config.Presubmit{},
+		cc: map[int]contextChecker{
+			1: &config.TideContextPolicy{},
+			2: &config.TideContextPolicy{},
+		},
+		org:    "o",
+		repo:   "r",
+		branch: defaultBranch,
+		sha:    defaultBranch,
+	}
+
+	var successes []CodeReviewCommon
+	for _, i := range []int{1, 2} {
+		if err := lg.CheckoutNewBranch("o", "r", fmt.Sprintf("pr-%d", i)); err != nil {
+			t.Fatalf("Error checking out new branch: %v", err)
+		}
+		if err := lg.AddCommit("o", "r", map[string][]byte{fmt.Sprintf("%d", i): []byte("WOW")}); err != nil {
+			t.Fatalf("Error adding commit: %v", err)
+		}
+		if err := lg.Checkout("o", "r", defaultBranch); err != nil {
+			t.Fatalf("Error checking out master: %v", err)
+		}
+		oid := githubql.String(fmt.Sprintf("origin/pr-%d", i))
+		var pr PullRequest
+		pr.Number = githubql.Int(i)
+		pr.HeadRefOID = oid
+		pr.Commits.Nodes = []struct {
+			Commit Commit
+		}{{Commit: Commit{OID: oid}}}
+		sp.prs = append(sp.prs, *CodeReviewCommonFromPullRequest(&pr))
+		successes = append(successes, *CodeReviewCommonFromPullRequest(&pr))
+	}
+
+	ca := &config.Agent{}
+	cfg := &config.Config{
+		ProwConfig: config.ProwConfig{
+			ProwJobNamespace: "pj-ns",
+		},
+	}
+	ca.Set(cfg)
+
+	log := logrus.WithField("controller", "tide")
+	ctx := context.Background()
+
+	// --- Sync cycle 1: PR #1 fails with UnmergablePRError ---
+	fgc1 := fgc{mergeErrs: map[int]error{1: github.UnmergablePRError("required review count not met")}}
+	ghProvider1 := newGitHubProvider(log, &fgc1, gc, ca.Config, nil, false)
+	mgr1 := newFakeManager(t, ctx)
+	c, err := newSyncController(ctx, log, mgr1, ghProvider1, ca.Config, gc, nil, false, &statusUpdate{
+		dontUpdateStatus: &threadSafePRSet{},
+		newPoolPending:   make(chan bool),
+	})
+	if err != nil {
+		t.Fatalf("failed to construct sync controller: %v", err)
+	}
+	c.changedFiles = &changedFilesAgent{
+		provider:        ghProvider1,
+		nextChangeCache: make(map[changeCacheKey][]string),
+	}
+
+	act, targets, err := c.takeAction(sp, nil, successes, nil, nil, nil, nil)
+	if act != Merge {
+		t.Errorf("Sync 1: expected Merge action, got %v", act)
+	}
+	if err == nil {
+		t.Fatal("Sync 1: expected error from takeAction, got nil")
+	}
+	// Should have tried to merge PR #1 (lowest number)
+	if len(targets) != 1 || targets[0].Number != 1 {
+		t.Errorf("Sync 1: expected target PR #1, got %v", targets)
+	}
+	if fgc1.merged != 0 {
+		t.Errorf("Sync 1: expected 0 merges (PR #1 should fail), got %d", fgc1.merged)
+	}
+
+	// Verify PR #1 is now excluded at its current SHA
+	pr1SHA := successes[0].HeadRefOID
+	if !c.isExcludedFromMerge("o", "r", 1, pr1SHA) {
+		t.Error("Sync 1: PR #1 should be excluded from merging after UnmergablePRError")
+	}
+
+	// --- Sync cycle 2: same controller, PR #1 excluded, PR #2 should be picked ---
+	fgc2 := fgc{mergeErrs: map[int]error{1: github.UnmergablePRError("required review count not met")}}
+	ghProvider2 := newGitHubProvider(log, &fgc2, gc, ca.Config, nil, false)
+	c.provider = ghProvider2
+
+	act, targets, err = c.takeAction(sp, nil, successes, nil, nil, nil, nil)
+	if act != Merge {
+		t.Errorf("Sync 2: expected Merge action, got %v", act)
+	}
+	if err != nil {
+		t.Errorf("Sync 2: expected no error (PR #2 should merge), got: %v", err)
+	}
+	// Should have tried to merge PR #2 since PR #1 is excluded
+	if len(targets) != 1 || targets[0].Number != 2 {
+		t.Errorf("Sync 2: expected target PR #2, got %v", targets)
+	}
+	if fgc2.merged != 1 {
+		t.Errorf("Sync 2: expected 1 merge (PR #2), got %d", fgc2.merged)
+	}
+}
+
+func TestIsUnmergableError(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		expected bool
+	}{
+		{
+			name:     "nil error",
+			err:      nil,
+			expected: false,
+		},
+		{
+			name:     "direct UnmergablePRError",
+			err:      github.UnmergablePRError("test"),
+			expected: true,
+		},
+		{
+			name:     "wrapped UnmergablePRError",
+			err:      fmt.Errorf("PR is unmergable: %w", github.UnmergablePRError("test")),
+			expected: true,
+		},
+		{
+			name: "mergeFailure containing UnmergablePRError",
+			err: &mergeFailure{errs: []mergeErr{
+				{err: fmt.Errorf("PR is unmergable: %w", github.UnmergablePRError("test")), pr: 1},
+			}},
+			expected: true,
+		},
+		{
+			name:     "unrelated error",
+			err:      errors.New("something else"),
+			expected: false,
+		},
+		{
+			name:     "UnauthorizedToPushError",
+			err:      github.UnauthorizedToPushError("no push"),
+			expected: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := isUnmergableError(tc.err); got != tc.expected {
+				t.Errorf("isUnmergableError(%v) = %v, want %v", tc.err, got, tc.expected)
+			}
+		})
+	}
+}
+
+func TestMergeExclusionExpiry(t *testing.T) {
+	c := &syncController{
+		mergeExclusions: make(map[string]time.Time),
+	}
+
+	// Exclude PR #1 at sha "abc123"
+	c.excludeFromMerge("o", "r", 1, "abc123")
+	if !c.isExcludedFromMerge("o", "r", 1, "abc123") {
+		t.Error("PR should be excluded immediately after exclusion")
+	}
+
+	// A new push (different SHA) should not be excluded
+	if c.isExcludedFromMerge("o", "r", 1, "def456") {
+		t.Error("PR with a new head SHA should not be excluded")
+	}
+
+	// Manually set the exclusion time to the past (beyond TTL)
+	c.mergeExclusionsMu.Lock()
+	c.mergeExclusions[mergeExclusionKey("o", "r", 1, "abc123")] = time.Now().Add(-mergeExclusionTTL - time.Second)
+	c.mergeExclusionsMu.Unlock()
+
+	if c.isExcludedFromMerge("o", "r", 1, "abc123") {
+		t.Error("PR should no longer be excluded after TTL expires")
+	}
+
+	// Verify the expired entry was cleaned up
+	c.mergeExclusionsMu.Lock()
+	if _, ok := c.mergeExclusions[mergeExclusionKey("o", "r", 1, "abc123")]; ok {
+		t.Error("Expired exclusion entry should be cleaned up")
+	}
+	c.mergeExclusionsMu.Unlock()
+}
+
 func TestServeHTTP(t *testing.T) {
 	pr1 := PullRequest{}
 	pr1.Commits.Nodes = append(pr1.Commits.Nodes, struct{ Commit Commit }{})
