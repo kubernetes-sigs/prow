@@ -558,7 +558,7 @@ func checkIfTrustedUser(ghc githubClient, log *logrus.Entry, triggerConfig plugi
 	var err error
 	var triggerTrustedResponse trigger.TrustedUserResponse
 	if !isAlreadyTrusted {
-		triggerTrustedResponse, err = trigger.TrustedUser(ghc, triggerConfig.OnlyOrgMembers, triggerConfig.TrustedApps, triggerConfig.TrustedOrg, owner, org, repo)
+		triggerTrustedResponse, err = trigger.TrustedUser(ghc, triggerConfig.OnlyOrgMembers, triggerConfig.GetTrustedApps(), triggerConfig.TrustedOrg, owner, org, repo)
 		if err != nil {
 			return nonTrustedUsers, err
 		}
