@@ -639,15 +639,23 @@ triggers:
       # By default, trigger also include repo collaborators.
       only_org_members: true
       # Repos is either of the form org/repos or just org.
+      # A trigger entry with an empty repos field is treated as the global level
+      # for trusted_apps resolution. Trust is resolved hierarchically:
+      # global (empty repos) -> org-level -> repo-level.
       repos:
         - ""
       # TriggerGitHubWorkflows enables workflows run by github to be triggered by prow.
       trigger_github_workflows: true
-      # TrustedApps is the explicit list of GitHub apps whose PRs will be automatically
+      # TrustedApps is the list of GitHub apps whose PRs will be automatically
       # considered as trusted. The list should contain usernames of each GitHub App without [bot] suffix.
+      # Each entry can be a plain string (legacy format) or an object with name, untrusted, and locked fields.
+      # When untrusted is true, the app is explicitly NOT trusted at this level.
+      # When locked is true (only meaningful at global and org levels), lower levels cannot override.
       # By default, trigger will ignore this list.
       trusted_apps:
-        - ""
+        - name: ""
+          untrusted: false
+          locked: false
       # TrustedOrg is the org whose members' PRs will be automatically built for
       # PRs to the above repos. The default is the PR's org.
 
