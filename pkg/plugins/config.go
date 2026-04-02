@@ -1692,6 +1692,68 @@ func validateInvalidCommitMsg(cfgs []InvalidCommitMsg) error {
 	return utilerrors.NewAggregate(errs)
 }
 
+// ValidateLockedTrustedApps checks whether any lower-level trigger entries attempt to
+// configure trusted apps that are locked at a higher level. This is not an error (the
+// locked setting simply takes precedence), but it may indicate a misconfiguration.
+func (c *Configuration) ValidateLockedTrustedApps() error {
+	globalLocked := map[string]bool{}
+	orgLocked := map[string]map[string]bool{}
+	for _, trigger := range c.Triggers {
+		for _, r := range trigger.Repos {
+			if r == "*" {
+				for _, app := range trigger.TrustedApps {
+					if app.Locked {
+						globalLocked[app.Name] = true
+					}
+				}
+				continue
+			}
+			if strings.Contains(r, "/") {
+				continue
+			}
+			for _, app := range trigger.TrustedApps {
+				if app.Locked {
+					if orgLocked[r] == nil {
+						orgLocked[r] = map[string]bool{}
+					}
+					orgLocked[r][app.Name] = true
+				}
+			}
+		}
+	}
+
+	var errs []error
+
+	for _, trigger := range c.Triggers {
+		for _, r := range trigger.Repos {
+			if r == "*" {
+				continue
+			}
+			if strings.Contains(r, "/") {
+				// Repo-level entry: check against both global and org locks
+				parts := strings.SplitN(r, "/", 2)
+				org := parts[0]
+				for _, app := range trigger.TrustedApps {
+					if globalLocked[app.Name] {
+						errs = append(errs, fmt.Errorf("trigger for %q configures trusted app %q which is locked at global level", r, app.Name))
+					} else if orgLocked[org] != nil && orgLocked[org][app.Name] {
+						errs = append(errs, fmt.Errorf("trigger for %q configures trusted app %q which is locked at org level (%s)", r, app.Name, org))
+					}
+				}
+			} else {
+				// Org-level entry: check against global locks
+				for _, app := range trigger.TrustedApps {
+					if globalLocked[app.Name] {
+						errs = append(errs, fmt.Errorf("trigger for org %q configures trusted app %q which is locked at global level", r, app.Name))
+					}
+				}
+			}
+		}
+	}
+
+	return utilerrors.NewAggregate(errs)
+}
+
 var warnRepoMilestone time.Time
 
 func validateRepoMilestone(milestones map[string]Milestone) {
