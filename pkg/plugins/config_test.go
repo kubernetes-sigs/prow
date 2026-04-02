@@ -31,6 +31,7 @@ import (
 
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/util/diff"
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/yaml"
@@ -3236,5 +3237,150 @@ func TestTriggerForResolveTrustedApps(t *testing.T) {
 	expected := []string{"global-app", "org-app", "repo-app"}
 	if diff := cmp.Diff(expected, got); diff != "" {
 		t.Errorf("TriggerFor should resolve trusted apps, mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestValidateLockedTrustedApps(t *testing.T) {
+	tests := []struct {
+		name        string
+		config      Configuration
+		expectError bool
+		errorCount  int
+		errorSubstr string
+	}{
+		{
+			name: "no locked apps, no errors",
+			config: Configuration{
+				Triggers: []Trigger{
+					{
+						Repos:       nil,
+						TrustedApps: TrustedApps{{Name: "global-app"}},
+					},
+					{
+						Repos:       []string{"myorg"},
+						TrustedApps: TrustedApps{{Name: "global-app"}},
+					},
+				},
+			},
+		},
+		{
+			name: "global lock, org overrides: error",
+			config: Configuration{
+				Triggers: []Trigger{
+					{
+						Repos:       nil,
+						TrustedApps: TrustedApps{{Name: "locked-app", Locked: true}},
+					},
+					{
+						Repos:       []string{"myorg"},
+						TrustedApps: TrustedApps{{Name: "locked-app", Untrusted: true}},
+					},
+				},
+			},
+			expectError: true,
+			errorCount:  1,
+			errorSubstr: "locked at global level",
+		},
+		{
+			name: "global lock, repo overrides: error",
+			config: Configuration{
+				Triggers: []Trigger{
+					{
+						Repos:       nil,
+						TrustedApps: TrustedApps{{Name: "locked-app", Locked: true}},
+					},
+					{
+						Repos:       []string{"myorg/myrepo"},
+						TrustedApps: TrustedApps{{Name: "locked-app"}},
+					},
+				},
+			},
+			expectError: true,
+			errorCount:  1,
+			errorSubstr: "locked at global level",
+		},
+		{
+			name: "org lock, repo overrides: error",
+			config: Configuration{
+				Triggers: []Trigger{
+					{
+						Repos:       []string{"myorg"},
+						TrustedApps: TrustedApps{{Name: "org-locked", Locked: true}},
+					},
+					{
+						Repos:       []string{"myorg/myrepo"},
+						TrustedApps: TrustedApps{{Name: "org-locked", Untrusted: true}},
+					},
+				},
+			},
+			expectError: true,
+			errorCount:  1,
+			errorSubstr: "locked at org level",
+		},
+		{
+			name: "multiple violations",
+			config: Configuration{
+				Triggers: []Trigger{
+					{
+						Repos:       nil,
+						TrustedApps: TrustedApps{{Name: "g-locked", Locked: true}},
+					},
+					{
+						Repos:       []string{"org1"},
+						TrustedApps: TrustedApps{{Name: "g-locked"}, {Name: "o-locked", Locked: true}},
+					},
+					{
+						Repos:       []string{"org1/repo1"},
+						TrustedApps: TrustedApps{{Name: "g-locked"}, {Name: "o-locked"}},
+					},
+				},
+			},
+			expectError: true,
+			errorCount:  3, // org overrides global, repo overrides global, repo overrides org
+		},
+		{
+			name: "non-overlapping locked apps: no error",
+			config: Configuration{
+				Triggers: []Trigger{
+					{
+						Repos:       nil,
+						TrustedApps: TrustedApps{{Name: "global-only", Locked: true}},
+					},
+					{
+						Repos:       []string{"myorg"},
+						TrustedApps: TrustedApps{{Name: "different-app"}},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := tc.config.ValidateLockedTrustedApps()
+			if tc.expectError {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				agg, ok := err.(utilerrors.Aggregate)
+				if !ok {
+					t.Fatalf("expected aggregate error, got %T", err)
+				}
+				if len(agg.Errors()) != tc.errorCount {
+					t.Errorf("expected %d errors, got %d: %v", tc.errorCount, len(agg.Errors()), agg.Errors())
+				}
+				if tc.errorSubstr != "" {
+					for _, e := range agg.Errors() {
+						if !strings.Contains(e.Error(), tc.errorSubstr) {
+							t.Errorf("expected error containing %q, got: %v", tc.errorSubstr, e)
+						}
+					}
+				}
+			} else {
+				if err != nil {
+					t.Errorf("expected no error, got: %v", err)
+				}
+			}
+		})
 	}
 }

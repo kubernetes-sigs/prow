@@ -1567,6 +1567,71 @@ func validateTrustedApps(apps TrustedApps) error {
 	return nil
 }
 
+// ValidateLockedTrustedApps checks whether any lower-level trigger entries attempt to
+// configure trusted apps that are locked at a higher level. This is not an error (the
+// locked setting simply takes precedence), but it may indicate a misconfiguration.
+func (c *Configuration) ValidateLockedTrustedApps() error {
+	// Collect locked apps at global level (triggers with empty Repos)
+	globalLocked := map[string]bool{}
+	for _, trigger := range c.Triggers {
+		if len(trigger.Repos) != 0 {
+			continue
+		}
+		for _, app := range trigger.TrustedApps {
+			if app.Locked {
+				globalLocked[app.Name] = true
+			}
+		}
+	}
+
+	// Collect locked apps at each org level
+	orgLocked := map[string]map[string]bool{} // org -> app -> locked
+	for _, trigger := range c.Triggers {
+		for _, r := range trigger.Repos {
+			// Org-level entries have no slash
+			if strings.Contains(r, "/") {
+				continue
+			}
+			for _, app := range trigger.TrustedApps {
+				if app.Locked {
+					if orgLocked[r] == nil {
+						orgLocked[r] = map[string]bool{}
+					}
+					orgLocked[r][app.Name] = true
+				}
+			}
+		}
+	}
+
+	var errs []error
+
+	for _, trigger := range c.Triggers {
+		for _, r := range trigger.Repos {
+			if strings.Contains(r, "/") {
+				// Repo-level entry: check against both global and org locks
+				parts := strings.SplitN(r, "/", 2)
+				org := parts[0]
+				for _, app := range trigger.TrustedApps {
+					if globalLocked[app.Name] {
+						errs = append(errs, fmt.Errorf("trigger for %q configures trusted app %q which is locked at global level", r, app.Name))
+					} else if orgLocked[org] != nil && orgLocked[org][app.Name] {
+						errs = append(errs, fmt.Errorf("trigger for %q configures trusted app %q which is locked at org level (%s)", r, app.Name, org))
+					}
+				}
+			} else {
+				// Org-level entry: check against global locks
+				for _, app := range trigger.TrustedApps {
+					if globalLocked[app.Name] {
+						errs = append(errs, fmt.Errorf("trigger for org %q configures trusted app %q which is locked at global level", r, app.Name))
+					}
+				}
+			}
+		}
+	}
+
+	return utilerrors.NewAggregate(errs)
+}
+
 var warnRepoMilestone time.Time
 
 func validateRepoMilestone(milestones map[string]Milestone) {
