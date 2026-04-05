@@ -584,7 +584,7 @@ func (s *Server) handle(logger logrus.FieldLogger, requester string, comment *gi
 		originalSHAs, err := extractOriginalSHAs(localPath)
 		if err != nil {
 			logger.WithError(err).Warn("Failed to extract original SHAs from patch")
-		} else if len(originalSHAs) > 0 {
+		} else {
 			// Append cherry-pick messages to all commits created by git am
 			if err := appendCherryPickMessages(r.Directory(), originalSHAs); err != nil {
 				logger.WithError(err).Warn("Failed to append cherry-pick messages")
@@ -595,6 +595,7 @@ func (s *Server) handle(logger logrus.FieldLogger, requester string, comment *gi
 		}
 	}
 
+        // Push the new branch
 	if err := p.Push(r, newBranch, true); err != nil {
 		logger.WithError(err).Warn("failed to push chery-picked changes to GitHub")
 		resp := fmt.Sprintf("failed to push cherry-picked changes in GitHub: %v", err)
