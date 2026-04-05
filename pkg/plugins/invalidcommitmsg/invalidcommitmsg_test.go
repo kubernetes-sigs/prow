@@ -83,7 +83,6 @@ func TestHandlePullRequest(t *testing.T) {
 		commits                      []github.RepositoryCommit
 		title                        string
 		hasInvalidCommitMessageLabel bool
-		hasFixupCommitMsgLabel       bool
 		enableFixupEnv               bool
 
 		// expectations
@@ -200,9 +199,7 @@ func TestHandlePullRequest(t *testing.T) {
 			},
 			hasInvalidCommitMessageLabel: false,
 			enableFixupEnv:               true,
-
-			addedLabel: fmt.Sprintf("k/k#3:%s", fixupCommitMsgLabel),
-
+			addedLabel:                   fmt.Sprintf("k/k#3:%s", invalidCommitMsgLabel),
 			addedComments: []string{
 				fmt.Sprintf(
 					"k/k#3:"+fixupCommitMsgCommentBody,
@@ -219,13 +216,28 @@ func TestHandlePullRequest(t *testing.T) {
 			},
 			hasInvalidCommitMessageLabel: false,
 			enableFixupEnv:               true,
-
-			addedLabel: fmt.Sprintf("k/k#3:%s", fixupCommitMsgLabel),
-
+			addedLabel:                   fmt.Sprintf("k/k#3:%s", invalidCommitMsgLabel),
 			addedComments: []string{
 				fmt.Sprintf(
 					"k/k#3:"+fixupCommitMsgCommentBody,
 					"- [sha1](https://github.com/k/k/commits/sha1) amend! update tests",
+					plugins.AboutThisBot,
+				),
+			},
+		},
+		{
+			name:   "squash commit -> add label and comment",
+			action: github.PullRequestActionOpened,
+			commits: []github.RepositoryCommit{
+				{SHA: "sha1", Commit: github.GitCommit{Message: "squash! update tests"}},
+			},
+			hasInvalidCommitMessageLabel: false,
+			enableFixupEnv:               true,
+			addedLabel:                   fmt.Sprintf("k/k#3:%s", invalidCommitMsgLabel),
+			addedComments: []string{
+				fmt.Sprintf(
+					"k/k#3:"+fixupCommitMsgCommentBody,
+					"- [sha1](https://github.com/k/k/commits/sha1) squash! update tests",
 					plugins.AboutThisBot,
 				),
 			},
@@ -244,8 +256,7 @@ func TestHandlePullRequest(t *testing.T) {
 			commits: []github.RepositoryCommit{
 				{SHA: "sha1", Commit: github.GitCommit{Message: "fixup! update tests"}},
 			},
-			addedLabel: fmt.Sprintf("k/k#3:%s", fixupCommitMsgLabel),
-
+			addedLabel: fmt.Sprintf("k/k#3:%s", invalidCommitMsgLabel),
 			addedComments: []string{
 				fmt.Sprintf(
 					"k/k#3:"+fixupCommitMsgCommentBody,
@@ -277,13 +288,14 @@ func TestHandlePullRequest(t *testing.T) {
 			},
 		},
 		{
-			name:   "fixup commits removed -> remove fixup label",
+			name:   "fixup commits removed -> remove label",
 			action: github.PullRequestActionOpened,
 			commits: []github.RepositoryCommit{
 				{SHA: "sha1", Commit: github.GitCommit{Message: "normal commit"}},
 			},
-			hasFixupCommitMsgLabel: true,
-			removedLabel:           fmt.Sprintf("k/k#3:%s", fixupCommitMsgLabel),
+			hasInvalidCommitMessageLabel: true,
+			enableFixupEnv:               true,
+			removedLabel:                 fmt.Sprintf("k/k#3:%s", invalidCommitMsgLabel),
 		},
 	}
 
@@ -304,9 +316,6 @@ func TestHandlePullRequest(t *testing.T) {
 
 			if tc.hasInvalidCommitMessageLabel {
 				fc.IssueLabelsAdded = append(fc.IssueLabelsAdded, fmt.Sprintf("k/k#3:%s", invalidCommitMsgLabel))
-			}
-			if tc.hasFixupCommitMsgLabel {
-				fc.IssueLabelsAdded = append(fc.IssueLabelsAdded, fmt.Sprintf("k/k#3:%s", fixupCommitMsgLabel))
 			}
 
 			if tc.enableFixupEnv {

@@ -36,7 +36,6 @@ import (
 const (
 	pluginName                  = "invalidcommitmsg"
 	invalidCommitMsgLabel       = "do-not-merge/invalid-commit-message"
-	fixupCommitMsgLabel         = "do-not-merge/fixup-commits"
 	invalidCommitMsgCommentBody = `[Keywords](https://help.github.com/articles/closing-issues-using-keywords) which can automatically close issues and hashtag(#) mentions are not allowed in commit messages.
 
 **The list of commits with invalid commit messages**:
@@ -60,13 +59,13 @@ When GitHub merges a Pull Request, the title is included in the merge commit. To
 </details>
 `
 	invalidTitleCommentPruneBody = "not allowed in the title of a Pull Request"
-	fixupCommitMsgCommentBody    = `Temporary commits like fixup! or amend! are not allowed in the commit history.
+	fixupCommitMsgCommentBody    = `Temporary commits like fixup!, amend!, or squash! are not allowed in the commit history.
 
 Please squash or rebase your commits before merging. You can use
 [git rebase --autosquash](https://git-scm.com/docs/git-rebase#Documentation/git-rebase.txt---autosquash)
 to automatically squash these commits.
 
-**The list of fixup/amend commits**:
+**The list of fixup/amend/squash commits**:
 
 %s
 
@@ -76,11 +75,11 @@ to automatically squash these commits.
 </details>
 `
 
-	fixupCommitMsgCommentPruneBody = "**The list of fixup/amend commits**:"
+	fixupCommitMsgCommentPruneBody = "**The list of fixup/amend/squash commits**:"
 )
 
 var CloseIssueRegex = regexp.MustCompile(`((?i)(clos(?:e[sd]?))|(fix(?:(es|ed)?))|(resolv(?:e[sd]?)))[\s:]+(\w+/\w+)?#(\d+)`)
-var FixupCommitRegex = regexp.MustCompile(`^(fixup!|amend!)`)
+var fixupCommitRegex = regexp.MustCompile(`^(fixup!|amend!|squash!)`)
 
 func init() {
 	plugins.RegisterPullRequestHandler(pluginName, handlePullRequest, helpProvider)
@@ -89,7 +88,7 @@ func init() {
 func helpProvider(config *plugins.Configuration, _ []config.OrgRepo) (*pluginhelp.PluginHelp, error) {
 	// Only the Description field is specified because this plugin is not triggered with commands and is not configurable.
 	return &pluginhelp.PluginHelp{
-			Description: "The invalidcommitmsg plugin applies the '" + invalidCommitMsgLabel + "' label to pull requests whose commit messages and titles contain keywords which can automatically close issues and applies the '" + fixupCommitMsgLabel + "' label to pull requests containing temporary commits such as fixup! or amend!",
+			Description: "The invalidcommitmsg plugin applies the '" + invalidCommitMsgLabel + "' label to pull requests whose commit messages and titles contain keywords which can automatically close issues or contain temporary commits such as fixup!, amend!, or squash!",
 		},
 		nil
 }
@@ -134,7 +133,6 @@ func handle(gc githubClient, log *logrus.Entry, pr github.PullRequestEvent, cp c
 		return err
 	}
 	hasInvalidCommitMsgLabel := github.HasLabel(invalidCommitMsgLabel, labels)
-	hasFixupCommitMsgLabel := github.HasLabel(fixupCommitMsgLabel, labels)
 
 	allCommits, err := gc.ListPullRequestCommits(org, repo, number)
 	if err != nil {
@@ -145,6 +143,7 @@ func handle(gc githubClient, log *logrus.Entry, pr github.PullRequestEvent, cp c
 	var invalidCommits []github.RepositoryCommit
 	var fixupCommits []github.RepositoryCommit
 
+	// Run all checks
 	for _, commit := range allCommits {
 		msg := commit.Commit.Message
 		subject := strings.Split(msg, "\n")[0]
@@ -153,53 +152,36 @@ func handle(gc githubClient, log *logrus.Entry, pr github.PullRequestEvent, cp c
 			invalidCommits = append(invalidCommits, commit)
 		}
 
-		if checkFixup && FixupCommitRegex.MatchString(subject) {
+		if checkFixup && fixupCommitRegex.MatchString(subject) {
 			fixupCommits = append(fixupCommits, commit)
 		}
 	}
 
 	invalidPRTitle := CloseIssueRegex.MatchString(title)
 
-	// if we have the label but all commits and the PR title is valid,
-	// remove the label and prune comments
-	if hasInvalidCommitMsgLabel && len(invalidCommits) == 0 && !invalidPRTitle {
+	// Determine if any check failed
+	hasIssues := len(invalidCommits) != 0 || invalidPRTitle || (checkFixup && len(fixupCommits) != 0)
+
+	// Manage the single label based on all checks
+	if hasInvalidCommitMsgLabel && !hasIssues {
+		// All checks pass, remove label and prune all comments
 		if err := gc.RemoveLabel(org, repo, number, invalidCommitMsgLabel); err != nil {
 			log.WithError(err).Errorf("GitHub failed to remove the following label: %s", invalidCommitMsgLabel)
 		}
 		cp.PruneComments(func(comment github.IssueComment) bool {
-			return strings.Contains(comment.Body, invalidCommitMsgCommentPruneBody)
+			return strings.Contains(comment.Body, invalidCommitMsgCommentPruneBody) ||
+				strings.Contains(comment.Body, invalidTitleCommentPruneBody) ||
+				strings.Contains(comment.Body, fixupCommitMsgCommentPruneBody)
 		})
-		cp.PruneComments(func(comment github.IssueComment) bool {
-			return strings.Contains(comment.Body, invalidTitleCommentPruneBody)
-		})
-	}
-
-	if hasFixupCommitMsgLabel && len(fixupCommits) == 0 {
-		if err := gc.RemoveLabel(org, repo, number, fixupCommitMsgLabel); err != nil {
-			log.WithError(err).Errorf("GitHub failed to remove the following label: %s", fixupCommitMsgLabel)
-		}
-		cp.PruneComments(func(comment github.IssueComment) bool {
-			return strings.Contains(comment.Body, fixupCommitMsgCommentPruneBody)
-		})
-	}
-
-	// if we don't have the label and
-	// if the PR title is invalid OR there are invalid commits
-	// add the label
-	if !hasInvalidCommitMsgLabel && (len(invalidCommits) != 0 || invalidPRTitle) {
+	} else if !hasInvalidCommitMsgLabel && hasIssues {
+		// At least one check failed, add label
 		if err := gc.AddLabel(org, repo, number, invalidCommitMsgLabel); err != nil {
 			log.WithError(err).Errorf("GitHub failed to add the following label: %s", invalidCommitMsgLabel)
 		}
 	}
-	if !hasFixupCommitMsgLabel && len(fixupCommits) != 0 {
-		if err := gc.AddLabel(org, repo, number, fixupCommitMsgLabel); err != nil {
-			log.WithError(err).Errorf("GitHub failed to add the following label: %s", fixupCommitMsgLabel)
-		}
-	}
 
-	// if there are invalid commits, add a comment
+	// Add comments for each type of issue found
 	if len(invalidCommits) != 0 {
-		// prune old comments before adding a new one
 		cp.PruneComments(func(comment github.IssueComment) bool {
 			return strings.Contains(comment.Body, invalidCommitMsgCommentPruneBody)
 		})
@@ -210,13 +192,12 @@ func handle(gc githubClient, log *logrus.Entry, pr github.PullRequestEvent, cp c
 		}
 	}
 
-	// if there are fixup commits, add a comment
-	if len(fixupCommits) != 0 {
+	if checkFixup && len(fixupCommits) != 0 {
 		cp.PruneComments(func(comment github.IssueComment) bool {
 			return strings.Contains(comment.Body, fixupCommitMsgCommentPruneBody)
 		})
 
-		log.Debug("Commenting on PR to advise users of fixup/amend commits")
+		log.Debug("Commenting on PR to advise users of fixup/amend/squash commits")
 		if err := gc.CreateComment(org, repo, number,
 			fmt.Sprintf(fixupCommitMsgCommentBody,
 				dco.MarkdownSHAList(org, repo, fixupCommits),
@@ -225,9 +206,7 @@ func handle(gc githubClient, log *logrus.Entry, pr github.PullRequestEvent, cp c
 		}
 	}
 
-	// if the PR title is invalid, add a comment
 	if invalidPRTitle {
-		// prune old comments before adding a new one
 		cp.PruneComments(func(comment github.IssueComment) bool {
 			return strings.Contains(comment.Body, invalidTitleCommentPruneBody)
 		})
