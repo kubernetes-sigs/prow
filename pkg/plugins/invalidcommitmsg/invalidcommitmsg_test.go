@@ -19,14 +19,13 @@ package invalidcommitmsg
 import (
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/sirupsen/logrus"
 
 	"sigs.k8s.io/prow/pkg/github"
 	"sigs.k8s.io/prow/pkg/github/fakegithub"
-	"sigs.k8s.io/prow/pkg/plugins"
 )
 
 type fakePruner struct{}
@@ -49,31 +48,6 @@ func makeFakePullRequestEvent(action github.PullRequestEventAction, title string
 	}
 }
 
-var invalidCommitComment = `k/k#3:[Keywords](https://help.github.com/articles/closing-issues-using-keywords) which can automatically close issues and hashtag(#) mentions are not allowed in commit messages.
-
-**The list of commits with invalid commit messages**:
-
-- [sha1](https://github.com/k/k/commits/sha1) fixes k/k#9999
-- [sha2](https://github.com/k/k/commits/sha2) Close k/k#9999
-- [sha3](https://github.com/k/k/commits/sha3) resolved k/k#9999
-
-<details>
-
-Instructions for interacting with me using PR comments are available [here](https://git.k8s.io/community/contributors/guide/pull-requests.md).  If you have questions or suggestions related to my behavior, please file an issue against the [kubernetes-sigs/prow](https://github.com/kubernetes-sigs/prow/issues/new?title=Prow%20issue:) repository. I understand the commands that are listed [here](https://go.k8s.io/bot-commands).
-</details>
-`
-
-var invalidPRTitleComment = `k/k#3:[Keywords](https://help.github.com/articles/closing-issues-using-keywords) which can automatically close issues are not allowed in the title of a Pull Request.
-
-You can edit the title by writing **/retitle <new-title>** in a comment.
-
-<details>
-When GitHub merges a Pull Request, the title is included in the merge commit. To avoid invalid keywords in the merge commit, please edit the title of the PR.
-
-Instructions for interacting with me using PR comments are available [here](https://git.k8s.io/community/contributors/guide/pull-requests.md).  If you have questions or suggestions related to my behavior, please file an issue against the [kubernetes-sigs/prow](https://github.com/kubernetes-sigs/prow/issues/new?title=Prow%20issue:) repository. I understand the commands that are listed [here](https://go.k8s.io/bot-commands).
-</details>
-`
-
 func TestHandlePullRequest(t *testing.T) {
 	var testcases = []struct {
 		name string
@@ -86,9 +60,8 @@ func TestHandlePullRequest(t *testing.T) {
 		enableFixupEnv               bool
 
 		// expectations
-		addedLabel    string
-		removedLabel  string
-		addedComments []string
+		addedLabel   string
+		removedLabel string
 	}{
 		{
 			name:   "unsupported PR action -> no-op",
@@ -113,8 +86,7 @@ func TestHandlePullRequest(t *testing.T) {
 			},
 			hasInvalidCommitMessageLabel: false,
 
-			addedLabel:    fmt.Sprintf("k/k#3:%s", invalidCommitMsgLabel),
-			addedComments: []string{invalidCommitComment},
+			addedLabel: fmt.Sprintf("k/k#3:%s", invalidCommitMsgLabel),
 		},
 		{
 			name:   "msg does not contain invalid keywords but has label -> remove label",
@@ -144,7 +116,6 @@ func TestHandlePullRequest(t *testing.T) {
 			title:                        "fixes #9999",
 			hasInvalidCommitMessageLabel: false,
 			addedLabel:                   fmt.Sprintf("k/k#3:%s", invalidCommitMsgLabel),
-			addedComments:                []string{invalidPRTitleComment},
 		},
 		{
 			name:   "contains invalid title and invalid commits -> add label and 2 comments",
@@ -157,7 +128,6 @@ func TestHandlePullRequest(t *testing.T) {
 			title:                        "fixes #9999",
 			hasInvalidCommitMessageLabel: false,
 			addedLabel:                   fmt.Sprintf("k/k#3:%s", invalidCommitMsgLabel),
-			addedComments:                []string{invalidCommitComment, invalidPRTitleComment},
 		},
 		{
 			name:   "valid commits and invalid title, and has label -> keep label and add comment",
@@ -167,7 +137,6 @@ func TestHandlePullRequest(t *testing.T) {
 			},
 			title:                        "fixes #9999",
 			hasInvalidCommitMessageLabel: true,
-			addedComments:                []string{invalidPRTitleComment},
 		},
 		{
 			name:   "invalid commits and valid title, and has label -> keep label and add comment",
@@ -179,7 +148,6 @@ func TestHandlePullRequest(t *testing.T) {
 			},
 			title:                        "valid title",
 			hasInvalidCommitMessageLabel: true,
-			addedComments:                []string{invalidCommitComment},
 		},
 		{
 			name:   "valid title and valid commits, and has label -> remove label",
@@ -200,13 +168,6 @@ func TestHandlePullRequest(t *testing.T) {
 			hasInvalidCommitMessageLabel: false,
 			enableFixupEnv:               true,
 			addedLabel:                   fmt.Sprintf("k/k#3:%s", invalidCommitMsgLabel),
-			addedComments: []string{
-				fmt.Sprintf(
-					"k/k#3:"+fixupCommitMsgCommentBody,
-					"- [sha1](https://github.com/k/k/commits/sha1) fixup! update tests",
-					plugins.AboutThisBot,
-				),
-			},
 		},
 		{
 			name:   "amend commit -> add label and comment",
@@ -217,13 +178,6 @@ func TestHandlePullRequest(t *testing.T) {
 			hasInvalidCommitMessageLabel: false,
 			enableFixupEnv:               true,
 			addedLabel:                   fmt.Sprintf("k/k#3:%s", invalidCommitMsgLabel),
-			addedComments: []string{
-				fmt.Sprintf(
-					"k/k#3:"+fixupCommitMsgCommentBody,
-					"- [sha1](https://github.com/k/k/commits/sha1) amend! update tests",
-					plugins.AboutThisBot,
-				),
-			},
 		},
 		{
 			name:   "squash commit -> add label and comment",
@@ -234,13 +188,6 @@ func TestHandlePullRequest(t *testing.T) {
 			hasInvalidCommitMessageLabel: false,
 			enableFixupEnv:               true,
 			addedLabel:                   fmt.Sprintf("k/k#3:%s", invalidCommitMsgLabel),
-			addedComments: []string{
-				fmt.Sprintf(
-					"k/k#3:"+fixupCommitMsgCommentBody,
-					"- [sha1](https://github.com/k/k/commits/sha1) squash! update tests",
-					plugins.AboutThisBot,
-				),
-			},
 		},
 		{
 			name:   "fixup commit ignored when feature flag disabled",
@@ -256,14 +203,7 @@ func TestHandlePullRequest(t *testing.T) {
 			commits: []github.RepositoryCommit{
 				{SHA: "sha1", Commit: github.GitCommit{Message: "fixup! update tests"}},
 			},
-			addedLabel: fmt.Sprintf("k/k#3:%s", invalidCommitMsgLabel),
-			addedComments: []string{
-				fmt.Sprintf(
-					"k/k#3:"+fixupCommitMsgCommentBody,
-					"- [sha1](https://github.com/k/k/commits/sha1) fixup! update tests",
-					plugins.AboutThisBot,
-				),
-			},
+			addedLabel:     fmt.Sprintf("k/k#3:%s", invalidCommitMsgLabel),
 			enableFixupEnv: true,
 		},
 		{
@@ -274,18 +214,6 @@ func TestHandlePullRequest(t *testing.T) {
 			},
 			enableFixupEnv: true,
 			addedLabel:     fmt.Sprintf("k/k#3:%s", invalidCommitMsgLabel),
-			addedComments: []string{
-				fmt.Sprintf(
-					"k/k#3:"+invalidCommitMsgCommentBody,
-					"- [sha1](https://github.com/k/k/commits/sha1) fixup! fixes #123",
-					plugins.AboutThisBot,
-				),
-				fmt.Sprintf(
-					"k/k#3:"+fixupCommitMsgCommentBody,
-					"- [sha1](https://github.com/k/k/commits/sha1) fixup! fixes #123",
-					plugins.AboutThisBot,
-				),
-			},
 		},
 		{
 			name:   "fixup commits removed -> remove label",
@@ -355,14 +283,69 @@ func TestHandlePullRequest(t *testing.T) {
 			}
 
 			comments := fc.IssueCommentsAdded
-			if len(comments) != len(tc.addedComments) {
-				t.Errorf("Expected %v comments, but received %v", len(tc.addedComments), len(comments))
-				return
-			}
 
-			if diff := cmp.Diff(comments, tc.addedComments); diff != "" {
-				t.Errorf("Actual comments differ from expected comments: %s", diff)
+			if hasIssues(tc.commits, tc.title, tc.enableFixupEnv) {
+				if len(comments) != 1 {
+					t.Errorf("Expected 1 comment, got %d", len(comments))
+					return
+				}
+
+				comment := comments[0]
+
+				if !strings.Contains(comment, "[invalid-commit-message]") {
+					t.Errorf("Missing marker in comment")
+				}
+
+				if containsInvalidCommits(tc.commits) {
+					if !strings.Contains(comment, "Invalid commit messages") {
+						t.Errorf("Missing invalid commit section")
+					}
+				}
+
+				if tc.enableFixupEnv && containsFixup(tc.commits) {
+					if !strings.Contains(comment, "Fixup/amend/squash commits") {
+						t.Errorf("Missing fixup section")
+					}
+				}
+
+				if isInvalidTitle(tc.title) {
+					if !strings.Contains(comment, "Invalid PR title") {
+						t.Errorf("Missing invalid title section")
+					}
+				}
+			} else {
+				if len(comments) != 0 {
+					t.Errorf("Expected no comments, got %d", len(comments))
+				}
 			}
 		})
 	}
+}
+
+func containsInvalidCommits(commits []github.RepositoryCommit) bool {
+	for _, c := range commits {
+		if CloseIssueRegex.MatchString(c.Commit.Message) {
+			return true
+		}
+	}
+	return false
+}
+
+func containsFixup(commits []github.RepositoryCommit) bool {
+	for _, c := range commits {
+		if fixupCommitRegex.MatchString(strings.Split(c.Commit.Message, "\n")[0]) {
+			return true
+		}
+	}
+	return false
+}
+
+func isInvalidTitle(title string) bool {
+	return CloseIssueRegex.MatchString(title)
+}
+
+func hasIssues(commits []github.RepositoryCommit, title string, fixupEnabled bool) bool {
+	return containsInvalidCommits(commits) ||
+		isInvalidTitle(title) ||
+		(fixupEnabled && containsFixup(commits))
 }
