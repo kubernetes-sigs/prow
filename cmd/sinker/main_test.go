@@ -21,6 +21,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -919,9 +920,7 @@ func TestFlags(t *testing.T) {
 				"--config-path": "yo",
 				"--dry-run":     "false",
 			}
-			for k, v := range tc.args {
-				argMap[k] = v
-			}
+			maps.Copy(argMap, tc.args)
 			for k := range tc.del {
 				delete(argMap, k)
 			}

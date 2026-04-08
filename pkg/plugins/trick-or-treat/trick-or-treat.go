@@ -76,7 +76,7 @@ func (c *realSnicker) readImage(log *logrus.Entry) (string, error) {
 	var imgURL string
 	var err error
 	var tooBig bool
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		imgIndex := rand.Intn(len(candiesImgs))
 		imgURL = candiesImgs[imgIndex]
 		// checking size, GitHub doesn't support big images
@@ -118,7 +118,7 @@ func handle(gc githubClient, log *logrus.Entry, e *github.GenericCommentEvent, c
 	repo := e.Repo.Name
 	number := e.Number
 	interval := 200 * time.Microsecond
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		imgURL, err := c.readImage(log)
 		if err != nil {
 			log.WithError(err).Error("Failed to get img")

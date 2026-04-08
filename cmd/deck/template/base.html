@@ -26,13 +26,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
   {{end}}
   <title>{{block "title" .Arguments}}Prow{{ end }}</title>
-  <link rel="stylesheet" href="https://code.getmdl.io/1.3.0/material.indigo-pink.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/material-design-lite/1.3.0/material.indigo-pink.min.css">
   <link rel="stylesheet" type="text/css" href="/static/style.css?v={{deckVersion}}">
   <link rel="stylesheet" type="text/css" href="/static/extensions/style.css?v={{deckVersion}}">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:400,700">
   <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
   <script type="text/javascript" src="/static/extensions/script.js?v={{deckVersion}}"></script>
-  <script defer src="https://code.getmdl.io/1.3.0/material.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/material-design-lite/1.3.0/material.min.js"></script>
   {{block "scripts" .Arguments}}{{end}}
 </head>
 {{ $defaultLogo := "/static/logo-light.png" }}

@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"strconv"
 	"strings"
 
@@ -82,7 +83,9 @@ func (f *FakeClient) JiraClient() *jira.Client {
 	panic("not implemented")
 }
 
-const FakeJiraUrl = "https://my-jira.com"
+// FakeJiraUrl is the return value for FakeClient.JiraURL.
+// JiraURL of the real client returns the base URL with a trailing slash.
+const FakeJiraUrl = "https://my-jira.com/"
 
 func (f *FakeClient) JiraURL() string {
 	return FakeJiraUrl
@@ -172,8 +175,8 @@ func (f *FakeClient) CreateIssue(issue *jira.Issue) (*jira.Issue, error) {
 		if intID > highestID {
 			highestID = intID
 		}
-		if strings.HasPrefix(issue.Key, keyPrefix) {
-			stringID := strings.TrimPrefix(issue.Key, keyPrefix)
+		if after, ok := strings.CutPrefix(issue.Key, keyPrefix); ok {
+			stringID := after
 			intID, _ := strconv.Atoi(stringID)
 			if intID > highestKeyID {
 				highestKeyID = intID
@@ -278,6 +281,15 @@ func (f *FakeClient) DoTransition(issueID, transitionID string) error {
 	return nil
 }
 
+func (f *FakeClient) GetUser(accountID string) (*jira.User, error) {
+	for _, user := range f.Users {
+		if user.AccountID == accountID {
+			return user, nil
+		}
+	}
+	return nil, jiraclient.NewNotFoundError(fmt.Errorf("no user with accountId %s found", accountID))
+}
+
 func (f *FakeClient) FindUser(property string) ([]*jira.User, error) {
 	var foundUsers []*jira.User
 	for _, user := range f.Users {
@@ -299,14 +311,6 @@ func (f *FakeClient) GetIssueSecurityLevel(issue *jira.Issue) (*jiraclient.Secur
 	return jiraclient.GetIssueSecurityLevel(issue)
 }
 
-func (f *FakeClient) GetIssueQaContact(issue *jira.Issue) (*jira.User, error) {
-	return jiraclient.GetIssueQaContact(issue)
-}
-
-func (f *FakeClient) GetIssueTargetVersion(issue *jira.Issue) (*[]*jira.Version, error) {
-	return jiraclient.GetIssueTargetVersion(issue)
-}
-
 func (f *FakeClient) UpdateIssue(issue *jira.Issue) (*jira.Issue, error) {
 	if f.UpdateIssueError != nil {
 		if err, ok := f.UpdateIssueError[issue.Key]; ok {
@@ -319,7 +323,7 @@ func (f *FakeClient) UpdateIssue(issue *jira.Issue) (*jira.Issue, error) {
 	}
 	// convert `fields` field of both retrieved and provided issue to interfaces and update the non-nil
 	// fields from the provided issue to the retrieved one
-	var issueFields, retrievedFields map[string]interface{}
+	var issueFields, retrievedFields map[string]any
 	issueBytes, err := json.Marshal(issue.Fields)
 	if err != nil {
 		return nil, fmt.Errorf("error converting provided issue to json: %v", err)
@@ -334,9 +338,7 @@ func (f *FakeClient) UpdateIssue(issue *jira.Issue) (*jira.Issue, error) {
 	if err := json.Unmarshal(retrievedIssueBytes, &retrievedFields); err != nil {
 		return nil, fmt.Errorf("failed converting original issue to map: %v", err)
 	}
-	for key, value := range issueFields {
-		retrievedFields[key] = value
-	}
+	maps.Copy(retrievedFields, issueFields)
 	updatedIssueBytes, err := json.Marshal(retrievedFields)
 	if err != nil {
 		return nil, fmt.Errorf("error converting updated issue to json: %v", err)
@@ -354,8 +356,9 @@ func (f *FakeClient) UpdateStatus(issueID, statusName string) error {
 }
 
 type SearchRequest struct {
-	query   string
-	options *jira.SearchOptions
+	query     string
+	options   *jira.SearchOptions
+	optionsV2 *jira.SearchOptionsV2
 }
 
 type SearchResponse struct {
@@ -368,6 +371,14 @@ func (f *FakeClient) SearchWithContext(ctx context.Context, jql string, options 
 	resp, expected := f.SearchResponses[SearchRequest{query: jql, options: options}]
 	if !expected {
 		return nil, nil, fmt.Errorf("the query: %s is not registered", jql)
+	}
+	return resp.issues, resp.response, resp.error
+}
+
+func (f *FakeClient) SearchV2JqlWithContext(ctx context.Context, jql string, options *jira.SearchOptionsV2) ([]jira.Issue, *jira.Response, error) {
+	resp, expected := f.SearchResponses[SearchRequest{query: jql, optionsV2: options}]
+	if !expected {
+		return nil, nil, fmt.Errorf("the V2 query: %s is not registered", jql)
 	}
 	return resp.issues, resp.response, resp.error
 }

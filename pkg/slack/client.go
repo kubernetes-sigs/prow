@@ -57,7 +57,7 @@ func (h *HostsFlag) Set(value string) error {
 
 // Logger provides an interface to log debug messages.
 type Logger interface {
-	Debugf(s string, v ...interface{})
+	Debugf(s string, v ...any)
 }
 
 // Client allows you to provide connection to Slack API Server
@@ -92,7 +92,7 @@ func NewFakeClient() *Client {
 	}
 }
 
-func (sl *Client) log(methodName string, args ...interface{}) {
+func (sl *Client) log(methodName string, args ...any) {
 	if sl.logger == nil {
 		return
 	}

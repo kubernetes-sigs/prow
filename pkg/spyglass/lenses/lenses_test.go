@@ -18,6 +18,7 @@ package lenses
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/sirupsen/logrus"
@@ -122,9 +123,9 @@ crazy`,
 // Tests reading last N Lines from files in GCS
 func TestLastNLines_GCS(t *testing.T) {
 	fakeGCSServerChunkSize := int64(3500)
-	var longLog string
-	for i := 0; i < 300; i++ {
-		longLog += "here a log\nthere a log\neverywhere a log log\n"
+	var longLog strings.Builder
+	for range 300 {
+		longLog.WriteString("here a log\nthere a log\neverywhere a log log\n")
 	}
 	testCases := []struct {
 		name     string
@@ -152,7 +153,7 @@ func TestLastNLines_GCS(t *testing.T) {
 			name:     "Read last 2 lines of a long log file",
 			n:        2,
 			path:     "long-log.txt",
-			contents: []byte(longLog),
+			contents: []byte(longLog.String()),
 			expected: []string{
 				"there a log",
 				"everywhere a log log",

@@ -21,16 +21,17 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/andygrunwald/go-jira"
-	"github.com/hashicorp/go-retryablehttp"
-	"github.com/sirupsen/logrus"
 	stdio "io"
-	"k8s.io/apimachinery/pkg/util/sets"
 	"net/http"
 	"net/url"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/andygrunwald/go-jira"
+	"github.com/hashicorp/go-retryablehttp"
+	"github.com/sirupsen/logrus"
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	"sigs.k8s.io/prow/pkg/version"
 )
@@ -55,6 +56,7 @@ type Client interface {
 	// SearchWithContext will search for tickets according to the jql
 	// Jira API docs: https://developer.atlassian.com/jiradev/jira-apis/jira-rest-apis/jira-rest-api-tutorials/jira-rest-api-example-query-issues
 	SearchWithContext(ctx context.Context, jql string, options *jira.SearchOptions) ([]jira.Issue, *jira.Response, error)
+	SearchV2JqlWithContext(ctx context.Context, jql string, options *jira.SearchOptionsV2) ([]jira.Issue, *jira.Response, error)
 	UpdateIssue(*jira.Issue) (*jira.Issue, error)
 	CreateIssue(*jira.Issue) (*jira.Issue, error)
 	CreateIssueLink(*jira.IssueLink) error
@@ -71,10 +73,8 @@ type Client interface {
 	// is set for the issue, the returned SecurityLevel and error will both be nil and
 	// the issue will follow the default project security level.
 	GetIssueSecurityLevel(*jira.Issue) (*SecurityLevel, error)
-	// GetIssueQaContact get the user details for the QA contact. The QA contact is a custom field in Jira
-	GetIssueQaContact(*jira.Issue) (*jira.User, error)
-	// GetIssueTargetVersion get the issue Target Release. The target release is a custom field in Jira
-	GetIssueTargetVersion(issue *jira.Issue) (*[]*jira.Version, error)
+	// GetUser returns a single user by their Jira account ID.
+	GetUser(accountID string) (*jira.User, error)
 	// FindUser returns all users with a field matching the queryParam (ex: email, display name, etc.)
 	FindUser(queryParam string) ([]*jira.User, error)
 	GetRemoteLinks(id string) ([]jira.RemoteLink, error)
@@ -393,6 +393,17 @@ func (jc *client) DeleteRemoteLinkViaURL(issueID, url string) (bool, error) {
 	return DeleteRemoteLinkViaURL(jc, issueID, url)
 }
 
+func (jc *client) GetUser(accountID string) (*jira.User, error) {
+	user, response, err := jc.upstream.User.Get(accountID)
+	if err != nil {
+		if response != nil && response.StatusCode == http.StatusNotFound {
+			return nil, NotFoundError{err}
+		}
+		return nil, HandleJiraError(response, err)
+	}
+	return user, nil
+}
+
 func (jc *client) FindUser(queryParam string) ([]*jira.User, error) {
 	// JIRA's own documentation here is incorrect; it specifies that either 'accountID',
 	// 'query', or 'property' must be used. However, JIRA throws an error unless 'username'
@@ -570,11 +581,11 @@ func unsetProblematicFields(issue *jira.Issue, responseBody string) (*jira.Issue
 	if err != nil {
 		return nil, err
 	}
-	issueMap := make(map[string]interface{})
+	issueMap := make(map[string]any)
 	if err := json.Unmarshal(marshalledIssue, &issueMap); err != nil {
 		return nil, err
 	}
-	fieldsMap := issueMap["fields"].(map[string]interface{})
+	fieldsMap := issueMap["fields"].(map[string]any)
 	for field := range processedResponse.Errors {
 		delete(fieldsMap, field)
 	}
@@ -772,14 +783,14 @@ func HandleJiraError(response *jira.Response, err error) error {
 
 // toCurl is a slightly adjusted copy of https://github.com/kubernetes/kubernetes/blob/74053d555d71a14e3853b97e204d7d6415521375/staging/src/k8s.io/client-go/transport/round_trippers.go#L339
 func toCurl(r *http.Request) string {
-	headers := ""
+	var headers strings.Builder
 	for key, values := range r.Header {
 		for _, value := range values {
-			headers += fmt.Sprintf(` -H %q`, fmt.Sprintf("%s: %s", key, maskAuthorizationHeader(key, value)))
+			headers.WriteString(fmt.Sprintf(` -H %q`, fmt.Sprintf("%s: %s", key, maskAuthorizationHeader(key, value))))
 		}
 	}
 
-	return fmt.Sprintf("curl -k -v -X%s %s '%s'", r.Method, headers, r.URL.String())
+	return fmt.Sprintf("curl -k -v -X%s %s '%s'", r.Method, headers.String(), r.URL.String())
 }
 
 type retryableHTTPLogrusWrapper struct {
@@ -789,7 +800,7 @@ type retryableHTTPLogrusWrapper struct {
 // fieldsForContext translates a list of context fields to a
 // logrus format; any items that don't conform to our expectations
 // are omitted
-func (l *retryableHTTPLogrusWrapper) fieldsForContext(context ...interface{}) logrus.Fields {
+func (l *retryableHTTPLogrusWrapper) fieldsForContext(context ...any) logrus.Fields {
 	fields := logrus.Fields{}
 	for i := 0; i < len(context)-1; i += 2 {
 		key, ok := context[i].(string)
@@ -801,19 +812,19 @@ func (l *retryableHTTPLogrusWrapper) fieldsForContext(context ...interface{}) lo
 	return fields
 }
 
-func (l *retryableHTTPLogrusWrapper) Error(msg string, context ...interface{}) {
+func (l *retryableHTTPLogrusWrapper) Error(msg string, context ...any) {
 	l.log.WithFields(l.fieldsForContext(context...)).Error(msg)
 }
 
-func (l *retryableHTTPLogrusWrapper) Info(msg string, context ...interface{}) {
+func (l *retryableHTTPLogrusWrapper) Info(msg string, context ...any) {
 	l.log.WithFields(l.fieldsForContext(context...)).Info(msg)
 }
 
-func (l *retryableHTTPLogrusWrapper) Debug(msg string, context ...interface{}) {
+func (l *retryableHTTPLogrusWrapper) Debug(msg string, context ...any) {
 	l.log.WithFields(l.fieldsForContext(context...)).Debug(msg)
 }
 
-func (l *retryableHTTPLogrusWrapper) Warn(msg string, context ...interface{}) {
+func (l *retryableHTTPLogrusWrapper) Warn(msg string, context ...any) {
 	l.log.WithFields(l.fieldsForContext(context...)).Warn(msg)
 }
 
@@ -828,7 +839,18 @@ func (jc *client) SearchWithContext(ctx context.Context, jql string, options *ji
 	return issues, response, nil
 }
 
-func GetUnknownField(field string, issue *jira.Issue, fn func() interface{}) error {
+func (jc *client) SearchV2JqlWithContext(ctx context.Context, jql string, options *jira.SearchOptionsV2) ([]jira.Issue, *jira.Response, error) {
+	issues, response, err := jc.upstream.Issue.SearchV2JQLWithContext(ctx, jql, options)
+	if err != nil {
+		if response != nil && response.StatusCode == http.StatusNotFound {
+			return nil, response, NotFoundError{err}
+		}
+		return nil, response, HandleJiraError(response, err)
+	}
+	return issues, response, nil
+}
+
+func GetUnknownField(field string, issue *jira.Issue, fn func() any) error {
 	obj := fn()
 	unknownField, ok := issue.Fields.Unknowns[field]
 	if !ok {
@@ -853,7 +875,7 @@ func GetIssueSecurityLevel(issue *jira.Issue) (*SecurityLevel, error) {
 	// as part of the issue fields
 	// See https://github.com/andygrunwald/go-jira/issues/456
 	var obj *SecurityLevel
-	err := GetUnknownField("security", issue, func() interface{} {
+	err := GetUnknownField("security", issue, func() any {
 		obj = &SecurityLevel{}
 		return obj
 	})
@@ -862,32 +884,6 @@ func GetIssueSecurityLevel(issue *jira.Issue) (*SecurityLevel, error) {
 
 func (jc *client) GetIssueSecurityLevel(issue *jira.Issue) (*SecurityLevel, error) {
 	return GetIssueSecurityLevel(issue)
-}
-
-func GetIssueQaContact(issue *jira.Issue) (*jira.User, error) {
-	var obj *jira.User
-	err := GetUnknownField("customfield_12316243", issue, func() interface{} {
-		obj = &jira.User{}
-		return obj
-	})
-	return obj, err
-}
-
-func (jc *client) GetIssueQaContact(issue *jira.Issue) (*jira.User, error) {
-	return GetIssueQaContact(issue)
-}
-
-func GetIssueTargetVersion(issue *jira.Issue) (*[]*jira.Version, error) {
-	var obj *[]*jira.Version
-	err := GetUnknownField("customfield_12319940", issue, func() interface{} {
-		obj = &[]*jira.Version{{}}
-		return obj
-	})
-	return obj, err
-}
-
-func (jc *client) GetIssueTargetVersion(issue *jira.Issue) (*[]*jira.Version, error) {
-	return GetIssueTargetVersion(issue)
 }
 
 // GetProjectVersions returns the list of all the Versions defined in a Project

@@ -20,6 +20,7 @@ package pjutil
 import (
 	"bytes"
 	"fmt"
+	"maps"
 	"net/url"
 	"path"
 	"strconv"
@@ -112,6 +113,10 @@ func setReportDefault(spec *prowapi.ProwJobSpec) {
 	if spec.ReporterConfig == nil || spec.ReporterConfig.Slack == nil {
 		return
 	}
+	// If `report` is explicitly set, we should respect it.
+	if spec.ReporterConfig.Slack.Report != nil {
+		return
+	}
 	// `job_states_to_report: []` means false
 	if spec.ReporterConfig.Slack.JobStatesToReport != nil && len(spec.ReporterConfig.Slack.JobStatesToReport) == 0 {
 		spec.ReporterConfig.Slack.Report = boolPtr(false)
@@ -154,18 +159,12 @@ func createRefs(pr github.PullRequest, baseSHA string) prowapi.Refs {
 func NewPresubmit(pr github.PullRequest, baseSHA string, job config.Presubmit, eventGUID string, additionalLabels map[string]string, modifiers ...Modifier) prowapi.ProwJob {
 	refs := createRefs(pr, baseSHA)
 	labels := make(map[string]string)
-	for k, v := range job.Labels {
-		labels[k] = v
-	}
-	for k, v := range additionalLabels {
-		labels[k] = v
-	}
+	maps.Copy(labels, job.Labels)
+	maps.Copy(labels, additionalLabels)
 	labels[github.EventGUID] = eventGUID
 	labels[kube.IsOptionalLabel] = strconv.FormatBool(job.Optional)
 	annotations := make(map[string]string)
-	for k, v := range job.Annotations {
-		annotations[k] = v
-	}
+	maps.Copy(annotations, job.Annotations)
 	return NewProwJob(PresubmitSpec(job, refs), labels, annotations, modifiers...)
 }
 
@@ -288,7 +287,11 @@ func CompletePrimaryRefs(refs prowapi.Refs, jb config.JobBase) *prowapi.Refs {
 	if jb.SkipFetchHead {
 		refs.SkipFetchHead = jb.SkipFetchHead
 	}
-	return DecorateRefs(refs, jb)
+	drefs := DecorateRefs(refs, jb)
+	if dc := jb.DecorationConfig; dc != nil && len(dc.SparseCheckoutFiles) > 0 {
+		drefs.SparseCheckoutFiles = dc.SparseCheckoutFiles
+	}
+	return drefs
 }
 
 // PartitionActive separates the provided prowjobs into pending and triggered

@@ -276,7 +276,7 @@ func TestGenYAML(t *testing.T) {
 		name            string
 		paths           []string
 		rawContents     map[string][]byte
-		structObj       interface{}
+		structObj       any
 		expectedRawYaml []byte
 		expected        bool
 	}{

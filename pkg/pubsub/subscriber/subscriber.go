@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"strings"
 
 	"cloud.google.com/go/pubsub"
@@ -245,19 +246,13 @@ func (s *Subscriber) peToCjer(l *logrus.Entry, pe *ProwJobEvent, eType, subscrip
 
 	pso := gangway.PodSpecOptions{}
 	pso.Labels = make(map[string]string)
-	for k, v := range pe.Labels {
-		pso.Labels[k] = v
-	}
+	maps.Copy(pso.Labels, pe.Labels)
 
 	pso.Annotations = make(map[string]string)
-	for k, v := range pe.Annotations {
-		pso.Annotations[k] = v
-	}
+	maps.Copy(pso.Annotations, pe.Annotations)
 
 	pso.Envs = make(map[string]string)
-	for k, v := range pe.Envs {
-		pso.Envs[k] = v
-	}
+	maps.Copy(pso.Envs, pe.Envs)
 
 	cjer.PodSpecOptions = &pso
 

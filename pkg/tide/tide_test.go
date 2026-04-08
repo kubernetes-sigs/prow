@@ -699,7 +699,7 @@ func TestAccumulate(t *testing.T) {
 type githubClientFuncs struct {
 	GetRepo                    func(ghc githubClient, o, r string) (github.FullRepo, error)
 	GetRef                     func(ghc githubClient, o, r, ref string) (string, error)
-	QueryWithGitHubAppsSupport func(ghc githubClient, ctx context.Context, q interface{}, vars map[string]interface{}, org string) error
+	QueryWithGitHubAppsSupport func(ghc githubClient, ctx context.Context, q any, vars map[string]any, org string) error
 	Merge                      func(ghc githubClient, org, repo string, number int, details github.MergeDetails) error
 	CreateStatus               func(ghc githubClient, org, repo, ref string, s github.Status) error
 	GetCombinedStatus          func(ghc githubClient, org, repo, ref string) (*github.CombinedStatus, error)
@@ -729,7 +729,7 @@ func (f *ghcInterceptor) GetRef(o, r, ref string) (string, error) {
 	return f.c.GetRef(o, r, ref)
 }
 
-func (f *ghcInterceptor) QueryWithGitHubAppsSupport(ctx context.Context, q interface{}, vars map[string]interface{}, org string) error {
+func (f *ghcInterceptor) QueryWithGitHubAppsSupport(ctx context.Context, q any, vars map[string]any, org string) error {
 	if f.interceptors.QueryWithGitHubAppsSupport != nil {
 		return f.interceptors.QueryWithGitHubAppsSupport(f.c, ctx, q, vars, org)
 	}
@@ -829,7 +829,7 @@ func (f *fgc) GetRef(o, r, ref string) (string, error) {
 	return f.refs[o+"/"+r+" "+ref], f.err
 }
 
-func (f *fgc) QueryWithGitHubAppsSupport(ctx context.Context, q interface{}, vars map[string]interface{}, org string) error {
+func (f *fgc) QueryWithGitHubAppsSupport(ctx context.Context, q any, vars map[string]any, org string) error {
 	sq, ok := q.(*searchQuery)
 	if !ok {
 		return errors.New("unexpected query type")
@@ -1549,6 +1549,7 @@ func testTakeAction(clients localgit.Clients, t *testing.T) {
 		triggered        int
 		triggeredBatches int
 		action           Action
+		expectErr        bool
 	}{
 		{
 			name: "no prs to test, should do nothing",
@@ -1903,6 +1904,7 @@ func testTakeAction(clients localgit.Clients, t *testing.T) {
 			merged:      2,
 			triggered:   0,
 			action:      MergeBatch,
+			expectErr:   true,
 		},
 		{
 			name: "batch merge errors but continues if a PR has changed",
@@ -1912,6 +1914,7 @@ func testTakeAction(clients localgit.Clients, t *testing.T) {
 			merged:      2,
 			triggered:   0,
 			action:      MergeBatch,
+			expectErr:   true,
 		},
 		{
 			name: "batch merge errors but continues on unknown error",
@@ -1921,6 +1924,7 @@ func testTakeAction(clients localgit.Clients, t *testing.T) {
 			merged:      2,
 			triggered:   0,
 			action:      MergeBatch,
+			expectErr:   true,
 		},
 		{
 			name: "batch merge stops on auth error",
@@ -1930,6 +1934,7 @@ func testTakeAction(clients localgit.Clients, t *testing.T) {
 			merged:      1,
 			triggered:   0,
 			action:      MergeBatch,
+			expectErr:   true,
 		},
 		{
 			name: "batch merge stops on invalid merge method error",
@@ -1939,6 +1944,7 @@ func testTakeAction(clients localgit.Clients, t *testing.T) {
 			merged:      1,
 			triggered:   0,
 			action:      MergeBatch,
+			expectErr:   true,
 		},
 		{
 			name: "pending batch, should trigger serial in scheduling state",
@@ -2103,8 +2109,32 @@ func testTakeAction(clients localgit.Clients, t *testing.T) {
 			if tc.batchPending {
 				batchPending = []CodeReviewCommon{{}}
 			}
-			if act, _, _ := c.takeAction(sp, batchPending, genPulls(tc.successes), genPulls(tc.pendings), genPulls(tc.nones), genPulls(tc.batchMerges), sp.presubmits); act != tc.action {
+			act, _, err := c.takeAction(sp, batchPending, genPulls(tc.successes), genPulls(tc.pendings), genPulls(tc.nones), genPulls(tc.batchMerges), sp.presubmits)
+			if act != tc.action {
 				t.Errorf("Wrong action. Got %v, wanted %v.", act, tc.action)
+			}
+			if tc.expectErr && err == nil {
+				t.Error("Expected an error from takeAction, got nil.")
+			} else if !tc.expectErr && err != nil {
+				t.Errorf("Unexpected error from takeAction: %v", err)
+			}
+			if tc.expectErr && err != nil {
+				mf, ok := err.(*mergeFailure)
+				if !ok {
+					t.Errorf("Expected error to be *mergeFailure, got %T", err)
+				} else {
+					if mf.operatorError() != nil {
+						t.Errorf("Expected no operator errors for user merge errors, got: %v", mf.operatorError())
+					}
+					if mf.historyMessage() == "" {
+						t.Error("Expected non-empty history message")
+					}
+					for _, me := range mf.errs {
+						if !me.userFacing {
+							t.Errorf("Expected all merge errors to be user-facing, PR #%d is not", me.pr)
+						}
+					}
+				}
 			}
 
 			prowJobs := &prowapi.ProwJobList{}
@@ -2351,7 +2381,7 @@ func TestSync(t *testing.T) {
 				string(faultyOrg.Repository.Owner.Login):  {faultyOrg},
 			},
 			ghcFuncs: githubClientFuncs{
-				QueryWithGitHubAppsSupport: func(c githubClient, ctx context.Context, q interface{}, vars map[string]interface{}, org string) error {
+				QueryWithGitHubAppsSupport: func(c githubClient, ctx context.Context, q any, vars map[string]any, org string) error {
 					if isBlockersSearchQueryType(q) {
 						if org == string(faultyOrg.Repository.Owner.Login) {
 							return errors.New("gh app is not installed on this organization")
@@ -3433,7 +3463,6 @@ func TestPresubmitsByPull(t *testing.T) {
 	}
 
 	for _, tc := range testcases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			if tc.initialChangeCache == nil {
 				tc.initialChangeCache = map[changeCacheKey][]string{}
@@ -4481,7 +4510,7 @@ func TestDeduplicateContestsDoesntLoseData(t *testing.T) {
 	// Print the seed so failures can easily be reproduced
 	t.Logf("Seed: %d", seed)
 	fuzzer := fuzz.NewWithSeed(seed)
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			context := Context{}
 			fuzzer.Fuzz(&context)

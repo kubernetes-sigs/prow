@@ -139,8 +139,8 @@ func handleGenericComment(gc githubClient, isTrusted func(string) (bool, error),
 		return gc.CreateComment(org, repo, number, plugins.FormatResponseRaw(gce.Body, gce.HTMLURL, user, `Titles may not be empty.`))
 	}
 
-	if invalidcommitmsg.AtMentionRegex.MatchString(newTitle) || invalidcommitmsg.CloseIssueRegex.MatchString(newTitle) {
-		return gc.CreateComment(org, repo, number, plugins.FormatResponseRaw(gce.Body, gce.HTMLURL, user, `Titles may not contain [keywords](https://help.github.com/articles/closing-issues-using-keywords) which can automatically close issues and at(@) mentions.`))
+	if invalidcommitmsg.CloseIssueRegex.MatchString(newTitle) {
+		return gc.CreateComment(org, repo, number, plugins.FormatResponseRaw(gce.Body, gce.HTMLURL, user, `Titles may not contain [keywords](https://help.github.com/articles/closing-issues-using-keywords) which can automatically close issues.`))
 	}
 
 	if gce.IsPR {

@@ -148,7 +148,6 @@ func TestAdd(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			fakeProwJobInformer := &controllertest.FakeInformer{Synced: true}
@@ -190,8 +189,7 @@ func TestAdd(t *testing.T) {
 			if errMsg != "" {
 				return
 			}
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
+			ctx := t.Context()
 
 			go func() {
 				if err := mgr.Start(ctx); err != nil {

@@ -32,7 +32,7 @@ import (
 // NOTE: PopulateStruct will panic if not fed a pointer. Generally if you care about
 // the stability of the app that runs this code, it is strongly recommended to recover panics:
 // defer func(){if r := recover(); r != nil { fmt.Printf("Recovered panic: %v", r } }(
-func PopulateStruct(in interface{}) interface{} {
+func PopulateStruct(in any) any {
 	typeOf := reflect.TypeOf(in)
 	if typeOf.Kind() != reflect.Ptr {
 		panic(fmt.Sprintf("got nonpointer type %T", in))
@@ -83,7 +83,7 @@ func PopulateStruct(in interface{}) interface{} {
 			// Create a one element slice
 			slice := reflect.MakeSlice(typeOf.Elem().Field(i).Type, 1, 1)
 			// Get a pointer to the value
-			var sliceElementPtr interface{}
+			var sliceElementPtr any
 			if slice.Index(0).Type().Kind() == reflect.Ptr {
 				// Slice of pointers, make it a non-nil pointer, then pass on its address
 				slice.Index(0).Set(createNonNilPtr(slice.Index(0).Type()))
@@ -102,7 +102,7 @@ func PopulateStruct(in interface{}) interface{} {
 			key := reflect.New(keyType).Elem()
 			value := reflect.New(valueType).Elem()
 
-			var keyPtr, valPtr interface{}
+			var keyPtr, valPtr any
 			if key.Kind() == reflect.Ptr {
 				key.Set(createNonNilPtr(key.Type()))
 				keyPtr = key.Interface()
@@ -142,5 +142,5 @@ func createNonNilPtr(in reflect.Type) reflect.Value {
 	return ptr
 }
 
-var typeOfBytes = reflect.TypeOf([]byte(nil))
-var typeOfJSONRawMessage = reflect.TypeOf(json.RawMessage{})
+var typeOfBytes = reflect.TypeFor[[]byte]()
+var typeOfJSONRawMessage = reflect.TypeFor[json.RawMessage]()

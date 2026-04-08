@@ -28,6 +28,7 @@ import (
 
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
+
 	"sigs.k8s.io/prow/pkg/config"
 	"sigs.k8s.io/prow/pkg/github"
 	jiraclient "sigs.k8s.io/prow/pkg/jira"
@@ -214,7 +215,7 @@ func insertLinksIntoComment(body string, issueNames []string, jiraBaseURL string
 
 func insertLinksIntoLine(line string, issueNames []string, jiraBaseURL string) string {
 	for _, issue := range issueNames {
-		replacement := fmt.Sprintf("[%s](%s/browse/%s)", issue, jiraBaseURL, issue)
+		replacement := fmt.Sprintf("[%s](%s/browse/%s)", issue, strings.TrimSuffix(jiraBaseURL, "/"), issue)
 		line = replaceStringIfNeeded(line, issue, replacement)
 	}
 	return line
@@ -232,7 +233,7 @@ func replaceStringIfNeeded(text, old, new string) string {
 		return text
 	}
 
-	var result string
+	var result strings.Builder
 
 	// Golangs stdlib has no strings.IndexAll, only funcs to get the first
 	// or last index for a substring. Definitions/condition/assignments are not
@@ -253,17 +254,17 @@ func replaceStringIfNeeded(text, old, new string) string {
 
 	startingIdx = 0
 	for _, idx := range allOldIdx {
-		result += text[startingIdx:idx]
+		result.WriteString(text[startingIdx:idx])
 		if idx == 0 || !strings.Contains("[/`-", string(text[idx-1])) {
-			result += new
+			result.WriteString(new)
 		} else {
-			result += old
+			result.WriteString(old)
 		}
 		startingIdx = idx + len(old)
 	}
-	result += text[startingIdx:]
+	result.WriteString(text[startingIdx:])
 
-	return result
+	return result.String()
 }
 
 func upsertGitHubLinkToIssue(log *logrus.Entry, issueID string, jc jiraclient.Client, e *github.GenericCommentEvent) error {

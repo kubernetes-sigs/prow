@@ -1559,6 +1559,16 @@ spec:
                       SkipCloning determines if we should clone source code in the
                       initcontainers for jobs that specify refs
                     type: boolean
+                  sparse_checkout_files:
+                    description: |-
+                      SparseCheckoutFiles limits the working tree to only the listed paths.
+                      Accepts the same patterns as git sparse-checkout set (file names,
+                      directory names, gitignore-style globs). When set, clonerefs performs a
+                      sparse checkout instead of a full clone. Applied to the primary ref for
+                      presubmit/postsubmit jobs. Not applied to extra refs.
+                    items:
+                      type: string
+                    type: array
                   ssh_host_fingerprints:
                     description: |-
                       SSHHostFingerprints are the fingerprints of known SSH hosts
@@ -1716,6 +1726,20 @@ spec:
                         SkipSubmodules determines if submodules should be
                         cloned when the job is run. Defaults to false.
                       type: boolean
+                    sparse_checkout_files:
+                      description: |-
+                        SparseCheckoutFiles limits the working tree to only the listed paths.
+                        Accepts the same patterns as git sparse-checkout set: file names,
+                        directory names, and gitignore-style globs (e.g. "Makefile",
+                        "pkg/operator", "config/**/*.yaml").
+                        When set, clonerefs will:
+                          1. run git sparse-checkout init to enable sparse mode
+                          2. run git fetch with --depth 1 --filter=blob:none --no-tags
+                          3. run git sparse-checkout set <paths> before checkout
+                        Only the blobs needed for the requested paths are downloaded.
+                      items:
+                        type: string
+                      type: array
                     workdir:
                       description: |-
                         WorkDir defines if the location of the cloned
@@ -9800,6 +9824,20 @@ spec:
                       SkipSubmodules determines if submodules should be
                       cloned when the job is run. Defaults to false.
                     type: boolean
+                  sparse_checkout_files:
+                    description: |-
+                      SparseCheckoutFiles limits the working tree to only the listed paths.
+                      Accepts the same patterns as git sparse-checkout set: file names,
+                      directory names, and gitignore-style globs (e.g. "Makefile",
+                      "pkg/operator", "config/**/*.yaml").
+                      When set, clonerefs will:
+                        1. run git sparse-checkout init to enable sparse mode
+                        2. run git fetch with --depth 1 --filter=blob:none --no-tags
+                        3. run git sparse-checkout set <paths> before checkout
+                      Only the blobs needed for the requested paths are downloaded.
+                    items:
+                      type: string
+                    type: array
                   workdir:
                     description: |-
                       WorkDir defines if the location of the cloned

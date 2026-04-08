@@ -19,6 +19,7 @@ package main
 import (
 	"context"
 	"flag"
+	"maps"
 	"reflect"
 	"strconv"
 	"testing"
@@ -575,9 +576,7 @@ func TestFlags(t *testing.T) {
 			argMap := map[string]string{
 				"--config-path": "yo",
 			}
-			for k, v := range tc.args {
-				argMap[k] = v
-			}
+			maps.Copy(argMap, tc.args)
 			for k := range tc.del {
 				delete(argMap, k)
 			}

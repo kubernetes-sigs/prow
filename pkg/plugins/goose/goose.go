@@ -207,7 +207,7 @@ func handle(gc githubClient, log *logrus.Entry, e *github.GenericCommentEvent, g
 	repo := e.Repo.Name
 	number := e.Number
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		resp, err := g.readGoose()
 		if err != nil {
 			log.WithError(err).Error("Failed to get goose img")

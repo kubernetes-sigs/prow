@@ -349,6 +349,27 @@ func TestCompletePrimaryRefs(t *testing.T) {
 				CloneDepth: 2,
 			},
 		},
+		{
+			name: "sparse checkout files from decoration config are applied to ref",
+			refs: prowapi.Refs{
+				Org:     "org",
+				Repo:    "repo",
+				BaseRef: "main",
+			},
+			jobBase: config.JobBase{
+				UtilityConfig: config.UtilityConfig{
+					DecorationConfig: &prowapi.DecorationConfig{
+						SparseCheckoutFiles: []string{"Dockerfile"},
+					},
+				},
+			},
+			expected: prowapi.Refs{
+				Org:                 "org",
+				Repo:                "repo",
+				BaseRef:             "main",
+				SparseCheckoutFiles: []string{"Dockerfile"},
+			},
+		},
 	}
 
 	for _, tc := range cases {
@@ -1354,6 +1375,61 @@ func TestSetReportDefault(t *testing.T) {
 					Slack: &prowapi.SlackReporterConfig{
 						JobStatesToReport: []prowapi.ProwJobState{prowapi.AbortedState},
 						Report:            boolPtr(true),
+					},
+				},
+			},
+		},
+		{
+			name: "explicit-report",
+			spec: &prowapi.ProwJobSpec{
+				ReporterConfig: &prowapi.ReporterConfig{
+					Slack: &prowapi.SlackReporterConfig{
+						JobStatesToReport: []prowapi.ProwJobState{},
+						Report:            boolPtr(true),
+					},
+				},
+			},
+			wantSpec: &prowapi.ProwJobSpec{
+				ReporterConfig: &prowapi.ReporterConfig{
+					Slack: &prowapi.SlackReporterConfig{
+						JobStatesToReport: []prowapi.ProwJobState{},
+						Report:            boolPtr(true),
+					},
+				},
+			},
+		},
+		{
+			name: "explicit-no-report",
+			spec: &prowapi.ProwJobSpec{
+				ReporterConfig: &prowapi.ReporterConfig{
+					Slack: &prowapi.SlackReporterConfig{
+						Report: boolPtr(false),
+					},
+				},
+			},
+			wantSpec: &prowapi.ProwJobSpec{
+				ReporterConfig: &prowapi.ReporterConfig{
+					Slack: &prowapi.SlackReporterConfig{
+						Report: boolPtr(false),
+					},
+				},
+			},
+		},
+		{
+			name: "explicit-no-report-with-states",
+			spec: &prowapi.ProwJobSpec{
+				ReporterConfig: &prowapi.ReporterConfig{
+					Slack: &prowapi.SlackReporterConfig{
+						JobStatesToReport: []prowapi.ProwJobState{prowapi.AbortedState},
+						Report:            boolPtr(false),
+					},
+				},
+			},
+			wantSpec: &prowapi.ProwJobSpec{
+				ReporterConfig: &prowapi.ReporterConfig{
+					Slack: &prowapi.SlackReporterConfig{
+						JobStatesToReport: []prowapi.ProwJobState{prowapi.AbortedState},
+						Report:            boolPtr(false),
 					},
 				},
 			},

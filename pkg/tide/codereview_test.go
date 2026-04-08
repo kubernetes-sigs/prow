@@ -29,7 +29,7 @@ import (
 
 func TestMinStruct(t *testing.T) {
 	var fieldsPopulated bool
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		seed := time.Now().UnixNano()
 		fuzzer := fuzz.NewWithSeed(seed)
 

@@ -219,7 +219,7 @@ func (t *testClient) IsMember(org, user string) (bool, error) {
 	return t.fc.IsMember(org, user)
 }
 
-func (t *testClient) MutateWithGitHubAppsSupport(ctx context.Context, m interface{}, input githubv4.Input, vars map[string]interface{}, org string) error {
+func (t *testClient) MutateWithGitHubAppsSupport(ctx context.Context, m any, input githubv4.Input, vars map[string]any, org string) error {
 	mr := `{"data": { "transferIssue": { "issue": { "url": "https://kubernetes.io/fake" } } } }`
 
 	gqlc := githubv4.NewClient(&http.Client{

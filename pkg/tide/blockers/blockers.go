@@ -36,7 +36,7 @@ var (
 )
 
 type githubClient interface {
-	QueryWithGitHubAppsSupport(ctx context.Context, q interface{}, vars map[string]interface{}, org string) error
+	QueryWithGitHubAppsSupport(ctx context.Context, q any, vars map[string]any, org string) error
 }
 
 // Blocker specifies an issue number that should block tide from merging.
@@ -117,10 +117,8 @@ func FindAll(ghc githubClient, log *logrus.Entry, label string, orgRepoTokensByO
 	defer cancel()
 	for org, query := range queries {
 		org, query := org, strings.Join(sets.List(query), " ")
-		wg.Add(1)
 
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			result, err := search(
 				ctx,
 				ghc,
@@ -137,7 +135,7 @@ func FindAll(ghc githubClient, log *logrus.Entry, label string, orgRepoTokensByO
 			}
 			issues = append(issues, result...)
 
-		}()
+		})
 
 	}
 	wg.Wait()
@@ -206,7 +204,7 @@ func parseBranches(str string) []string {
 func search(ctx context.Context, ghc githubClient, githubOrg string, log *logrus.Entry, q string) ([]Issue, error) {
 	requestStart := time.Now()
 	var ret []Issue
-	vars := map[string]interface{}{
+	vars := map[string]any{
 		"query":        githubql.String(q),
 		"searchCursor": (*githubql.String)(nil),
 	}

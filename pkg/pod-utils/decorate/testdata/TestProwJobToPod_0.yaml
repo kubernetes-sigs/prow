@@ -54,6 +54,10 @@ spec:
       value: repo-name
     - name: REPO_OWNER
       value: org-name
+    - name: SRC_BASE
+      value: org-name/repo-name
+    - name: SRC_HOST
+      value: github.com
     image: tester
     name: test
     resources: {}

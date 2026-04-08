@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	stdio "io"
+	"maps"
 	"net/http"
 	"net/url"
 	"strings"
@@ -84,7 +85,7 @@ type Parameter struct {
 	// This needs to be an interface so we won't clobber
 	// json unmarshalling when the Jenkins job has more
 	// parameter types than strings.
-	Value interface{} `json:"value"`
+	Value any `json:"value"`
 }
 
 // Build holds information about an instance of a jenkins job.
@@ -96,6 +97,7 @@ type Build struct {
 	} `json:"task"`
 	Number   int     `json:"number"`
 	Result   *string `json:"result"`
+	Building bool    `json:"building"`
 	enqueued bool
 }
 
@@ -122,8 +124,11 @@ type JobInfo struct {
 }
 
 // IsRunning means the job started but has not finished.
+// We check Building first to handle Jenkins matrix builds where
+// result can be set to SUCCESS while the build is still running
+// (when one matrix cell completes before others).
 func (jb *Build) IsRunning() bool {
-	return jb.Result == nil && !jb.enqueued
+	return jb.Building || (jb.Result == nil && !jb.enqueued)
 }
 
 // IsSuccess means the job passed
@@ -378,7 +383,7 @@ func (c *Client) request(method, path string, params url.Values, measure bool) (
 	}
 
 	start := time.Now()
-	for retries := 0; retries < maxRetries; retries++ {
+	for retries := range maxRetries {
 		resp, err = c.doRequest(method, urlPath)
 		if err == nil && resp.StatusCode < 500 {
 			break
@@ -670,9 +675,7 @@ func (c *Client) ListBuilds(jobs []BuildQueryParams) (map[string]Build, error) {
 	}
 
 	for builds := range buildChan {
-		for id, build := range builds {
-			jenkinsBuilds[id] = build
-		}
+		maps.Copy(jenkinsBuilds, builds)
 	}
 
 	return jenkinsBuilds, nil
@@ -722,7 +725,7 @@ func (c *Client) GetEnqueuedBuilds(jobs []BuildQueryParams) (map[string]Build, e
 func (c *Client) GetBuilds(job string) (map[string]Build, error) {
 	c.logger.Debugf("GetBuilds(%v)", job)
 
-	data, err := c.Get(fmt.Sprintf("/job/%s/api/json?tree=builds[number,result,actions[parameters[name,value]]]", job))
+	data, err := c.Get(fmt.Sprintf("/job/%s/api/json?tree=builds[number,result,building,actions[parameters[name,value]]]", job))
 	if err != nil {
 		// Ignore 404s so we will not block processing the rest of the jobs.
 		if _, isNotFound := err.(NotFoundError); isNotFound {

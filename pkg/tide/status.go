@@ -22,6 +22,7 @@ import (
 	"fmt"
 	stdio "io"
 	"net/url"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -144,20 +145,11 @@ func requirementDiff(pr *PullRequest, q *config.TideQuery, cc contextChecker) (s
 
 	// Weight incorrect branches with very high diff so that we select the query
 	// for the correct branch.
-	targetBranchDenied := false
-	for _, excludedBranch := range q.ExcludedBranches {
-		if string(pr.BaseRef.Name) == excludedBranch {
-			targetBranchDenied = true
-			break
-		}
-	}
+	targetBranchDenied := slices.Contains(q.ExcludedBranches, string(pr.BaseRef.Name))
 	// if no allowlist is configured, the target is OK by default
 	targetBranchAllowed := len(q.IncludedBranches) == 0
-	for _, includedBranch := range q.IncludedBranches {
-		if string(pr.BaseRef.Name) == includedBranch {
-			targetBranchAllowed = true
-			break
-		}
+	if slices.Contains(q.IncludedBranches, string(pr.BaseRef.Name)) {
+		targetBranchAllowed = true
 	}
 	if targetBranchDenied || !targetBranchAllowed {
 		diff += 2000
@@ -394,7 +386,11 @@ func targetURL(c *config.Config, crc *CodeReviewCommon, log *logrus.Entry) strin
 		if err != nil {
 			log.WithError(err).Error("Failed to parse PR status base URL")
 		} else {
-			prQuery := fmt.Sprintf("is:pr repo:%s author:%s head:%s", pr.Repository.NameWithOwner, crc.AuthorLogin, crc.HeadRefName)
+			authorLogin := crc.AuthorLogin
+			if string(pr.AuthorMetadata.TypeName) == github.UserTypeBot && !strings.HasPrefix(authorLogin, "app/") {
+				authorLogin = "app/" + authorLogin
+			}
+			prQuery := fmt.Sprintf("is:pr repo:%s author:%s head:%s", pr.Repository.NameWithOwner, authorLogin, crc.HeadRefName)
 			values := parseURL.Query()
 			values.Set("query", prQuery)
 			parseURL.RawQuery = values.Encode()
@@ -625,11 +621,11 @@ func (sc *statusController) search() []CodeReviewCommon {
 			orgs = append(orgs, org)
 		}
 		sort.Strings(orgs)
-		var query string
+		var query strings.Builder
 		for _, org := range orgs {
-			query += " " + queries[org]
+			query.WriteString(" " + queries[org])
 		}
-		queries = map[string]string{"": query}
+		queries = map[string]string{"": query.String()}
 	}
 
 	if sc.storedState == nil {
@@ -642,11 +638,8 @@ func (sc *statusController) search() []CodeReviewCommon {
 	var wg sync.WaitGroup
 
 	for org, query := range queries {
-		org, query := org, query
-		wg.Add(1)
 
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			now := time.Now()
 			log := sc.logger.WithField("query", query)
 
@@ -687,11 +680,10 @@ func (sc *statusController) search() []CodeReviewCommon {
 			defer lock.Unlock()
 
 			for _, pr := range result {
-				pr := pr
 				prs = append(prs, *CodeReviewCommonFromPullRequest(&pr))
 			}
 			errs = append(errs, err)
-		}()
+		})
 
 	}
 	wg.Wait()

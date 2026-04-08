@@ -252,6 +252,9 @@ func TestLoad(t *testing.T) {
 			Help: Help{
 				HelpGuidelinesURL: "https://git.k8s.io/community/contributors/guide/help-wanted.md",
 			},
+			ReleaseNote: ReleaseNote{
+				GuidelinesURL: "https://git.k8s.io/community/contributors/guide/release-notes.md",
+			},
 		}
 		for _, modify := range m {
 			modify(cfg)
@@ -318,7 +321,6 @@ plugins:
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 

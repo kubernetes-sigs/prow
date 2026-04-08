@@ -31,7 +31,11 @@ import (
 	"sigs.k8s.io/prow/pkg/plugins"
 )
 
-func handleGenericComment(c Client, trigger plugins.Trigger, gc github.GenericCommentEvent) error {
+type commentPruner interface {
+	PruneComments(shouldPrune func(github.IssueComment) bool)
+}
+
+func handleGenericComment(c Client, cp commentPruner, trigger plugins.Trigger, gc github.GenericCommentEvent) error {
 	org := gc.Repo.Owner.Login
 	repo := gc.Repo.Name
 	number := gc.Number
@@ -59,22 +63,9 @@ func handleGenericComment(c Client, trigger plugins.Trigger, gc github.GenericCo
 
 	// Skip comments not germane to this plugin
 	textToCheck := markdown.DropCodeBlock(gc.Body)
-	if !pjutil.RetestRe.MatchString(textToCheck) &&
-		!pjutil.RetestRequiredRe.MatchString(textToCheck) &&
-		!pjutil.OkToTestRe.MatchString(textToCheck) &&
-		!pjutil.TestAllRe.MatchString(textToCheck) &&
-		!pjutil.MayNeedHelpComment(textToCheck) {
-		matched := false
-		for _, presubmit := range presubmits {
-			matched = matched || presubmit.TriggerMatches(textToCheck)
-			if matched {
-				break
-			}
-		}
-		if !matched {
-			c.Logger.Debug("Comment doesn't match any triggering regex, skipping.")
-			return nil
-		}
+	if !commentMatchesTrigger(textToCheck, presubmits) {
+		c.Logger.Debug("Comment doesn't match any triggering regex, skipping.")
+		return nil
 	}
 
 	// Skip untrusted users comments.
@@ -124,6 +115,25 @@ func handleGenericComment(c Client, trigger plugins.Trigger, gc github.GenericCo
 		}
 	}
 
+	isOkToTestCancel := HonorOkToTest(trigger) && pjutil.OkToTestCancelRe.MatchString(textToCheck)
+	if isOkToTestCancel {
+		if !trustedResponse.IsTrusted {
+			resp := "Only trusted users can revoke `/ok-to-test`."
+			return c.GitHubClient.CreateComment(org, repo, number, plugins.FormatResponseRaw(gc.Body, gc.HTMLURL, gc.User.Login, resp))
+		}
+		if github.HasLabel(labels.OkToTest, l) {
+			if err := c.GitHubClient.RemoveLabel(org, repo, number, labels.OkToTest); err != nil {
+				return err
+			}
+		}
+		if !github.HasLabel(labels.NeedsOkToTest, l) {
+			if err := c.GitHubClient.AddLabel(org, repo, number, labels.NeedsOkToTest); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
 	pr, err := refGetter.PullRequest()
 	if err != nil {
 		return err
@@ -131,6 +141,16 @@ func handleGenericComment(c Client, trigger plugins.Trigger, gc github.GenericCo
 	baseSHA, err := refGetter.BaseSHA()
 	if err != nil {
 		return err
+	}
+
+	// Approve pending GitHub Actions workflow runs on /ok-to-test
+	if isOkToTest && trigger.TriggerGitHubWorkflows {
+		headSHA, err := refGetter.HeadSHA()
+		if err != nil {
+			c.Logger.Warnf("headSHA unavailable, cannot approve pending workflows: %v", err)
+		} else {
+			approveGitHubActionsWorkflowRuns(c, org, repo, pr.Head.Ref, headSHA)
+		}
 	}
 
 	toTest, err := FilterPresubmits(HonorOkToTest(trigger), c.GitHubClient, gc.Body, pr, presubmits, c.Logger)
@@ -174,11 +194,40 @@ func handleGenericComment(c Client, trigger plugins.Trigger, gc github.GenericCo
 			}
 		}
 	}
+
+	if pjutil.ShouldRespondByPruningHelp(textToCheck) {
+		// The run was triggered by a "/test" or "/retest" (and not by
+		// "/ok-to-test" for example), so prune any previous help message.
+		cp.PruneComments(func(comment github.IssueComment) bool {
+			return pjutil.IsHelpComment(comment.Body)
+		})
+	}
+
 	return RunRequestedWithLabels(c, pr, baseSHA, toTest, gc.GUID, additionalLabels)
 }
 
 func HonorOkToTest(trigger plugins.Trigger) bool {
 	return !trigger.IgnoreOkToTest
+}
+
+// commentMatchesTrigger reports whether the comment text is relevant to the
+// trigger plugin - i.e. it contains a known trigger command or matches a
+// presubmit trigger pattern.
+func commentMatchesTrigger(text string, presubmits []config.Presubmit) bool {
+	if pjutil.RetestRe.MatchString(text) ||
+		pjutil.RetestRequiredRe.MatchString(text) ||
+		pjutil.OkToTestRe.MatchString(text) ||
+		pjutil.OkToTestCancelRe.MatchString(text) ||
+		pjutil.TestAllRe.MatchString(text) ||
+		pjutil.MayNeedHelpComment(text) {
+		return true
+	}
+	for _, presubmit := range presubmits {
+		if presubmit.TriggerMatches(text) {
+			return true
+		}
+	}
+	return false
 }
 
 type GitHubClient interface {
@@ -247,4 +296,42 @@ func addHelpComment(githubClient githubClient, body, org, repo, branch string, n
 
 	resp := pjutil.HelpMessage(org, repo, branch, note, testAllNames, optionalJobsCommands, requiredJobsCommands)
 	return githubClient.CreateComment(org, repo, number, plugins.FormatResponseRaw(body, HTMLURL, user, resp))
+}
+
+// approveGitHubActionsWorkflowRuns approves pending GitHub Actions workflow runs for a PR
+func approveGitHubActionsWorkflowRuns(c Client, org, repo, branchName, headSHA string) {
+	pendingRuns, err := c.GitHubClient.GetPendingApprovalActionRuns(org, repo, branchName, headSHA)
+	if err != nil {
+		c.Logger.Errorf("unable to get pending approval workflow runs for branch %v, SHA %v: %v", branchName, headSHA, err)
+		return
+	}
+
+	for _, run := range pendingRuns {
+		log := c.Logger.WithFields(logrus.Fields{
+			"runID":   run.ID,
+			"runName": run.Name,
+			"org":     org,
+			"repo":    repo,
+			"sha":     headSHA,
+		})
+		runID := run.ID
+		go func() {
+			if err := c.GitHubClient.ApproveGitHubWorkflowRun(org, repo, runID); err != nil {
+				// Per GitHub API docs (https://docs.github.com/en/rest/actions/workflow-runs#approve-a-workflow-run-for-a-fork-pull-request):
+				// - 404: Workflow run doesn't exist or is not pending approval (already approved/completed)
+				// - 403: Permission denied (insufficient authorization or token scope)
+				// 404 is expected in race conditions where another actor approved the run.
+				// 403 indicates a real permission issue and should be logged as a warning.
+				if github.IsNotFound(err) {
+					log.Infof("workflow run not pending approval (already approved or completed): %v", err)
+				} else if github.IsForbidden(err) {
+					log.Warnf("permission denied approving workflow run (check token scopes): %v", err)
+				} else {
+					log.Errorf("failed to approve workflow run: %v", err)
+				}
+			} else {
+				log.Infof("successfully approved workflow run")
+			}
+		}()
+	}
 }

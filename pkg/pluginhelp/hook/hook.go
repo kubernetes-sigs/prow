@@ -333,11 +333,8 @@ func (oa *orgAgent) sync(config *plugins.Configuration) {
 	orgToReposLock := sync.Mutex{}
 	wg := sync.WaitGroup{}
 	for _, org := range sets.List(orgs) {
-		org := org
-		wg.Add(1)
 
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 
 			repos, err := reposForOrgOrUser(oa.ghc, org)
 			if err != nil {
@@ -352,7 +349,7 @@ func (oa *orgAgent) sync(config *plugins.Configuration) {
 			orgToReposLock.Lock()
 			orgToRepos[org] = repoSet
 			orgToReposLock.Unlock()
-		}()
+		})
 	}
 	wg.Wait()
 
