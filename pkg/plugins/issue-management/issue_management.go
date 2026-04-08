@@ -100,10 +100,7 @@ func handleGenericComment(pc plugins.Agent, e github.GenericCommentEvent) error 
 }
 
 func handleIssues(gc githubClient, oc ownersClient, log *logrus.Entry, e github.GenericCommentEvent) error {
-	toLink, toUnlink, err := parseCommentForLinkCommands(e.Body)
-	if err != nil {
-		return err
-	}
+	toLink, toUnlink := parseCommentForLinkCommands(e.Body)
 	if len(toLink) > 0 || len(toUnlink) > 0 {
 		return handleLinkIssue(gc, log, e, toLink, toUnlink)
 	}
@@ -119,7 +116,7 @@ func handleIssues(gc githubClient, oc ownersClient, log *logrus.Entry, e github.
 	return nil
 }
 
-func parseCommentForLinkCommands(commentBody string) ([]string, []string, error) {
+func parseCommentForLinkCommands(commentBody string) ([]string, []string) {
 	extractIssues := func(re *regexp.Regexp) []string {
 		var issues []string
 		allMatches := re.FindAllStringSubmatch(commentBody, -1)
@@ -132,5 +129,5 @@ func parseCommentForLinkCommands(commentBody string) ([]string, []string, error)
 		return issues
 	}
 
-	return extractIssues(linkIssueRegex), extractIssues(unlinkIssueRegex), nil
+	return extractIssues(linkIssueRegex), extractIssues(unlinkIssueRegex)
 }
