@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net/url"
 	"strconv"
+	"strings"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -39,8 +40,7 @@ import (
 )
 
 const (
-	abortedDescription                      = "Aborted by trigger plugin."
-	mergedPRCountForProminentJoinOrgMessage = 3
+	abortedDescription = "Aborted by trigger plugin."
 )
 
 func handlePR(c Client, trigger plugins.Trigger, pr github.PullRequestEvent) error {
@@ -279,7 +279,7 @@ I understand the commands that are listed [here](https://go.k8s.io/bot-commands?
 </details>
 `, author, encodedRepoFullName, plugins.AboutThisBotWithoutCommands)
 	} else {
-		membershipGuidance := orgInvitationGuidance(c, org, pr.User, joinOrgURL)
+		membershipGuidance := orgInvitationGuidance(c, org, pr.User, joinOrgURL, trigger.OrgInvite)
 		comment = fmt.Sprintf(`Hi @%s. Thanks for your PR.
 
 I'm waiting for a [%s](https://%s/orgs/%s/people) %smember to verify that this patch is reasonable to test. If it is, they should reply with `+"`/ok-to-test`"+` on its own line. Until that is done, I will not automatically test new commits in this PR, but the usual testing commands by org members will still work.
@@ -319,15 +319,22 @@ I understand the commands that are listed [here](https://go.k8s.io/bot-commands?
 	return nil
 }
 
-func orgInvitationGuidance(c Client, org string, author github.User, joinOrgURL string) string {
-	if shouldHighlightJoinOrgMessage(c, org, author) {
+func orgInvitationGuidance(c Client, org string, author github.User, joinOrgURL string, cfg plugins.OrgInviteConfig) string {
+	if cfg.Prominent.Disabled {
+		return fmt.Sprintf("Regular contributors should [join the org](%s) to skip this step.", joinOrgURL)
+	}
+
+	if shouldHighlightJoinOrgMessage(c, org, author, cfg) {
+		if cfg.Prominent.Message != "" {
+			return strings.ReplaceAll(cfg.Prominent.Message, "{join_org_url}", joinOrgURL)
+		}
 		return fmt.Sprintf(">[!TIP]\n>**We noticed you've done this a few times! Consider [joining the org](%s) to skip this step and gain `/lgtm` and other bot rights.** We recommend asking approvers on your previous PRs to sponsor you.", joinOrgURL)
 	}
 
 	return fmt.Sprintf("Regular contributors should [join the org](%s) to skip this step.", joinOrgURL)
 }
 
-func shouldHighlightJoinOrgMessage(c Client, org string, author github.User) bool {
+func shouldHighlightJoinOrgMessage(c Client, org string, author github.User, cfg plugins.OrgInviteConfig) bool {
 	if author.Type == github.UserTypeBot {
 		return false
 	}
@@ -342,7 +349,7 @@ func shouldHighlightJoinOrgMessage(c Client, org string, author github.User) boo
 		return false
 	}
 
-	return len(issues) >= mergedPRCountForProminentJoinOrgMessage
+	return len(issues) >= cfg.Prominent.EffectiveMergedPRThreshold()
 }
 
 func draftMsg(ghc githubClient, pr github.PullRequest) error {
