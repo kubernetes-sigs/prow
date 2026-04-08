@@ -349,6 +349,27 @@ func TestCompletePrimaryRefs(t *testing.T) {
 				CloneDepth: 2,
 			},
 		},
+		{
+			name: "sparse checkout files from decoration config are applied to ref",
+			refs: prowapi.Refs{
+				Org:     "org",
+				Repo:    "repo",
+				BaseRef: "main",
+			},
+			jobBase: config.JobBase{
+				UtilityConfig: config.UtilityConfig{
+					DecorationConfig: &prowapi.DecorationConfig{
+						SparseCheckoutFiles: []string{"Dockerfile"},
+					},
+				},
+			},
+			expected: prowapi.Refs{
+				Org:                 "org",
+				Repo:                "repo",
+				BaseRef:             "main",
+				SparseCheckoutFiles: []string{"Dockerfile"},
+			},
+		},
 	}
 
 	for _, tc := range cases {

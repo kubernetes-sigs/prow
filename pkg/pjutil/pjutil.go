@@ -287,7 +287,11 @@ func CompletePrimaryRefs(refs prowapi.Refs, jb config.JobBase) *prowapi.Refs {
 	if jb.SkipFetchHead {
 		refs.SkipFetchHead = jb.SkipFetchHead
 	}
-	return DecorateRefs(refs, jb)
+	drefs := DecorateRefs(refs, jb)
+	if dc := jb.DecorationConfig; dc != nil && len(dc.SparseCheckoutFiles) > 0 {
+		drefs.SparseCheckoutFiles = dc.SparseCheckoutFiles
+	}
+	return drefs
 }
 
 // PartitionActive separates the provided prowjobs into pending and triggered
