@@ -35,7 +35,7 @@ import (
 
 const (
 	pluginName                    = "invalidcommitmsg"
-	invalidCommitMsgCommentMarker = "invalid-commit-message"
+	invalidCommitMsgCommentMarker = "<!-- [prow:invalid-commit-message] -->"
 	invalidCommitMsgLabel         = "do-not-merge/invalid-commit-message"
 )
 
@@ -138,7 +138,10 @@ func handle(gc githubClient, log *logrus.Entry, pr github.PullRequestEvent, cp c
 
 	// unified comment handling
 	cp.PruneComments(func(comment github.IssueComment) bool {
-		return strings.Contains(comment.Body, invalidCommitMsgCommentMarker)
+		return strings.Contains(comment.Body, invalidCommitMsgCommentMarker) ||
+			// TODO: legacy markers, remove after August 2026
+			strings.Contains(comment.Body, "**The list of commits with invalid commit messages**:") ||
+			strings.Contains(comment.Body, "not allowed in the title of a Pull Request")
 	})
 
 	if hasIssues {
@@ -155,19 +158,20 @@ func handle(gc githubClient, log *logrus.Entry, pr github.PullRequestEvent, cp c
 		if checkFixup && len(fixupCommits) != 0 {
 			sections = append(sections,
 				fmt.Sprintf(
-					"### Fixup/amend/squash commits\n\nTemporary commits like fixup!, amend!, or squash! are not allowed.\n\nUse git rebase --autosquash to fix them.\n\n%s",
+					"### Fixup/amend/squash commits\n\nTemporary commits like fixup!, amend!, or squash! are not allowed.\n\nUse [git rebase --autosquash](https://git-scm.com/docs/git-rebase#Documentation/git-rebase.txt---autosquash) to fix them.\n\n%s",
 					dco.MarkdownSHAList(org, repo, fixupCommits),
 				))
 		}
 
 		if invalidPRTitle {
 			sections = append(sections,
-				"### Invalid PR title\n\n[Keywords](https://help.github.com/articles/closing-issues-using-keywords) are not allowed in PR titles.\n\nUse /retitle <new-title> to fix it.",
+				"### Invalid PR title\n\n[Keywords](https://help.github.com/articles/closing-issues-using-keywords) are not allowed in PR titles.\n\nUse `/retitle <new-title>` to fix it.",
 			)
 		}
 
 		commentBody := fmt.Sprintf(
-			"[invalid-commit-message]\n\nInvalid commit message issues detected\n\n%s\n\n%s",
+			"%s\n\nInvalid commit message issues detected\n\n%s\n\n%s",
+			invalidCommitMsgCommentMarker,
 			strings.Join(sections, "\n\n"),
 			plugins.AboutThisBot,
 		)

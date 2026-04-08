@@ -292,7 +292,7 @@ func TestHandlePullRequest(t *testing.T) {
 
 				comment := comments[0]
 
-				if !strings.Contains(comment, "[invalid-commit-message]") {
+				if !strings.Contains(comment, invalidCommitMsgCommentMarker) {
 					t.Errorf("Missing marker in comment")
 				}
 
