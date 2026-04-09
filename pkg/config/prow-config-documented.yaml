@@ -921,6 +921,13 @@ plank:
             # SkipCloning determines if we should clone source code in the
             # initcontainers for jobs that specify refs
             skip_cloning: false
+            # SparseCheckoutFiles limits the working tree to only the listed paths.
+            # Accepts the same patterns as git sparse-checkout set (file names,
+            # directory names, gitignore-style globs). When set, clonerefs performs a
+            # sparse checkout instead of a full clone. Applied to the primary ref for
+            # presubmit/postsubmit jobs. Not applied to extra refs.
+            sparse_checkout_files:
+                - ""
             # SSHHostFingerprints are the fingerprints of known SSH hosts
             # that the cloning process can trust.
             # Create with ssh-keyscan [-t rsa] host
@@ -1282,6 +1289,13 @@ plank:
             # SkipCloning determines if we should clone source code in the
             # initcontainers for jobs that specify refs
             skip_cloning: false
+            # SparseCheckoutFiles limits the working tree to only the listed paths.
+            # Accepts the same patterns as git sparse-checkout set (file names,
+            # directory names, gitignore-style globs). When set, clonerefs performs a
+            # sparse checkout instead of a full clone. Applied to the primary ref for
+            # presubmit/postsubmit jobs. Not applied to extra refs.
+            sparse_checkout_files:
+                - ""
             # SSHHostFingerprints are the fingerprints of known SSH hosts
             # that the cloning process can trust.
             # Create with ssh-keyscan [-t rsa] host

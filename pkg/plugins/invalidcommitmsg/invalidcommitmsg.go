@@ -20,6 +20,7 @@ package invalidcommitmsg
 
 import (
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 
@@ -33,34 +34,13 @@ import (
 )
 
 const (
-	pluginName                  = "invalidcommitmsg"
-	invalidCommitMsgLabel       = "do-not-merge/invalid-commit-message"
-	invalidCommitMsgCommentBody = `[Keywords](https://help.github.com/articles/closing-issues-using-keywords) which can automatically close issues and hashtag(#) mentions are not allowed in commit messages.
-
-**The list of commits with invalid commit messages**:
-
-%s
-
-<details>
-
-%s
-</details>
-`
-	invalidCommitMsgCommentPruneBody = "**The list of commits with invalid commit messages**:"
-	invalidTitleCommentBody          = `[Keywords](https://help.github.com/articles/closing-issues-using-keywords) which can automatically close issues are not allowed in the title of a Pull Request.
-
-You can edit the title by writing **/retitle <new-title>** in a comment.
-
-<details>
-When GitHub merges a Pull Request, the title is included in the merge commit. To avoid invalid keywords in the merge commit, please edit the title of the PR.
-
-%s
-</details>
-`
-	invalidTitleCommentPruneBody = "not allowed in the title of a Pull Request"
+	pluginName                    = "invalidcommitmsg"
+	invalidCommitMsgCommentMarker = "<!-- [prow:invalid-commit-message] -->"
+	invalidCommitMsgLabel         = "do-not-merge/invalid-commit-message"
 )
 
 var CloseIssueRegex = regexp.MustCompile(`((?i)(clos(?:e[sd]?))|(fix(?:(es|ed)?))|(resolv(?:e[sd]?)))[\s:]+(\w+/\w+)?#(\d+)`)
+var fixupCommitRegex = regexp.MustCompile(`^(fixup!|amend!|squash!)`)
 
 func init() {
 	plugins.RegisterPullRequestHandler(pluginName, handlePullRequest, helpProvider)
@@ -69,7 +49,7 @@ func init() {
 func helpProvider(config *plugins.Configuration, _ []config.OrgRepo) (*pluginhelp.PluginHelp, error) {
 	// Only the Description field is specified because this plugin is not triggered with commands and is not configurable.
 	return &pluginhelp.PluginHelp{
-			Description: "The invalidcommitmsg plugin applies the '" + invalidCommitMsgLabel + "' label to pull requests whose commit messages and titles contain keywords which can automatically close issues.",
+			Description: "The invalidcommitmsg plugin applies the '" + invalidCommitMsgLabel + "' label to pull requests whose commit messages and titles contain keywords which can automatically close issues or contain temporary commits such as fixup!, amend!, or squash!",
 		},
 		nil
 }
@@ -107,6 +87,8 @@ func handle(gc githubClient, log *logrus.Entry, pr github.PullRequestEvent, cp c
 		title  = pr.PullRequest.Title
 	)
 
+	checkFixup := os.Getenv("ENABLE_FIXUP_CHECK") == "true"
+
 	labels, err := gc.GetIssueLabels(org, repo, number)
 	if err != nil {
 		return err
@@ -120,60 +102,84 @@ func handle(gc githubClient, log *logrus.Entry, pr github.PullRequestEvent, cp c
 	log.Debugf("Found %d commits in PR", len(allCommits))
 
 	var invalidCommits []github.RepositoryCommit
+	var fixupCommits []github.RepositoryCommit
+
+	// Run all checks
 	for _, commit := range allCommits {
-		if CloseIssueRegex.MatchString(commit.Commit.Message) {
+		msg := commit.Commit.Message
+		subject := strings.Split(msg, "\n")[0]
+
+		if CloseIssueRegex.MatchString(msg) {
 			invalidCommits = append(invalidCommits, commit)
+		}
+
+		if checkFixup && fixupCommitRegex.MatchString(subject) {
+			fixupCommits = append(fixupCommits, commit)
 		}
 	}
 
 	invalidPRTitle := CloseIssueRegex.MatchString(title)
 
-	// if we have the label but all commits and the PR title is valid,
-	// remove the label and prune comments
-	if hasInvalidCommitMsgLabel && len(invalidCommits) == 0 && !invalidPRTitle {
+	// Determine if any check failed
+	hasIssues := len(invalidCommits) != 0 || invalidPRTitle || (checkFixup && len(fixupCommits) != 0)
+
+	// Manage the single label based on all checks
+	if hasInvalidCommitMsgLabel && !hasIssues {
+		// All checks pass, remove label and prune all comments
 		if err := gc.RemoveLabel(org, repo, number, invalidCommitMsgLabel); err != nil {
 			log.WithError(err).Errorf("GitHub failed to remove the following label: %s", invalidCommitMsgLabel)
 		}
-		cp.PruneComments(func(comment github.IssueComment) bool {
-			return strings.Contains(comment.Body, invalidCommitMsgCommentPruneBody)
-		})
-		cp.PruneComments(func(comment github.IssueComment) bool {
-			return strings.Contains(comment.Body, invalidTitleCommentPruneBody)
-		})
-	}
-
-	// if we don't have the label and
-	// if the PR title is invalid OR there are invalid commits
-	// add the label
-	if !hasInvalidCommitMsgLabel && (len(invalidCommits) != 0 || invalidPRTitle) {
+	} else if !hasInvalidCommitMsgLabel && hasIssues {
+		// At least one check failed, add label
 		if err := gc.AddLabel(org, repo, number, invalidCommitMsgLabel); err != nil {
 			log.WithError(err).Errorf("GitHub failed to add the following label: %s", invalidCommitMsgLabel)
 		}
 	}
 
-	// if there are invalid commits, add a comment
-	if len(invalidCommits) != 0 {
-		// prune old comments before adding a new one
-		cp.PruneComments(func(comment github.IssueComment) bool {
-			return strings.Contains(comment.Body, invalidCommitMsgCommentPruneBody)
-		})
+	// unified comment handling
+	cp.PruneComments(func(comment github.IssueComment) bool {
+		return strings.Contains(comment.Body, invalidCommitMsgCommentMarker) ||
+			// TODO: legacy markers, remove after August 2026
+			strings.Contains(comment.Body, "**The list of commits with invalid commit messages**:") ||
+			strings.Contains(comment.Body, "not allowed in the title of a Pull Request")
+	})
 
-		log.Debug("Commenting on PR to advise users of invalid commit messages")
-		if err := gc.CreateComment(org, repo, number, fmt.Sprintf(invalidCommitMsgCommentBody, dco.MarkdownSHAList(org, repo, invalidCommits), plugins.AboutThisBot)); err != nil {
-			log.WithError(err).Error("Could not create comment for invalid commit messages")
+	if hasIssues {
+		var sections []string
+
+		if len(invalidCommits) != 0 {
+			sections = append(sections,
+				fmt.Sprintf(
+					"### Invalid commit messages\n\n[Keywords](https://help.github.com/articles/closing-issues-using-keywords) which can automatically close issues and hashtag(#) mentions are not allowed.\n\n%s",
+					dco.MarkdownSHAList(org, repo, invalidCommits),
+				))
 		}
-	}
 
-	// if the PR title is invalid, add a comment
-	if invalidPRTitle {
-		// prune old comments before adding a new one
-		cp.PruneComments(func(comment github.IssueComment) bool {
-			return strings.Contains(comment.Body, invalidTitleCommentPruneBody)
-		})
+		if checkFixup && len(fixupCommits) != 0 {
+			sections = append(sections,
+				fmt.Sprintf(
+					"### Fixup/amend/squash commits\n\nTemporary commits like fixup!, amend!, or squash! are not allowed.\n\nUse [git rebase --autosquash](https://git-scm.com/docs/git-rebase#Documentation/git-rebase.txt---autosquash) to fix them.\n\n%s",
+					dco.MarkdownSHAList(org, repo, fixupCommits),
+				))
+		}
 
-		log.Debug("Commenting on PR to advise users of an invalid PR title")
-		if err := gc.CreateComment(org, repo, number, fmt.Sprintf(invalidTitleCommentBody, plugins.AboutThisBot)); err != nil {
-			log.WithError(err).Error("Could not create comment for invalid PR title")
+		if invalidPRTitle {
+			sections = append(sections,
+				"### Invalid PR title\n\n[Keywords](https://help.github.com/articles/closing-issues-using-keywords) are not allowed in PR titles.\n\nUse `/retitle <new-title>` to fix it.",
+			)
+		}
+
+		commentBody := fmt.Sprintf(
+			"%s\n\nInvalid commit message issues detected\n\n%s\n\n%s",
+			invalidCommitMsgCommentMarker,
+			strings.Join(sections, "\n\n"),
+			plugins.AboutThisBot,
+		)
+
+		log.Debug("Commenting on PR with aggregated issues")
+
+		if err := gc.CreateComment(org, repo, number, commentBody); err != nil {
+			log.WithError(err).Error("Could not create aggregated comment")
 		}
 	}
 

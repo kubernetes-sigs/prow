@@ -44,15 +44,14 @@ func Test_handleLinkIssue(t *testing.T) {
 				IsPR:   false,
 				Action: github.GenericCommentActionCreated,
 			},
-			expectedComment: "This command can only be used on pull requests.",
+			expectedComment: "can only be used on pull requests",
 		},
 		{
-			name: "should return with comment when action is not comment created on a PR",
+			name: "should silently ignore when action is not comment created",
 			event: github.GenericCommentEvent{
 				IsPR:   true,
 				Action: github.GenericCommentActionEdited,
 			},
-			expectedComment: "This command can only be used on pull requests.",
 		},
 		{
 			name: "should deny request if user who is not a part of the org",
@@ -91,7 +90,7 @@ func Test_handleLinkIssue(t *testing.T) {
 				Repo:   github.Repo{Owner: github.User{Login: "kubernetes"}, Name: "repo1"},
 			},
 			toLinkIssues:    []string{"other/repo#12"},
-			expectedComment: "Failed to get repository",
+			expectedComment: "Repository **other/repo** does not exist",
 			fc: func(fc *fakegithub.FakeClient) {
 				fc.GetRepoError = errors.New("error")
 				fc.OrgMembers["kubernetes"] = []string{"user"}
@@ -107,7 +106,7 @@ func Test_handleLinkIssue(t *testing.T) {
 				Repo:   github.Repo{Owner: github.User{Login: "kubernetes"}, Name: "repo"},
 			},
 			toLinkIssues:    []string{"99"},
-			expectedComment: "Failed to get issue",
+			expectedComment: "Issue **#99** in repository **kubernetes/repo** does not exist",
 			fc: func(fc *fakegithub.FakeClient) {
 				fc.OrgMembers["kubernetes"] = []string{"user"}
 			},
@@ -298,7 +297,7 @@ func TestParseIssueRef(t *testing.T) {
 				t.Fatalf("unexpected error: %v", err)
 			}
 
-			if ref.Org != tc.expectedOrg || ref.Repo != tc.expectedRepo || ref.Num != tc.expectedIssue {
+			if ref.org != tc.expectedOrg || ref.repo != tc.expectedRepo || ref.num != tc.expectedIssue {
 				t.Fatalf("got %+v, want org=%s repo=%s issue=%d", ref, tc.expectedOrg, tc.expectedRepo, tc.expectedIssue)
 			}
 		})
@@ -308,21 +307,21 @@ func TestParseIssueRef(t *testing.T) {
 func TestFormatIssueRef(t *testing.T) {
 	tests := []struct {
 		name             string
-		ref              IssueRef
+		ref              issueRef
 		defOrg           string
 		defRepo          string
 		expectedIssueRef string
 	}{
 		{
 			name:             "Issue within the same repo",
-			ref:              IssueRef{Org: "kubernetes", Repo: "test-infra", Num: 12},
+			ref:              issueRef{org: "kubernetes", repo: "test-infra", num: 12},
 			defOrg:           "kubernetes",
 			defRepo:          "test-infra",
 			expectedIssueRef: "#12",
 		},
 		{
 			name:             "Issue in a different repo",
-			ref:              IssueRef{Org: "foo", Repo: "bar", Num: 33},
+			ref:              issueRef{org: "foo", repo: "bar", num: 33},
 			defOrg:           "kubernetes",
 			defRepo:          "test-infra",
 			expectedIssueRef: "foo/bar#33",
@@ -454,11 +453,7 @@ func TestParseCommentForLinkCommands(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			gotToLink, gotToUnlink, err := parseCommentForLinkCommands(tc.commentBody)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-
+			gotToLink, gotToUnlink := parseCommentForLinkCommands(tc.commentBody)
 			if !reflect.DeepEqual(gotToLink, tc.wantToLink) {
 				t.Fatalf("gotToLink = %v, want %v", gotToLink, tc.wantToLink)
 			}

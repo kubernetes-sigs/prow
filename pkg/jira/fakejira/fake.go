@@ -281,6 +281,15 @@ func (f *FakeClient) DoTransition(issueID, transitionID string) error {
 	return nil
 }
 
+func (f *FakeClient) GetUser(accountID string) (*jira.User, error) {
+	for _, user := range f.Users {
+		if user.AccountID == accountID {
+			return user, nil
+		}
+	}
+	return nil, jiraclient.NewNotFoundError(fmt.Errorf("no user with accountId %s found", accountID))
+}
+
 func (f *FakeClient) FindUser(property string) ([]*jira.User, error) {
 	var foundUsers []*jira.User
 	for _, user := range f.Users {
@@ -300,14 +309,6 @@ func (f *FakeClient) FindUser(property string) ([]*jira.User, error) {
 
 func (f *FakeClient) GetIssueSecurityLevel(issue *jira.Issue) (*jiraclient.SecurityLevel, error) {
 	return jiraclient.GetIssueSecurityLevel(issue)
-}
-
-func (f *FakeClient) GetIssueQaContact(issue *jira.Issue) (*jira.User, error) {
-	return jiraclient.GetIssueQaContact(issue)
-}
-
-func (f *FakeClient) GetIssueTargetVersion(issue *jira.Issue) (*[]*jira.Version, error) {
-	return jiraclient.GetIssueTargetVersion(issue)
 }
 
 func (f *FakeClient) UpdateIssue(issue *jira.Issue) (*jira.Issue, error) {

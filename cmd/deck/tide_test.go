@@ -711,6 +711,28 @@ func TestFilter(t *testing.T) {
 				"kubernetes/kubernetes:master": {{Action: "TRIGGER_BATCH", TenantIDs: []string{config.DefaultTenantID}}, {Action: "MERGE_BATCH"}},
 			},
 		},
+		{
+			name: "default-tenanted Deck shows pools and history with no tenant IDs",
+
+			tenantIDs: []string{config.DefaultTenantID},
+			pools: []tide.Pool{
+				{Org: "kubernetes", Repo: "test-infra", TenantIDs: []string{config.DefaultTenantID}},
+				{Org: "upstream", Repo: "no-prow-jobs"},
+			},
+			hist: map[string][]history.Record{
+				"kubernetes/test-infra:master": {{Action: "MERGE", TenantIDs: []string{config.DefaultTenantID}}},
+				"upstream/no-prow-jobs:main":   {{Action: "MERGE"}},
+			},
+
+			expectedPools: []tide.Pool{
+				{Org: "kubernetes", Repo: "test-infra", TenantIDs: []string{config.DefaultTenantID}},
+				{Org: "upstream", Repo: "no-prow-jobs"},
+			},
+			expectedHist: map[string][]history.Record{
+				"kubernetes/test-infra:master": {{Action: "MERGE", TenantIDs: []string{config.DefaultTenantID}}},
+				"upstream/no-prow-jobs:main":   {{Action: "MERGE"}},
+			},
+		},
 	}
 
 	for _, test := range tests {
