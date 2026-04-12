@@ -4,3 +4,29 @@ presets:
     env:
       - name: FOO_FILE
         value: /etc/foo
+  # Tekton presets for integration testing
+  - labels:
+      preset-tekton-service-account: "true"
+    tekton_service_account: "preset-test-sa"
+  - labels:
+      preset-tekton-params: "true"
+    tekton_params:
+    - name: preset-version
+      value: 1.0.0
+    - name: preset-environment
+      value: test
+  - labels:
+      preset-tekton-workspace: "true"
+    tekton_workspaces:
+    - name: preset-cache
+      emptyDir: {}
+  - labels:
+      preset-tekton-full: "true"
+    tekton_service_account: "full-preset-sa"
+    tekton_params:
+    - name: full-preset-param
+      value: full-value
+    tekton_workspaces:
+    - name: full-preset-workspace
+      emptyDir: {}
+    tekton_timeout: 30m
