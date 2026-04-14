@@ -18,7 +18,7 @@ package github
 
 import (
 	"crypto/hmac"
-	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -46,10 +46,10 @@ func ValidatePayload(payload []byte, sig string, tokenGenerator func() []byte) b
 		return false
 	}
 
-	if !strings.HasPrefix(sig, "sha1=") {
+	if !strings.HasPrefix(sig, "sha256=") {
 		return false
 	}
-	sig = sig[5:]
+	sig = sig[7:]
 	sb, err := hex.DecodeString(sig)
 	if err != nil {
 		return false
@@ -68,7 +68,7 @@ func ValidatePayload(payload []byte, sig string, tokenGenerator func() []byte) b
 
 	// If we have a match with any valid hmac, we can validate successfully.
 	for _, key := range hmacs {
-		mac := hmac.New(sha1.New, key)
+		mac := hmac.New(sha256.New, key)
 		mac.Write(payload)
 		expected := mac.Sum(nil)
 		if hmac.Equal(sb, expected) {
@@ -80,10 +80,10 @@ func ValidatePayload(payload []byte, sig string, tokenGenerator func() []byte) b
 
 // PayloadSignature returns the signature that matches the payload.
 func PayloadSignature(payload []byte, key []byte) string {
-	mac := hmac.New(sha1.New, key)
+	mac := hmac.New(sha256.New, key)
 	mac.Write(payload)
 	sum := mac.Sum(nil)
-	return "sha1=" + hex.EncodeToString(sum)
+	return "sha256=" + hex.EncodeToString(sum)
 }
 
 // extractHMACs returns all *valid* HMAC tokens for given repository/organization.
