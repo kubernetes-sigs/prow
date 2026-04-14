@@ -54,9 +54,9 @@ foo/bar:
 		metrics:            NewMetrics(),
 	}
 
-	// This is the SHA1 signature for payload "{}" and signature "abc"
-	// echo -n '{}' | openssl dgst -sha1 -hmac abc
-	const hmac string = "sha1=db5c76f4264d0ad96cf21baec394964b4b8ce580"
+	// This is the SHA256 signature for payload "{}" and secret "abc"
+	// echo -n '{}' | openssl dgst -sha256 -hmac abc
+	const hmac string = "sha256=19092633e5aa9a849dfcc9d2df4e76db2df1fcba7f38915f2c7833bd8a510f2f"
 	const body string = "{}"
 	var testcases = []struct {
 		name string
@@ -71,10 +71,10 @@ foo/bar:
 
 			Method: http.MethodDelete,
 			Header: map[string]string{
-				"X-GitHub-Event":    "ping",
-				"X-GitHub-Delivery": "I am unique",
-				"X-Hub-Signature":   hmac,
-				"content-type":      "application/json",
+				"X-GitHub-Event":      "ping",
+				"X-GitHub-Delivery":   "I am unique",
+				"X-Hub-Signature-256": hmac,
+				"content-type":        "application/json",
 			},
 			Body: body,
 			Code: http.StatusMethodNotAllowed,
@@ -84,9 +84,9 @@ foo/bar:
 
 			Method: http.MethodPost,
 			Header: map[string]string{
-				"X-GitHub-Delivery": "I am unique",
-				"X-Hub-Signature":   hmac,
-				"content-type":      "application/json",
+				"X-GitHub-Delivery":   "I am unique",
+				"X-Hub-Signature-256": hmac,
+				"content-type":        "application/json",
 			},
 			Body: body,
 			Code: http.StatusBadRequest,
@@ -96,9 +96,9 @@ foo/bar:
 
 			Method: http.MethodPost,
 			Header: map[string]string{
-				"X-GitHub-Event":    "ping",
-				"X-GitHub-Delivery": "I am unique",
-				"X-Hub-Signature":   hmac,
+				"X-GitHub-Event":      "ping",
+				"X-GitHub-Delivery":   "I am unique",
+				"X-Hub-Signature-256": hmac,
 			},
 			Body: body,
 			Code: http.StatusBadRequest,
@@ -108,9 +108,9 @@ foo/bar:
 
 			Method: http.MethodPost,
 			Header: map[string]string{
-				"X-GitHub-Event":  "ping",
-				"X-Hub-Signature": hmac,
-				"content-type":    "application/json",
+				"X-GitHub-Event":      "ping",
+				"X-Hub-Signature-256": hmac,
+				"content-type":        "application/json",
 			},
 			Body: body,
 			Code: http.StatusBadRequest,
@@ -132,10 +132,10 @@ foo/bar:
 
 			Method: http.MethodPost,
 			Header: map[string]string{
-				"X-GitHub-Event":    "ping",
-				"X-GitHub-Delivery": "I am unique",
-				"X-Hub-Signature":   "this doesn't work",
-				"content-type":      "application/json",
+				"X-GitHub-Event":      "ping",
+				"X-GitHub-Delivery":   "I am unique",
+				"X-Hub-Signature-256": "this doesn't work",
+				"content-type":        "application/json",
 			},
 			Body: body,
 			Code: http.StatusForbidden,
@@ -145,10 +145,10 @@ foo/bar:
 
 			Method: http.MethodPost,
 			Header: map[string]string{
-				"X-GitHub-Event":    "ping",
-				"X-GitHub-Delivery": "I am unique",
-				"X-Hub-Signature":   hmac,
-				"content-type":      "application/json",
+				"X-GitHub-Event":      "ping",
+				"X-GitHub-Delivery":   "I am unique",
+				"X-Hub-Signature-256": hmac,
+				"content-type":        "application/json",
 			},
 			Body: body,
 			Code: http.StatusOK,
