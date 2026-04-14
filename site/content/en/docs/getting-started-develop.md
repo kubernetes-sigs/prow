@@ -60,3 +60,7 @@ If you just need some data from Prow you may be able to get it from the JSON exp
 ## Building, Testing, and Deploying
 
 You can build, test, and deploy Prow’s binaries, container images, and cluster resources. See ["Deploying Prow"](/docs/getting-started-deploy/) for initially deploying Prow and ["Building, Testing, and Updating Prow"](/docs/build-test-update/) for iterating on an existing deployment.
+
+For local development without a cloud account, the [Local Development Environment](/docs/local-dev/)
+guide explains how to run a full Prow stack in a local kind cluster using in-cluster fakes for all
+external services.

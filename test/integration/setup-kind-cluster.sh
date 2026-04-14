@@ -38,9 +38,21 @@ Examples:
   # the range 30000-32767.
   $0 -fakepubsub-node-port=32222
 
+  # Use unprivileged host ports for HTTP/HTTPS (useful for local development
+  # where binding to ports 80/443 requires root).
+  $0 -http-host-port=8080 -https-host-port=8443
+
 Options:
     -fakepubsub-node-port='':
         Make the fakepubsub service use the provided node port (default 30303).
+
+    -http-host-port='':
+        Host port to map to the cluster's HTTP (port 80) ingress (default 80).
+        Use a value >= 1024 to avoid requiring root privileges locally.
+
+    -https-host-port='':
+        Host port to map to the cluster's HTTPS (port 443) ingress (default 443).
+        Use a value >= 1024 to avoid requiring root privileges locally.
 
     -help:
         Display this help message.
@@ -49,7 +61,11 @@ EOF
 
 function main() {
   local fakepubsub_node_port
+  local http_host_port
+  local https_host_port
   fakepubsub_node_port=30303
+  http_host_port=80
+  https_host_port=443
   # If we abort the setup script with Ctrl+C, delete the cluster because the
   # setup process was interrupted.
   # shellcheck disable=SC2064
@@ -64,6 +80,12 @@ function main() {
     case "${arg}" in
       -fakepubsub-node-port=*)
         fakepubsub_node_port="${arg#-fakepubsub-node-port=}"
+        ;;
+      -http-host-port=*)
+        http_host_port="${arg#-http-host-port=}"
+        ;;
+      -https-host-port=*)
+        https_host_port="${arg#-https-host-port=}"
         ;;
       -help)
         usage
@@ -90,7 +112,7 @@ function main() {
     log "Using existing KIND cluster"
   else
     "${SCRIPT_ROOT}/teardown.sh" -kind-cluster
-    create_cluster "${fakepubsub_node_port:-30303}"
+    create_cluster "${fakepubsub_node_port:-30303}" "${http_host_port:-80}" "${https_host_port:-443}"
   fi
   setup_cluster
 
@@ -110,19 +132,27 @@ function cluster_running() {
 # Create a cluster with the local registry enabled in containerd,
 # as well as configure node-labels and extraPortMappings for ingress.
 # See: https://kind.sigs.k8s.io/docs/user/ingress/#create-cluster.
+#
+# Registry mirrors are configured via hosts.toml files written after cluster
+# creation (see setup_cluster), following the approach recommended at
+# https://kind.sigs.k8s.io/docs/user/local-registry/.
 function create_cluster() {
   log "Creating KIND cluster"
 
   local fakepubsub_node_port
+  local http_host_port
+  local https_host_port
   fakepubsub_node_port="${1:-30303}"
+  http_host_port="${2:-80}"
+  https_host_port="${3:-443}"
 
   cat <<EOF | kind create cluster --name "${_KIND_CLUSTER_NAME}" --config=-
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 containerdConfigPatches:
 - |-
-  [plugins."io.containerd.grpc.v1.cri".registry.mirrors."localhost:${LOCAL_DOCKER_REGISTRY_PORT}"]
-    endpoint = ["http://${LOCAL_DOCKER_REGISTRY_NAME}:5000"]
+  [plugins."io.containerd.grpc.v1.cri".registry]
+    config_path = "/etc/containerd/certs.d"
 nodes:
 - role: control-plane
   kubeadmConfigPatches:
@@ -133,10 +163,10 @@ nodes:
         node-labels: "ingress-ready=true"
   extraPortMappings:
   - containerPort: 80
-    hostPort: 80
+    hostPort: ${http_host_port}
     protocol: TCP
   - containerPort: 443
-    hostPort: 443
+    hostPort: ${https_host_port}
     protocol: TCP
   - containerPort: 32000
     hostPort: 32000
@@ -148,11 +178,23 @@ EOF
 
 }
 
-# Connect the registry to the cluster network.
+# Connect the registry to the cluster network and configure each node to route
+# pulls of localhost:PORT images through the in-cluster registry container.
 function setup_cluster() {
   log "Setting up local registry for cluster"
   # Ignore the error, as the network may already be connected.
   docker network connect "kind" "${LOCAL_DOCKER_REGISTRY_NAME}" 2>/dev/null || true
+
+  # Write a hosts.toml into every node so that containerd routes pulls of
+  # localhost:PORT to the registry container. This is the approach recommended
+  # by https://kind.sigs.k8s.io/docs/user/local-registry/ and is compatible
+  # with containerd v2.2+.
+  local registry_dir="/etc/containerd/certs.d/localhost:${LOCAL_DOCKER_REGISTRY_PORT}"
+  for node in $(kind get nodes --name "${_KIND_CLUSTER_NAME}"); do
+    docker exec "${node}" mkdir -p "${registry_dir}"
+    printf '[host."http://%s:5000"]\n' "${LOCAL_DOCKER_REGISTRY_NAME}" \
+      | docker exec -i "${node}" cp /dev/stdin "${registry_dir}/hosts.toml"
+  done
 
   cat <<EOF | do_kubectl apply -f -
 apiVersion: v1

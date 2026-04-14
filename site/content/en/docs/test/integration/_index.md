@@ -45,7 +45,23 @@ Assume we want to add `most-awesome-component` (source code in `cmd/most-awesome
      are both redeployed every time you change something in `cmd/deck`
      (defined in `PROW_IMAGES`).
 
-2. Set up Kubernetes Deployment and Service configurations inside the
+   - **If the component belongs in the lightweight dev environment** (i.e. it is
+     a core Prow service or a fake that most developers need day-to-day), also
+     add it to `PROW_COMPONENTS_CORE` in the same file. `PROW_IMAGES_CORE` is
+     derived automatically from `PROW_COMPONENTS_CORE` at runtime, so no
+     separate update is needed. These are the subsets used by `make dev` /
+     `hack/dev-env.sh` (the default `core` profile). If unsure, leave it out of
+     `PROW_COMPONENTS_CORE` and it can always be added later.
+
+2. Add the component's deployment steps to the appropriate deployment-order
+   array(s) in `lib.sh`:
+
+   - Always add to `PROW_DEPLOYMENT_ORDER` (used by the full integration-test
+     profile and `make dev-full`).
+   - If you also added the component to `PROW_COMPONENTS_CORE`, add its steps
+     to `PROW_DEPLOYMENT_ORDER_CORE` as well (used by `make dev`).
+
+3. Set up Kubernetes Deployment and Service configurations inside the
    [configuration folder][config/prow/cluster] for your new component. This
    way the test cluster will pick it up when it [deploys Prow
    components](https://github.com/kubernetes-sigs/prow/blob/main/test/integration/setup-prow-components.sh).

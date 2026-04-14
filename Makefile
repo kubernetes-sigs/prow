@@ -35,6 +35,28 @@ integration:
 test: unit
 .PHONY: test
 ################################################################################
+# ============================== Development ===================================
+# local development environment (kind cluster with fake external services)
+.PHONY: dev
+dev:
+	hack/dev-env.sh
+# full dev environment with all Prow components (heavier, matches integration tests)
+.PHONY: dev-full
+dev-full:
+	hack/dev-env.sh -profile=full
+# Tilt inner loop - run 'make dev' once first, then use this for auto-rebuild
+.PHONY: dev-tilt
+dev-tilt:
+	@command -v tilt >/dev/null 2>&1 || { \
+		echo "ERROR: tilt not found. Install it from https://docs.tilt.dev/install.html"; exit 1; }
+	@docker inspect -f '{{.State.Running}}' kind-prow-integration-control-plane \
+		>/dev/null 2>&1 || { \
+		echo "ERROR: kind cluster not running. Run 'make dev' first."; exit 1; }
+	tilt up
+.PHONY: dev-teardown
+dev-teardown:
+	hack/dev-env.sh -teardown
+################################################################################
 # ================================= Cleanup ====================================
 # standard cleanup target
 clean:

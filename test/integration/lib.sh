@@ -15,7 +15,7 @@
 
 # shellcheck disable=SC2034
 
-SCRIPT_ROOT="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_ROOT}/../.." && pwd -P)"
 
 # Default variables. Note that these variables are not environment variables and
@@ -274,6 +274,132 @@ declare -ra PROW_DEPLOYMENT_ORDER=(
   WAIT_FOR_RESOURCE_rolebindings,sub,default
   WAIT_FOR_RESOURCE_serviceaccounts,sub,default
   WAIT_sub
+)
+
+# Core subset of PROW_COMPONENTS used by the lightweight dev environment.
+# Excludes tide, Gerrit, Gangway, Moonraker, Pub/Sub, Pipeline, and
+# webhook-server, which can be added individually with hack/dev-env.sh -add=.
+declare -ra PROW_COMPONENTS_CORE=(
+  crier
+  deck
+  deck-tenanted
+  fakegcsserver
+  fakegitserver
+  fakeghserver
+  hook
+  horologium
+  prow-controller-manager
+  sinker
+)
+
+# Core subset of PROW_IMAGES. Derived from PROW_COMPONENTS_CORE, plus pod
+# utilities because prow-controller-manager needs them to run job pods.
+# Note: some components (e.g. deck-tenanted) share an image with another
+# component and have no entry in PROW_IMAGES, so we skip those here.
+declare -A PROW_IMAGES_CORE=()
+for _component in "${PROW_COMPONENTS_CORE[@]}"; do
+  if [[ -v "PROW_IMAGES[${_component}]" ]]; then
+    PROW_IMAGES_CORE[$_component]="${PROW_IMAGES[$_component]}"
+  fi
+done
+unset _component
+# Pod utilities (run as init/sidecar containers inside job pods).
+PROW_IMAGES_CORE[clonerefs]=cmd/clonerefs
+PROW_IMAGES_CORE[initupload]=cmd/initupload
+PROW_IMAGES_CORE[entrypoint]=cmd/entrypoint
+PROW_IMAGES_CORE[sidecar]=cmd/sidecar
+declare -r PROW_IMAGES_CORE
+
+# Deployment order for the core profile. Contains the same infrastructure
+# pieces as PROW_DEPLOYMENT_ORDER but only the core Prow services.
+declare -ra PROW_DEPLOYMENT_ORDER_CORE=(
+  50_crd.yaml
+  WAIT_FOR_CRD_prowjobs.prow.k8s.io,default
+
+  git-config-system.yaml
+  WAIT_FOR_RESOURCE_configmaps,git-config-system,default
+
+  100_starter.yaml
+  WAIT_FOR_RESOURCE_namespaces,test-pods,default
+  WAIT_FOR_RESOURCE_secrets,oauth-token,default
+  WAIT_FOR_RESOURCE_secrets,kubeconfig,default
+
+  101_secrets.yaml
+  WAIT_FOR_RESOURCE_secrets,hmac-token,default
+  WAIT_FOR_RESOURCE_secrets,http-cookiefile,default
+  WAIT_FOR_RESOURCE_secrets,cookie,default
+  WAIT_FOR_RESOURCE_secrets,github-oauth-config,default
+
+  200_ingress.yaml
+  WAIT_FOR_RESOURCE_ingresses,strip-path-prefix,default
+  WAIT_FOR_RESOURCE_ingresses,no-strip-path-prefix,default
+
+  fakeghserver.yaml
+  WAIT_fakeghserver
+
+  fakegcsserver.yaml
+  WAIT_fakegcsserver
+
+  fakegitserver.yaml
+  WAIT_fakegitserver
+
+  horologium_rbac.yaml
+  horologium_service.yaml
+  horologium_deployment.yaml
+  WAIT_FOR_RESOURCE_roles,horologium,default
+  WAIT_FOR_RESOURCE_rolebindings,horologium,default
+  WAIT_FOR_RESOURCE_serviceaccounts,horologium,default
+  WAIT_horologium
+
+  prow_controller_manager_rbac.yaml
+  prow_controller_manager_service.yaml
+  prow_controller_manager_deployment.yaml
+  WAIT_FOR_RESOURCE_roles,prow-controller-manager,default
+  WAIT_FOR_RESOURCE_roles,prow-controller-manager,test-pods
+  WAIT_FOR_RESOURCE_rolebindings,prow-controller-manager,default
+  WAIT_FOR_RESOURCE_rolebindings,prow-controller-manager,test-pods
+  WAIT_FOR_RESOURCE_serviceaccounts,prow-controller-manager,default
+  WAIT_prow-controller-manager
+
+  sinker_rbac.yaml
+  sinker_service.yaml
+  sinker.yaml
+  WAIT_FOR_RESOURCE_roles,sinker,default
+  WAIT_FOR_RESOURCE_roles,sinker,test-pods
+  WAIT_FOR_RESOURCE_rolebindings,sinker,default
+  WAIT_FOR_RESOURCE_rolebindings,sinker,test-pods
+  WAIT_FOR_RESOURCE_serviceaccounts,sinker,default
+  WAIT_sinker
+
+  hook_rbac.yaml
+  hook_service.yaml
+  hook_deployment.yaml
+  WAIT_FOR_RESOURCE_roles,hook,default
+  WAIT_FOR_RESOURCE_rolebindings,hook,default
+  WAIT_FOR_RESOURCE_serviceaccounts,hook,default
+  WAIT_hook
+
+  crier_rbac.yaml
+  crier_service.yaml
+  crier_deployment.yaml
+  WAIT_FOR_RESOURCE_roles,crier,default
+  WAIT_FOR_RESOURCE_roles,crier,test-pods
+  WAIT_FOR_RESOURCE_rolebindings,crier-namespaced,default
+  WAIT_FOR_RESOURCE_rolebindings,crier-namespaced,test-pods
+  WAIT_FOR_RESOURCE_serviceaccounts,crier,default
+  WAIT_crier
+
+  deck_rbac.yaml
+  deck_service.yaml
+  deck_deployment.yaml
+  deck_tenant_deployment.yaml
+  WAIT_FOR_RESOURCE_roles,deck,default
+  WAIT_FOR_RESOURCE_roles,deck,test-pods
+  WAIT_FOR_RESOURCE_rolebindings,deck,default
+  WAIT_FOR_RESOURCE_rolebindings,deck,test-pods
+  WAIT_FOR_RESOURCE_serviceaccounts,deck,default
+  WAIT_deck
+  WAIT_deck-tenanted
 )
 
 function do_kubectl() {

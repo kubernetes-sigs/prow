@@ -23,6 +23,11 @@ SCRIPT_ROOT="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck disable=SC1091
 source "${SCRIPT_ROOT}"/lib.sh
 
+# Component profile: "core" deploys only the minimal set of components needed
+# for basic development; "full" deploys everything (integration-test default).
+# Set by the -profile= flag in main().
+_PROFILE="full"
+
 function usage() {
   >&2 cat <<EOF
 Build Prow components and deploy them into the KIND test cluster.
@@ -79,6 +84,14 @@ Options:
         whatever reason). Technically, you can delete pods manually with kubectl
         to achieve the same effect; this flag is given here as a convenience.
 
+    -profile='full':
+        Component profile to deploy. "full" (default) deploys all components,
+        matching the integration-test environment. "core" deploys only the
+        minimal set (hook, deck, crier, horologium, prow-controller-manager,
+        sinker, and the core fakes) for a lighter-weight dev environment.
+        When -build=ALL is given, only the images for the selected profile are
+        built.
+
     -fakepubsub-node-port='':
         Make the fakepubsub service use the provided node port (default 30303).
 
@@ -94,13 +107,30 @@ function main() {
   local components_val
   local fakepubsub_node_port
 
+  # Parse -profile= first so subsequent ALL expansions use the right sets.
+  for arg in "$@"; do
+    case "${arg}" in
+      -profile=*)
+        _PROFILE="${arg#-profile=}"
+        if [[ "${_PROFILE}" != "core" && "${_PROFILE}" != "full" ]]; then
+          echo >&2 "invalid -profile value '${_PROFILE}': must be 'core' or 'full'"
+          return 1
+        fi
+        ;;
+    esac
+  done
+
   for arg in "$@"; do
     case "${arg}" in
       -build=*)
         images_val="${arg#-build=}"
         for image in ${images_val//,/ }; do
           if [[ "${image}" == ALL ]]; then
-            images=("${!PROW_IMAGES[@]}")
+            if [[ "${_PROFILE}" == "core" ]]; then
+              images=("${!PROW_IMAGES_CORE[@]}")
+            else
+              images=("${!PROW_IMAGES[@]}")
+            fi
             break
           else
             images+=("${image}")
@@ -111,12 +141,19 @@ function main() {
         components_val="${arg#-delete=}"
         for component in ${components_val//,/ }; do
           if [[ "${component}" == ALL ]]; then
-            components=("${PROW_COMPONENTS[@]}")
+            if [[ "${_PROFILE}" == "core" ]]; then
+              components=("${PROW_COMPONENTS_CORE[@]}")
+            else
+              components=("${PROW_COMPONENTS[@]}")
+            fi
             break
           else
             components+=("${component}")
           fi
         done
+        ;;
+      -profile=*)
+        # Already handled above.
         ;;
       -fakepubsub-node-port=*)
         fakepubsub_node_port="${arg#-fakepubsub-node-port=}"
@@ -293,9 +330,15 @@ function deploy_components() {
   local item
   local fakepubsub_node_port
   fakepubsub_node_port="${1:-30303}"
-  for item in "${PROW_DEPLOYMENT_ORDER[@]}"; do
-    deploy_item "${item}" "${fakepubsub_node_port}"
-  done
+  if [[ "${_PROFILE}" == "core" ]]; then
+    for item in "${PROW_DEPLOYMENT_ORDER_CORE[@]}"; do
+      deploy_item "${item}" "${fakepubsub_node_port}"
+    done
+  else
+    for item in "${PROW_DEPLOYMENT_ORDER[@]}"; do
+      deploy_item "${item}" "${fakepubsub_node_port}"
+    done
+  fi
 }
 
 function deploy_item() {

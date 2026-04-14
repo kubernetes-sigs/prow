@@ -38,6 +38,13 @@ tests, and for e2e test use [`runlocal`](https://github.com/kubernetes-sigs/prow
 ### How to test a plugin
 
 If you are making changes to a Prow plugin you can test the new behavior by sending fake webhooks to [`hook`](/docs/components/core/hook/) with [`phony`](/docs/components/cli-tools/phony/).
+The easiest way to get a running `hook` instance is with the [Local Development Environment](/docs/local-dev/),
+which provides a kind cluster with all external services replaced by in-cluster fakes.
+Use `hack/phony.sh` to send payloads without manually retrieving the HMAC token:
+
+```bash
+hack/phony.sh --event=issue_comment --payload=<path-to-payload.json>
+```
 
 ## How to update the cluster
 
