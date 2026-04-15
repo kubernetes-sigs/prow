@@ -33,6 +33,7 @@ import (
 type ByteReadCloser struct {
 	io.Reader
 	incompleteRead bool
+	returnEOF      bool
 }
 
 func (rc *ByteReadCloser) Close() error {
@@ -46,18 +47,22 @@ func (rc *ByteReadCloser) Read(p []byte) (int, error) {
 	}
 	read, err := rc.Reader.Read(p)
 	if err != nil {
-		return 0, err
+		return read, err
 	}
 	if bytes.Equal(p[:read], []byte("deeper unreadable contents")) {
 		return 0, fmt.Errorf("it's just turtes all the way down")
 	}
-	return read, nil
+	if rc.returnEOF && read > 0 && rc.Reader.(*bytes.Reader).Len() == 0 {
+		return read, io.EOF
+	}
+	return read, err
 }
 
 type fakeArtifactHandle struct {
 	oAttrs         pkgio.Attributes
 	contents       []byte
 	incompleteRead bool
+	returnEOF      bool
 }
 
 func (h *fakeArtifactHandle) Attrs(ctx context.Context) (pkgio.Attributes, error) {
@@ -98,7 +103,11 @@ func (h *fakeArtifactHandle) NewRangeReader(ctx context.Context, offset, length 
 			err = io.EOF
 		}
 	}
-	return &ByteReadCloser{bytes.NewReader(h.contents[offset : offset+toRead]), h.incompleteRead}, err
+	return &ByteReadCloser{
+		Reader: bytes.NewReader(h.contents[offset : offset+toRead]),
+		incompleteRead: h.incompleteRead,
+		returnEOF: h.returnEOF,
+	}, err
 }
 
 func (h *fakeArtifactHandle) NewReader(ctx context.Context) (io.ReadCloser, error) {
@@ -117,7 +126,11 @@ func (h *fakeArtifactHandle) NewReader(ctx context.Context) (io.ReadCloser, erro
 	if bytes.Equal(h.contents, []byte("unreadable contents")) {
 		return nil, fmt.Errorf("cannot read unreadable contents")
 	}
-	return &ByteReadCloser{bytes.NewReader(h.contents), false}, nil
+	return &ByteReadCloser{
+		Reader: bytes.NewReader(h.contents),
+		incompleteRead: false,
+		returnEOF: false,
+	}, nil
 }
 
 // Tests reading the tail n bytes of data from an artifact
@@ -294,6 +307,7 @@ func TestReadAt(t *testing.T) {
 		expected       []byte
 		expectErr      bool
 		incompleteRead bool
+		returnEOF      bool
 	}{
 		{
 			name:      "ReadAt example build log",
@@ -302,6 +316,15 @@ func TestReadAt(t *testing.T) {
 			contents:  []byte("Oh wow\nlogs\nthis is\ncrazy"),
 			expected:  []byte("\nlog"),
 			expectErr: false,
+		},
+		{
+			name:      "ReadAt S3-style EOF (EOF when range finished but not at end of file)",
+			n:         4,
+			offset:    6,
+			contents:  []byte("Oh wow\nlogs\nthis is\ncrazy"),
+			expected:  []byte("\nlog"),
+			expectErr: false,
+			returnEOF: true,
 		},
 		{
 			name:      "ReadAt offset past file size",
@@ -348,6 +371,7 @@ func TestReadAt(t *testing.T) {
 				ContentEncoding: tc.encoding,
 			},
 			incompleteRead: tc.incompleteRead,
+			returnEOF:      tc.returnEOF,
 		}, "", "build-log.txt", 500e6)
 		p := make([]byte, tc.n)
 		bytesRead, err := artifact.ReadAt(p, tc.offset)
