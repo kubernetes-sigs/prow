@@ -100,7 +100,6 @@ Prow is used by the following organizations and projects:
 * [Istio](https://prow.istio.io/)
 * [Knative](https://prow.knative.dev/)
 * [Jetstack](https://prow.build-infra.jetstack.net/)
-* [Kyma](https://status.build.kyma-project.io/)
 * [Metal³](https://prow.apps.test.metal3.io/)
 * [Caicloud](https://github.com/caicloud)
 * [Kubeflow](https://github.com/kubeflow)
