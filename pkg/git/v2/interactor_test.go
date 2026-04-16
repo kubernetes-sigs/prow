@@ -907,6 +907,111 @@ func TestInteractor_MergeWithStrategy(t *testing.T) {
 			expectedMerge: false,
 			expectedErr:   true,
 		},
+		{
+			name:       "rebase succeeds",
+			commitlike: "prHead",
+			strategy:   "rebase",
+			responses: map[string]execResponse{
+				"rev-parse HEAD": {
+					out: []byte("baseSHA\n"),
+				},
+				"rebase --no-stat baseSHA prHead": {
+					out: []byte(`ok`),
+				},
+			},
+			expectedCalls: [][]string{
+				{"rev-parse", "HEAD"},
+				{"rebase", "--no-stat", "baseSHA", "prHead"},
+			},
+			expectedMerge: true,
+			expectedErr:   false,
+		},
+		{
+			name:       "rebase fails, abort succeeds, HEAD is restored to pre-rebase state",
+			commitlike: "prHead",
+			strategy:   "rebase",
+			responses: map[string]execResponse{
+				"rev-parse HEAD": {
+					out: []byte("baseSHA\n"),
+				},
+				"rebase --no-stat baseSHA prHead": {
+					err: errors.New("conflict"),
+				},
+				"rebase --abort": {
+					out: []byte(`ok`),
+				},
+				"checkout baseSHA": {
+					out: []byte(`ok`),
+				},
+			},
+			expectedCalls: [][]string{
+				{"rev-parse", "HEAD"},
+				{"rebase", "--no-stat", "baseSHA", "prHead"},
+				{"rebase", "--abort"},
+				{"checkout", "baseSHA"},
+			},
+			expectedMerge: false,
+			expectedErr:   false,
+		},
+		{
+			name:       "rebase fails, abort fails",
+			commitlike: "prHead",
+			strategy:   "rebase",
+			responses: map[string]execResponse{
+				"rev-parse HEAD": {
+					out: []byte("baseSHA\n"),
+				},
+				"rebase --no-stat baseSHA prHead": {
+					err: errors.New("conflict"),
+				},
+				"rebase --abort": {
+					err: errors.New("oops"),
+				},
+			},
+			expectedCalls: [][]string{
+				{"rev-parse", "HEAD"},
+				{"rebase", "--no-stat", "baseSHA", "prHead"},
+				{"rebase", "--abort"},
+			},
+			expectedMerge: false,
+			expectedErr:   true,
+		},
+		{
+			name:       "rebase fails, abort succeeds, HEAD restore fails",
+			commitlike: "prHead",
+			strategy:   "rebase",
+			responses: map[string]execResponse{
+				"rev-parse HEAD": {
+					out: []byte("baseSHA\n"),
+				},
+				"rebase --no-stat baseSHA prHead": {
+					err: errors.New("conflict"),
+				},
+				"rebase --abort": {
+					out: []byte(`ok`),
+				},
+				"checkout baseSHA": {
+					err: errors.New("oops"),
+				},
+			},
+			expectedCalls: [][]string{
+				{"rev-parse", "HEAD"},
+				{"rebase", "--no-stat", "baseSHA", "prHead"},
+				{"rebase", "--abort"},
+				{"checkout", "baseSHA"},
+			},
+			expectedMerge: false,
+			expectedErr:   true,
+		},
+		{
+			name:          "rebase with empty commitlike",
+			commitlike:    "",
+			strategy:      "rebase",
+			responses:     map[string]execResponse{},
+			expectedCalls: [][]string{},
+			expectedMerge: false,
+			expectedErr:   true,
+		},
 	}
 
 	for _, testCase := range testCases {

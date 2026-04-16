@@ -383,6 +383,12 @@ func (i *interactor) mergeRebase(commitlike string) (bool, error) {
 		if b, err := i.executor.Run("rebase", "--abort"); err != nil {
 			return false, fmt.Errorf("error aborting after failed rebase for commitlike %s: %v. output: %s", commitlike, err, string(b))
 		}
+		// git rebase <upstream> <branch> checks out <branch> before rebasing,
+		// and --abort restores HEAD to <branch>, not to the pre-rebase HEAD.
+		// Restore HEAD to where the caller left it.
+		if err := i.Checkout(headRev); err != nil {
+			return false, fmt.Errorf("error restoring HEAD after aborted rebase for commitlike %s: %w", commitlike, err)
+		}
 		return false, nil
 	}
 	return true, nil
