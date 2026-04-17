@@ -33,7 +33,7 @@ func SendHook(address, eventType string, payload, hmac []byte) error {
 	}
 	req.Header.Set("X-GitHub-Event", eventType)
 	req.Header.Set("X-GitHub-Delivery", "GUID")
-	req.Header.Set("X-Hub-Signature", github.PayloadSignature(payload, hmac))
+	req.Header.Set("X-Hub-Signature-256", github.PayloadSignature(payload, hmac))
 	req.Header.Set("content-type", "application/json")
 
 	c := &http.Client{}

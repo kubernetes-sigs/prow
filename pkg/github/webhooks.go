@@ -46,9 +46,9 @@ func ValidateWebhook(w http.ResponseWriter, r *http.Request, tokenGenerator func
 		responseHTTPError(w, http.StatusBadRequest, "400 Bad Request: Missing X-GitHub-Delivery Header")
 		return "", "", nil, false, http.StatusBadRequest
 	}
-	sig := r.Header.Get("X-Hub-Signature")
+	sig := r.Header.Get("X-Hub-Signature-256")
 	if sig == "" {
-		responseHTTPError(w, http.StatusForbidden, "403 Forbidden: Missing X-Hub-Signature")
+		responseHTTPError(w, http.StatusForbidden, "403 Forbidden: Missing X-Hub-Signature-256")
 		return "", "", nil, false, http.StatusForbidden
 	}
 	contentType := r.Header.Get("content-type")
@@ -63,7 +63,7 @@ func ValidateWebhook(w http.ResponseWriter, r *http.Request, tokenGenerator func
 	}
 	// Validate the payload with our HMAC secret.
 	if !ValidatePayload(payload, sig, tokenGenerator) {
-		responseHTTPError(w, http.StatusForbidden, "403 Forbidden: Invalid X-Hub-Signature")
+		responseHTTPError(w, http.StatusForbidden, "403 Forbidden: Invalid X-Hub-Signature-256")
 		return "", "", nil, false, http.StatusForbidden
 	}
 

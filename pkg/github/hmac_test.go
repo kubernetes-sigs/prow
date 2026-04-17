@@ -42,7 +42,7 @@ var defaultTokenGenerator = func() []byte {
 	return []byte(tokens)
 }
 
-// echo -n 'BODY' | openssl dgst -sha1 -hmac KEY
+// echo -n 'BODY' | openssl dgst -sha256 -hmac KEY
 func TestValidatePayload(t *testing.T) {
 	var testcases = []struct {
 		name           string
@@ -54,14 +54,14 @@ func TestValidatePayload(t *testing.T) {
 		{
 			"empty payload with a correct signature can pass the check",
 			"{}",
-			"sha1=db5c76f4264d0ad96cf21baec394964b4b8ce580",
+			"sha256=19092633e5aa9a849dfcc9d2df4e76db2df1fcba7f38915f2c7833bd8a510f2f",
 			defaultTokenGenerator,
 			true,
 		},
 		{
 			"empty payload with a wrong formatted signature cannot pass the check",
 			"{}",
-			"db5c76f4264d0ad96cf21baec394964b4b8ce580",
+			"19092633e5aa9a849dfcc9d2df4e76db2df1fcba7f38915f2c7833bd8a510f2f",
 			defaultTokenGenerator,
 			false,
 		},
@@ -75,21 +75,21 @@ func TestValidatePayload(t *testing.T) {
 		{
 			"org-level webhook event with a correct signature can pass the check",
 			`{"organization": {"login": "org1"}}`,
-			"sha1=cf2d7e20aa4863abe204a61a8adf53ddaef0b33b",
+			"sha256=87e9dcd175b5188a43e6ba0511da057b51f38f5a88088b198f26db13f1409280",
 			defaultTokenGenerator,
 			true,
 		},
 		{
 			"repo-level webhook event with a correct signature can pass the check",
 			`{"repository": {"full_name": "org2/repo"}}`,
-			"sha1=0b5ea8bf5683e4bf89cf900271e1c8a021b4b0b3",
+			"sha256=489ff461f227239a8b2ae0ec5b452dc134712ef2e23a9939ecf7a889b467351b",
 			defaultTokenGenerator,
 			true,
 		},
 		{
 			"payload with both repository and organization is considered as a repo-level webhook event",
 			`{"repository": {"full_name": "org2/repo"}, "organization": {"login": "org2"}}`,
-			"sha1=db5ba00c9ed0153322d33decb7ad579401e917f6",
+			"sha256=1ec548cd58f7846a1af4736d08d29604de0b85edd19e3b8569c5eda544c200fc",
 			defaultTokenGenerator,
 			true,
 		},
@@ -99,5 +99,18 @@ func TestValidatePayload(t *testing.T) {
 		if res != tc.valid {
 			t.Errorf("Wrong validation for the test %q: expected %t but got %t", tc.name, tc.valid, res)
 		}
+	}
+}
+
+func TestPayloadSignatureGitHubVector(t *testing.T) {
+	// GitHub's official test vector from
+	// https://docs.github.com/en/webhooks/using-webhooks/validating-webhook-deliveries
+	secret := []byte("It's a Secret to Everybody")
+	payload := []byte("Hello, World!")
+	expected := "sha256=757107ea0eb2509fc211221cce984b8a37570b6d7586c22c46f4379c8b043e17"
+
+	got := PayloadSignature(payload, secret)
+	if got != expected {
+		t.Errorf("PayloadSignature mismatch: got %s, want %s", got, expected)
 	}
 }
