@@ -914,7 +914,7 @@ func (c *client) requestWithContext(ctx context.Context, r *request, ret interfa
 	if err != nil {
 		return statusCode, err
 	}
-	if ret != nil && len(b) > 0 {
+	if ret != nil {
 		if err := json.Unmarshal(b, ret); err != nil {
 			return statusCode, err
 		}
@@ -4349,6 +4349,10 @@ func (c *client) CreateFork(owner, repo string) (string, error) {
 func (c *client) CreateForkInOrg(owner, repo, targetOrg string, defaultBranchOnly bool, name string) (string, error) {
 	durationLogger := c.log("CreateForkInOrg", owner, repo, targetOrg, defaultBranchOnly, name)
 	defer durationLogger()
+
+	if c.dry {
+		return "", nil
+	}
 
 	reqBody := struct {
 		Organization      string `json:"organization"`

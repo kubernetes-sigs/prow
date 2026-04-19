@@ -922,7 +922,10 @@ func configureOrg(opt options, client github.Client, orgName string, orgConfig o
 		var err error
 		forkNames, err = configureForks(client, orgName, orgConfig)
 		if err != nil {
-			return fmt.Errorf("failed to configure %s forks: %w", orgName, err)
+			logrus.WithError(err).Error("errors configuring some forks, continuing with partial results")
+		}
+		if forkNames == nil {
+			forkNames = make(map[string]string)
 		}
 	}
 
@@ -1259,6 +1262,21 @@ func configureForks(client forkClient, orgName string, orgConfig org.Config) (ma
 		byName[strings.ToLower(repo.Name)] = repo
 	}
 
+	// Validate: no two config entries may fork from the same upstream.
+	// GitHub only allows one fork of a given repo per org, so duplicates
+	// would silently collapse into the same repo with non-deterministic metadata.
+	upstreamToConfig := make(map[string]string)
+	for repoName, repoCfg := range orgConfig.Repos {
+		if repoCfg.ForkFrom == nil || *repoCfg.ForkFrom == "" {
+			continue
+		}
+		upstream := strings.ToLower(*repoCfg.ForkFrom)
+		if existing, ok := upstreamToConfig[upstream]; ok {
+			return nil, fmt.Errorf("multiple config entries (%s, %s) fork from the same upstream %s — only one fork per upstream is allowed per org", existing, repoName, *repoCfg.ForkFrom)
+		}
+		upstreamToConfig[upstream] = repoName
+	}
+
 	var allErrors []error
 
 	for repoName, repoCfg := range orgConfig.Repos {
@@ -1370,8 +1388,6 @@ func configureForks(client forkClient, orgName string, orgConfig org.Config) (ma
 		}
 
 		repoLogger.Info("creating fork from upstream")
-		// Pass the config key as the desired fork name - GitHub will use this exact name
-		// (or return an error if a repo with that name already exists)
 		createdName, err := client.CreateForkInOrg(parts[0], parts[1], orgName, defaultBranchOnly, repoName)
 		if err != nil {
 			repoLogger.WithError(err).Error("failed to create fork")
@@ -1389,14 +1405,14 @@ func configureForks(client forkClient, orgName string, orgConfig org.Config) (ma
 
 		// Wait for the fork to become available (GitHub creates forks asynchronously)
 		repoLogger.Info("waiting for fork to become available")
-		if err := waitForFork(client, orgName, repoName, 5*time.Minute, 10*time.Second); err != nil {
+		if err := waitForFork(client, orgName, createdName, 5*time.Minute, 10*time.Second); err != nil {
 			repoLogger.WithError(err).Error("fork creation timed out")
 			allErrors = append(allErrors, err)
 			continue
 		}
 
 		// Record the mapping for configureRepos and configureCollaborators
-		forkNames[repoName] = repoName
+		forkNames[repoName] = createdName
 		repoLogger.Info("fork created successfully")
 	}
 

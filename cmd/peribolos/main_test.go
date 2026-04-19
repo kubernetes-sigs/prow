@@ -22,7 +22,10 @@ import (
 	"fmt"
 	"reflect"
 	"sort"
+	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -4090,6 +4093,109 @@ func TestConfigureCollaborators_PermissionMatrix_PendingInvitationUpdates(t *tes
 	}
 }
 
+// fakeWaitClient implements forkClient for testing waitForFork
+type fakeWaitClient struct {
+	callCount    atomic.Int32
+	availableAt  int32 // GetRepo succeeds on this call number (1-based)
+	getRepoErr   error // non-404 error to return
+	getReposErr  error
+	availableRepo github.FullRepo
+}
+
+func (f *fakeWaitClient) GetRepo(owner, name string) (github.FullRepo, error) {
+	n := f.callCount.Add(1)
+	if f.getRepoErr != nil {
+		return github.FullRepo{}, f.getRepoErr
+	}
+	if n >= f.availableAt {
+		return f.availableRepo, nil
+	}
+	return github.FullRepo{}, github.NewNotFound()
+}
+
+func (f *fakeWaitClient) GetRepos(org string, isUser bool) ([]github.Repo, error) {
+	return nil, f.getReposErr
+}
+
+func (f *fakeWaitClient) CreateForkInOrg(owner, repo, targetOrg string, defaultBranchOnly bool, name string) (string, error) {
+	return "", nil
+}
+
+func TestWaitForFork(t *testing.T) {
+	testCases := []struct {
+		description string
+		availableAt int32
+		getRepoErr  error
+		timeout     time.Duration
+		interval    time.Duration
+		expectError bool
+		errContains string
+	}{
+		{
+			description: "succeeds immediately when fork is available",
+			availableAt: 1,
+			timeout:     5 * time.Second,
+			interval:    10 * time.Millisecond,
+			expectError: false,
+		},
+		{
+			description: "succeeds after polling",
+			availableAt: 3,
+			timeout:     5 * time.Second,
+			interval:    10 * time.Millisecond,
+			expectError: false,
+		},
+		{
+			description: "times out when fork never appears",
+			availableAt: 9999,
+			timeout:     50 * time.Millisecond,
+			interval:    10 * time.Millisecond,
+			expectError: true,
+			errContains: "timeout waiting for fork",
+		},
+		{
+			description: "fails fast on non-404 error",
+			availableAt: 9999,
+			getRepoErr:  errors.New("403 forbidden"),
+			timeout:     5 * time.Second,
+			interval:    10 * time.Millisecond,
+			expectError: true,
+			errContains: "unexpected error waiting for fork",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.description, func(t *testing.T) {
+			client := &fakeWaitClient{
+				availableAt:   tc.availableAt,
+				getRepoErr:    tc.getRepoErr,
+				availableRepo: github.FullRepo{Repo: github.Repo{Name: "test-repo"}},
+			}
+
+			err := waitForFork(client, "test-org", "test-repo", tc.timeout, tc.interval)
+
+			if tc.expectError {
+				if err == nil {
+					t.Fatal("expected error but got none")
+				}
+				if tc.errContains != "" && !strings.Contains(err.Error(), tc.errContains) {
+					t.Errorf("error %q should contain %q", err.Error(), tc.errContains)
+				}
+			} else {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+			}
+
+			if tc.getRepoErr != nil {
+				if client.callCount.Load() != 1 {
+					t.Errorf("expected exactly 1 GetRepo call on non-404 error, got %d", client.callCount.Load())
+				}
+			}
+		})
+	}
+}
+
 // forkCreation tracks details of a fork creation call
 type forkCreation struct {
 	upstream          string // "owner/repo"
@@ -4105,6 +4211,7 @@ type fakeForkClient struct {
 	createForkErr error
 	getRepoErr    error
 	getReposErr   error
+	renameForkTo  string // if set, simulate GitHub renaming the fork to this name
 }
 
 func (f *fakeForkClient) GetRepo(owner, name string) (github.FullRepo, error) {
@@ -4137,10 +4244,12 @@ func (f *fakeForkClient) CreateForkInOrg(owner, repo, targetOrg string, defaultB
 		defaultBranchOnly: defaultBranchOnly,
 		name:              name,
 	})
-	// Use the requested name if provided, otherwise fall back to repo name
 	createdName := name
 	if createdName == "" {
 		createdName = repo
+	}
+	if f.renameForkTo != "" {
+		createdName = f.renameForkTo
 	}
 	// Simulate fork becoming available for waitForFork
 	if f.fullRepos == nil {
@@ -4170,9 +4279,11 @@ func TestConfigureForks(t *testing.T) {
 		createForkErr error
 		getReposErr   error
 		getRepoErr    error
+		renameForkTo  string // simulate GitHub renaming the fork
 
-		expectError   bool
-		expectedForks []forkCreation
+		expectError       bool
+		expectedForks     []forkCreation
+		expectedForkNames map[string]string // config name -> actual GitHub name
 	}{
 		{
 			description: "no forks configured - does nothing",
@@ -4191,8 +4302,9 @@ func TestConfigureForks(t *testing.T) {
 					forkName: {ForkFrom: ptr.To(upstream)},
 				},
 			},
-			existingRepos: map[string]github.Repo{},
-			expectedForks: []forkCreation{{upstream: upstream, defaultBranchOnly: false, name: forkName}},
+			existingRepos:     map[string]github.Repo{},
+			expectedForks:     []forkCreation{{upstream: upstream, defaultBranchOnly: false, name: forkName}},
+			expectedForkNames: map[string]string{forkName: forkName},
 		},
 		{
 			description: "skips fork when repo already exists as correct fork",
@@ -4209,7 +4321,8 @@ func TestConfigureForks(t *testing.T) {
 					Repo: github.Repo{Name: forkName, Fork: true, Parent: github.ParentRepo{FullName: upstream}},
 				},
 			},
-			expectedForks: nil,
+			expectedForks:     nil,
+			expectedForkNames: map[string]string{forkName: forkName},
 		},
 		{
 			description: "errors when repo exists but is not a fork",
@@ -4345,8 +4458,21 @@ func TestConfigureForks(t *testing.T) {
 					forkName: {ForkFrom: ptr.To(upstream), DefaultBranchOnly: ptr.To(true)},
 				},
 			},
-			existingRepos: map[string]github.Repo{},
-			expectedForks: []forkCreation{{upstream: upstream, defaultBranchOnly: true, name: forkName}},
+			existingRepos:     map[string]github.Repo{},
+			expectedForks:     []forkCreation{{upstream: upstream, defaultBranchOnly: true, name: forkName}},
+			expectedForkNames: map[string]string{forkName: forkName},
+		},
+		{
+			description: "records actual GitHub name when fork is renamed",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					"my-fork": {ForkFrom: ptr.To(upstream)},
+				},
+			},
+			existingRepos:     map[string]github.Repo{},
+			renameForkTo:      "my-fork-1",
+			expectedForks:     []forkCreation{{upstream: upstream, defaultBranchOnly: false, name: "my-fork"}},
+			expectedForkNames: map[string]string{"my-fork": "my-fork-1"},
 		},
 		{
 			description: "mixed success and failure - one fork succeeds, one fails",
@@ -4359,6 +4485,28 @@ func TestConfigureForks(t *testing.T) {
 			existingRepos: map[string]github.Repo{},
 			expectError:   true,                                                                                          // Should error due to invalid fork
 			expectedForks: []forkCreation{{upstream: "good-org/good-repo", defaultBranchOnly: false, name: "good-fork"}}, // But good fork should still be created
+		},
+		{
+			description: "errors when multiple config entries fork from the same upstream",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					"fork-a": {ForkFrom: ptr.To("org/repo")},
+					"fork-b": {ForkFrom: ptr.To("org/repo")},
+				},
+			},
+			existingRepos: map[string]github.Repo{},
+			expectError:   true,
+		},
+		{
+			description: "case-insensitive duplicate upstream detection",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					"fork-a": {ForkFrom: ptr.To("Org/Repo")},
+					"fork-b": {ForkFrom: ptr.To("org/repo")},
+				},
+			},
+			existingRepos: map[string]github.Repo{},
+			expectError:   true,
 		},
 		{
 			description:   "nil Repos map does nothing",
@@ -4389,8 +4537,9 @@ func TestConfigureForks(t *testing.T) {
 					Repo: github.Repo{Name: "upstream-repo", Fork: true, Parent: github.ParentRepo{FullName: upstream}},
 				},
 			},
-			expectedForks: nil,   // Should NOT try to create - fork of upstream already exists
-			expectError:   false, // No error - just logs that fork exists with different name
+			expectedForks:     nil,                                                  // Should NOT try to create - fork of upstream already exists
+			expectedForkNames: map[string]string{"my-custom-name": "upstream-repo"}, // Maps config name to actual GitHub name
+			expectError:       false,
 		},
 		{
 			description: "idempotency: fork exists with same name and correct upstream (standard case)",
@@ -4477,6 +4626,7 @@ func TestConfigureForks(t *testing.T) {
 				createForkErr: tc.createForkErr,
 				getReposErr:   tc.getReposErr,
 				getRepoErr:    tc.getRepoErr,
+				renameForkTo:  tc.renameForkTo,
 			}
 
 			forkNames, err := configureForks(client, "test-org", tc.orgConfig)
@@ -4489,9 +4639,22 @@ func TestConfigureForks(t *testing.T) {
 				if err != nil {
 					t.Errorf("unexpected error: %v", err)
 				}
-				// Verify forkNames is not nil on success
 				if forkNames == nil {
 					t.Error("forkNames should not be nil on success")
+				}
+			}
+
+			if tc.expectedForkNames != nil {
+				for configName, wantActual := range tc.expectedForkNames {
+					gotActual, ok := forkNames[configName]
+					if !ok {
+						t.Errorf("expected forkNames to contain %q, but it was missing", configName)
+					} else if gotActual != wantActual {
+						t.Errorf("forkNames[%q] = %q, want %q", configName, gotActual, wantActual)
+					}
+				}
+				if len(forkNames) != len(tc.expectedForkNames) {
+					t.Errorf("forkNames has %d entries, want %d: got %v", len(forkNames), len(tc.expectedForkNames), forkNames)
 				}
 			}
 
