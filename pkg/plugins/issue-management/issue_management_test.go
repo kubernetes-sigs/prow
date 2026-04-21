@@ -29,13 +29,13 @@ func TestHandleIssues(t *testing.T) {
 	log := logrus.WithField("test", "handleIssues")
 
 	tests := []struct {
-		name          string
-		commentBody   string
-		fc            func(*fakegithub.FakeClient)
-		froc          func() *fakeRepoownersClient
-		event         github.GenericCommentEvent
-		expectError   bool
-		errorContains string
+		name            string
+		commentBody     string
+		fc              func(*fakegithub.FakeClient)
+		froc            func() *fakeRepoownersClient
+		event           github.GenericCommentEvent
+		expectComment   bool
+		commentContains string
 	}{
 		{
 			name:        "Routes to link-issue handler when /link-issue command is present",
@@ -63,7 +63,6 @@ func TestHandleIssues(t *testing.T) {
 				Repo:   github.Repo{Owner: github.User{Login: "org"}, Name: "repo"},
 				User:   github.User{Login: "user"},
 			},
-			expectError: false,
 		},
 		{
 			name:        "Routes to unlink-issue handler when /unlink-issue command is present",
@@ -91,7 +90,6 @@ func TestHandleIssues(t *testing.T) {
 				Repo:   github.Repo{Owner: github.User{Login: "org"}, Name: "repo"},
 				User:   github.User{Login: "user"},
 			},
-			expectError: false,
 		},
 		{
 			name:        "Routes to pin-issue handler when /pin-issue command is present",
@@ -113,7 +111,6 @@ func TestHandleIssues(t *testing.T) {
 				Repo:   github.Repo{Owner: github.User{Login: "org"}, Name: "repo"},
 				User:   github.User{Login: "user"},
 			},
-			expectError: false,
 		},
 		{
 			name:        "Routes to unpin-issue handler when /unpin-issue command is present",
@@ -135,7 +132,6 @@ func TestHandleIssues(t *testing.T) {
 				Repo:   github.Repo{Owner: github.User{Login: "org"}, Name: "repo"},
 				User:   github.User{Login: "user"},
 			},
-			expectError: false,
 		},
 		{
 			name:        "Returns nil when no matching command is found",
@@ -154,7 +150,6 @@ func TestHandleIssues(t *testing.T) {
 				Repo:   github.Repo{Owner: github.User{Login: "org"}, Name: "repo"},
 				User:   github.User{Login: "user"},
 			},
-			expectError: false,
 		},
 		{
 			name:        "Handles case insensitive commands",
@@ -176,7 +171,90 @@ func TestHandleIssues(t *testing.T) {
 				Repo:   github.Repo{Owner: github.User{Login: "org"}, Name: "repo"},
 				User:   github.User{Login: "user"},
 			},
-			expectError: false,
+		},
+		{
+			name:        "Routes to transfer-issue handler when /transfer-issue command is present",
+			commentBody: "/transfer-issue test-repo",
+			fc: func(fc *fakegithub.FakeClient) {
+				fc.IssueComments = map[int][]github.IssueComment{}
+				fc.OrgMembers = map[string][]string{
+					"org": {"user"},
+				}
+			},
+			froc: func() *fakeRepoownersClient {
+				return newFakeRepoownersClient([]string{"approver1"})
+			},
+			event: github.GenericCommentEvent{
+				IsPR:   false,
+				Action: github.GenericCommentActionCreated,
+				Body:   "/transfer-issue test-repo",
+				Number: 1,
+				Repo:   github.Repo{Owner: github.User{Login: "org"}, Name: "repo"},
+				User:   github.User{Login: "user"},
+				NodeID: "issueNodeID",
+			},
+		},
+		{
+			name:        "Routes to transfer handler when /transfer command is present",
+			commentBody: "/transfer another-repo",
+			fc: func(fc *fakegithub.FakeClient) {
+				fc.IssueComments = map[int][]github.IssueComment{}
+				fc.OrgMembers = map[string][]string{
+					"org": {"user"},
+				}
+			},
+			froc: func() *fakeRepoownersClient {
+				return newFakeRepoownersClient([]string{"approver1"})
+			},
+			event: github.GenericCommentEvent{
+				IsPR:   false,
+				Action: github.GenericCommentActionCreated,
+				Body:   "/transfer another-repo",
+				Number: 1,
+				Repo:   github.Repo{Owner: github.User{Login: "org"}, Name: "repo"},
+				User:   github.User{Login: "user"},
+				NodeID: "issueNodeID",
+			},
+		},
+		{
+			name:        "Returns with comment when transfer command has multiple destinations",
+			commentBody: "/transfer-issue repo1\n/transfer repo2",
+			fc: func(fc *fakegithub.FakeClient) {
+				fc.IssueComments = map[int][]github.IssueComment{}
+			},
+			froc: func() *fakeRepoownersClient {
+				return newFakeRepoownersClient([]string{"approver1"})
+			},
+			event: github.GenericCommentEvent{
+				IsPR:   false,
+				Action: github.GenericCommentActionCreated,
+				Body:   "/transfer-issue repo1\n/transfer repo2",
+				Number: 1,
+				Repo:   github.Repo{Owner: github.User{Login: "org"}, Name: "repo"},
+				User:   github.User{Login: "user"},
+			},
+			expectComment:   true,
+			commentContains: "must only be used once",
+		},
+		{
+			name:        "Returns with comment when transfer command has no destination",
+			commentBody: "/transfer",
+			fc: func(fc *fakegithub.FakeClient) {
+				fc.IssueComments = map[int][]github.IssueComment{}
+			},
+			froc: func() *fakeRepoownersClient {
+				return newFakeRepoownersClient([]string{"approver1"})
+			},
+			event: github.GenericCommentEvent{
+				IsPR:   false,
+				Action: github.GenericCommentActionCreated,
+				Body:   "/transfer",
+				Number: 1,
+				Repo:   github.Repo{Owner: github.User{Login: "org"}, Name: "repo"},
+				User:   github.User{Login: "user"},
+			},
+			expectComment:   true,
+			commentContains: "single destination repo",
 		},
 	}
 
@@ -192,15 +270,16 @@ func TestHandleIssues(t *testing.T) {
 
 			err := handleIssues(gc, oc, log, tc.event)
 
-			if tc.expectError {
-				if err == nil {
-					t.Errorf("Expected error but got none")
-				} else if tc.errorContains != "" && !strings.Contains(err.Error(), tc.errorContains) {
-					t.Errorf("Expected error to contain %q but got: %v", tc.errorContains, err)
-				}
-			} else {
-				if err != nil {
-					t.Errorf("Expected no error but got: %v", err)
+			if err != nil {
+				t.Errorf("Expected no error but got: %v", err)
+			}
+
+			if tc.expectComment {
+				comments := fc.IssueCommentsAdded
+				if len(comments) == 0 {
+					t.Errorf("Expected comment but none were created")
+				} else if !strings.Contains(comments[0], tc.commentContains) {
+					t.Errorf("Expected comment to contain %q but got: %q", tc.commentContains, comments[0])
 				}
 			}
 		})
