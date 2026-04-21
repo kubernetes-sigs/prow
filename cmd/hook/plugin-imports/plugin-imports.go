@@ -63,7 +63,6 @@ import (
 	_ "sigs.k8s.io/prow/pkg/plugins/slackevents"
 	_ "sigs.k8s.io/prow/pkg/plugins/stage"
 	_ "sigs.k8s.io/prow/pkg/plugins/testfreeze"
-	_ "sigs.k8s.io/prow/pkg/plugins/transfer-issue"
 	_ "sigs.k8s.io/prow/pkg/plugins/trick-or-treat"
 	_ "sigs.k8s.io/prow/pkg/plugins/trigger"
 	_ "sigs.k8s.io/prow/pkg/plugins/updateconfig"

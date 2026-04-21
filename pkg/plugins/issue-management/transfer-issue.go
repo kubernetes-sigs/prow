@@ -16,80 +16,25 @@ limitations under the License.
 
 // Package transferissue implements the `/transfer-issue` command which allows members of the org
 // to transfer issues between repos
-package transferissue
+package issuemanagement
 
 import (
 	"context"
 	"fmt"
-	"regexp"
-	"strings"
 
 	githubql "github.com/shurcooL/githubv4"
 	"github.com/sirupsen/logrus"
 
-	"sigs.k8s.io/prow/pkg/config"
 	"sigs.k8s.io/prow/pkg/github"
-	"sigs.k8s.io/prow/pkg/pluginhelp"
 	"sigs.k8s.io/prow/pkg/plugins"
 )
 
-const pluginName = "transfer-issue"
-
-var (
-	transferRe = regexp.MustCompile(`(?mi)^/transfer(?:-issue)?(?: +(.*))?$`)
-)
-
-type githubClient interface {
-	GetRepo(org, name string) (github.FullRepo, error)
-	CreateComment(org, repo string, number int, comment string) error
-	IsMember(org, user string) (bool, error)
-	MutateWithGitHubAppsSupport(context.Context, any, githubql.Input, map[string]any, string) error
-}
-
-func init() {
-	plugins.RegisterGenericCommentHandler(pluginName, handleGenericComment, helpProvider)
-}
-
-func helpProvider(_ *plugins.Configuration, _ []config.OrgRepo) (*pluginhelp.PluginHelp, error) {
-	pluginHelp := &pluginhelp.PluginHelp{
-		Description: "The transfer-issue plugin transfers a GitHub issue from one repo to another in the same organization.",
-	}
-	pluginHelp.AddCommand(pluginhelp.Command{
-		Usage:       "/transfer[-issue] <destination repo in same org>",
-		Description: "Transfers an issue to a different repo in the same org.",
-		Featured:    true,
-		WhoCanUse:   "Org members.",
-		Examples:    []string{"/transfer-issue kubectl", "/transfer test-infra"},
-	})
-	return pluginHelp, nil
-}
-
-func handleGenericComment(pc plugins.Agent, e github.GenericCommentEvent) error {
-	return handleTransfer(pc.GitHubClient, pc.Logger, e)
-}
-
-func handleTransfer(gc githubClient, log *logrus.Entry, e github.GenericCommentEvent) error {
+func handleTransferIssue(gc githubClient, log *logrus.Entry, e github.GenericCommentEvent, dstRepoName string) error {
 	org := e.Repo.Owner.Login
 	srcRepoName := e.Repo.Name
 	srcRepoPair := org + "/" + srcRepoName
-	user := e.User.Login
-
-	if e.IsPR || e.Action != github.GenericCommentActionCreated {
-		return nil
-	}
-	matches := transferRe.FindAllStringSubmatch(e.Body, -1)
-	if len(matches) == 0 {
-		return nil
-	}
-	if len(matches) != 1 || len(matches[0]) != 2 || len(matches[0][1]) == 0 {
-		return gc.CreateComment(
-			org, srcRepoName, e.Number,
-			plugins.FormatResponseRaw(e.Body, e.HTMLURL, user, "/transfer-issue must only be used once and with a single destination repo."),
-		)
-	}
-
-	dstRepoName := strings.TrimSpace(matches[0][1])
 	dstRepoPair := org + "/" + dstRepoName
+	user := e.User.Login
 
 	dstRepo, err := gc.GetRepo(org, dstRepoName)
 	if err != nil {
@@ -97,7 +42,7 @@ func handleTransfer(gc githubClient, log *logrus.Entry, e github.GenericCommentE
 		// TODO: Might want to add another GetRepo type call that checks if a repo exists vs a bad request
 		return gc.CreateComment(
 			org, srcRepoName, e.Number,
-			plugins.FormatResponseRaw(e.Body, e.HTMLURL, user, fmt.Sprintf("Something went wrong or the destination repo %s does not exist.", dstRepoPair)),
+			plugins.FormatResponseRaw(e.Body, e.HTMLURL, user, fmt.Sprintf("Something went wrong or the destination repo **%s** does not exist.", dstRepoPair)),
 		)
 	}
 
