@@ -166,8 +166,11 @@ func (a *StorageArtifact) ReadAt(p []byte, off int64) (n int, err error) {
 		n, err = reader.Read(p[offset:])
 		offset += n
 		if err != nil {
-			if err == io.EOF && gotEOF {
-				break
+			if err == io.EOF {
+				if offset == len(p) {
+					break
+				}
+				err = io.ErrUnexpectedEOF
 			}
 			return 0, fmt.Errorf("error reading from artifact: %w", err)
 		}
