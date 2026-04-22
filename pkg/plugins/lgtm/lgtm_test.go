@@ -615,6 +615,7 @@ func TestLGTMFromApproveReview(t *testing.T) {
 		action        github.ReviewEventAction
 		body          string
 		reviewer      string
+		reviewerType  string
 		hasLGTM       bool
 		shouldToggle  bool
 		shouldComment bool
@@ -749,6 +750,28 @@ func TestLGTMFromApproveReview(t *testing.T) {
 			shouldComment: false,
 			shouldAssign:  false,
 		},
+		{
+			name:          "Approve review by GitHub App bot, no lgtm on pr",
+			state:         github.ReviewStateApproved,
+			action:        github.ReviewActionSubmitted,
+			reviewer:      "some-app[bot]",
+			reviewerType:  github.UserTypeBot,
+			hasLGTM:       false,
+			shouldToggle:  false,
+			shouldComment: false,
+			shouldAssign:  false,
+		},
+		{
+			name:          "Request changes review by GitHub App bot, lgtm on pr",
+			state:         github.ReviewStateChangesRequested,
+			action:        github.ReviewActionSubmitted,
+			reviewer:      "some-app[bot]",
+			reviewerType:  github.UserTypeBot,
+			hasLGTM:       true,
+			shouldToggle:  false,
+			shouldComment: false,
+			shouldAssign:  false,
+		},
 	}
 	SHA := "0bd3ed50c88cd53a09316bf7a298f900e9371652"
 	for _, tc := range testcases {
@@ -765,7 +788,7 @@ func TestLGTMFromApproveReview(t *testing.T) {
 		fc.Collaborators = []string{"collab1", "collab2"}
 		e := &github.ReviewEvent{
 			Action:      tc.action,
-			Review:      github.Review{Body: tc.body, State: tc.state, HTMLURL: "<url>", User: github.User{Login: tc.reviewer}},
+			Review:      github.Review{Body: tc.body, State: tc.state, HTMLURL: "<url>", User: github.User{Login: tc.reviewer, Type: tc.reviewerType}},
 			PullRequest: github.PullRequest{User: github.User{Login: "author"}, Assignees: []github.User{{Login: "collab1"}, {Login: "assignee1"}}, Number: 5},
 			Repo:        github.Repo{Owner: github.User{Login: "org"}, Name: "repo"},
 		}

@@ -224,6 +224,15 @@ func handlePullRequestReview(gc githubClient, config *plugins.Configuration, own
 		return nil
 	}
 
+	// Ignore review states from GitHub App bots — they cannot be collaborators.
+	botUserChecker, err := gc.BotUserChecker()
+	if err != nil {
+		return err
+	}
+	if botUserChecker(e.Review.User.Login) || e.Review.User.Type == github.UserTypeBot {
+		return nil
+	}
+
 	// If the review event body contains an '/lgtm' or '/lgtm cancel' comment,
 	// skip handling the review event
 	if LGTMRe.MatchString(rc.body) || LGTMCancelRe.MatchString(rc.body) {

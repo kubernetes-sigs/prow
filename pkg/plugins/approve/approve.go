@@ -237,20 +237,23 @@ func handleReview(log *logrus.Entry, ghc githubClient, oc ownersClient, githubCo
 	if err != nil {
 		return err
 	}
+	isBot := func(login string) bool {
+		return botUserChecker(login) || re.Review.User.Type == github.UserTypeBot
+	}
 
 	opts := config.ApproveFor(re.Repo.Owner.Login, re.Repo.Name)
 
 	// Check for an approval command is in the body. If one exists, let the
 	// genericCommentEventHandler handle this event. Approval commands override
 	// review state.
-	if isApprovalCommand(botUserChecker, opts.LgtmActsAsApprove, &comment{Body: re.Review.Body, Author: re.Review.User.Login}) {
+	if isApprovalCommand(isBot, opts.LgtmActsAsApprove, &comment{Body: re.Review.Body, Author: re.Review.User.Login}) {
 		log.Debug("Review constitutes approval, skipping event.")
 		return nil
 	}
 
 	// Check for an approval command via review state. If none exists, don't
 	// handle this event.
-	if !isApprovalState(botUserChecker, opts.ConsiderReviewState(), &comment{Author: re.Review.User.Login, ReviewState: re.Review.State}) {
+	if !isApprovalState(isBot, opts.ConsiderReviewState(), &comment{Author: re.Review.User.Login, ReviewState: re.Review.State}) {
 		log.Debug("Review does not constitute approval, skipping event.")
 		return nil
 	}
@@ -278,7 +281,6 @@ func handleReview(log *logrus.Entry, ghc githubClient, oc ownersClient, githubCo
 			htmlURL:   re.PullRequest.HTMLURL,
 		},
 	)
-
 }
 
 func handlePullRequestEvent(pc plugins.Agent, pre github.PullRequestEvent) error {
@@ -444,13 +446,24 @@ func handle(log *logrus.Entry, ghc githubClient, repo approvers.Repo, githubConf
 	log.WithField("duration", time.Since(start).String()).Debug("Completed configuring approversHandler in handle")
 
 	start = time.Now()
+
+	appBotLogins := map[string]bool{}
+	for _, r := range reviews {
+		if r.User.Type == github.UserTypeBot {
+			appBotLogins[r.User.Login] = true
+		}
+	}
+	isBot := func(login string) bool {
+		return botUserChecker(login) || appBotLogins[login]
+	}
+
 	commentsFromIssueComments := commentsFromIssueComments(issueComments)
 	comments := append(commentsFromReviewComments(reviewComments), commentsFromIssueComments...)
 	comments = append(comments, commentsFromReviews(reviews)...)
 	sort.SliceStable(comments, func(i, j int) bool {
 		return comments[i].CreatedAt.Before(comments[j].CreatedAt)
 	})
-	approveComments := filterComments(comments, approvalMatcher(botUserChecker, opts.LgtmActsAsApprove, opts.ConsiderReviewState()))
+	approveComments := filterComments(comments, approvalMatcher(isBot, opts.LgtmActsAsApprove, opts.ConsiderReviewState()))
 	addApprovers(&approversHandler, approveComments, pr.author, opts.ConsiderReviewState())
 	log.WithField("duration", time.Since(start).String()).Debug("Completed filtering approval comments in handle")
 
