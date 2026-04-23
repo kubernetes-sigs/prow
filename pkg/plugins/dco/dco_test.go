@@ -529,6 +529,31 @@ Instructions for interacting with me using PR comments are available [here](http
 `,
 		},
 		{
+			name: "should skip dco check for trusted app even without skip flags",
+			config: plugins.Dco{
+				TrustedApps: []string{"dependabot"},
+			},
+			pullRequestEvent: github.PullRequestEvent{
+				Action:      github.PullRequestActionOpened,
+				PullRequest: github.PullRequest{Number: 3, Head: github.PullRequestBranch{SHA: "sha"}},
+			},
+			commits: []github.RepositoryCommit{
+				{
+					SHA:    "sha",
+					Commit: github.GitCommit{Message: "not signed off"},
+					Author: github.User{
+						Login: "dependabot[bot]",
+					},
+				},
+			},
+			issueState: "open",
+			hasDCONo:   false,
+			hasDCOYes:  false,
+
+			addedLabel:     fmt.Sprintf("/#3:%s", dcoYesLabel),
+			expectedStatus: github.StatusSuccess,
+		},
+		{
 			name: "should use custom CONTRIBUTING.md repo, branch and path in comment",
 			config: plugins.Dco{
 				ContributingRepo:   "kubernetes/org",
