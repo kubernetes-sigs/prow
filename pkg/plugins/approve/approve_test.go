@@ -1729,6 +1729,38 @@ func TestHandleReview(t *testing.T) {
 			reviewActsAsApprove: false,
 			expectHandle:        false,
 		},
+		{
+			name: "GitHub App bot approved review is ignored",
+			reviewEvent: github.ReviewEvent{
+				Action: github.ReviewActionSubmitted,
+				Review: github.Review{
+					Body: "looks good",
+					User: github.User{
+						Login: "some-app[bot]",
+						Type:  github.UserTypeBot,
+					},
+					State: stateToLower(github.ReviewStateApproved),
+				},
+			},
+			reviewActsAsApprove: true,
+			expectHandle:        false,
+		},
+		{
+			name: "GitHub App bot changes requested review is ignored",
+			reviewEvent: github.ReviewEvent{
+				Action: github.ReviewActionSubmitted,
+				Review: github.Review{
+					Body: "needs changes",
+					User: github.User{
+						Login: "some-app[bot]",
+						Type:  github.UserTypeBot,
+					},
+					State: stateToLower(github.ReviewStateChangesRequested),
+				},
+			},
+			reviewActsAsApprove: true,
+			expectHandle:        false,
+		},
 	}
 
 	var handled bool
