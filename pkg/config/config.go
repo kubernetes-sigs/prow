@@ -2105,6 +2105,13 @@ func defaultPresubmits(presubmits []Presubmit, additionalPresets []Preset, c *Co
 		if err := resolvePresets(ps.Name, ps.Labels, ps.Spec, append(c.Presets, additionalPresets...)); err != nil {
 			errs = append(errs, err)
 		}
+		// Resolve Tekton presets if job uses PipelineRunSpec
+		if presubmits[idx].HasPipelineRunSpec() {
+			pipelineRunSpec, _ := presubmits[idx].GetPipelineRunSpec()
+			if err := ResolveTektonPresets(ps.Name, ps.Labels, pipelineRunSpec, append(c.Presets, additionalPresets...)); err != nil {
+				errs = append(errs, err)
+			}
+		}
 	}
 	if err := SetPresubmitRegexes(presubmits); err != nil {
 		errs = append(errs, fmt.Errorf("could not set regex: %w", err))
@@ -2123,6 +2130,13 @@ func defaultPostsubmits(postsubmits []Postsubmit, additionalPresets []Preset, c 
 		if err := resolvePresets(ps.Name, ps.Labels, ps.Spec, append(c.Presets, additionalPresets...)); err != nil {
 			errs = append(errs, err)
 		}
+		// Resolve Tekton presets if job uses PipelineRunSpec
+		if postsubmits[idx].HasPipelineRunSpec() {
+			pipelineRunSpec, _ := postsubmits[idx].GetPipelineRunSpec()
+			if err := ResolveTektonPresets(ps.Name, ps.Labels, pipelineRunSpec, append(c.Presets, additionalPresets...)); err != nil {
+				errs = append(errs, err)
+			}
+		}
 	}
 	if err := SetPostsubmitRegexes(postsubmits); err != nil {
 		errs = append(errs, fmt.Errorf("could not set regex: %w", err))
@@ -2135,7 +2149,17 @@ func (c *Config) DefaultPeriodic(periodic *Periodic) error {
 	c.defaultPeriodicFields(periodic)
 	setPeriodicDecorationDefaults(c, periodic)
 	setPeriodicProwJobDefaults(c, periodic)
-	return resolvePresets(periodic.Name, periodic.Labels, periodic.Spec, c.Presets)
+	if err := resolvePresets(periodic.Name, periodic.Labels, periodic.Spec, c.Presets); err != nil {
+		return err
+	}
+	// Resolve Tekton presets if job uses PipelineRunSpec
+	if periodic.HasPipelineRunSpec() {
+		pipelineRunSpec, _ := periodic.GetPipelineRunSpec()
+		if err := ResolveTektonPresets(periodic.Name, periodic.Labels, pipelineRunSpec, c.Presets); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // defaultPeriodics defaults c.Periodics.
@@ -2947,6 +2971,20 @@ func resolvePresets(name string, labels map[string]string, spec *v1.PodSpec, pre
 		if spec != nil {
 			if err := mergePreset(preset, labels, spec); err != nil {
 				return fmt.Errorf("job %s failed to merge presets for podspec: %w", name, err)
+			}
+		}
+	}
+
+	return nil
+}
+
+// ResolveTektonPresets resolves and applies Tekton presets to a PipelineRunSpec based on label matching.
+// This function is exported to allow testing of preset application logic.
+func ResolveTektonPresets(name string, labels map[string]string, pipelineRunSpec *pipelinev1.PipelineRunSpec, presets []Preset) error {
+	for _, preset := range presets {
+		if pipelineRunSpec != nil {
+			if err := mergeTektonPreset(preset, labels, pipelineRunSpec); err != nil {
+				return fmt.Errorf("job %s failed to merge presets for pipeline run spec: %w", name, err)
 			}
 		}
 	}

@@ -29,6 +29,7 @@ import (
 	pipelinev1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
 
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	prowapi "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 	"sigs.k8s.io/prow/pkg/github"
@@ -43,11 +44,20 @@ const (
 
 // Presets can be used to re-use settings across multiple jobs.
 type Preset struct {
-	Labels       map[string]string `json:"labels"`
-	Env          []v1.EnvVar       `json:"env"`
-	Volumes      []v1.Volume       `json:"volumes"`
-	VolumeMounts []v1.VolumeMount  `json:"volumeMounts"`
-	Tolerations  []v1.Toleration   `json:"tolerations,omitempty"`
+	Labels map[string]string `json:"labels"`
+
+	// Kubernetes PodSpec fields
+	Env          []v1.EnvVar      `json:"env"`
+	Volumes      []v1.Volume      `json:"volumes"`
+	VolumeMounts []v1.VolumeMount `json:"volumeMounts"`
+	Tolerations  []v1.Toleration  `json:"tolerations,omitempty"`
+
+	// Tekton PipelineRunSpec fields
+	TektonParams          []pipelinev1.Param                 `json:"tekton_params,omitempty"`
+	TektonWorkspaces      []pipelinev1.WorkspaceBinding      `json:"tekton_workspaces,omitempty"`
+	TektonServiceAccount  string                             `json:"tekton_service_account,omitempty"`
+	TektonTimeout         *metav1.Duration                   `json:"tekton_timeout,omitempty"`
+	TektonTaskRunTemplate pipelinev1.PipelineTaskRunTemplate `json:"tekton_task_run_template,omitempty"`
 }
 
 func mergePreset(preset Preset, labels map[string]string, podSpec *v1.PodSpec) error {
@@ -96,6 +106,66 @@ func mergePreset(preset Preset, labels map[string]string, podSpec *v1.PodSpec) e
 		}
 		*tolerations = append(*tolerations, t1)
 	}
+	return nil
+}
+
+func mergeTektonPreset(preset Preset, labels map[string]string, pipelineRunSpec *pipelinev1.PipelineRunSpec) error {
+	// Check if labels match
+	for l, v := range preset.Labels {
+		if v2, ok := labels[l]; !ok || v2 != v {
+			return nil // Labels don't match, skip this preset
+		}
+	}
+
+	// Merge Tekton params
+	for _, p1 := range preset.TektonParams {
+		for _, p2 := range pipelineRunSpec.Params {
+			if p1.Name == p2.Name {
+				return fmt.Errorf("param duplicated in pipeline run spec: %s", p1.Name)
+			}
+		}
+		pipelineRunSpec.Params = append(pipelineRunSpec.Params, p1)
+	}
+
+	// Merge workspaces
+	for _, w1 := range preset.TektonWorkspaces {
+		for _, w2 := range pipelineRunSpec.Workspaces {
+			if w1.Name == w2.Name {
+				return fmt.Errorf("workspace duplicated in pipeline run spec: %s", w1.Name)
+			}
+		}
+		pipelineRunSpec.Workspaces = append(pipelineRunSpec.Workspaces, w1)
+	}
+
+	// Merge service account (if not already set)
+	if preset.TektonServiceAccount != "" {
+		if pipelineRunSpec.TaskRunTemplate.ServiceAccountName != "" &&
+			pipelineRunSpec.TaskRunTemplate.ServiceAccountName != preset.TektonServiceAccount {
+			return fmt.Errorf("service account conflict: preset=%s, spec=%s",
+				preset.TektonServiceAccount, pipelineRunSpec.TaskRunTemplate.ServiceAccountName)
+		}
+		pipelineRunSpec.TaskRunTemplate.ServiceAccountName = preset.TektonServiceAccount
+	}
+
+	// Merge timeout (if not already set)
+	if preset.TektonTimeout != nil {
+		if pipelineRunSpec.Timeouts == nil {
+			pipelineRunSpec.Timeouts = &pipelinev1.TimeoutFields{}
+		}
+		if pipelineRunSpec.Timeouts.Pipeline != nil && pipelineRunSpec.Timeouts.Pipeline.Duration != 0 {
+			return fmt.Errorf("timeout conflict: both preset and spec define timeout")
+		}
+		pipelineRunSpec.Timeouts.Pipeline = preset.TektonTimeout.DeepCopy()
+	}
+
+	// Merge task run template pod template
+	if preset.TektonTaskRunTemplate.PodTemplate != nil {
+		if pipelineRunSpec.TaskRunTemplate.PodTemplate != nil {
+			return fmt.Errorf("task run pod template conflict")
+		}
+		pipelineRunSpec.TaskRunTemplate.PodTemplate = preset.TektonTaskRunTemplate.PodTemplate.DeepCopy()
+	}
+
 	return nil
 }
 
