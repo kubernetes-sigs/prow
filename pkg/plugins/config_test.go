@@ -17,6 +17,7 @@ limitations under the License.
 package plugins
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -30,6 +31,7 @@ import (
 
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/util/diff"
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/yaml"
@@ -2350,7 +2352,7 @@ func TestMergeFrom(t *testing.T) {
 			}
 		}
 
-		if diff := cmp.Diff(tc.expected, tc.in); !tc.errorExpected && diff != "" {
+		if diff := cmp.Diff(tc.expected, tc.in, cmpopts.IgnoreUnexported(Trigger{})); !tc.errorExpected && diff != "" {
 			t.Errorf("expected config differs from expected: %s", diff)
 		}
 	}
@@ -2735,6 +2737,649 @@ func TestConfigMapSpecIsAllowed(t *testing.T) {
 			result := tc.cm.IsAllowed(tc.repo)
 			if result != tc.expected {
 				t.Errorf("Expected IsAllowed(%q) = %v, got %v", tc.repo, tc.expected, result)
+			}
+		})
+	}
+}
+
+func TestTrustedAppsUnmarshalJSON(t *testing.T) {
+	testCases := []struct {
+		name     string
+		input    string
+		expected TrustedApps
+		wantErr  bool
+	}{
+		{
+			name:  "legacy format: list of strings",
+			input: `["app1", "app2"]`,
+			expected: TrustedApps{
+				{Name: "app1"},
+				{Name: "app2"},
+			},
+		},
+		{
+			name:  "new format: list of objects",
+			input: `[{"name": "app1"}, {"name": "app2", "untrusted": true, "locked": true}]`,
+			expected: TrustedApps{
+				{Name: "app1"},
+				{Name: "app2", Untrusted: true, Locked: true},
+			},
+		},
+		{
+			name:  "mixed format: strings and objects",
+			input: `["app1", {"name": "app2", "untrusted": true}]`,
+			expected: TrustedApps{
+				{Name: "app1"},
+				{Name: "app2", Untrusted: true},
+			},
+		},
+		{
+			name:     "empty array",
+			input:    `[]`,
+			expected: TrustedApps{},
+		},
+		{
+			name:    "invalid: not an array",
+			input:   `"not-an-array"`,
+			wantErr: true,
+		},
+		{
+			name:    "invalid: array with invalid element",
+			input:   `[123]`,
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var got TrustedApps
+			err := json.Unmarshal([]byte(tc.input), &got)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if diff := cmp.Diff(tc.expected, got); diff != "" {
+				t.Errorf("mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestTrustedAppsUnmarshalYAML(t *testing.T) {
+	testCases := []struct {
+		name     string
+		input    string
+		expected TrustedApps
+	}{
+		{
+			name: "legacy YAML format",
+			input: `
+- app1
+- app2
+`,
+			expected: TrustedApps{
+				{Name: "app1"},
+				{Name: "app2"},
+			},
+		},
+		{
+			name: "new YAML format",
+			input: `
+- name: app1
+- name: app2
+  untrusted: true
+  locked: true
+`,
+			expected: TrustedApps{
+				{Name: "app1"},
+				{Name: "app2", Untrusted: true, Locked: true},
+			},
+		},
+		{
+			name: "mixed YAML format",
+			input: `
+- app1
+- name: app2
+  untrusted: true
+`,
+			expected: TrustedApps{
+				{Name: "app1"},
+				{Name: "app2", Untrusted: true},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var got TrustedApps
+			if err := yaml.Unmarshal([]byte(tc.input), &got); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if diff := cmp.Diff(tc.expected, got); diff != "" {
+				t.Errorf("mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestResolveTrustedApps(t *testing.T) {
+	testCases := []struct {
+		name     string
+		config   Configuration
+		org      string
+		repo     string
+		expected []string
+	}{
+		{
+			name: "global only: trusted apps",
+			config: Configuration{
+				Triggers: []Trigger{
+					{
+						TrustedApps: TrustedApps{
+							{Name: "app1"},
+							{Name: "app2"},
+						},
+					},
+				},
+			},
+			org:      "myorg",
+			repo:     "myrepo",
+			expected: []string{"app1", "app2"},
+		},
+		{
+			name: "global with untrusted",
+			config: Configuration{
+				Triggers: []Trigger{
+					{
+						TrustedApps: TrustedApps{
+							{Name: "app1"},
+							{Name: "app2", Untrusted: true},
+						},
+					},
+				},
+			},
+			org:      "myorg",
+			repo:     "myrepo",
+			expected: []string{"app1"},
+		},
+		{
+			name: "org overrides global",
+			config: Configuration{
+				Triggers: []Trigger{
+					{
+						TrustedApps: TrustedApps{
+							{Name: "app1"},
+							{Name: "app2"},
+						},
+					},
+					{
+						Repos: []string{"myorg"},
+						TrustedApps: TrustedApps{
+							{Name: "app1", Untrusted: true},
+						},
+					},
+				},
+			},
+			org:      "myorg",
+			repo:     "myrepo",
+			expected: []string{"app2"},
+		},
+		{
+			name: "global locked prevents org override",
+			config: Configuration{
+				Triggers: []Trigger{
+					{
+						TrustedApps: TrustedApps{
+							{Name: "app1", Locked: true},
+						},
+					},
+					{
+						Repos: []string{"myorg"},
+						TrustedApps: TrustedApps{
+							{Name: "app1", Untrusted: true},
+						},
+					},
+				},
+			},
+			org:      "myorg",
+			repo:     "myrepo",
+			expected: []string{"app1"},
+		},
+		{
+			name: "global locked untrusted prevents org override",
+			config: Configuration{
+				Triggers: []Trigger{
+					{
+						TrustedApps: TrustedApps{
+							{Name: "app1", Untrusted: true, Locked: true},
+						},
+					},
+					{
+						Repos: []string{"myorg"},
+						TrustedApps: TrustedApps{
+							{Name: "app1"}, // tries to trust, but locked
+						},
+					},
+				},
+			},
+			org:      "myorg",
+			repo:     "myrepo",
+			expected: nil,
+		},
+		{
+			name: "repo overrides org",
+			config: Configuration{
+				Triggers: []Trigger{
+					{
+						Repos: []string{"myorg"},
+						TrustedApps: TrustedApps{
+							{Name: "app1"},
+							{Name: "app2"},
+						},
+					},
+					{
+						Repos: []string{"myorg/myrepo"},
+						TrustedApps: TrustedApps{
+							{Name: "app1", Untrusted: true},
+						},
+					},
+				},
+			},
+			org:      "myorg",
+			repo:     "myrepo",
+			expected: []string{"app2"},
+		},
+		{
+			name: "org locked prevents repo override",
+			config: Configuration{
+				Triggers: []Trigger{
+					{
+						Repos: []string{"myorg"},
+						TrustedApps: TrustedApps{
+							{Name: "app1", Locked: true},
+						},
+					},
+					{
+						Repos: []string{"myorg/myrepo"},
+						TrustedApps: TrustedApps{
+							{Name: "app1", Untrusted: true},
+						},
+					},
+				},
+			},
+			org:      "myorg",
+			repo:     "myrepo",
+			expected: []string{"app1"},
+		},
+		{
+			name: "three levels: global + org + repo",
+			config: Configuration{
+				Triggers: []Trigger{
+					{
+						TrustedApps: TrustedApps{
+							{Name: "global-app"},
+							{Name: "overridable-app"},
+							{Name: "locked-app", Locked: true},
+						},
+					},
+					{
+						Repos: []string{"myorg"},
+						TrustedApps: TrustedApps{
+							{Name: "org-app"},
+							{Name: "overridable-app", Untrusted: true},
+							{Name: "locked-app", Untrusted: true}, // should be ignored (locked)
+						},
+					},
+					{
+						Repos: []string{"myorg/myrepo"},
+						TrustedApps: TrustedApps{
+							{Name: "repo-app"},
+						},
+					},
+				},
+			},
+			org:      "myorg",
+			repo:     "myrepo",
+			expected: []string{"global-app", "locked-app", "org-app", "repo-app"},
+		},
+		{
+			name: "app not in lower level inherits from above",
+			config: Configuration{
+				Triggers: []Trigger{
+					{
+						TrustedApps: TrustedApps{
+							{Name: "inherited-app"},
+						},
+					},
+					{
+						Repos: []string{"myorg"},
+						TrustedApps: TrustedApps{
+							{Name: "org-app"},
+						},
+					},
+				},
+			},
+			org:      "myorg",
+			repo:     "myrepo",
+			expected: []string{"inherited-app", "org-app"},
+		},
+		{
+			name: "no config at any level",
+			config: Configuration{},
+			org:    "myorg",
+			repo:   "myrepo",
+		},
+		{
+			name: "org adds new trusted app",
+			config: Configuration{
+				Triggers: []Trigger{
+					{
+						TrustedApps: TrustedApps{
+							{Name: "app1"},
+						},
+					},
+					{
+						Repos: []string{"myorg"},
+						TrustedApps: TrustedApps{
+							{Name: "app2"},
+						},
+					},
+				},
+			},
+			org:      "myorg",
+			repo:     "myrepo",
+			expected: []string{"app1", "app2"},
+		},
+		{
+			name: "different org is not affected",
+			config: Configuration{
+				Triggers: []Trigger{
+					{
+						Repos: []string{"otherorg"},
+						TrustedApps: TrustedApps{
+							{Name: "other-app"},
+						},
+					},
+				},
+			},
+			org:  "myorg",
+			repo: "myrepo",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			trigger := tc.config.TriggerFor(tc.org, tc.repo)
+				got := trigger.GetTrustedApps()
+			if diff := cmp.Diff(tc.expected, got); diff != "" {
+				t.Errorf("mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestGetTrustedApps(t *testing.T) {
+	testCases := []struct {
+		name     string
+		trigger  Trigger
+		expected []string
+	}{
+		{
+			name: "returns resolved apps",
+			trigger: Trigger{
+				TrustedApps:         TrustedApps{{Name: "raw-app"}},
+				resolvedTrustedApps: []string{"resolved-app"},
+			},
+			expected: []string{"resolved-app"},
+		},
+		{
+			name: "without resolution, no apps are trusted",
+			trigger: Trigger{
+				TrustedApps: TrustedApps{
+					{Name: "app1"},
+					{Name: "app3"},
+				},
+			},
+		},
+		{
+			name:    "empty",
+			trigger: Trigger{},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := tc.trigger.GetTrustedApps()
+			if diff := cmp.Diff(tc.expected, got); diff != "" {
+				t.Errorf("mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestValidateTrustedApps(t *testing.T) {
+	testCases := []struct {
+		name    string
+		apps    TrustedApps
+		wantErr bool
+	}{
+		{
+			name: "valid apps",
+			apps: TrustedApps{
+				{Name: "app1"},
+				{Name: "app2", Untrusted: true},
+			},
+		},
+		{
+			name: "empty app name",
+			apps: TrustedApps{
+				{Name: ""},
+			},
+			wantErr: true,
+		},
+		{
+			name: "duplicate app name",
+			apps: TrustedApps{
+				{Name: "app1"},
+				{Name: "app1", Untrusted: true},
+			},
+			wantErr: true,
+		},
+		{
+			name: "empty list",
+			apps: TrustedApps{},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateTrustedApps(tc.apps)
+			if tc.wantErr && err == nil {
+				t.Error("expected error, got nil")
+			}
+			if !tc.wantErr && err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+func TestTriggerForResolveTrustedApps(t *testing.T) {
+	config := Configuration{
+		Triggers: []Trigger{
+			{
+				TrustedApps: TrustedApps{
+					{Name: "global-app"},
+				},
+			},
+			{
+				Repos: []string{"myorg"},
+				TrustedApps: TrustedApps{
+					{Name: "org-app"},
+				},
+			},
+			{
+				Repos: []string{"myorg/myrepo"},
+				TrustedApps: TrustedApps{
+					{Name: "repo-app"},
+				},
+			},
+		},
+	}
+
+	trigger := config.TriggerFor("myorg", "myrepo")
+	got := trigger.GetTrustedApps()
+	expected := []string{"global-app", "org-app", "repo-app"}
+	if diff := cmp.Diff(expected, got); diff != "" {
+		t.Errorf("TriggerFor should resolve trusted apps, mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestValidateLockedTrustedApps(t *testing.T) {
+	tests := []struct {
+		name        string
+		config      Configuration
+		expectError bool
+		errorCount  int
+		errorSubstr string
+	}{
+		{
+			name: "no locked apps, no errors",
+			config: Configuration{
+				Triggers: []Trigger{
+					{
+						Repos:       nil,
+						TrustedApps: TrustedApps{{Name: "global-app"}},
+					},
+					{
+						Repos:       []string{"myorg"},
+						TrustedApps: TrustedApps{{Name: "global-app"}},
+					},
+				},
+			},
+		},
+		{
+			name: "global lock, org overrides: error",
+			config: Configuration{
+				Triggers: []Trigger{
+					{
+						Repos:       nil,
+						TrustedApps: TrustedApps{{Name: "locked-app", Locked: true}},
+					},
+					{
+						Repos:       []string{"myorg"},
+						TrustedApps: TrustedApps{{Name: "locked-app", Untrusted: true}},
+					},
+				},
+			},
+			expectError: true,
+			errorCount:  1,
+			errorSubstr: "locked at global level",
+		},
+		{
+			name: "global lock, repo overrides: error",
+			config: Configuration{
+				Triggers: []Trigger{
+					{
+						Repos:       nil,
+						TrustedApps: TrustedApps{{Name: "locked-app", Locked: true}},
+					},
+					{
+						Repos:       []string{"myorg/myrepo"},
+						TrustedApps: TrustedApps{{Name: "locked-app"}},
+					},
+				},
+			},
+			expectError: true,
+			errorCount:  1,
+			errorSubstr: "locked at global level",
+		},
+		{
+			name: "org lock, repo overrides: error",
+			config: Configuration{
+				Triggers: []Trigger{
+					{
+						Repos:       []string{"myorg"},
+						TrustedApps: TrustedApps{{Name: "org-locked", Locked: true}},
+					},
+					{
+						Repos:       []string{"myorg/myrepo"},
+						TrustedApps: TrustedApps{{Name: "org-locked", Untrusted: true}},
+					},
+				},
+			},
+			expectError: true,
+			errorCount:  1,
+			errorSubstr: "locked at org level",
+		},
+		{
+			name: "multiple violations",
+			config: Configuration{
+				Triggers: []Trigger{
+					{
+						Repos:       nil,
+						TrustedApps: TrustedApps{{Name: "g-locked", Locked: true}},
+					},
+					{
+						Repos:       []string{"org1"},
+						TrustedApps: TrustedApps{{Name: "g-locked"}, {Name: "o-locked", Locked: true}},
+					},
+					{
+						Repos:       []string{"org1/repo1"},
+						TrustedApps: TrustedApps{{Name: "g-locked"}, {Name: "o-locked"}},
+					},
+				},
+			},
+			expectError: true,
+			errorCount:  3, // org overrides global, repo overrides global, repo overrides org
+		},
+		{
+			name: "non-overlapping locked apps: no error",
+			config: Configuration{
+				Triggers: []Trigger{
+					{
+						Repos:       nil,
+						TrustedApps: TrustedApps{{Name: "global-only", Locked: true}},
+					},
+					{
+						Repos:       []string{"myorg"},
+						TrustedApps: TrustedApps{{Name: "different-app"}},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := tc.config.ValidateLockedTrustedApps()
+			if tc.expectError {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				agg, ok := err.(utilerrors.Aggregate)
+				if !ok {
+					t.Fatalf("expected aggregate error, got %T", err)
+				}
+				if len(agg.Errors()) != tc.errorCount {
+					t.Errorf("expected %d errors, got %d: %v", tc.errorCount, len(agg.Errors()), agg.Errors())
+				}
+				if tc.errorSubstr != "" {
+					for _, e := range agg.Errors() {
+						if !strings.Contains(e.Error(), tc.errorSubstr) {
+							t.Errorf("expected error containing %q, got: %v", tc.errorSubstr, e)
+						}
+					}
+				}
+			} else {
+				if err != nil {
+					t.Errorf("expected no error, got: %v", err)
+				}
 			}
 		})
 	}
