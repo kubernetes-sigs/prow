@@ -32,6 +32,7 @@ import (
 	_ "sigs.k8s.io/prow/pkg/plugins/cla"
 	_ "sigs.k8s.io/prow/pkg/plugins/dco"
 	_ "sigs.k8s.io/prow/pkg/plugins/dog"
+	_ "sigs.k8s.io/prow/pkg/plugins/fixcommitmsg"
 	_ "sigs.k8s.io/prow/pkg/plugins/golint"
 	_ "sigs.k8s.io/prow/pkg/plugins/goose"
 	_ "sigs.k8s.io/prow/pkg/plugins/heart"

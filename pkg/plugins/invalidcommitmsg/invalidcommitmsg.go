@@ -40,7 +40,7 @@ const (
 )
 
 var CloseIssueRegex = regexp.MustCompile(`((?i)(clos(?:e[sd]?))|(fix(?:(es|ed)?))|(resolv(?:e[sd]?)))[\s:]+(\w+/\w+)?#(\d+)`)
-var fixupCommitRegex = regexp.MustCompile(`^(fixup!|amend!|squash!)`)
+var FixupCommitRegex = regexp.MustCompile(`^(fixup!|amend!|squash!)`)
 
 func init() {
 	plugins.RegisterPullRequestHandler(pluginName, handlePullRequest, helpProvider)
@@ -113,7 +113,7 @@ func handle(gc githubClient, log *logrus.Entry, pr github.PullRequestEvent, cp c
 			invalidCommits = append(invalidCommits, commit)
 		}
 
-		if checkFixup && fixupCommitRegex.MatchString(subject) {
+		if checkFixup && FixupCommitRegex.MatchString(subject) {
 			fixupCommits = append(fixupCommits, commit)
 		}
 	}

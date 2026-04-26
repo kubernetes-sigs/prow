@@ -333,7 +333,7 @@ func containsInvalidCommits(commits []github.RepositoryCommit) bool {
 
 func containsFixup(commits []github.RepositoryCommit) bool {
 	for _, c := range commits {
-		if fixupCommitRegex.MatchString(strings.Split(c.Commit.Message, "\n")[0]) {
+		if FixupCommitRegex.MatchString(strings.Split(c.Commit.Message, "\n")[0]) {
 			return true
 		}
 	}

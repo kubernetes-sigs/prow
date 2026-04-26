@@ -77,6 +77,7 @@ type Configuration struct {
 	CherryPickUnapproved CherryPickUnapproved         `json:"cherry_pick_unapproved,omitempty"`
 	ConfigUpdater        ConfigUpdater                `json:"config_updater,omitempty"`
 	Dco                  map[string]*Dco              `json:"dco,omitempty"`
+	FixCommitMsg         FixCommitMsg                 `json:"fix_commit_msg,omitempty"`
 	Golint               Golint                       `json:"golint,omitempty"`
 	Goose                Goose                        `json:"goose,omitempty"`
 	Heart                Heart                        `json:"heart,omitempty"`
@@ -263,6 +264,14 @@ func (c *Configuration) SkipCollaborators(org, repo string) bool {
 		}
 	}
 	return false
+}
+
+// FixCommitMsg contains configuration for the fixcommitmsg plugin.
+type FixCommitMsg struct {
+	// MaintainerTeam is the GitHub team slug (or display name) whose members
+	// are allowed to trigger the /fix-commit-messages command. The team is
+	// looked up in the same org as the pull request.
+	MaintainerTeam string `json:"maintainer_team,omitempty"`
 }
 
 // Retitle specifies configuration for the retitle plugin.
