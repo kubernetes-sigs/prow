@@ -60,6 +60,10 @@ type Interactor interface {
 	MergeAndCheckout(baseSHA string, mergeStrategy string, headSHAs ...string) error
 	// Am calls `git am`
 	Am(path string) error
+	// CherryPick cherry-picks the given commit onto the current branch
+	CherryPick(commitlike string) error
+	// Amend rewrites the most recent commit with a new message
+	Amend(message string) error
 	// Fetch calls `git fetch arg...`
 	Fetch(arg ...string) error
 	// FetchRef fetches the refspec
@@ -436,6 +440,24 @@ func (i *interactor) Am(path string) error {
 		i.logger.WithError(abortErr).Warningf("Aborting patch apply failed with output: %s", string(abortOut))
 	}
 	return errors.New(string(bytes.TrimPrefix(out, []byte("The copy of the patch that failed is found in: .git/rebase-apply/patch"))))
+}
+
+// CherryPick cherry-picks the given commit onto the current branch.
+func (i *interactor) CherryPick(commitlike string) error {
+	i.logger.WithField("commitlike", commitlike).Info("Cherry-picking commit.")
+	if out, err := i.executor.Run("cherry-pick", commitlike); err != nil {
+		return fmt.Errorf("error cherry-pick %s: %w. output: %s", commitlike, err, string(out))
+	}
+	return nil
+}
+
+// Amend rewrites the most recent commit with a new message.
+func (i *interactor) Amend(message string) error {
+	i.logger.Info("Amending commit message.")
+	if out, err := i.executor.Run("commit", "--amend", "-m", message); err != nil {
+		return fmt.Errorf("error commit --amend: %w. output: %s", err, string(out))
+	}
+	return nil
 }
 
 // FetchCommits only fetches those commits which we want, and only if they are
