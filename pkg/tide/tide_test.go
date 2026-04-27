@@ -298,7 +298,7 @@ func TestAccumulateBatch(t *testing.T) {
 				changedFiles: &changedFilesAgent{},
 				logger:       logrus.WithField("test", test.name),
 			}
-			merges, pending := c.accumulateBatch(subpool{org: "org", repo: "repo", prs: pulls, pjs: pjs, log: logrus.WithField("test", test.name)})
+			merges, pending, _ := c.accumulateBatch(subpool{org: "org", repo: "repo", prs: pulls, pjs: pjs, log: logrus.WithField("test", test.name)})
 			if (len(pending) > 0) != test.pending {
 				t.Errorf("For case \"%s\", got wrong pending.", test.name)
 			}
@@ -1536,6 +1536,7 @@ func testTakeAction(clients localgit.Clients, t *testing.T) {
 		name string
 
 		batchPending     bool
+		batchFailed      []int
 		successes        []int
 		pendings         []int
 		nones            []int
@@ -1965,6 +1966,41 @@ func testTakeAction(clients localgit.Clients, t *testing.T) {
 			action:           Trigger,
 			enableScheduling: true,
 		},
+		{
+			name:        "batch merge fails, returns MergeBatch with error (issue #474)",
+			batchMerges: []int{0, 1},
+			mergeErrs: map[int]error{
+				0: github.UnmergablePRError("merge conflict"),
+				1: github.UnmergablePRError("merge conflict"),
+			},
+			merged:    0,
+			triggered: 0,
+			action:    MergeBatch,
+			expectErr: true,
+		},
+		{
+			// When a batch CI test fails, Tide bisects by excluding the
+			// lowest-priority PR (highest number) from the failed batch and
+			// triggers a smaller batch from the remaining pool PRs.
+			// Pool has PRs {0,1,2}, failed batch was {0,1,2}, so PR 2 is
+			// excluded. The new batch is picked from {0,1}.
+			name:        "batch CI fails, bisects by excluding lowest-priority PR (issue #474)",
+			batchFailed: []int{0, 1, 2},
+			successes:   []int{},
+			pendings:    []int{},
+			nones:       []int{0, 1, 2},
+			batchMerges: []int{},
+			presubmits: map[int][]config.Presubmit{
+				100: {
+					{Reporter: config.Reporter{Context: "foo"}},
+					{Reporter: config.Reporter{Context: "if-changed"}},
+				},
+			},
+			merged:           0,
+			triggered:        2,
+			triggeredBatches: 2,
+			action:           TriggerBatch,
+		},
 	}
 
 	for _, tc := range testcases {
@@ -2109,7 +2145,11 @@ func testTakeAction(clients localgit.Clients, t *testing.T) {
 			if tc.batchPending {
 				batchPending = []CodeReviewCommon{{}}
 			}
-			act, _, err := c.takeAction(sp, batchPending, genPulls(tc.successes), genPulls(tc.pendings), genPulls(tc.nones), genPulls(tc.batchMerges), sp.presubmits)
+			var batchFailed []CodeReviewCommon
+			for _, n := range tc.batchFailed {
+				batchFailed = append(batchFailed, CodeReviewCommon{Number: n})
+			}
+			act, _, err := c.takeAction(sp, batchPending, batchFailed, genPulls(tc.successes), genPulls(tc.pendings), genPulls(tc.nones), genPulls(tc.batchMerges), sp.presubmits)
 			if act != tc.action {
 				t.Errorf("Wrong action. Got %v, wanted %v.", act, tc.action)
 			}
