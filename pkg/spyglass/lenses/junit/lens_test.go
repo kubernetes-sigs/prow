@@ -857,6 +857,303 @@ func TestGetJvd(t *testing.T) {
 	}
 }
 
+func TestParseSelector(t *testing.T) {
+	tests := []struct {
+		name      string
+		selector  string
+		wantErr   bool
+		wantProps []propertyPredicate
+	}{
+		{
+			name:     "name and value",
+			selector: "properties/property[@name='lifecycle' and @value='informing']",
+			wantProps: []propertyPredicate{
+				{name: "lifecycle", value: "informing"},
+			},
+		},
+		{
+			name:     "name only",
+			selector: "properties/property[@name='lifecycle']",
+			wantProps: []propertyPredicate{
+				{name: "lifecycle"},
+			},
+		},
+		{
+			name:     "value only",
+			selector: "properties/property[@value='informing']",
+			wantProps: []propertyPredicate{
+				{value: "informing"},
+			},
+		},
+		{
+			name:     "unsupported selector",
+			selector: "classname='foo'",
+			wantErr:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pred, err := parseSelector(tt.selector)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if diff := cmp.Diff(tt.wantProps, pred.properties, cmp.AllowUnexported(propertyPredicate{})); diff != "" {
+				t.Fatalf("predicate mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestSelectorMatches(t *testing.T) {
+	tests := []struct {
+		name     string
+		selector string
+		result   junit.Result
+		want     bool
+	}{
+		{
+			name:     "matches property name and value",
+			selector: "properties/property[@name='lifecycle' and @value='informing']",
+			result: junit.Result{
+				Properties: &junit.Properties{
+					PropertyList: []junit.Property{
+						{Name: "lifecycle", Value: "informing"},
+					},
+				},
+			},
+			want: true,
+		},
+		{
+			name:     "does not match different value",
+			selector: "properties/property[@name='lifecycle' and @value='informing']",
+			result: junit.Result{
+				Properties: &junit.Properties{
+					PropertyList: []junit.Property{
+						{Name: "lifecycle", Value: "blocking"},
+					},
+				},
+			},
+			want: false,
+		},
+		{
+			name:     "does not match nil properties",
+			selector: "properties/property[@name='lifecycle' and @value='informing']",
+			result:   junit.Result{},
+			want:     false,
+		},
+		{
+			name:     "matches name only selector",
+			selector: "properties/property[@name='lifecycle']",
+			result: junit.Result{
+				Properties: &junit.Properties{
+					PropertyList: []junit.Property{
+						{Name: "lifecycle", Value: "anything"},
+					},
+				},
+			},
+			want: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pred, err := parseSelector(tt.selector)
+			if err != nil {
+				t.Fatalf("failed to parse selector: %v", err)
+			}
+			got := pred.matches(tt.result)
+			if got != tt.want {
+				t.Fatalf("matches() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestGetJvdWithGroups(t *testing.T) {
+	failures := []junit.Failure{
+		{
+			Type:    "failure",
+			Message: "failure message 0",
+			Value:   " failure value 0 ",
+		},
+		{
+			Type:    "failure",
+			Message: "failure message 1",
+			Value:   " failure value 1 ",
+		},
+	}
+
+	tests := []struct {
+		name       string
+		rawResults [][]byte
+		groups     []GroupConfig
+		expFailed  int
+		expPassed  int
+		expGroups  []struct {
+			name    string
+			failed  int
+			passed  int
+			skipped int
+		}
+	}{
+		{
+			name: "informing tests go to group with full breakdown",
+			rawResults: [][]byte{
+				[]byte(`
+				<testsuites>
+					<testsuite>
+						<testcase classname="cls" name="blocking_test">
+							<failure message="failure message 0" type="failure"> failure value 0 </failure>
+						</testcase>
+						<testcase classname="cls" name="blocking_pass"></testcase>
+						<testcase classname="cls" name="informing_fail">
+							<properties>
+								<property name="lifecycle" value="informing"/>
+							</properties>
+							<failure message="failure message 1" type="failure"> failure value 1 </failure>
+						</testcase>
+						<testcase classname="cls" name="informing_pass">
+							<properties>
+								<property name="lifecycle" value="informing"/>
+							</properties>
+						</testcase>
+						<testcase classname="cls" name="informing_skip">
+							<properties>
+								<property name="lifecycle" value="informing"/>
+							</properties>
+							<skipped/>
+						</testcase>
+					</testsuite>
+				</testsuites>
+				`),
+			},
+			groups: []GroupConfig{
+				{
+					Name:      "Informing",
+					Selector:  "properties/property[@name='lifecycle' and @value='informing']",
+					Collapsed: true,
+				},
+			},
+			expFailed: 1,
+			expPassed: 1,
+			expGroups: []struct {
+				name    string
+				failed  int
+				passed  int
+				skipped int
+			}{
+				{name: "Informing", failed: 1, passed: 1, skipped: 1},
+			},
+		},
+		{
+			name: "no groups configured, all tests stay in default",
+			rawResults: [][]byte{
+				[]byte(`
+				<testsuites>
+					<testsuite>
+						<testcase classname="cls" name="test1">
+							<properties>
+								<property name="lifecycle" value="informing"/>
+							</properties>
+							<failure message="failure message 0" type="failure"> failure value 0 </failure>
+						</testcase>
+						<testcase classname="cls" name="test2"></testcase>
+					</testsuite>
+				</testsuites>
+				`),
+			},
+			groups:    nil,
+			expFailed: 1,
+			expPassed: 1,
+			expGroups: nil,
+		},
+		{
+			name: "group with no matches produces empty group",
+			rawResults: [][]byte{
+				[]byte(`
+				<testsuites>
+					<testsuite>
+						<testcase classname="cls" name="test1">
+							<failure message="failure message 0" type="failure"> failure value 0 </failure>
+						</testcase>
+					</testsuite>
+				</testsuites>
+				`),
+			},
+			groups: []GroupConfig{
+				{
+					Name:     "Informing",
+					Selector: "properties/property[@name='lifecycle' and @value='informing']",
+				},
+			},
+			expFailed: 1,
+			expPassed: 0,
+			expGroups: []struct {
+				name    string
+				failed  int
+				passed  int
+				skipped int
+			}{
+				{name: "Informing", failed: 0, passed: 0, skipped: 0},
+			},
+		},
+	}
+
+	_ = failures
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			artifacts := make([]api.Artifact, 0)
+			for _, rr := range tt.rawResults {
+				artifacts = append(artifacts, &FakeArtifact{
+					path:      "log.txt",
+					content:   rr,
+					sizeLimit: 500e6,
+				})
+			}
+			l := Lens{}
+			got := l.getJvd(artifacts, tt.groups)
+			if len(got.Failed) != tt.expFailed {
+				t.Errorf("Failed count = %d, want %d", len(got.Failed), tt.expFailed)
+			}
+			if len(got.Passed) != tt.expPassed {
+				t.Errorf("Passed count = %d, want %d", len(got.Passed), tt.expPassed)
+			}
+			if tt.expGroups == nil {
+				if len(got.Groups) != 0 {
+					t.Errorf("Groups count = %d, want 0", len(got.Groups))
+				}
+			} else {
+				if len(got.Groups) != len(tt.expGroups) {
+					t.Fatalf("Groups count = %d, want %d", len(got.Groups), len(tt.expGroups))
+				}
+				for i, eg := range tt.expGroups {
+					g := got.Groups[i]
+					if g.Name != eg.name {
+						t.Errorf("Group[%d].Name = %q, want %q", i, g.Name, eg.name)
+					}
+					if len(g.Failed) != eg.failed {
+						t.Errorf("Group[%d].Failed = %d, want %d", i, len(g.Failed), eg.failed)
+					}
+					if len(g.Passed) != eg.passed {
+						t.Errorf("Group[%d].Passed = %d, want %d", i, len(g.Passed), eg.passed)
+					}
+					if len(g.Skipped) != eg.skipped {
+						t.Errorf("Group[%d].Skipped = %d, want %d", i, len(g.Skipped), eg.skipped)
+					}
+				}
+			}
+		})
+	}
+}
+
 func TestTemplate(t *testing.T) {
 	t.Parallel()
 	testCases := []struct {
@@ -923,6 +1220,59 @@ func TestTemplate(t *testing.T) {
 				`<a href="#" class="open-stdout-stderr">open stderr<i class="material-icons"`,
 				`output`,
 				`error`,
+			},
+		}, {
+			name: "Group section shows full breakdown",
+			input: JVD{Groups: []GroupResult{{
+				Name:      "Informing",
+				Collapsed: true,
+				NumTests:  2,
+				Failed: []TestResult{{
+					Junit: []JunitResult{{
+						Result: junit.Result{
+							Name:      "informing_fail",
+							ClassName: "fake_class",
+							Failure:   &junit.Failure{Value: "non-blocking failure"},
+						},
+					}},
+				}},
+				Passed: []TestResult{{
+					Junit: []JunitResult{{
+						Result: junit.Result{
+							Name:      "informing_pass",
+							ClassName: "fake_class",
+						},
+					}},
+				}},
+			}}},
+			expectedSubstrings: []string{
+				`Informing`,
+				`1/2 Failed.`,
+				`1/2 Passed.`,
+				`group-layout`,
+				`fake_class: informing_fail`,
+				`hidden-tests`,
+			},
+		},
+		{
+			name: "Group section expanded when collapsed is false",
+			input: JVD{Groups: []GroupResult{{
+				Name:      "MyGroup",
+				Collapsed: false,
+				NumTests:  1,
+				Failed: []TestResult{{
+					Junit: []JunitResult{{
+						Result: junit.Result{
+							Name:      "test_1",
+							ClassName: "cls",
+							Failure:   &junit.Failure{Value: "fail"},
+						},
+					}},
+				}},
+			}}},
+			expectedSubstrings: []string{
+				`1/1 Failed.`,
+				`expand_less`,
 			},
 		},
 	}
