@@ -777,9 +777,6 @@ func appendCherryPickMessages(repoPath string, originalSHAs []string) error {
 	if numCommits == 0 {
 		return nil
 	}
-	if len(originalSHAs) != numCommits {
-		return fmt.Errorf("internal: originalSHAs length mismatch")
-	}
 
 	// Resolve absolute base SHA for stability
 	baseCmd := exec.Command("git", "-C", repoPath, "rev-parse", fmt.Sprintf("HEAD~%d", numCommits))
