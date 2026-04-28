@@ -21,12 +21,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clienttesting "k8s.io/client-go/testing"
+	"k8s.io/utils/ptr"
 
 	prowapi "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 	"sigs.k8s.io/prow/pkg/client/clientset/versioned/fake"
@@ -706,7 +708,7 @@ func TestShouldHighlightJoinOrgMessage(t *testing.T) {
 				Logger:       logrus.WithField("test", "TestShouldHighlightJoinOrgMessage"),
 			}
 
-			highlight := shouldHighlightJoinOrgMessage(c, "org", github.User{Login: "author"})
+			highlight := shouldHighlightJoinOrgMessage(c, "org", github.User{Login: "author"}, plugins.OrgInviteConfig{})
 			if highlight != tc.expecting {
 				t.Fatalf("shouldHighlightJoinOrgMessage() = %t, want %t", highlight, tc.expecting)
 			}
@@ -725,7 +727,7 @@ func TestShouldHighlightJoinOrgMessageUsesFilteredQuery(t *testing.T) {
 		Logger:       logrus.WithField("test", "TestShouldHighlightJoinOrgMessageUsesFilteredQuery"),
 	}
 
-	if highlight := shouldHighlightJoinOrgMessage(c, "org", github.User{Login: "author"}); highlight {
+	if highlight := shouldHighlightJoinOrgMessage(c, "org", github.User{Login: "author"}, plugins.OrgInviteConfig{}); highlight {
 		t.Fatalf("shouldHighlightJoinOrgMessage() = true, want false")
 	}
 
@@ -755,7 +757,7 @@ func TestShouldHighlightJoinOrgMessageIgnoresSearchErrors(t *testing.T) {
 		Logger:       logrus.WithField("test", "TestShouldHighlightJoinOrgMessageIgnoresSearchErrors"),
 	}
 
-	if highlight := shouldHighlightJoinOrgMessage(c, "org", github.User{Login: "author"}); highlight {
+	if highlight := shouldHighlightJoinOrgMessage(c, "org", github.User{Login: "author"}, plugins.OrgInviteConfig{}); highlight {
 		t.Fatalf("shouldHighlightJoinOrgMessage() = true, want false when search fails")
 	}
 }
@@ -771,10 +773,180 @@ func TestShouldHighlightJoinOrgMessageSkipsBotAuthors(t *testing.T) {
 		Logger:       logrus.WithField("test", "TestShouldHighlightJoinOrgMessageSkipsBotAuthors"),
 	}
 
-	if highlight := shouldHighlightJoinOrgMessage(c, "org", github.User{Login: "ci-robot", Type: github.UserTypeBot}); highlight {
+	if highlight := shouldHighlightJoinOrgMessage(c, "org", github.User{Login: "ci-robot", Type: github.UserTypeBot}, plugins.OrgInviteConfig{}); highlight {
 		t.Fatalf("shouldHighlightJoinOrgMessage() = true, want false for bot author")
 	}
 	if fc.called {
 		t.Fatalf("expected no search call for bot author")
+	}
+}
+
+func TestShouldHighlightJoinOrgMessageCustomThreshold(t *testing.T) {
+	t.Parallel()
+
+	mergedPRIssue := func(number int, author string) *github.Issue {
+		return &github.Issue{
+			Number:      number,
+			State:       github.PullRequestStateClosed,
+			User:        github.User{Login: author},
+			PullRequest: &struct{}{},
+		}
+	}
+
+	testCases := []struct {
+		name      string
+		threshold *int
+		issues    map[int]*github.Issue
+		expecting bool
+	}{
+		{
+			name:      "custom threshold of 5, only 3 merged PRs",
+			threshold: ptr.To(5),
+			issues: map[int]*github.Issue{
+				1: mergedPRIssue(1, "author"),
+				2: mergedPRIssue(2, "author"),
+				3: mergedPRIssue(3, "author"),
+			},
+			expecting: false,
+		},
+		{
+			name:      "custom threshold of 5, 5 merged PRs",
+			threshold: ptr.To(5),
+			issues: map[int]*github.Issue{
+				1: mergedPRIssue(1, "author"),
+				2: mergedPRIssue(2, "author"),
+				3: mergedPRIssue(3, "author"),
+				4: mergedPRIssue(4, "author"),
+				5: mergedPRIssue(5, "author"),
+			},
+			expecting: true,
+		},
+		{
+			name:      "custom threshold of 1, 1 merged PR",
+			threshold: ptr.To(1),
+			issues: map[int]*github.Issue{
+				1: mergedPRIssue(1, "author"),
+			},
+			expecting: true,
+		},
+		{
+			name:      "custom threshold of 0, no merged PRs",
+			threshold: ptr.To(0),
+			issues:    map[int]*github.Issue{},
+			expecting: true,
+		},
+		{
+			name:      "nil threshold uses default of 3, exactly 3 merged PRs",
+			threshold: nil,
+			issues: map[int]*github.Issue{
+				1: mergedPRIssue(1, "author"),
+				2: mergedPRIssue(2, "author"),
+				3: mergedPRIssue(3, "author"),
+			},
+			expecting: true,
+		},
+		{
+			name:      "nil threshold uses default of 3, only 2 merged PRs",
+			threshold: nil,
+			issues: map[int]*github.Issue{
+				1: mergedPRIssue(1, "author"),
+				2: mergedPRIssue(2, "author"),
+			},
+			expecting: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			fc := fakegithub.NewFakeClient()
+			fc.Issues = tc.issues
+			c := Client{
+				GitHubClient: fc,
+				Logger:       logrus.WithField("test", "TestShouldHighlightJoinOrgMessageCustomThreshold"),
+			}
+
+			cfg := plugins.OrgInviteConfig{
+				Prominent: plugins.ProminentOrgInviteConfig{
+					MergedPRThreshold: tc.threshold,
+				},
+			}
+			highlight := shouldHighlightJoinOrgMessage(c, "org", github.User{Login: "author"}, cfg)
+			if highlight != tc.expecting {
+				t.Fatalf("shouldHighlightJoinOrgMessage() = %t, want %t", highlight, tc.expecting)
+			}
+		})
+	}
+}
+
+func TestOrgInvitationGuidance(t *testing.T) {
+	t.Parallel()
+
+	mergedPRIssue := func(number int, author string) *github.Issue {
+		return &github.Issue{
+			Number:      number,
+			State:       github.PullRequestStateClosed,
+			User:        github.User{Login: author},
+			PullRequest: &struct{}{},
+		}
+	}
+
+	testCases := []struct {
+		name             string
+		cfg              plugins.OrgInviteConfig
+		issues           map[int]*github.Issue
+		expectedContains string
+	}{
+		{
+			name:             "disabled returns regular message without searching",
+			cfg:              plugins.OrgInviteConfig{Prominent: plugins.ProminentOrgInviteConfig{Disabled: true}},
+			issues:           map[int]*github.Issue{},
+			expectedContains: "Regular contributors should [join the org](https://example.com/join) to skip this step.",
+		},
+		{
+			name: "custom message above threshold",
+			cfg:  plugins.OrgInviteConfig{Prominent: plugins.ProminentOrgInviteConfig{Message: "Please consider [joining us]({join_org_url}) for full access!"}},
+			issues: map[int]*github.Issue{
+				1: mergedPRIssue(1, "author"),
+				2: mergedPRIssue(2, "author"),
+				3: mergedPRIssue(3, "author"),
+			},
+			expectedContains: "Please consider [joining us](https://example.com/join) for full access!",
+		},
+		{
+			name: "default message above threshold",
+			cfg:  plugins.OrgInviteConfig{},
+			issues: map[int]*github.Issue{
+				1: mergedPRIssue(1, "author"),
+				2: mergedPRIssue(2, "author"),
+				3: mergedPRIssue(3, "author"),
+			},
+			expectedContains: ">[!TIP]",
+		},
+		{
+			name:             "below threshold returns regular message",
+			cfg:              plugins.OrgInviteConfig{},
+			issues:           map[int]*github.Issue{},
+			expectedContains: "Regular contributors should [join the org](https://example.com/join) to skip this step.",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			fc := fakegithub.NewFakeClient()
+			fc.Issues = tc.issues
+			c := Client{
+				GitHubClient: fc,
+				Logger:       logrus.WithField("test", t.Name()),
+			}
+
+			result := orgInvitationGuidance(c, "org", github.User{Login: "author"}, "https://example.com/join", tc.cfg)
+
+			if !strings.Contains(result, tc.expectedContains) {
+				t.Fatalf("expected result to contain %q, got %q", tc.expectedContains, result)
+			}
+		})
 	}
 }
