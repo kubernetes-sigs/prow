@@ -17,7 +17,9 @@ limitations under the License.
 package assign
 
 import (
+	"fmt"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/sirupsen/logrus"
@@ -37,6 +39,8 @@ type fakeClient struct {
 
 	isMember map[string]bool
 	labels   []github.Label
+
+	lastComment string
 }
 
 func (c *fakeClient) IsMember(org, user string) (bool, error) {
@@ -45,6 +49,17 @@ func (c *fakeClient) IsMember(org, user string) (bool, error) {
 
 func (c *fakeClient) GetIssueLabels(org, repo string, number int) ([]github.Label, error) {
 	return c.labels, nil
+}
+
+func (c *fakeClient) GetRepo(owner, name string) (github.FullRepo, error) {
+	return github.FullRepo{Repo: github.Repo{DefaultBranch: "main"}}, nil
+}
+
+func (c *fakeClient) GetFile(org, repo, filepath, commit string) ([]byte, error) {
+	if filepath == "CONTRIBUTING.md" || filepath == "docs/CONTRIBUTING.md" {
+		return []byte("content"), nil
+	}
+	return nil, fmt.Errorf("file not found")
 }
 
 func (c *fakeClient) UnassignIssue(owner, repo string, number int, assignees []string) error {
@@ -103,6 +118,7 @@ func (c *fakeClient) UnrequestReview(org, repo string, number int, logins []stri
 
 func (c *fakeClient) CreateComment(owner, repo string, number int, comment string) error {
 	c.commented = comment != ""
+	c.lastComment = comment
 	return nil
 }
 
@@ -177,6 +193,7 @@ func TestAssignAndReview(t *testing.T) {
 		requested   []string
 		unrequested []string
 		commented   bool
+		expectedMsg string
 	}{
 		{
 			name:      "unrelated comment",
@@ -404,6 +421,7 @@ func TestAssignAndReview(t *testing.T) {
 			commenter: "newbie",
 			assigned:  []string{"newbie"},
 			commented: true,
+			expectedMsg: "It looks like you're new! This issue hasn't been vetted for beginners yet. Please check out the [Good First Issues List](https://github.com/org/repo/labels/good-first-issue) and our [contributor guide](https://github.com/org/repo/blob/main/CONTRIBUTING.md) to get started.",
 		},
 		{
 			name:      "non-member assigns themselves to good-first-issue, no educational message",
@@ -436,7 +454,7 @@ func TestAssignAndReview(t *testing.T) {
 			Repo:   github.Repo{Name: "repo", Owner: github.User{Login: "org"}},
 			Number: 5,
 		}
-		if err := handle(newAssignHandler(e, fc, logrus.WithField("plugin", pluginName))); err != nil {
+		if err := handle(newAssignHandler(e, fc, logrus.WithField("plugin", pluginName), nil)); err != nil {
 			t.Errorf("For case %s, didn't expect error from handle: %v", tc.name, err)
 			continue
 		}
@@ -447,6 +465,9 @@ func TestAssignAndReview(t *testing.T) {
 
 		if tc.commented != fc.commented {
 			t.Errorf("For case %s, expect commented: %v, got commented %v", tc.name, tc.commented, fc.commented)
+		}
+		if tc.expectedMsg != "" && !strings.Contains(fc.lastComment, tc.expectedMsg) {
+			t.Errorf("For case %s, expected comment to contain %q, but got %q", tc.name, tc.expectedMsg, fc.lastComment)
 		}
 
 		if len(fc.assigned) != len(tc.assigned) {
