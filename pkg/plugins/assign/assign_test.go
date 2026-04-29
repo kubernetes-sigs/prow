@@ -41,9 +41,11 @@ type fakeClient struct {
 	labels   []github.Label
 
 	lastComment string
+	isMemberCalled bool
 }
 
 func (c *fakeClient) IsMember(org, user string) (bool, error) {
+	c.isMemberCalled = true
 	return c.isMember[user], nil
 }
 
@@ -451,7 +453,7 @@ func TestAssignAndReview(t *testing.T) {
 		e := github.GenericCommentEvent{
 			Body:   tc.body,
 			User:   github.User{Login: tc.commenter},
-			Repo:   github.Repo{Name: "repo", Owner: github.User{Login: "org"}},
+			Repo:   github.Repo{Name: "repo", Owner: github.User{Login: "org"}, DefaultBranch: "main"},
 			Number: 5,
 		}
 		if err := handle(newAssignHandler(e, fc, logrus.WithField("plugin", pluginName), nil)); err != nil {
@@ -509,6 +511,16 @@ func TestAssignAndReview(t *testing.T) {
 					t.Errorf("For case %s, unrequested %v != %s", tc.name, fc.unrequested, tc.unrequested)
 					break
 				}
+			}
+		}
+		if tc.name == "non-member assigns themselves to good-first-issue, no educational message" {
+			if fc.isMemberCalled {
+				t.Errorf("For case %s, expected IsMember NOT to be called, but it was", tc.name)
+			}
+		}
+		if tc.name == "non-member assigns themselves to non-good-first-issue, sends educational message" {
+			if !fc.isMemberCalled {
+				t.Errorf("For case %s, expected IsMember to be called, but it wasn't", tc.name)
 			}
 		}
 	}

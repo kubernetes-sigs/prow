@@ -151,50 +151,45 @@ func handle(h *handler) error {
 	if len(toAdd) > 0 {
 		h.log.Printf("Adding %s to %s/%s#%d: %v", h.userType, org, repo, e.Number, toAdd)
 		if h.userType == "assignee(s)" {
-			isMember, err := h.gc.IsMember(org, e.User.Login)
+			labels, err := h.gc.GetIssueLabels(org, repo, e.Number)
 			if err != nil {
-				h.log.WithError(err).Warn("Failed to check membership")
-			} else if !isMember {
-				labels, err := h.gc.GetIssueLabels(org, repo, e.Number)
+				h.log.WithError(err).Warn("Failed to get issue labels")
+			}
+			hasGoodFirstIssue := false
+			for _, l := range labels {
+				if strings.ToLower(l.Name) == "good-first-issue" {
+					hasGoodFirstIssue = true
+					break
+				}
+			}
+
+			if !hasGoodFirstIssue {
+				isMember, err := h.gc.IsMember(org, e.User.Login)
 				if err != nil {
-					h.log.WithError(err).Warn("Failed to get issue labels")
-				} else {
-					hasGoodFirstIssue := false
-					for _, l := range labels {
-						if strings.ToLower(l.Name) == "good-first-issue" {
-							hasGoodFirstIssue = true
+					h.log.WithError(err).Warn("Failed to check membership")
+				} else if !isMember {
+					guideLink := ""
+					defaultBranch := e.Repo.DefaultBranch
+					if defaultBranch == "" {
+						defaultBranch = "main"
+					}
+					// Check for CONTRIBUTING.md or docs/CONTRIBUTING.md
+					paths := []string{"CONTRIBUTING.md", "docs/CONTRIBUTING.md"}
+					for _, p := range paths {
+						if _, err := h.gc.GetFile(org, repo, p, defaultBranch); err == nil {
+							guideLink = fmt.Sprintf(" and our [contributor guide](https://github.com/%s/%s/blob/%s/%s)", org, repo, defaultBranch, p)
 							break
 						}
 					}
-					if !hasGoodFirstIssue {
-						guideLink := ""
-						repoInfo, err := h.gc.GetRepo(org, repo)
-						if err != nil {
-							h.log.WithError(err).Warn("Failed to get repo info")
-						} else {
-							defaultBranch := repoInfo.DefaultBranch
-							if defaultBranch == "" {
-								defaultBranch = "main"
-							}
-							// Check for CONTRIBUTING.md or docs/CONTRIBUTING.md
-							paths := []string{"CONTRIBUTING.md", "docs/CONTRIBUTING.md"}
-							for _, p := range paths {
-								if _, err := h.gc.GetFile(org, repo, p, defaultBranch); err == nil {
-									guideLink = fmt.Sprintf(" and our [contributor guide](https://github.com/%s/%s/blob/%s/%s)", org, repo, defaultBranch, p)
-									break
-								}
-							}
-						}
 
-						// If no local guide found, use the configured HelpGuidelinesURL if it's not the default
-						if guideLink == "" && h.config != nil && h.config.Help.HelpGuidelinesURL != "" && h.config.Help.HelpGuidelinesURL != "https://git.k8s.io/community/contributors/guide/help-wanted.md" {
-							guideLink = fmt.Sprintf(" and our [contributor guide](%s)", h.config.Help.HelpGuidelinesURL)
-						}
+					// If no local guide found, use the configured HelpGuidelinesURL if it's not the default
+					if guideLink == "" && h.config != nil && h.config.Help.HelpGuidelinesURL != "" && h.config.Help.HelpGuidelinesURL != "https://git.k8s.io/community/contributors/guide/help-wanted.md" {
+						guideLink = fmt.Sprintf(" and our [contributor guide](%s)", h.config.Help.HelpGuidelinesURL)
+					}
 
-						msg := fmt.Sprintf("It looks like you're new! This issue hasn't been vetted for beginners yet. Please check out the [Good First Issues List](https://github.com/%s/%s/labels/good-first-issue)%s to get started.", org, repo, guideLink)
-						if err := h.gc.CreateComment(org, repo, e.Number, plugins.FormatResponseRaw(e.Body, e.HTMLURL, e.User.Login, msg)); err != nil {
-							h.log.WithError(err).Warn("Failed to create educational comment")
-						}
+					msg := fmt.Sprintf("It looks like you're new! This issue hasn't been vetted for beginners yet. Please check out the [Good First Issues List](https://github.com/%s/%s/labels/good-first-issue)%s to get started.", org, repo, guideLink)
+					if err := h.gc.CreateComment(org, repo, e.Number, plugins.FormatResponseRaw(e.Body, e.HTMLURL, e.User.Login, msg)); err != nil {
+						h.log.WithError(err).Warn("Failed to create educational comment")
 					}
 				}
 			}
