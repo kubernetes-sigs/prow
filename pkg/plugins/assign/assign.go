@@ -71,6 +71,8 @@ type githubClient interface {
 	UnrequestReview(org, repo string, number int, logins []string) error
 
 	CreateComment(owner, repo string, number int, comment string) error
+	IsMember(org, user string) (bool, error)
+	GetIssueLabels(org, repo string, number int) ([]github.Label, error)
 }
 
 func handleGenericComment(pc plugins.Agent, e github.GenericCommentEvent) error {
@@ -146,6 +148,31 @@ func handle(h *handler) error {
 	}
 	if len(toAdd) > 0 {
 		h.log.Printf("Adding %s to %s/%s#%d: %v", h.userType, org, repo, e.Number, toAdd)
+		if h.userType == "assignee(s)" {
+			isMember, err := h.gc.IsMember(org, e.User.Login)
+			if err != nil {
+				h.log.WithError(err).Warn("Failed to check membership")
+			} else if !isMember {
+				labels, err := h.gc.GetIssueLabels(org, repo, e.Number)
+				if err != nil {
+					h.log.WithError(err).Warn("Failed to get issue labels")
+				} else {
+					hasGoodFirstIssue := false
+					for _, l := range labels {
+						if strings.ToLower(l.Name) == "good-first-issue" {
+							hasGoodFirstIssue = true
+							break
+						}
+					}
+					if !hasGoodFirstIssue {
+						msg := fmt.Sprintf("It looks like you're new! This issue hasn't been vetted for beginners yet. Please check out the [Good First Issues List](https://github.com/%s/%s/labels/good-first-issue) to get started.", org, repo)
+						if err := h.gc.CreateComment(org, repo, e.Number, plugins.FormatResponseRaw(e.Body, e.HTMLURL, e.User.Login, msg)); err != nil {
+							h.log.WithError(err).Warn("Failed to create educational comment")
+						}
+					}
+				}
+			}
+		}
 		if err := h.add(org, repo, e.Number, toAdd); err != nil {
 			if mu, ok := err.(github.MissingUsers); ok {
 				msg := h.addFailureResponse(mu)

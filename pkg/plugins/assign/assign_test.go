@@ -34,6 +34,17 @@ type fakeClient struct {
 	contributors map[string]bool
 
 	commented bool
+
+	isMember map[string]bool
+	labels   []github.Label
+}
+
+func (c *fakeClient) IsMember(org, user string) (bool, error) {
+	return c.isMember[user], nil
+}
+
+func (c *fakeClient) GetIssueLabels(org, repo string, number int) ([]github.Label, error) {
+	return c.labels, nil
 }
 
 func (c *fakeClient) UnassignIssue(owner, repo string, number int, assignees []string) error {
@@ -106,6 +117,7 @@ func newFakeClient(contribs []string) *fakeClient {
 	for _, user := range contribs {
 		c.contributors[user] = true
 	}
+	c.isMember = make(map[string]bool)
 	return c
 }
 
@@ -386,9 +398,38 @@ func TestAssignAndReview(t *testing.T) {
 			commenter:   "rando",
 			unrequested: []string{"kubernetes/sig-testing-misc"},
 		},
+		{
+			name:      "non-member assigns themselves to non-good-first-issue, sends educational message",
+			body:      "/assign",
+			commenter: "newbie",
+			assigned:  []string{"newbie"},
+			commented: true,
+		},
+		{
+			name:      "non-member assigns themselves to good-first-issue, no educational message",
+			body:      "/assign",
+			commenter: "newbie",
+			assigned:  []string{"newbie"},
+		},
+		{
+			name:      "org member assigns themselves to non-good-first-issue, no educational message",
+			body:      "/assign",
+			commenter: "member",
+			assigned:  []string{"member"},
+		},
 	}
 	for _, tc := range testcases {
-		fc := newFakeClient([]string{"hello-world", "allow_underscore", "cjwagner", "merlin", "kubernetes/sig-testing-misc"})
+		fc := newFakeClient([]string{"hello-world", "allow_underscore", "cjwagner", "merlin", "kubernetes/sig-testing-misc", "newbie", "member", "rando", "o", "san", "innocent"})
+		// Default to member for existing tests
+		for _, u := range []string{"hello-world", "allow_underscore", "cjwagner", "merlin", "member", "rando", "o", "san", "innocent", "evil"} {
+			fc.isMember[u] = true
+		}
+		if tc.commenter == "member" {
+			fc.isMember["member"] = true
+		}
+		if tc.name == "non-member assigns themselves to good-first-issue, no educational message" {
+			fc.labels = []github.Label{{Name: "good-first-issue"}}
+		}
 		e := github.GenericCommentEvent{
 			Body:   tc.body,
 			User:   github.User{Login: tc.commenter},
