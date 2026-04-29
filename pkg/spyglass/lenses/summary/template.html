@@ -1,0 +1,25 @@
+{{define "header"}}
+<style>
+  .summary-container {
+    padding: 10px;
+    background-color: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    margin-bottom: 10px;
+  }
+  .summary-content {
+    padding-top: 10px;
+  }
+</style>
+{{end}}
+
+{{define "body"}}
+{{range .}}
+<details class="summary-container" open ontoggle="if (window.spyglass) spyglass.contentUpdated()">
+  <summary style="cursor: pointer; font-weight: bold; outline: none;">{{.Title}}</summary>
+  <div class="summary-content">
+    {{.Content}}
+  </div>
+</details>
+{{end}}
+{{end}}

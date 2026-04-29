@@ -94,6 +94,7 @@ import (
 	_ "sigs.k8s.io/prow/pkg/spyglass/lenses/metadata"
 	_ "sigs.k8s.io/prow/pkg/spyglass/lenses/podinfo"
 	_ "sigs.k8s.io/prow/pkg/spyglass/lenses/restcoverage"
+	_ "sigs.k8s.io/prow/pkg/spyglass/lenses/summary"
 )
 
 // Omittable ProwJob fields.
