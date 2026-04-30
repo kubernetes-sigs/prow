@@ -245,9 +245,6 @@ func (g *gitCtx) commandsForBaseRef(refs prowapi.Refs, gitUserName, gitUserEmail
 	}
 
 	cloneDepth := refs.CloneDepth
-	if sparseCheckoutSet && cloneDepth == 0 {
-		cloneDepth = 1
-	}
 	var depthArgs []string
 	if cloneDepth > 0 {
 		depthArgs = append(depthArgs, "--depth", strconv.Itoa(cloneDepth))
