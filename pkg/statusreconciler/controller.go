@@ -234,6 +234,9 @@ func (c *Controller) triggerNewPresubmits(addedPresubmits map[string][]config.Pr
 			continue
 		}
 		for _, pr := range prs {
+			if pr.Draft {
+				continue
+			}
 			if pr.Mergable != nil && !*pr.Mergable {
 				// the PR cannot be merged as it is, so the user will need to update the PR (and trigger
 				// testing via the PR push event) or re-test if the HEAD of the branch they are targeting
