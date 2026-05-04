@@ -17,10 +17,12 @@ limitations under the License.
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
+	"os/exec"
 	"regexp"
 	"slices"
 	"strings"
@@ -103,6 +105,8 @@ type Server struct {
 	allowAll bool
 	// Create an issue on cherrypick conflict.
 	issueOnConflict bool
+	// Add original commit ID to cherry-picked commit messages.
+	addOriginalCommitID bool
 	// Set a custom label prefix.
 	labelPrefix string
 
@@ -631,6 +635,23 @@ func (s *Server) handle(logger logrus.FieldLogger, requester string, comment *gi
 		return utilerrors.NewAggregate(errs)
 	}
 
+	// Add original commit IDs if flag is enabled
+	if s.addOriginalCommitID {
+		// Extract all original commit SHAs from patch
+		originalSHAs, err := extractOriginalSHAs(localPath)
+		if err != nil {
+			logger.WithError(err).Warn("Failed to extract original SHAs from patch")
+		} else {
+			// Append cherry-pick messages to all commits created by git am
+			if err := appendCherryPickMessages(r.Directory(), originalSHAs); err != nil {
+				logger.WithError(err).Warn("Failed to append cherry-pick messages")
+			} else {
+				logger.WithField("commit_count", len(originalSHAs)).
+					Info("Successfully added original commit IDs to cherry-picked commits")
+			}
+		}
+	}
+
 	// Push the new branch
 	if err := p.Push(r, newBranch, true); err != nil {
 		logger.WithError(err).Warn("failed to push chery-picked changes to GitHub")
@@ -774,4 +795,93 @@ func releaseNoteFromParentPR(body string) string {
 		return ""
 	}
 	return fmt.Sprintf("```release-note\n%s\n```", strings.TrimSpace(potentialMatch[1]))
+}
+
+// extractOriginalSHAs extracts all original commit SHAs from a patch file.
+// Each commit in a patch starts with: "From <SHA> Mon Sep 17 00:00:00 2001"
+func extractOriginalSHAs(patchPath string) ([]string, error) {
+	file, err := os.Open(patchPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open patch file: %w", err)
+	}
+	defer file.Close()
+
+	var shas []string
+	scanner := bufio.NewScanner(file)
+	fromPattern := regexp.MustCompile(`^From ([0-9a-f]{40}) `)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if matches := fromPattern.FindStringSubmatch(line); matches != nil {
+			shas = append(shas, matches[1])
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("error reading patch file: %w", err)
+	}
+
+	if len(shas) == 0 {
+		return nil, fmt.Errorf("no original SHAs found in patch file")
+	}
+
+	return shas, nil
+}
+
+// appendCherryPickMessages appends "(cherry picked from commit <sha>)"
+// to all commits created by git am (supports single and multi-commit PRs).
+func appendCherryPickMessages(repoPath string, originalSHAs []string) error {
+	numCommits := len(originalSHAs)
+	if numCommits == 0 {
+		return nil
+	}
+
+	// Resolve absolute base SHA for stability
+	baseCmd := exec.Command("git", "-C", repoPath, "rev-parse", fmt.Sprintf("HEAD~%d", numCommits))
+	baseSHABytes, err := baseCmd.Output()
+	if err != nil {
+		return fmt.Errorf("failed to resolve base SHA: %w", err)
+	}
+	baseSHA := strings.TrimSpace(string(baseSHABytes))
+
+	// Helper script run after each commit during rebase
+	script := fmt.Sprintf(`#!/bin/sh
+set -e
+COMMIT_NUM=$(git rev-list --count %s..HEAD)
+ORIGINAL_SHA=$(echo "$ORIGINAL_SHAS" | cut -d',' -f$COMMIT_NUM)
+if [ -n "$ORIGINAL_SHA" ]; then
+    CURRENT_MSG=$(git log -1 --pretty=%%B)
+    git commit --amend -m "$CURRENT_MSG
+
+(cherry picked from commit $ORIGINAL_SHA)"
+fi
+`, baseSHA)
+
+	tmpfile, err := os.CreateTemp("", "cherry-pick-exec-*.sh")
+	if err != nil {
+		return fmt.Errorf("failed to create tmp script: %w", err)
+	}
+	tmpPath := tmpfile.Name()
+	defer os.Remove(tmpPath)
+
+	if _, err := tmpfile.WriteString(script); err != nil {
+		tmpfile.Close()
+		return fmt.Errorf("failed to write tmp script: %w", err)
+	}
+	tmpfile.Close()
+
+	if err := os.Chmod(tmpPath, 0755); err != nil {
+		return fmt.Errorf("failed to chmod tmp script: %w", err)
+	}
+
+	// Prepare and run the rebase. Export ORIGINAL_SHAS and prevent editor.
+	origEnv := fmt.Sprintf("ORIGINAL_SHAS=%s", strings.Join(originalSHAs, ","))
+	cmd := exec.Command("git", "-C", repoPath, "rebase", "-i", baseSHA, "--exec", tmpPath)
+	cmd.Env = append(os.Environ(), origEnv, "GIT_SEQUENCE_EDITOR=true", "GIT_CONFIG_NOSYSTEM=1")
+
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("git rebase --exec failed: %w, output: %s", err, string(out))
+	}
+
+	return nil
 }
