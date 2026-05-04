@@ -39,6 +39,7 @@ var (
 	unlinkIssueRegex = regexp.MustCompile(`(?mi)^/unlink-issue\s+(.+)$`)
 	pinRegex         = regexp.MustCompile(`(?mi)^/pin-issue\s*$`)
 	unpinRegex       = regexp.MustCompile(`(?mi)^/unpin-issue\s*$`)
+	transferRegex    = regexp.MustCompile(`(?mi)^/transfer(?:-issue)?(?: +(.*))?$`)
 )
 
 type githubClient interface {
@@ -83,6 +84,13 @@ func helpProvider(_ *plugins.Configuration, _ []config.OrgRepo) (*pluginhelp.Plu
 		WhoCanUse:   "Approvers from the top-level OWNERS file",
 		Examples:    []string{"/unpin-issue"},
 	})
+	pluginHelp.AddCommand(pluginhelp.Command{
+		Usage:       "/transfer[-issue] <destination repo in same org>",
+		Description: "Transfers an issue to a different repo in the same org.",
+		Featured:    true,
+		WhoCanUse:   "Org members.",
+		Examples:    []string{"/transfer-issue kubectl", "/transfer test-infra"},
+	})
 	return pluginHelp, nil
 }
 
@@ -100,17 +108,30 @@ func handleGenericComment(pc plugins.Agent, e github.GenericCommentEvent) error 
 }
 
 func handleIssues(gc githubClient, oc ownersClient, log *logrus.Entry, e github.GenericCommentEvent) error {
+	// Handle link and unlink issues
 	toLink, toUnlink := parseCommentForLinkCommands(e.Body)
 	if len(toLink) > 0 || len(toUnlink) > 0 {
 		return handleLinkIssue(gc, log, e, toLink, toUnlink)
 	}
 
+	// Handle pin and unpin issues
 	if pinRegex.MatchString(e.Body) {
 		return handlePinOrUnpinIssue(gc, oc, log, e, true)
 	}
 
 	if unpinRegex.MatchString(e.Body) {
 		return handlePinOrUnpinIssue(gc, oc, log, e, false)
+	}
+
+	// Handle transfer issue
+	if matches := transferRegex.FindAllStringSubmatch(e.Body, -1); len(matches) > 0 {
+		if len(matches) != 1 || len(matches[0]) != 2 || len(matches[0][1]) == 0 {
+			return gc.CreateComment(
+				e.Repo.Owner.Login, e.Repo.Name, e.Number,
+				plugins.FormatResponseRaw(e.Body, e.HTMLURL, e.User.Login, "/transfer-issue must only be used once and with a single destination repo."),
+			)
+		}
+		return handleTransfer(gc, log, e, matches[0][1])
 	}
 
 	return nil
