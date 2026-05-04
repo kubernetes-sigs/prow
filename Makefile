@@ -39,11 +39,11 @@ test: unit
 # local development environment (kind cluster with fake external services)
 .PHONY: dev
 dev:
-	hack/dev-env.sh
+	hack/dev-env.sh $(if $(strip $(KIND_CONFIG)),-kind-config="$(KIND_CONFIG)")
 # full dev environment with all Prow components (heavier, matches integration tests)
 .PHONY: dev-full
 dev-full:
-	hack/dev-env.sh -profile=full
+	hack/dev-env.sh -profile=full $(if $(strip $(KIND_CONFIG)),-kind-config="$(KIND_CONFIG)")
 # Tilt inner loop - run 'make dev' once first, then use this for auto-rebuild
 .PHONY: dev-tilt
 dev-tilt:

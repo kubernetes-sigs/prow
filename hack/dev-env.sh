@@ -115,10 +115,15 @@ function check_prerequisites() {
   fi
 }
 
+#TODO: update for case where custom KIND_CONFIG is used
 function print_connection_info() {
   cat <<EOF
 
 ==> Local Prow environment is ready!
+
+Custom KIND_CONFIG Note:
+If a separate APISeverAddress was used then replace localhost below with that.
+The DEV_HTTP_PORT is the host_port used with the container 80 extra port mapping.
 
 Cluster: ${_KIND_CLUSTER_NAME}
 Kubeconfig context: ${_KIND_CONTEXT}
@@ -160,6 +165,7 @@ function main() {
   local rebuild_images=""
   local teardown=false
   local profile="core"
+  local kind_config=""
 
   for arg in "$@"; do
     case "${arg}" in
@@ -175,6 +181,9 @@ function main() {
           echo >&2 "invalid -profile value '${profile}': must be 'core' or 'full'"
           return 1
         fi
+        ;;
+      -kind-config=*)
+        kind_config="${arg#-kind-config=}"
         ;;
       -teardown)
         teardown=true
@@ -213,10 +222,15 @@ function main() {
     return 0
   fi
 
-  log "Setting up kind cluster (HTTP on :${DEV_HTTP_PORT}, HTTPS on :${DEV_HTTPS_PORT})"
-  "${INTEGRATION_DIR}/setup-kind-cluster.sh" \
-    "-http-host-port=${DEV_HTTP_PORT}" \
-    "-https-host-port=${DEV_HTTPS_PORT}"
+  if [[ -n "${kind_config}" ]]; then
+    log "Setting up kind cluster (Custom KIND_CONFIG: ${kind_config})"
+    "${INTEGRATION_DIR}/setup-kind-cluster.sh" "-kind-config=${kind_config}"
+  else
+    log "Setting up kind cluster (HTTP on :${DEV_HTTP_PORT}, HTTPS on :${DEV_HTTPS_PORT})"
+    "${INTEGRATION_DIR}/setup-kind-cluster.sh" \
+      "-http-host-port=${DEV_HTTP_PORT}" \
+      "-https-host-port=${DEV_HTTPS_PORT}"
+  fi
 
   if "${no_build}"; then
     log "Deploying Prow components (skipping image builds, profile=${profile})"
