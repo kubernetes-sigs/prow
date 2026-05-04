@@ -117,6 +117,87 @@ func TestFakeClient_SearchV2JqlWithContext(t *testing.T) {
 	}
 }
 
+func newFakeClientWithIssuesAndWatchers(watchers []jira.User) *FakeClient {
+	return &FakeClient{
+		Issues: []*jira.Issue{
+			{ID: "1", Key: "PROJ-1", Fields: &jira.IssueFields{}},
+			{ID: "2", Key: "PROJ-2", Fields: &jira.IssueFields{}},
+		},
+		Watchers: &watchers,
+	}
+}
+
+func TestFakeClient_GetWatchers(t *testing.T) {
+	watchers := []jira.User{
+		{Name: "alice"},
+		{Name: "bob"},
+	}
+	fakeClient := newFakeClientWithIssuesAndWatchers(watchers)
+
+	got, err := fakeClient.GetWatchers("PROJ-1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if diff := cmp.Diff(&watchers, got); diff != "" {
+		t.Fatalf("unexpected watchers (-want +got):\n%s", diff)
+	}
+
+	_, err = fakeClient.GetWatchers("DOESNOTEXIST")
+	if err == nil {
+		t.Fatal("expected error for non-existent issue, got nil")
+	}
+}
+
+func TestFakeClient_AddWatcher(t *testing.T) {
+	fakeClient := newFakeClientWithIssuesAndWatchers(nil)
+
+	if err := fakeClient.AddWatcher("PROJ-1", "alice"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := fakeClient.AddWatcher("PROJ-1", "bob"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	want := []jira.User{{Name: "alice"}, {Name: "bob"}}
+	if diff := cmp.Diff(&want, fakeClient.Watchers); diff != "" {
+		t.Fatalf("unexpected watchers (-want +got):\n%s", diff)
+	}
+
+	if err := fakeClient.AddWatcher("DOESNOTEXIST", "alice"); err == nil {
+		t.Fatal("expected error for non-existent issue, got nil")
+	}
+}
+
+func TestFakeClient_RemoveWatcher(t *testing.T) {
+	watchers := []jira.User{
+		{Name: "alice"},
+		{Name: "bob"},
+		{Name: "charlie"},
+	}
+	fakeClient := newFakeClientWithIssuesAndWatchers(watchers)
+
+	if err := fakeClient.RemoveWatcher("PROJ-1", "bob"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	want := []jira.User{{Name: "alice"}, {Name: "charlie"}}
+	if diff := cmp.Diff(&want, fakeClient.Watchers); diff != "" {
+		t.Fatalf("unexpected watchers after removal (-want +got):\n%s", diff)
+	}
+
+	// removing a non-existent watcher should not error, just no-op
+	if err := fakeClient.RemoveWatcher("PROJ-1", "nobody"); err != nil {
+		t.Fatalf("unexpected error removing non-existent watcher: %v", err)
+	}
+	if diff := cmp.Diff(&want, fakeClient.Watchers); diff != "" {
+		t.Fatalf("watchers should be unchanged (-want +got):\n%s", diff)
+	}
+
+	if err := fakeClient.RemoveWatcher("DOESNOTEXIST", "alice"); err == nil {
+		t.Fatal("expected error for non-existent issue, got nil")
+	}
+}
+
 func TestFakeClient_GetProjectVersions(t *testing.T) {
 	fakeClient := &FakeClient{
 		ProjectVersions: map[string][]*jira.Version{
