@@ -9588,3 +9588,264 @@ func TestSplitRepoName(t *testing.T) {
 		})
 	}
 }
+
+func TestTektonPresetIntegration(t *testing.T) {
+	testCases := []struct {
+		name        string
+		prowConfig  string
+		jobConfig   string
+		expectError bool
+		verify      func(*Config) error
+	}{
+		{
+			name:       "tekton presubmit with preset",
+			prowConfig: ``,
+			jobConfig: `
+presets:
+- labels:
+    preset-service-account: "true"
+  tekton_service_account: "test-bot"
+  tekton_params:
+  - name: version
+    value: "1.0"
+  tekton_workspaces:
+  - name: cache
+    emptyDir: {}
+
+presubmits:
+  org/repo:
+  - name: test-job
+    labels:
+      preset-service-account: "true"
+    agent: tekton-pipeline
+    pipeline_run_spec:
+      pipelineRef:
+        name: test-pipeline
+      params:
+      - name: extra
+        value: "param"
+`,
+			verify: func(c *Config) error {
+				job := c.PresubmitsStatic["org/repo"][0]
+				spec, err := job.GetPipelineRunSpec()
+				if err != nil {
+					return fmt.Errorf("failed to get pipeline run spec: %w", err)
+				}
+
+				// Verify service account from preset
+				if spec.TaskRunTemplate.ServiceAccountName != "test-bot" {
+					return fmt.Errorf("expected service account 'test-bot', got '%s'", spec.TaskRunTemplate.ServiceAccountName)
+				}
+
+				// Verify params merged (1 from preset + 1 from job)
+				if len(spec.Params) != 2 {
+					return fmt.Errorf("expected 2 params, got %d", len(spec.Params))
+				}
+
+				// Verify preset param
+				var foundVersion bool
+				for _, p := range spec.Params {
+					if p.Name == "version" && p.Value.StringVal == "1.0" {
+						foundVersion = true
+					}
+				}
+				if !foundVersion {
+					return fmt.Errorf("preset param 'version' not found or incorrect")
+				}
+
+				// Verify workspaces from preset
+				if len(spec.Workspaces) != 1 {
+					return fmt.Errorf("expected 1 workspace, got %d", len(spec.Workspaces))
+				}
+				if spec.Workspaces[0].Name != "cache" {
+					return fmt.Errorf("expected workspace 'cache', got '%s'", spec.Workspaces[0].Name)
+				}
+
+				return nil
+			},
+		},
+		{
+			name:       "tekton postsubmit with multiple presets",
+			prowConfig: ``,
+			jobConfig: `
+presets:
+- labels:
+    preset-sa: "true"
+  tekton_service_account: "build-bot"
+- labels:
+    preset-workspace: "true"
+  tekton_workspaces:
+  - name: source
+    volumeClaimTemplate:
+      spec:
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 1Gi
+
+postsubmits:
+  org/repo:
+  - name: build-job
+    labels:
+      preset-sa: "true"
+      preset-workspace: "true"
+    agent: tekton-pipeline
+    pipeline_run_spec:
+      pipelineRef:
+        name: build-pipeline
+`,
+			verify: func(c *Config) error {
+				job := c.PostsubmitsStatic["org/repo"][0]
+				spec, err := job.GetPipelineRunSpec()
+				if err != nil {
+					return fmt.Errorf("failed to get pipeline run spec: %w", err)
+				}
+
+				// Verify both presets applied
+				if spec.TaskRunTemplate.ServiceAccountName != "build-bot" {
+					return fmt.Errorf("preset service account not applied")
+				}
+				if len(spec.Workspaces) != 1 || spec.Workspaces[0].Name != "source" {
+					return fmt.Errorf("preset workspace not applied")
+				}
+
+				return nil
+			},
+		},
+		{
+			name:       "tekton periodic with timeout preset",
+			prowConfig: ``,
+			jobConfig: `
+presets:
+- labels:
+    preset-timeout: "true"
+  tekton_timeout: 1h
+
+periodics:
+- name: periodic-job
+  interval: 1h
+  labels:
+    preset-timeout: "true"
+  agent: tekton-pipeline
+  pipeline_run_spec:
+    pipelineRef:
+      name: periodic-pipeline
+`,
+			verify: func(c *Config) error {
+				job := c.Periodics[0]
+				spec, err := job.GetPipelineRunSpec()
+				if err != nil {
+					return fmt.Errorf("failed to get pipeline run spec: %w", err)
+				}
+
+				// Verify timeout from preset
+				if spec.Timeouts == nil || spec.Timeouts.Pipeline == nil {
+					return fmt.Errorf("timeout not applied from preset")
+				}
+				expectedDuration := metav1.Duration{Duration: time.Hour}
+				if spec.Timeouts.Pipeline.Duration != expectedDuration.Duration {
+					return fmt.Errorf("expected timeout 1h, got %v", spec.Timeouts.Pipeline.Duration)
+				}
+
+				return nil
+			},
+		},
+		{
+			name:       "tekton job without matching preset label",
+			prowConfig: ``,
+			jobConfig: `
+presets:
+- labels:
+    preset-other: "true"
+  tekton_service_account: "other-bot"
+
+presubmits:
+  org/repo:
+  - name: no-preset-job
+    labels:
+      different-label: "true"
+    agent: tekton-pipeline
+    pipeline_run_spec:
+      pipelineRef:
+        name: test-pipeline
+`,
+			verify: func(c *Config) error {
+				job := c.PresubmitsStatic["org/repo"][0]
+				spec, err := job.GetPipelineRunSpec()
+				if err != nil {
+					return fmt.Errorf("failed to get pipeline run spec: %w", err)
+				}
+
+				// Verify preset NOT applied (label doesn't match)
+				if spec.TaskRunTemplate.ServiceAccountName != "" {
+					return fmt.Errorf("preset should not be applied, but got service account: %s", spec.TaskRunTemplate.ServiceAccountName)
+				}
+
+				return nil
+			},
+		},
+		{
+			name:       "duplicate param error",
+			prowConfig: ``,
+			jobConfig: `
+presets:
+- labels:
+    preset-duplicate: "true"
+  tekton_params:
+  - name: version
+    value: "1.0"
+
+presubmits:
+  org/repo:
+  - name: duplicate-param-job
+    labels:
+      preset-duplicate: "true"
+    agent: tekton-pipeline
+    pipeline_run_spec:
+      pipelineRef:
+        name: test-pipeline
+      params:
+      - name: version
+        value: "2.0"
+`,
+			expectError: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create temp files for config
+			prowConfigPath := filepath.Join(t.TempDir(), "prow-config.yaml")
+			if err := os.WriteFile(prowConfigPath, []byte(tc.prowConfig), 0644); err != nil {
+				t.Fatalf("Failed to write prow config: %v", err)
+			}
+
+			jobConfigPath := filepath.Join(t.TempDir(), "job-config.yaml")
+			if err := os.WriteFile(jobConfigPath, []byte(tc.jobConfig), 0644); err != nil {
+				t.Fatalf("Failed to write job config: %v", err)
+			}
+
+			// Load config
+			cfg, err := Load(prowConfigPath, jobConfigPath, nil, "")
+
+			if tc.expectError {
+				if err == nil {
+					t.Fatalf("expected error but got none")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			// Run verification
+			if tc.verify != nil {
+				if err := tc.verify(cfg); err != nil {
+					t.Errorf("verification failed: %v", err)
+				}
+			}
+		})
+	}
+}
