@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -43,6 +44,7 @@ type FakeClient struct {
 	Users            []*jira.User
 	SearchResponses  map[SearchRequest]SearchResponse
 	ProjectVersions  map[string][]*jira.Version
+	Watchers         *[]jira.User
 }
 
 func (f *FakeClient) ListProjects() (*jira.ProjectList, error) {
@@ -388,4 +390,41 @@ func (f *FakeClient) GetProjectVersions(project string) ([]*jira.Version, error)
 		return versions, nil
 	}
 	return []*jira.Version{}, nil
+}
+
+func (f *FakeClient) GetWatchers(issueID string) (*[]jira.User, error) {
+	return f.GetWatchersWithContext(context.Background(), issueID)
+}
+
+func (f *FakeClient) GetWatchersWithContext(ctx context.Context, issueID string) (*[]jira.User, error) {
+	if _, err := f.GetIssue(issueID); err != nil {
+		return nil, err
+	}
+	return f.Watchers, nil
+}
+
+func (f *FakeClient) AddWatcher(issueID, userName string) error {
+	return f.AddWatcherWithContext(context.Background(), issueID, userName)
+}
+
+func (f *FakeClient) AddWatcherWithContext(ctx context.Context, issueID, userName string) error {
+	if _, err := f.GetIssue(issueID); err != nil {
+		return err
+	}
+	*f.Watchers = append(*f.Watchers, jira.User{Name: userName})
+	return nil
+}
+
+func (f *FakeClient) RemoveWatcher(issueID, userName string) error {
+	return f.RemoveWatcherWithContext(context.Background(), issueID, userName)
+}
+
+func (f *FakeClient) RemoveWatcherWithContext(ctx context.Context, issueID, userName string) error {
+	if _, err := f.GetIssue(issueID); err != nil {
+		return err
+	}
+	*f.Watchers = slices.DeleteFunc(*f.Watchers, func(u jira.User) bool {
+		return u.Name == userName
+	})
+	return nil
 }
