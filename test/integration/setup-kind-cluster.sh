@@ -157,9 +157,7 @@ function create_cluster() {
   https_host_port="${3:-443}"
   kind_config="${4:-default}"
 
-  if [ "${kind_config}" != "default" ]; then
-    kind create cluster --name "${_KIND_CLUSTER_NAME}" "--config=${kind_config}" --wait=5m
-  else
+  if [ "${kind_config}" == "default" ]; then
     cat <<EOF | kind create cluster --name "${_KIND_CLUSTER_NAME}" --config=-
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
@@ -189,6 +187,8 @@ nodes:
     hostPort: ${fakepubsub_node_port}
     protocol: TCP
 EOF
+  else
+    kind create cluster --name "${_KIND_CLUSTER_NAME}" "--config=${kind_config}" --wait=5m
   fi
 
 }
