@@ -71,13 +71,17 @@ type githubClient interface {
 	UnrequestReview(org, repo string, number int, logins []string) error
 
 	CreateComment(owner, repo string, number int, comment string) error
+	IsMember(org, user string) (bool, error)
+	GetIssueLabels(org, repo string, number int) ([]github.Label, error)
+	GetRepo(owner, name string) (github.FullRepo, error)
+	GetFile(org, repo, filepath, commit string) ([]byte, error)
 }
 
 func handleGenericComment(pc plugins.Agent, e github.GenericCommentEvent) error {
 	if e.Action != github.GenericCommentActionCreated {
 		return nil
 	}
-	err := handle(newAssignHandler(e, pc.GitHubClient, pc.Logger))
+	err := handle(newAssignHandler(e, pc.GitHubClient, pc.Logger, pc.PluginConfig))
 	if e.IsPR {
 		err = combineErrors(err, handle(newReviewHandler(e, pc.GitHubClient, pc.Logger)))
 	}
@@ -146,6 +150,50 @@ func handle(h *handler) error {
 	}
 	if len(toAdd) > 0 {
 		h.log.Printf("Adding %s to %s/%s#%d: %v", h.userType, org, repo, e.Number, toAdd)
+		if h.userType == "assignee(s)" {
+			labels, err := h.gc.GetIssueLabels(org, repo, e.Number)
+			if err != nil {
+				h.log.WithError(err).Warn("Failed to get issue labels")
+			}
+			hasGoodFirstIssue := false
+			for _, l := range labels {
+				if strings.ToLower(l.Name) == "good-first-issue" {
+					hasGoodFirstIssue = true
+					break
+				}
+			}
+
+			if !hasGoodFirstIssue {
+				isMember, err := h.gc.IsMember(org, e.User.Login)
+				if err != nil {
+					h.log.WithError(err).Warn("Failed to check membership")
+				} else if !isMember {
+					guideLink := ""
+					defaultBranch := e.Repo.DefaultBranch
+					if defaultBranch == "" {
+						defaultBranch = "main"
+					}
+					// Check for CONTRIBUTING.md or docs/CONTRIBUTING.md
+					paths := []string{"CONTRIBUTING.md", "docs/CONTRIBUTING.md"}
+					for _, p := range paths {
+						if _, err := h.gc.GetFile(org, repo, p, defaultBranch); err == nil {
+							guideLink = fmt.Sprintf(" and our [contributor guide](https://github.com/%s/%s/blob/%s/%s)", org, repo, defaultBranch, p)
+							break
+						}
+					}
+
+					// If no local guide found, use the configured HelpGuidelinesURL if it's not the default
+					if guideLink == "" && h.config != nil && h.config.Help.HelpGuidelinesURL != "" && h.config.Help.HelpGuidelinesURL != "https://git.k8s.io/community/contributors/guide/help-wanted.md" {
+						guideLink = fmt.Sprintf(" and our [contributor guide](%s)", h.config.Help.HelpGuidelinesURL)
+					}
+
+					msg := fmt.Sprintf("It looks like you're new! This issue hasn't been vetted for beginners yet. Please check out the [Good First Issues List](https://github.com/%s/%s/labels/good-first-issue)%s to get started.", org, repo, guideLink)
+					if err := h.gc.CreateComment(org, repo, e.Number, plugins.FormatResponseRaw(e.Body, e.HTMLURL, e.User.Login, msg)); err != nil {
+						h.log.WithError(err).Warn("Failed to create educational comment")
+					}
+				}
+			}
+		}
 		if err := h.add(org, repo, e.Number, toAdd); err != nil {
 			if mu, ok := err.(github.MissingUsers); ok {
 				msg := h.addFailureResponse(mu)
@@ -185,9 +233,11 @@ type handler struct {
 	log *logrus.Entry
 	// userType is a string that represents the type of users affected by this handler. (e.g. 'assignees')
 	userType string
+	// config is the plugins.Configuration to use for looking up help guidelines.
+	config *plugins.Configuration
 }
 
-func newAssignHandler(e github.GenericCommentEvent, gc githubClient, log *logrus.Entry) *handler {
+func newAssignHandler(e github.GenericCommentEvent, gc githubClient, log *logrus.Entry, config *plugins.Configuration) *handler {
 	org := e.Repo.Owner.Login
 	addFailureResponse := func(mu github.MissingUsers) string {
 		return fmt.Sprintf("GitHub didn't allow me to assign the following users: %s.\n\nNote that only [%s members](https://%s/orgs/%s/people) with read permissions, repo collaborators and people who have commented on this issue/PR can be assigned. Additionally, issues/PRs can only have 10 assignees at the same time.\nFor more information please see [the contributor guide](https://git.k8s.io/community/contributors/guide/first-contribution.md#issue-assignment-in-github)", strings.Join(mu.Users, ", "), org, github.DefaultHost, org)
@@ -202,6 +252,7 @@ func newAssignHandler(e github.GenericCommentEvent, gc githubClient, log *logrus
 		gc:                 gc,
 		log:                log,
 		userType:           "assignee(s)",
+		config:             config,
 	}
 }
 
