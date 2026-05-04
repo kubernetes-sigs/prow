@@ -33,6 +33,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
 
@@ -516,16 +517,58 @@ type OrgInviteConfig struct {
 	Prominent ProminentOrgInviteConfig `json:"prominent,omitempty"`
 }
 
+// TrustedApp represents a single app entry in the trusted_apps configuration.
+type TrustedApp struct {
+	// Name is the GitHub App username without the [bot] suffix.
+	Name string `json:"name"`
+	// Untrusted, if true, means this app is explicitly NOT trusted at this level.
+	// When absent or false, the app is trusted.
+	Untrusted bool `json:"untrusted,omitempty"`
+	// Locked, if true, means lower configuration levels cannot override this app's trust setting.
+	// Only meaningful at global and org levels.
+	Locked bool `json:"locked,omitempty"`
+}
+
+// TrustedApps is a list of TrustedApp entries. It supports unmarshaling from both
+// the legacy format (a list of plain strings) and the new format (a list of objects),
+// as well as mixed arrays containing both.
+type TrustedApps []TrustedApp
+
+// UnmarshalJSON implements custom JSON unmarshaling for backward compatibility.
+// Each array element can be either a bare string ("app-name") or an object ({"name": "app-name", ...}).
+func (ta *TrustedApps) UnmarshalJSON(data []byte) error {
+	var raw []json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	result := make([]TrustedApp, len(raw))
+	for i, elem := range raw {
+		// Try as string first (legacy format)
+		var name string
+		if err := json.Unmarshal(elem, &name); err == nil {
+			result[i] = TrustedApp{Name: name}
+			continue
+		}
+		// Try as object (new format)
+		if err := json.Unmarshal(elem, &result[i]); err != nil {
+			return fmt.Errorf("trusted_apps element %d: must be a string or an object with name, untrusted, and locked fields: %w", i, err)
+		}
+	}
+	*ta = result
+	return nil
+}
+
 // Trigger specifies a configuration for a single trigger.
 //
 // The configuration for the trigger plugin is defined as a list of these structures.
 type Trigger struct {
 	// Repos is either of the form org/repos or just org.
 	Repos []string `json:"repos,omitempty"`
-	// TrustedApps is the explicit list of GitHub apps whose PRs will be automatically
+	// TrustedApps is the list of GitHub apps whose PRs will be automatically
 	// considered as trusted. The list should contain usernames of each GitHub App without [bot] suffix.
+	// Each entry can specify untrusted and locked fields for hierarchical configuration.
 	// By default, trigger will ignore this list.
-	TrustedApps []string `json:"trusted_apps,omitempty"`
+	TrustedApps TrustedApps `json:"trusted_apps,omitempty"`
 	// TrustedOrg is the org whose members' PRs will be automatically built for
 	// PRs to the above repos. The default is the PR's org.
 	//
@@ -547,6 +590,17 @@ type Trigger struct {
 	// OrgInvite holds configuration for the org invite message
 	// shown to non-org members when they open a PR.
 	OrgInvite OrgInviteConfig `json:"org_invite,omitempty"`
+
+	// resolvedTrustedApps is populated by TriggerFor with the final flat list of
+	// trusted app names after hierarchical resolution across global, org, and repo levels.
+	resolvedTrustedApps []string
+}
+
+// GetTrustedApps returns the resolved list of trusted app names.
+// The Trigger should be obtained via TriggerFor, which populates the resolved list
+// through hierarchical resolution. If resolution did not happen, no apps are trusted.
+func (t *Trigger) GetTrustedApps() []string {
+	return t.resolvedTrustedApps
 }
 
 // Heart contains the configuration for the heart plugin.
@@ -1047,29 +1101,93 @@ func (c *Configuration) LgtmFor(org, repo string) *Lgtm {
 	return &Lgtm{}
 }
 
-// TriggerFor finds the Trigger for a repo, if one exists
-// a trigger can be listed for the repo itself or for the
-// owning organization
+// TriggerFor finds the Trigger for a repo, if one exists.
+// A trigger can be listed for the repo itself or for the owning organization.
+// The returned Trigger has its trusted apps resolved across global, org, and repo levels.
 func (c *Configuration) TriggerFor(org, repo string) Trigger {
 	fullName := fmt.Sprintf("%s/%s", org, repo)
-	// Prioritize repo level triggers over org level triggers.
+	// Single pass: find the most specific trigger and collect trusted apps at each level.
+	var repoMatch, orgMatch Trigger
+	var foundRepo, foundOrg bool
+	var globalApps, orgApps, repoApps TrustedApps
 	for _, trigger := range c.Triggers {
-		if !sets.NewString(trigger.Repos...).Has(fullName) {
-			continue
+		repos := sets.New[string](trigger.Repos...)
+		switch {
+		case len(trigger.Repos) == 0:
+			globalApps = append(globalApps, trigger.TrustedApps...)
+		case repos.Has(fullName):
+			repoApps = append(repoApps, trigger.TrustedApps...)
+			if !foundRepo {
+				repoMatch = trigger
+				foundRepo = true
+			}
+		case repos.Has(org):
+			orgApps = append(orgApps, trigger.TrustedApps...)
+			if !foundOrg {
+				orgMatch = trigger
+				foundOrg = true
+			}
 		}
-		return trigger
-	}
-	// If you don't find anything, loop again looking for an org config
-	for _, trigger := range c.Triggers {
-		if !sets.NewString(trigger.Repos...).Has(org) {
-			continue
-		}
-		return trigger
 	}
 
-	var tr Trigger
-	tr.SetDefaults()
-	return tr
+	var result Trigger
+	switch {
+	case foundRepo:
+		result = repoMatch
+	case foundOrg:
+		result = orgMatch
+	default:
+		result.SetDefaults()
+	}
+
+	result.resolvedTrustedApps = resolveTrustedApps(globalApps, orgApps, repoApps)
+	return result
+}
+
+// trustedAppState tracks the trust status and lock state of an app during hierarchical resolution.
+type trustedAppState struct {
+	trusted bool
+	locked  bool
+}
+
+// resolveTrustedApps merges trusted app configurations across global, org, and repo levels.
+// It returns the final flat list of trusted app names after applying inheritance,
+// untrusted exclusions, and locked overrides.
+func resolveTrustedApps(globalApps, orgApps, repoApps TrustedApps) []string {
+	state := map[string]*trustedAppState{}
+	for _, app := range globalApps {
+		state[app.Name] = &trustedAppState{
+			trusted: !app.Untrusted,
+			locked:  app.Locked,
+		}
+	}
+	for _, app := range orgApps {
+		if s, exists := state[app.Name]; exists && s.locked {
+			continue
+		}
+		state[app.Name] = &trustedAppState{
+			trusted: !app.Untrusted,
+			locked:  app.Locked,
+		}
+	}
+	for _, app := range repoApps {
+		if s, exists := state[app.Name]; exists && s.locked {
+			continue
+		}
+		// locked is not set here: repo is the lowest level, so there is nothing to lock against.
+		state[app.Name] = &trustedAppState{
+			trusted: !app.Untrusted,
+		}
+	}
+
+	var result []string
+	for name, s := range state {
+		if s.trusted {
+			result = append(result, name)
+		}
+	}
+	sort.Strings(result)
+	return result
 }
 
 func (t *Trigger) SetDefaults() {
@@ -1468,8 +1586,93 @@ func validateTrigger(triggers []Trigger) error {
 		if trigger.TrustedOrg != "" {
 			logrusutil.ThrottledWarnf(&warnTriggerTrustedOrg, 5*time.Minute, "trusted_org functionality is deprecated. Please ensure your configuration is updated before the end of December 2019.")
 		}
+		if err := validateTrustedApps(trigger.TrustedApps); err != nil {
+			if len(trigger.Repos) == 0 {
+				return fmt.Errorf("global trigger: %w", err)
+			}
+			return fmt.Errorf("trigger for %v: %w", trigger.Repos, err)
+		}
 	}
 	return nil
+}
+
+func validateTrustedApps(apps TrustedApps) error {
+	seen := map[string]bool{}
+	for _, app := range apps {
+		if app.Name == "" {
+			return errors.New("trusted_apps entry has empty app name")
+		}
+		if seen[app.Name] {
+			return fmt.Errorf("duplicate trusted_apps entry for app %q", app.Name)
+		}
+		seen[app.Name] = true
+	}
+	return nil
+}
+
+// ValidateLockedTrustedApps checks whether any lower-level trigger entries attempt to
+// configure trusted apps that are locked at a higher level. This is not an error (the
+// locked setting simply takes precedence), but it may indicate a misconfiguration.
+func (c *Configuration) ValidateLockedTrustedApps() error {
+	// Collect locked apps at global level (triggers with empty Repos)
+	globalLocked := map[string]bool{}
+	for _, trigger := range c.Triggers {
+		if len(trigger.Repos) != 0 {
+			continue
+		}
+		for _, app := range trigger.TrustedApps {
+			if app.Locked {
+				globalLocked[app.Name] = true
+			}
+		}
+	}
+
+	// Collect locked apps at each org level
+	orgLocked := map[string]map[string]bool{} // org -> app -> locked
+	for _, trigger := range c.Triggers {
+		for _, r := range trigger.Repos {
+			// Org-level entries have no slash
+			if strings.Contains(r, "/") {
+				continue
+			}
+			for _, app := range trigger.TrustedApps {
+				if app.Locked {
+					if orgLocked[r] == nil {
+						orgLocked[r] = map[string]bool{}
+					}
+					orgLocked[r][app.Name] = true
+				}
+			}
+		}
+	}
+
+	var errs []error
+
+	for _, trigger := range c.Triggers {
+		for _, r := range trigger.Repos {
+			if strings.Contains(r, "/") {
+				// Repo-level entry: check against both global and org locks
+				parts := strings.SplitN(r, "/", 2)
+				org := parts[0]
+				for _, app := range trigger.TrustedApps {
+					if globalLocked[app.Name] {
+						errs = append(errs, fmt.Errorf("trigger for %q configures trusted app %q which is locked at global level", r, app.Name))
+					} else if orgLocked[org] != nil && orgLocked[org][app.Name] {
+						errs = append(errs, fmt.Errorf("trigger for %q configures trusted app %q which is locked at org level (%s)", r, app.Name, org))
+					}
+				}
+			} else {
+				// Org-level entry: check against global locks
+				for _, app := range trigger.TrustedApps {
+					if globalLocked[app.Name] {
+						errs = append(errs, fmt.Errorf("trigger for org %q configures trusted app %q which is locked at global level", r, app.Name))
+					}
+				}
+			}
+		}
+	}
+
+	return utilerrors.NewAggregate(errs)
 }
 
 var warnRepoMilestone time.Time
@@ -2171,10 +2374,13 @@ type Override struct {
 func (c *Configuration) mergeFrom(other *Configuration) error {
 	var errs []error
 
+	// Trigger has unexported fields, so we need to extend DefaultDiffOpts here
+	// (adding it there would create a circular import between config and plugins).
+	diffOpts := append(config.DefaultDiffOpts, cmpopts.IgnoreUnexported(Trigger{}))
 	diff := cmp.Diff(other, &Configuration{Approve: other.Approve, Bugzilla: other.Bugzilla,
 		ExternalPlugins: other.ExternalPlugins, Label: Label{RestrictedLabels: other.Label.RestrictedLabels},
 		Lgtm: other.Lgtm, Plugins: other.Plugins, Triggers: other.Triggers, Welcome: other.Welcome},
-		config.DefaultDiffOpts...)
+		diffOpts...)
 
 	if diff != "" {
 		errs = append(errs, fmt.Errorf("supplemental plugin configuration has config that doesn't support merging: %s", diff))
