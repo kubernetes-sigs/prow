@@ -74,6 +74,17 @@ type OrganizationClient interface {
 	RemoveOrgMembership(org, user string) error
 }
 
+// OrganizationRolesClient interface for organization roles related API actions
+type OrganizationRolesClient interface {
+	ListOrganizationRoles(org string) ([]OrganizationRole, error)
+	AssignOrganizationRoleToTeam(org, teamSlug string, roleID int) error
+	RemoveOrganizationRoleFromTeam(org, teamSlug string, roleID int) error
+	AssignOrganizationRoleToUser(org, user string, roleID int) error
+	RemoveOrganizationRoleFromUser(org, user string, roleID int) error
+	ListTeamsWithRole(org string, roleID int) ([]OrganizationRoleAssignment, error)
+	ListUsersWithRole(org string, roleID int) ([]OrganizationRoleAssignment, error)
+}
+
 // HookClient interface for hook related API actions
 type HookClient interface {
 	ListOrgHooks(org string) ([]Hook, error)
@@ -268,6 +279,7 @@ type Client interface {
 	IssueClient
 	CommentClient
 	OrganizationClient
+	OrganizationRolesClient
 	TeamClient
 	ProjectClient
 	MilestoneClient
@@ -5214,4 +5226,134 @@ func (c *client) ListRepoInvitations(org, repo string) ([]CollaboratorRepoInvita
 		return nil, err
 	}
 	return ret, nil
+}
+
+// orgRolesResponse is the wrapper object returned by the list organization roles API.
+type orgRolesResponse struct {
+	TotalCount int                `json:"total_count"`
+	Roles      []OrganizationRole `json:"roles"`
+}
+
+// ListOrganizationRoles lists all organization roles
+//
+// https://docs.github.com/en/rest/orgs/organization-roles#list-organization-roles
+func (c *client) ListOrganizationRoles(org string) ([]OrganizationRole, error) {
+	c.log("ListOrganizationRoles", org)
+	if c.fake {
+		return nil, nil
+	}
+
+	path := fmt.Sprintf("/orgs/%s/organization-roles", org)
+	var roles []OrganizationRole
+	err := c.readPaginatedResults(
+		path,
+		acceptNone,
+		org,
+		func() interface{} {
+			return &orgRolesResponse{}
+		},
+		func(obj interface{}) {
+			roles = append(roles, obj.(*orgRolesResponse).Roles...)
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	return roles, nil
+}
+
+// AssignOrganizationRoleToTeam assigns an organization role to a team
+//
+// https://docs.github.com/en/rest/orgs/organization-roles#assign-an-organization-role-to-a-team
+func (c *client) AssignOrganizationRoleToTeam(org, teamSlug string, roleID int) error {
+	c.log("AssignOrganizationRoleToTeam", org, teamSlug, roleID)
+	_, err := c.request(&request{
+		method:    http.MethodPut,
+		path:      fmt.Sprintf("/orgs/%s/organization-roles/teams/%s/%d", org, teamSlug, roleID),
+		org:       org,
+		exitCodes: []int{204},
+	}, nil)
+	return err
+}
+
+// RemoveOrganizationRoleFromTeam removes an organization role from a team
+//
+// https://docs.github.com/en/rest/orgs/organization-roles#remove-an-organization-role-from-a-team
+func (c *client) RemoveOrganizationRoleFromTeam(org, teamSlug string, roleID int) error {
+	c.log("RemoveOrganizationRoleFromTeam", org, teamSlug, roleID)
+	_, err := c.request(&request{
+		method:    http.MethodDelete,
+		path:      fmt.Sprintf("/orgs/%s/organization-roles/teams/%s/%d", org, teamSlug, roleID),
+		org:       org,
+		exitCodes: []int{204},
+	}, nil)
+	return err
+}
+
+// AssignOrganizationRoleToUser assigns an organization role to a user
+//
+// https://docs.github.com/en/rest/orgs/organization-roles#assign-an-organization-role-to-a-user
+func (c *client) AssignOrganizationRoleToUser(org, user string, roleID int) error {
+	c.log("AssignOrganizationRoleToUser", org, user, roleID)
+	_, err := c.request(&request{
+		method:    http.MethodPut,
+		path:      fmt.Sprintf("/orgs/%s/organization-roles/users/%s/%d", org, user, roleID),
+		org:       org,
+		exitCodes: []int{204},
+	}, nil)
+	return err
+}
+
+// RemoveOrganizationRoleFromUser removes an organization role from a user
+//
+// https://docs.github.com/en/rest/orgs/organization-roles#remove-an-organization-role-from-a-user
+func (c *client) RemoveOrganizationRoleFromUser(org, user string, roleID int) error {
+	c.log("RemoveOrganizationRoleFromUser", org, user, roleID)
+	_, err := c.request(&request{
+		method:    http.MethodDelete,
+		path:      fmt.Sprintf("/orgs/%s/organization-roles/users/%s/%d", org, user, roleID),
+		org:       org,
+		exitCodes: []int{204},
+	}, nil)
+	return err
+}
+
+// listRoleAssignments is a shared helper for listing teams or users assigned to a role.
+func (c *client) listRoleAssignments(org string, roleID int, entityType string) ([]OrganizationRoleAssignment, error) {
+	c.log("listRoleAssignments", org, roleID, entityType)
+	if c.fake {
+		return nil, nil
+	}
+
+	path := fmt.Sprintf("/orgs/%s/organization-roles/%d/%s", org, roleID, entityType)
+	var assignments []OrganizationRoleAssignment
+	err := c.readPaginatedResults(
+		path,
+		acceptNone,
+		org,
+		func() interface{} {
+			return &[]OrganizationRoleAssignment{}
+		},
+		func(obj interface{}) {
+			assignments = append(assignments, *(obj.(*[]OrganizationRoleAssignment))...)
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	return assignments, nil
+}
+
+// ListTeamsWithRole lists all teams assigned to a specific organization role
+//
+// https://docs.github.com/en/rest/orgs/organization-roles#list-teams-assigned-to-an-organization-role
+func (c *client) ListTeamsWithRole(org string, roleID int) ([]OrganizationRoleAssignment, error) {
+	return c.listRoleAssignments(org, roleID, "teams")
+}
+
+// ListUsersWithRole lists all users assigned to a specific organization role
+//
+// https://docs.github.com/en/rest/orgs/organization-roles#list-users-assigned-to-an-organization-role
+func (c *client) ListUsersWithRole(org string, roleID int) ([]OrganizationRoleAssignment, error) {
+	return c.listRoleAssignments(org, roleID, "users")
 }
