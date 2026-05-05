@@ -95,6 +95,10 @@ type Client interface {
 	Used() bool
 	WithFields(fields logrus.Fields) Client
 	GetProjectVersions(project string) ([]*jira.Version, error)
+	AddWatcher(issueID, userName string) error
+	AddWatcherWithContext(ctx context.Context, issueID, userName string) error
+	GetWatchers(issueID string) (*[]jira.User, error)
+	GetWatchersWithContext(ctx context.Context, issueID string) (*[]jira.User, error)
 }
 
 type BasicAuthGenerator func() (username, password string)
@@ -901,4 +905,49 @@ func (jc *client) GetProjectVersions(project string) ([]*jira.Version, error) {
 		return nil, HandleJiraError(resp, err)
 	}
 	return versions, nil
+}
+
+func (jc *client) GetWatchers(issueID string) (*[]jira.User, error) {
+	return jc.GetWatchersWithContext(context.Background(), issueID)
+}
+
+func (jc *client) GetWatchersWithContext(ctx context.Context, issueID string) (*[]jira.User, error) {
+	watchers, response, err := jc.upstream.Issue.GetWatchersWithContext(ctx, issueID)
+	if err != nil {
+		if response != nil && response.StatusCode == http.StatusNotFound {
+			return nil, NotFoundError{err}
+		}
+		return nil, HandleJiraError(response, err)
+	}
+	return watchers, nil
+}
+
+func (jc *client) AddWatcher(issueID, userName string) error {
+	return jc.AddWatcherWithContext(context.Background(), issueID, userName)
+}
+
+func (jc *client) AddWatcherWithContext(ctx context.Context, issueID, userName string) error {
+	response, err := jc.upstream.Issue.AddWatcherWithContext(ctx, issueID, userName)
+	if err != nil {
+		if response != nil && response.StatusCode == http.StatusNotFound {
+			return NotFoundError{err}
+		}
+		return HandleJiraError(response, err)
+	}
+	return nil
+}
+
+func (jc *client) RemoveWatcher(issueID, userName string) error {
+	return jc.RemoveWatcherWithContext(context.Background(), issueID, userName)
+}
+
+func (jc *client) RemoveWatcherWithContext(ctx context.Context, issueID, userName string) error {
+	response, err := jc.upstream.Issue.RemoveWatcherWithContext(ctx, issueID, userName)
+	if err != nil {
+		if response != nil && response.StatusCode == http.StatusNotFound {
+			return NotFoundError{err}
+		}
+		return HandleJiraError(response, err)
+	}
+	return nil
 }

@@ -10,7 +10,7 @@ in flight do not cause those PRs to get stuck.
 
 When the set of blocking presubmits changes for a repository, one of three cases occurs:
 
-- a new blocking presubmit exists and should be triggered for every trusted pull request in flight
+- a new blocking presubmit exists and should be triggered for every trusted, non-draft pull request in flight
 - an existing blocking presubmit is removed and should have its' status retired
 - an existing blocking presubmit is renamed and should have its' status migrated
 

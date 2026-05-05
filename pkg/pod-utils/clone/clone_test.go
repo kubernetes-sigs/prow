@@ -624,7 +624,7 @@ func TestCommandsForRefs(t *testing.T) {
 				cloneCommand{dir: "/go/src/github.com/org/repo", command: "git", args: []string{"init"}},
 				cloneCommand{dir: "/go/src/github.com/org/repo", command: "git", args: []string{"sparse-checkout", "init"}},
 				retryCommand{
-					cloneCommand{dir: "/go/src/github.com/org/repo", command: "git", args: []string{"fetch", "--depth", "1", "--filter=blob:none", "--no-tags", "https://github.com/org/repo.git", "master"}},
+					cloneCommand{dir: "/go/src/github.com/org/repo", command: "git", args: []string{"fetch", "--filter=blob:none", "--no-tags", "https://github.com/org/repo.git", "master"}},
 					fetchRetries,
 				},
 				cloneCommand{dir: "/go/src/github.com/org/repo", command: "git", args: []string{"sparse-checkout", "set", "pkg/operator"}},
@@ -650,7 +650,7 @@ func TestCommandsForRefs(t *testing.T) {
 				cloneCommand{dir: "/go/src/github.com/org/repo", command: "git", args: []string{"init"}},
 				cloneCommand{dir: "/go/src/github.com/org/repo", command: "git", args: []string{"sparse-checkout", "init"}},
 				retryCommand{
-					cloneCommand{dir: "/go/src/github.com/org/repo", command: "git", args: []string{"fetch", "--depth", "1", "--filter=blob:none", "--no-tags", "https://github.com/org/repo.git", "master"}},
+					cloneCommand{dir: "/go/src/github.com/org/repo", command: "git", args: []string{"fetch", "--filter=blob:none", "--no-tags", "https://github.com/org/repo.git", "master"}},
 					fetchRetries,
 				},
 				cloneCommand{dir: "/go/src/github.com/org/repo", command: "git", args: []string{"sparse-checkout", "set", "Dockerfile", "Makefile"}},
@@ -680,7 +680,7 @@ func TestCommandsForRefs(t *testing.T) {
 				cloneCommand{dir: "/go/src/github.com/org/repo", command: "git", args: []string{"init"}},
 				cloneCommand{dir: "/go/src/github.com/org/repo", command: "git", args: []string{"sparse-checkout", "init"}},
 				retryCommand{
-					cloneCommand{dir: "/go/src/github.com/org/repo", command: "git", args: []string{"fetch", "--depth", "1", "--filter=blob:none", "--no-tags", "https://github.com/org/repo.git", "base-sha"}},
+					cloneCommand{dir: "/go/src/github.com/org/repo", command: "git", args: []string{"fetch", "--filter=blob:none", "--no-tags", "https://github.com/org/repo.git", "base-sha"}},
 					fetchRetries,
 				},
 				cloneCommand{dir: "/go/src/github.com/org/repo", command: "git", args: []string{"sparse-checkout", "set", "images/ci-operator/Dockerfile"}},

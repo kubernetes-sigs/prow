@@ -856,6 +856,25 @@ func TestControllerReconcile(t *testing.T) {
 		},
 		Mergable: &notMergable,
 	}
+	draftPr := github.PullRequest{
+		User: github.User{
+			Login: author,
+		},
+		Number: secondPrNumber,
+		Base: github.PullRequestBranch{
+			Repo: github.Repo{
+				Owner: github.User{
+					Login: org,
+				},
+				Name: repo,
+			},
+			Ref: baseRef,
+		},
+		Head: github.PullRequestBranch{
+			SHA: "prsha-draft",
+		},
+		Draft: true,
+	}
 	thirdPr := github.PullRequest{
 		User: github.User{
 			Login: author,
@@ -1039,6 +1058,31 @@ func TestControllerReconcile(t *testing.T) {
 				fghc := newFakeGitHubClient(orgRepoKey)
 				fghc.prs[orgRepoKey] = []github.PullRequest{secondPr}
 				fghc.refs[orgRepoKey]["heads/"+secondPr.Base.Ref] = baseSha
+				fsm := newFakeMigrator(orgRepoKey)
+				ftc := newFakeTrustedChecker(orgRepoKey)
+				ftc.trusted[orgRepoKey][secondPrAuthorKey] = true
+				controller := Controller{
+					continueOnError:        true,
+					addedPresubmitDenylist: sets.New[string](),
+					prowJobTriggerer:       &fpjt,
+					githubClient:           &fghc,
+					statusMigrator:         &fsm,
+					trustedChecker:         &ftc,
+				}
+				checker := func(t *testing.T) {
+					checkTriggerer(t, fpjt, map[prKey]sets.Set[string]{})
+					checkMigrator(t, fsm, map[orgRepo]sets.Set[string]{orgRepoKey: sets.New[string]("required-job")}, map[orgRepo]migrationSet{orgRepoKey: {migrate: nil}})
+				}
+				return controller, checker
+			},
+		},
+		{
+			name: "no errors and draft PR means we should see no trigger, a retire and a migrate",
+			generator: func() (Controller, func(*testing.T)) {
+				fpjt := newfakeProwJobTriggerer()
+				fghc := newFakeGitHubClient(orgRepoKey)
+				fghc.prs[orgRepoKey] = []github.PullRequest{draftPr}
+				fghc.refs[orgRepoKey]["heads/"+draftPr.Base.Ref] = baseSha
 				fsm := newFakeMigrator(orgRepoKey)
 				ftc := newFakeTrustedChecker(orgRepoKey)
 				ftc.trusted[orgRepoKey][secondPrAuthorKey] = true

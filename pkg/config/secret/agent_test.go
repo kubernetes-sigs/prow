@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"testing"
 	"time"
@@ -28,7 +29,74 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"sigs.k8s.io/prow/pkg/logrusutil"
+	"sigs.k8s.io/prow/pkg/secretutil"
 )
+
+func TestAddExpiringToken(t *testing.T) {
+	testCases := []struct {
+		name           string
+		initialSecrets map[string]time.Time
+		value          string
+		expiresAt      time.Time
+		want           map[string]time.Time
+	}{
+		{
+			name:           "records non-empty token with non-zero expiry",
+			initialSecrets: map[string]time.Time{},
+			value:          "ghs_abc",
+			expiresAt:      time.Date(2099, 1, 2, 3, 4, 5, 0, time.UTC),
+			want:           map[string]time.Time{"ghs_abc": time.Date(2099, 1, 2, 3, 4, 5, 0, time.UTC)},
+		},
+		{
+			name:           "empty value is a no-op",
+			initialSecrets: map[string]time.Time{},
+			value:          "",
+			expiresAt:      time.Date(2099, 1, 2, 3, 4, 5, 0, time.UTC),
+			want:           map[string]time.Time{},
+		},
+		{
+			name:           "zero expiresAt is a no-op",
+			initialSecrets: map[string]time.Time{},
+			value:          "skip-me",
+			expiresAt:      time.Time{},
+			want:           map[string]time.Time{},
+		},
+		{
+			name:           "past expiry is not kept on map after add",
+			initialSecrets: map[string]time.Time{},
+			value:          "dead-token",
+			expiresAt:      time.Date(1980, 6, 15, 12, 0, 0, 0, time.UTC),
+			want:           map[string]time.Time{},
+		},
+		{
+			name: "add drops expired keys already in map; keeps non-expired and new entry",
+			initialSecrets: map[string]time.Time{
+				"keep": time.Date(2099, 5, 1, 0, 0, 0, 0, time.UTC),
+				"gone": time.Date(1980, 6, 15, 12, 0, 0, 0, time.UTC),
+			},
+			value:     "newtok",
+			expiresAt: time.Date(2099, 6, 1, 0, 0, 0, 0, time.UTC),
+			want: map[string]time.Time{
+				"keep":   time.Date(2099, 5, 1, 0, 0, 0, 0, time.UTC),
+				"newtok": time.Date(2099, 6, 1, 0, 0, 0, 0, time.UTC),
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			a := &agent{
+				secretsMap:        make(map[string]secretReloader),
+				expiringTokens:    tc.initialSecrets,
+				ReloadingCensorer: secretutil.NewCensorer(),
+			}
+			a.addExpiringToken(tc.value, tc.expiresAt)
+			if !reflect.DeepEqual(a.expiringTokens, tc.want) {
+				t.Fatalf("expiringTokens = %#v, want %#v", a.expiringTokens, tc.want)
+			}
+		})
+	}
+}
 
 func TestCensoringFormatter(t *testing.T) {
 	var err error
