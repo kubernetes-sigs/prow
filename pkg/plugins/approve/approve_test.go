@@ -77,6 +77,11 @@ func newFakeGitHubClient(hasLabel, humanApproved bool, files []string, comments 
 	}
 	fgc := fakegithub.NewFakeClient()
 	fgc.IssueLabelsAdded = labels
+	fgc.PullRequests = map[int]*github.PullRequest{
+		prNumber: {
+			ChangedFiles: len(files),
+		},
+	}
 	fgc.PullRequestChanges = map[int][]github.PullRequestChange{prNumber: changes}
 	fgc.IssueComments = map[int][]github.IssueComment{prNumber: comments}
 	fgc.Reviews = map[int][]github.Review{prNumber: reviews}
@@ -1398,6 +1403,178 @@ func (fro fakeRepoOwners) Reviewers(path string) layeredsets.String {
 
 func (fro fakeRepoOwners) RequiredReviewers(path string) sets.Set[string] {
 	return sets.New[string]()
+}
+
+func TestHandleTruncatedFileListCommitsFallback(t *testing.T) {
+	files := []string{"a/a.go"}
+	fghc := newFakeGitHubClient(false, false, files, nil, nil)
+	fghc.CommitMap = map[string][]github.RepositoryCommit{
+		"org/repo#1": {{SHA: "abc123"}, {SHA: "def456"}},
+	}
+	fghc.Commits = map[string]github.RepositoryCommit{
+		"abc123": {SHA: "abc123", Files: []github.CommitFile{{Filename: "a/a.go"}}},
+		"def456": {SHA: "def456", Files: []github.CommitFile{{Filename: "a/a.go"}, {Filename: "b/b.go"}, {Filename: "c/c.go"}}},
+	}
+
+	fr := fakeRepo{
+		approvers: map[string]layeredsets.String{
+			"a": layeredsets.NewString("alice"),
+			"b": layeredsets.NewString("bob"),
+			"c": layeredsets.NewString("cjwagner"),
+		},
+		leafApprovers: map[string]sets.Set[string]{
+			"a": sets.New[string]("alice"),
+			"b": sets.New[string]("bob"),
+			"c": sets.New[string]("cjwagner"),
+		},
+		approverOwners: map[string]string{
+			"a/a.go": "a",
+			"b/b.go": "b",
+			"c/c.go": "c",
+		},
+	}
+
+	rsa := false
+	err := handle(
+		logrus.WithField("plugin", "approve"),
+		fghc,
+		fr,
+		config.GitHubOptions{LinkURL: &url.URL{Scheme: "https", Host: "github.com"}},
+		&plugins.Approve{
+			Repos:               []string{"org/repo"},
+			RequireSelfApproval: &rsa,
+			CommandHelpLink:     "https://go.k8s.io/bot-commands",
+			PrProcessLink:       "https://git.k8s.io/community/contributors/guide/owners.md#the-code-review-process",
+		},
+		&state{
+			org:          "org",
+			repo:         "repo",
+			branch:       "master",
+			number:       prNumber,
+			author:       "cjwagner",
+			changedFiles: 3,
+		},
+	)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if len(fghc.IssueCommentsAdded) == 0 {
+		t.Fatal("Expected a notification comment to be created")
+	}
+	if strings.Contains(fghc.IssueCommentsAdded[0], "cannot be safely calculated") {
+		t.Error("Got truncation warning but expected normal approval flow after successful fallback")
+	}
+}
+
+func TestHandleTruncatedFileListTooManyCommits(t *testing.T) {
+	files := []string{"a/a.go"}
+	fghc := newFakeGitHubClient(true, false, files, nil, nil)
+	commits := make([]github.RepositoryCommit, 15)
+	for i := range commits {
+		commits[i] = github.RepositoryCommit{SHA: fmt.Sprintf("sha%d", i)}
+	}
+	fghc.CommitMap = map[string][]github.RepositoryCommit{
+		"org/repo#1": commits,
+	}
+
+	fr := fakeRepo{
+		approvers:      map[string]layeredsets.String{"a": layeredsets.NewString("alice")},
+		leafApprovers:  map[string]sets.Set[string]{"a": sets.New[string]("alice")},
+		approverOwners: map[string]string{"a/a.go": "a"},
+	}
+
+	err := handle(
+		logrus.WithField("plugin", "approve"),
+		fghc,
+		fr,
+		config.GitHubOptions{LinkURL: &url.URL{Scheme: "https", Host: "github.com"}},
+		&plugins.Approve{
+			Repos:           []string{"org/repo"},
+			CommandHelpLink: "https://go.k8s.io/bot-commands",
+			PrProcessLink:   "https://git.k8s.io/community/contributors/guide/owners.md#the-code-review-process",
+		},
+		&state{
+			org:          "org",
+			repo:         "repo",
+			branch:       "master",
+			number:       prNumber,
+			author:       "cjwagner",
+			changedFiles: 5000,
+		},
+	)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	foundWarning := false
+	for _, comment := range fghc.IssueCommentsAdded {
+		if strings.Contains(comment, "exceeds both limits") {
+			foundWarning = true
+			break
+		}
+	}
+	if !foundWarning {
+		t.Error("Expected 'exceeds both limits' warning but didn't find it")
+	}
+	foundRemoval := false
+	for _, label := range fghc.IssueLabelsRemoved {
+		if strings.Contains(label, labels.Approved) {
+			foundRemoval = true
+			break
+		}
+	}
+	if !foundRemoval {
+		t.Error("Expected stale approved label to be removed")
+	}
+}
+
+func TestHandleTruncatedFileListStillIncomplete(t *testing.T) {
+	files := []string{"a/a.go"}
+	fghc := newFakeGitHubClient(false, false, files, nil, nil)
+	fghc.CommitMap = map[string][]github.RepositoryCommit{
+		"org/repo#1": {{SHA: "abc123"}},
+	}
+	fghc.Commits = map[string]github.RepositoryCommit{
+		"abc123": {SHA: "abc123", Files: []github.CommitFile{{Filename: "a/a.go"}}},
+	}
+
+	fr := fakeRepo{
+		approvers:      map[string]layeredsets.String{"a": layeredsets.NewString("alice")},
+		leafApprovers:  map[string]sets.Set[string]{"a": sets.New[string]("alice")},
+		approverOwners: map[string]string{"a/a.go": "a"},
+	}
+
+	err := handle(
+		logrus.WithField("plugin", "approve"),
+		fghc,
+		fr,
+		config.GitHubOptions{LinkURL: &url.URL{Scheme: "https", Host: "github.com"}},
+		&plugins.Approve{
+			Repos:           []string{"org/repo"},
+			CommandHelpLink: "https://go.k8s.io/bot-commands",
+			PrProcessLink:   "https://git.k8s.io/community/contributors/guide/owners.md#the-code-review-process",
+		},
+		&state{
+			org:          "org",
+			repo:         "repo",
+			branch:       "master",
+			number:       prNumber,
+			author:       "cjwagner",
+			changedFiles: 5000,
+		},
+	)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	foundWarning := false
+	for _, comment := range fghc.IssueCommentsAdded {
+		if strings.Contains(comment, "truncated file lists") {
+			foundWarning = true
+			break
+		}
+	}
+	if !foundWarning {
+		t.Error("Expected 'truncated file lists' warning for commits-insufficient case but didn't find it")
+	}
 }
 
 func TestHandleGenericComment(t *testing.T) {
