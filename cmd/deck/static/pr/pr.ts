@@ -328,53 +328,48 @@ function createSearchCard(): HTMLElement {
 }
 
 /**
- * GetFullPRContexts gathers build jobs and pr contexts. It firstly takes
- * all pr contexts and only replaces contexts that have existing Prow Jobs. Tide
- * context will be omitted from the list.
+ * GetFullPRContexts gathers build jobs and PR contexts.
+ * ProwJobs are the source of truth; GitHub contexts only enrich existing jobs.
+ * Stale contexts without a corresponding ProwJob are dropped.
  */
 function getFullPRContext(builds: ProwJob[], contexts: Context[]): UnifiedContext[] {
   const contextMap: Map<string, UnifiedContext> = new Map();
-  if (contexts) {
-    for (const context of contexts) {
-      if (context.Context === "tide") {
-        continue;
-      }
-      contextMap.set(context.Context, {
-        context: context.Context,
-        description: context.Description,
-        discrepancy: null,
-        state: context.State.toLowerCase() as UnifiedState,
-      });
-    }
-  }
 
+  // Build contexts strictly from current ProwJobs
   for (const build of builds) {
     const {
-      spec: {
-        context = "",
-      },
-      status: {
-        url = "", description = "", state = "",
-      },
+      spec: { context = "" },
+      status: { url = "", description = "", state = "" },
     } = build;
 
-    let discrepancy = null;
-    // If GitHub context exits, check if mismatch or not.
-    if (contextMap.has(context)) {
-      const githubContext = contextMap.get(context)!;
-      // TODO (qhuynh96): ProwJob's states and GitHub contexts states
-      // are not equivalent in some states.
-      if (githubContext.state !== state) {
-        discrepancy = "GitHub context and Prow Job states mismatch";
-      }
-    }
     contextMap.set(context, {
       context,
       description,
-      discrepancy,
+      discrepancy: null,
       state,
       url,
     });
+  }
+
+  // Enrich with GitHub contexts (no new entries allowed)
+  if (contexts) {
+    for (const ghContext of contexts) {
+      if (ghContext.Context === "tide") {
+        continue;
+      }
+
+      if (!contextMap.has(ghContext.Context)) {
+        // Drop stale GitHub-only contexts
+        continue;
+      }
+
+      const prowContext = contextMap.get(ghContext.Context)!;
+      const ghState = ghContext.State.toLowerCase() as UnifiedState;
+
+      if (prowContext.state !== ghState) {
+        prowContext.discrepancy = "GitHub context and Prow Job states mismatch";
+      }
+    }
   }
 
   return Array.from(contextMap.values());
