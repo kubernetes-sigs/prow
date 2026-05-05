@@ -1,13 +1,13 @@
 {{define "header"}}
 <style>
-  .summary-container {
+  .markdown-container {
     padding: 10px;
     background-color: #fff;
     border: 1px solid #ddd;
     border-radius: 4px;
     margin-bottom: 10px;
   }
-  .summary-content {
+  .markdown-content {
     padding-top: 10px;
   }
 </style>
@@ -15,9 +15,9 @@
 
 {{define "body"}}
 {{range .}}
-<details class="summary-container" open ontoggle="if (window.spyglass) spyglass.contentUpdated()">
+<details class="markdown-container" open ontoggle="if (window.spyglass) spyglass.contentUpdated()">
   <summary style="cursor: pointer; font-weight: bold; outline: none;">{{.Title}}</summary>
-  <div class="summary-content">
+  <div class="markdown-content">
     {{.Content}}
   </div>
 </details>

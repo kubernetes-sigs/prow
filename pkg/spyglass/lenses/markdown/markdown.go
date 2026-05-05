@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package summary
+package markdown
 
 import (
 	"bytes"
@@ -35,7 +35,7 @@ func init() {
 	lenses.RegisterLens(Lens{})
 }
 
-// Lens is the implementation of a summary lens.
+// Lens is the implementation of a markdown lens.
 type Lens struct{}
 
 type document struct {
@@ -46,8 +46,8 @@ type document struct {
 // Config returns the lens's configuration.
 func (lens Lens) Config() lenses.LensConfig {
 	return lenses.LensConfig{
-		Name:      "summary",
-		Title:     "Summary",
+		Name:      "markdown",
+		Title:     "Markdown",
 		Priority:  10,
 	}
 }
@@ -73,8 +73,8 @@ func (lens Lens) Callback(artifacts []api.Artifact, resourceDir string, data str
 // Body renders the <body>
 func (lens Lens) Body(artifacts []api.Artifact, resourceDir string, data string, config json.RawMessage, spyglassConfig config.Spyglass) string {
 	if len(artifacts) == 0 {
-		logrus.Error("summary Body() called with no artifacts, which should never happen.")
-		return "No summary.md file found."
+		logrus.Error("markdown Body() called with no artifacts, which should never happen.")
+		return "No markdown file found."
 	}
 
 	var documents []document
