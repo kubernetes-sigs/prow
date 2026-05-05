@@ -1979,6 +1979,8 @@ func (c *syncController) dividePool(pool map[string]CodeReviewCommon) (map[strin
 	return sps, nil
 }
 
+const MergeStateStatusBlocked = "BLOCKED"
+
 // PullRequest holds graphql data about a PR, including its commits and their
 // contexts.
 // This struct is GitHub specific
@@ -1994,11 +1996,12 @@ type PullRequest struct {
 		Name   githubql.String
 		Prefix githubql.String
 	}
-	HeadRefName  githubql.String `graphql:"headRefName"`
-	HeadRefOID   githubql.String `graphql:"headRefOid"`
-	Mergeable    githubql.MergeableState
-	CanBeRebased githubql.Boolean `graphql:"canBeRebased"`
-	Repository   struct {
+	HeadRefName      githubql.String `graphql:"headRefName"`
+	HeadRefOID       githubql.String `graphql:"headRefOid"`
+	Mergeable        githubql.MergeableState
+	MergeStateStatus githubql.String  `graphql:"mergeStateStatus"`
+	CanBeRebased     githubql.Boolean `graphql:"canBeRebased"`
+	Repository       struct {
 		Name          githubql.String
 		NameWithOwner githubql.String
 		Owner         struct {

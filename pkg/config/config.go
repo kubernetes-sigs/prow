@@ -2773,6 +2773,14 @@ func parseProwConfig(c *Config) error {
 		}
 	}
 
+	for key, policy := range c.Tide.GitHubMergeBlocksPolicyMap {
+		switch policy {
+		case GitHubMergeBlocksIgnore, GitHubMergeBlocksPermit, GitHubMergeBlocksBlock:
+		default:
+			return fmt.Errorf("tide.github_merge_blocks_policy[%q] has invalid value %q, must be one of: ignore, permit, block", key, policy)
+		}
+	}
+
 	if c.ProwJobNamespace == "" {
 		c.ProwJobNamespace = "default"
 	}
