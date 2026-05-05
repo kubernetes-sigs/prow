@@ -115,7 +115,6 @@ function check_prerequisites() {
   fi
 }
 
-#TODO: update for case where custom KIND_CONFIG is used
 function print_connection_info() {
   cat <<EOF
 
@@ -224,6 +223,8 @@ function main() {
 
   if [[ -n "${kind_config}" ]]; then
     log "Setting up kind cluster (Custom KIND_CONFIG: ${kind_config})"
+    log "WARNING: env vars DEV_HTTP_PORT and DEV_HTTPS_PORT are not used when KIND_CONFIG is set."
+    log "All values are set in the yaml file specified at the KIND_CONFIG path."
     "${INTEGRATION_DIR}/setup-kind-cluster.sh" "-kind-config=${kind_config}"
   else
     log "Setting up kind cluster (HTTP on :${DEV_HTTP_PORT}, HTTPS on :${DEV_HTTPS_PORT})"

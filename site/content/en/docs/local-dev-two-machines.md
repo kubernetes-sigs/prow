@@ -147,7 +147,7 @@ nodes:
     apiServer:
       certSANs:
         - "100.x.y.z"
-        - "debian12-dev.pleco-koi.ts.net"
+        - "<machine-name-in-tailnet>.<your-tailnet-name>.ts.net"
         - "localhost"
         - "127.0.0.1"
   extraPortMappings:

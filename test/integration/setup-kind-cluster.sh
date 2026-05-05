@@ -55,7 +55,7 @@ Options:
         Use a value >= 1024 to avoid requiring root privileges locally.
 
     -kind-config='';
-        Cluster config to provide kind create cluster. (default default) for use in
+        Cluster config to provide kind create cluster. (default empty string) for use in
         integration testing setup. Specify a path to a custom config for development only.
 
     -help:
@@ -71,7 +71,7 @@ function main() {
   fakepubsub_node_port=30303
   http_host_port=80
   https_host_port=443
-  kind_config=default
+  kind_config=""
   # If we abort the setup script with Ctrl+C, delete the cluster because the
   # setup process was interrupted.
   # shellcheck disable=SC2064
@@ -121,7 +121,7 @@ function main() {
     log "Using existing KIND cluster"
   else
     "${SCRIPT_ROOT}/teardown.sh" -kind-cluster
-    create_cluster "${fakepubsub_node_port:-30303}" "${http_host_port:-80}" "${https_host_port:-443}" "${kind_config:-default}"
+    create_cluster "${fakepubsub_node_port:-30303}" "${http_host_port:-80}" "${https_host_port:-443}" "${kind_config:-}"
   fi
   setup_cluster
 
@@ -155,9 +155,9 @@ function create_cluster() {
   fakepubsub_node_port="${1:-30303}"
   http_host_port="${2:-80}"
   https_host_port="${3:-443}"
-  kind_config="${4:-default}"
+  kind_config="${4:-}"
 
-  if [ "${kind_config}" == "default" ]; then
+  if [[ -z "${kind_config}" ]]; then
     cat <<EOF | kind create cluster --name "${_KIND_CLUSTER_NAME}" --config=-
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
