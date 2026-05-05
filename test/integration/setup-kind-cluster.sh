@@ -54,6 +54,10 @@ Options:
         Host port to map to the cluster's HTTPS (port 443) ingress (default 443).
         Use a value >= 1024 to avoid requiring root privileges locally.
 
+    -kind-config='';
+        Cluster config to provide kind create cluster. (default empty string) for use in
+        integration testing setup. Specify a path to a custom config for development only.
+
     -help:
         Display this help message.
 EOF
@@ -63,9 +67,11 @@ function main() {
   local fakepubsub_node_port
   local http_host_port
   local https_host_port
+  local kind_config
   fakepubsub_node_port=30303
   http_host_port=80
   https_host_port=443
+  kind_config=""
   # If we abort the setup script with Ctrl+C, delete the cluster because the
   # setup process was interrupted.
   # shellcheck disable=SC2064
@@ -86,6 +92,9 @@ function main() {
         ;;
       -https-host-port=*)
         https_host_port="${arg#-https-host-port=}"
+        ;;
+      -kind-config=*)
+        kind_config="${arg#-kind-config=}"
         ;;
       -help)
         usage
@@ -112,7 +121,7 @@ function main() {
     log "Using existing KIND cluster"
   else
     "${SCRIPT_ROOT}/teardown.sh" -kind-cluster
-    create_cluster "${fakepubsub_node_port:-30303}" "${http_host_port:-80}" "${https_host_port:-443}"
+    create_cluster "${fakepubsub_node_port:-30303}" "${http_host_port:-80}" "${https_host_port:-443}" "${kind_config:-}"
   fi
   setup_cluster
 
@@ -142,11 +151,14 @@ function create_cluster() {
   local fakepubsub_node_port
   local http_host_port
   local https_host_port
+  local kind_config
   fakepubsub_node_port="${1:-30303}"
   http_host_port="${2:-80}"
   https_host_port="${3:-443}"
+  kind_config="${4:-}"
 
-  cat <<EOF | kind create cluster --name "${_KIND_CLUSTER_NAME}" --config=-
+  if [[ -z "${kind_config}" ]]; then
+    cat <<EOF | kind create cluster --name "${_KIND_CLUSTER_NAME}" --config=-
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 containerdConfigPatches:
@@ -175,6 +187,9 @@ nodes:
     hostPort: ${fakepubsub_node_port}
     protocol: TCP
 EOF
+  else
+    kind create cluster --name "${_KIND_CLUSTER_NAME}" "--config=${kind_config}" --wait=5m
+  fi
 
 }
 
