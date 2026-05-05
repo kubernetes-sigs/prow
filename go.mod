@@ -188,6 +188,8 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.5.0 // indirect
 )
 
+require github.com/russross/blackfriday/v2 v2.1.0
+
 require (
 	cel.dev/expr v0.25.1 // indirect
 	cloud.google.com/go/monitoring v1.24.0 // indirect
