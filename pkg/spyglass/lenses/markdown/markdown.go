@@ -22,9 +22,11 @@ import (
 	"fmt"
 	"html/template"
 	"path/filepath"
+	"strings"
 
-	"github.com/russross/blackfriday/v2"
 	"github.com/sirupsen/logrus"
+	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/extension"
 
 	"sigs.k8s.io/prow/pkg/config"
 	"sigs.k8s.io/prow/pkg/spyglass/api"
@@ -47,8 +49,8 @@ type document struct {
 func (lens Lens) Config() lenses.LensConfig {
 	return lenses.LensConfig{
 		Name:      "markdown",
-		Title:     "Markdown",
-		Priority:  10,
+		Title:     "Summary",
+		Priority:  5,
 	}
 }
 
@@ -77,20 +79,63 @@ func (lens Lens) Body(artifacts []api.Artifact, resourceDir string, data string,
 		return "No markdown file found."
 	}
 
+	var targetFile string
+	var customTitle string
+	if len(config) > 0 {
+		var lConf struct {
+			Title string `json:"title,omitempty"`
+			File  string `json:"file,omitempty"`
+		}
+		if err := json.Unmarshal(config, &lConf); err == nil {
+			targetFile = lConf.File
+			customTitle = lConf.Title
+		}
+	}
+
 	var documents []document
+	md := goldmark.New(
+		goldmark.WithExtensions(
+			extension.GFM,
+		),
+	)
 	for _, artifact := range artifacts {
+		if targetFile != "" && !strings.HasSuffix(artifact.JobPath(), targetFile) {
+			continue
+		}
+
 		content, err := artifact.ReadAll()
 		if err != nil {
 			logrus.WithError(err).WithField("artifact_url", artifact.CanonicalLink()).Warn("failed to read content")
 			continue
 		}
 		
-		htmlContent := blackfriday.Run(content)
+		var buf bytes.Buffer
+		if err := md.Convert(content, &buf); err != nil {
+			logrus.WithError(err).WithField("artifact_url", artifact.CanonicalLink()).Warn("failed to convert markdown")
+			continue
+		}
+		htmlContent := buf.String()
+
+		title := filepath.Base(artifact.CanonicalLink())
+		if customTitle != "" {
+			title = customTitle
+		}
 
 		documents = append(documents, document{
-			Title:   filepath.Base(artifact.CanonicalLink()),
+			Title:   title,
 			Content: template.HTML(htmlContent),
 		})
+	}
+
+	if len(documents) == 0 {
+		return `<script>
+			if (window.frameElement) {
+				const container = window.frameElement.parentElement.parentElement;
+				if (container) {
+					container.style.display = 'none';
+				}
+			}
+		</script>`
 	}
 
 	t, err := template.ParseFiles(filepath.Join(resourceDir, "template.html"))

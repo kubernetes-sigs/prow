@@ -2,24 +2,30 @@
 <style>
   .markdown-container {
     padding: 10px;
-    background-color: #fff;
-    border: 1px solid #ddd;
+    background-color: #303030;
+    color: #fff;
+    border: 1px solid #424242;
     border-radius: 4px;
     margin-bottom: 10px;
   }
   .markdown-content {
     padding-top: 10px;
   }
+  .markdown-content h1, .markdown-content h2, .markdown-content h3, .markdown-content h4 {
+    color: #fff;
+  }
+  .markdown-content a {
+    color: #8ab4f8;
+  }
 </style>
 {{end}}
 
 {{define "body"}}
 {{range .}}
-<details class="markdown-container" open ontoggle="if (window.spyglass) spyglass.contentUpdated()">
-  <summary style="cursor: pointer; font-weight: bold; outline: none;">{{.Title}}</summary>
+<div class="markdown-container">
   <div class="markdown-content">
     {{.Content}}
   </div>
-</details>
+</div>
 {{end}}
 {{end}}
