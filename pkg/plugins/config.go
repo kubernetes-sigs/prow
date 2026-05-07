@@ -513,7 +513,7 @@ func (c ProminentOrgInviteConfig) EffectiveMergedPRThreshold() int {
 type OrgInviteConfig struct {
 	// Prominent configures the prominent org invite message shown to
 	// non-org members who have contributed multiple merged PRs.
-	Prominent ProminentOrgInviteConfig `json:"prominent,omitempty"`
+	Prominent ProminentOrgInviteConfig `json:"prominent,omitzero"`
 }
 
 // Trigger specifies a configuration for a single trigger.
@@ -546,7 +546,7 @@ type Trigger struct {
 	TriggerGitHubWorkflows bool `json:"trigger_github_workflows,omitempty"`
 	// OrgInvite holds configuration for the org invite message
 	// shown to non-org members when they open a PR.
-	OrgInvite OrgInviteConfig `json:"org_invite,omitempty"`
+	OrgInvite OrgInviteConfig `json:"org_invite,omitzero"`
 }
 
 // Heart contains the configuration for the heart plugin.
