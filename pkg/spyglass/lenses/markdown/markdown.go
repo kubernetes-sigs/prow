@@ -140,13 +140,13 @@ func (lens Lens) Body(artifacts []api.Artifact, resourceDir string, data string,
 
 	t, err := template.ParseFiles(filepath.Join(resourceDir, "template.html"))
 	if err != nil {
-		logrus.WithError(err).Error("Error executing template.")
+		logrus.WithError(err).Error("Error parsing template.")
 		return fmt.Sprintf("Failed to load template file: %v", err)
 	}
 
 	buf := &bytes.Buffer{}
 	if err := t.ExecuteTemplate(buf, "body", documents); err != nil {
-		return fmt.Sprintf("failed to execute template: %v", err)
+		return fmt.Sprintf("Failed to execute template: %v", err)
 	}
 	return buf.String()
 }
