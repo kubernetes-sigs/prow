@@ -59,8 +59,9 @@ type options struct {
 	fixTeamRepos      bool
 	fixRepos          bool
 	fixCollaborators  bool
-	ignoreInvitees    bool
-	ignoreSecretTeams bool
+	ignoreInvitees        bool
+	ignoreSecretTeams     bool
+	ignoreEnterpriseTeams bool
 	allowRepoArchival bool
 	allowRepoPublish  bool
 	github            flagutil.GitHubOptions
@@ -88,6 +89,7 @@ func (o *options) parseArgs(flags *flag.FlagSet, args []string) error {
 	flags.BoolVar(&o.dumpFull, "dump-full", false, "Output current config of the org as a valid input config file instead of a snippet")
 	flags.BoolVar(&o.ignoreInvitees, "ignore-invitees", false, "Do not compare missing members with active invitations (compatibility for GitHub Enterprise)")
 	flags.BoolVar(&o.ignoreSecretTeams, "ignore-secret-teams", false, "Do not dump or update secret teams if set")
+	flags.BoolVar(&o.ignoreEnterpriseTeams, "ignore-enterprise-teams", false, "Skip enterprise teams and their members during reconciliation")
 	flags.BoolVar(&o.fixOrg, "fix-org", false, "Change org metadata if set")
 	flags.BoolVar(&o.fixOrgMembers, "fix-org-members", false, "Add/remove org members if set")
 	flags.BoolVar(&o.fixTeams, "fix-teams", false, "Create/delete/update teams if set")
@@ -162,7 +164,7 @@ func main() {
 	}
 
 	if o.dump != "" {
-		ret, err := dumpOrgConfig(githubClient, o.dump, o.ignoreSecretTeams, o.github.AppID)
+		ret, err := dumpOrgConfig(githubClient, o.dump, o.ignoreSecretTeams, o.ignoreEnterpriseTeams, o.github.AppID)
 		if err != nil {
 			logrus.WithError(err).Fatalf("Dump %s failed to collect current data.", o.dump)
 		}
@@ -213,7 +215,7 @@ type dumpClient interface {
 	BotUser() (*github.UserData, error)
 }
 
-func dumpOrgConfig(client dumpClient, orgName string, ignoreSecretTeams bool, appID string) (*org.Config, error) {
+func dumpOrgConfig(client dumpClient, orgName string, ignoreSecretTeams bool, ignoreEnterpriseTeams bool, appID string) (*org.Config, error) {
 	out := org.Config{}
 	meta, err := client.GetOrg(orgName)
 	if err != nil {
@@ -276,6 +278,10 @@ func dumpOrgConfig(client dumpClient, orgName string, ignoreSecretTeams bool, ap
 
 	for _, t := range teams {
 		logger := logrus.WithFields(logrus.Fields{"id": t.ID, "name": t.Name})
+		if ignoreEnterpriseTeams && t.Type == github.TeamTypeEnterprise {
+			logger.Debug("Skipping enterprise team.")
+			continue
+		}
 		p := org.Privacy(t.Privacy)
 		if ignoreSecretTeams && p == org.Secret {
 			logger.Debug("Ignoring secret team.")
@@ -392,6 +398,8 @@ func dumpOrgConfig(client dumpClient, orgName string, ignoreSecretTeams bool, ap
 type orgClient interface {
 	BotUser() (*github.UserData, error)
 	ListOrgMembers(org, role string) ([]github.TeamMember, error)
+	ListTeams(org string) ([]github.Team, error)
+	ListTeamMembersBySlug(org, teamSlug, role string) ([]github.TeamMember, error)
 	RemoveOrgMembership(org, user string) error
 	UpdateOrgMembership(org, user string, admin bool) (*github.OrgMembership, error)
 }
@@ -443,6 +451,34 @@ func configureOrgMembers(opt options, client orgClient, orgName string, orgConfi
 	want := memberships{members: wantMembers, super: wantAdmins}
 	have.normalize()
 	want.normalize()
+
+	if opt.ignoreEnterpriseTeams {
+		allTeams, err := client.ListTeams(orgName)
+		if err != nil {
+			return fmt.Errorf("failed to list %s teams: %w", orgName, err)
+		}
+		enterpriseMembers := sets.Set[string]{}
+		for _, t := range allTeams {
+			if t.Type != github.TeamTypeEnterprise {
+				continue
+			}
+			members, err := client.ListTeamMembersBySlug(orgName, t.Slug, github.RoleAll)
+			if err != nil {
+				logrus.WithError(err).Warnf("Failed to list enterprise team %s members, skipping", t.Slug)
+				continue
+			}
+			for _, m := range members {
+				enterpriseMembers.Insert(github.NormLogin(m.Login))
+			}
+		}
+		if len(enterpriseMembers) > 0 {
+			logrus.Infof("Excluding %d enterprise team members from org member reconciliation: %s",
+				len(enterpriseMembers), strings.Join(sets.List(enterpriseMembers), ", "))
+			have.super = have.super.Difference(enterpriseMembers)
+			have.members = have.members.Difference(enterpriseMembers)
+		}
+	}
+
 	// Figure out who to remove
 	remove := have.all().Difference(want.all())
 
@@ -666,7 +702,7 @@ type teamClient interface {
 }
 
 // configureTeams returns the ids for all expected team names, creating/deleting teams as necessary.
-func configureTeams(client teamClient, orgName string, orgConfig org.Config, maxDelta float64, ignoreSecretTeams bool) (map[string]github.Team, error) {
+func configureTeams(client teamClient, orgName string, orgConfig org.Config, maxDelta float64, ignoreSecretTeams bool, ignoreEnterpriseTeams bool) (map[string]github.Team, error) {
 	if err := validateTeamNames(orgConfig); err != nil {
 		return nil, err
 	}
@@ -680,6 +716,10 @@ func configureTeams(client teamClient, orgName string, orgConfig org.Config, max
 	}
 	logrus.Debugf("Found %d teams", len(teamList))
 	for _, t := range teamList {
+		if ignoreEnterpriseTeams && t.Type == github.TeamTypeEnterprise {
+			logrus.Infof("Skipping enterprise team %s(%s) — managed at the enterprise level", t.Slug, t.Name)
+			continue
+		}
 		if ignoreSecretTeams && org.Privacy(t.Privacy) == org.Secret {
 			continue
 		}
@@ -914,7 +954,7 @@ func configureOrg(opt options, client github.Client, orgName string, orgConfig o
 	}
 
 	// Find the id and current state of each declared team (create/delete as necessary)
-	githubTeams, err := configureTeams(client, orgName, orgConfig, opt.maximumDelta, opt.ignoreSecretTeams)
+	githubTeams, err := configureTeams(client, orgName, orgConfig, opt.maximumDelta, opt.ignoreSecretTeams, opt.ignoreEnterpriseTeams)
 	if err != nil {
 		return fmt.Errorf("failed to configure %s teams: %w", orgName, err)
 	}

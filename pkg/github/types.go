@@ -1109,6 +1109,9 @@ const (
 	PrivacySecret = "secret"
 	// PrivacyClosed memberships are visible to org members.
 	PrivacyClosed = "closed"
+
+	// TeamTypeEnterprise identifies teams managed at the enterprise level.
+	TeamTypeEnterprise = "enterprise"
 )
 
 // Team is a github organizational team
@@ -1118,6 +1121,7 @@ type Team struct {
 	Slug         string         `json:"slug"`
 	Description  string         `json:"description,omitempty"`
 	Privacy      string         `json:"privacy,omitempty"`
+	Type         string         `json:"type,omitempty"`
 	Parent       *Team          `json:"parent,omitempty"`         // Only present in responses
 	ParentTeamID *int           `json:"parent_team_id,omitempty"` // Only valid in creates/edits
 	Permission   TeamPermission `json:"permission,omitempty"`
