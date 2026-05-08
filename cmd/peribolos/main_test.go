@@ -171,6 +171,8 @@ type fakeClient struct {
 	orgMembers      sets.Set[string]
 	admins          sets.Set[string]
 	invitees        sets.Set[string]
+	failedInvites   map[string][]int // login -> invitation IDs
+	deletedInvites  []int
 	members         sets.Set[string]
 	removed         sets.Set[string]
 	newAdmins       sets.Set[string]
@@ -216,6 +218,31 @@ func (c *fakeClient) ListOrgInvitations(org string) ([]github.OrgInvitation, err
 		})
 	}
 	return ret, nil
+}
+
+func (c *fakeClient) ListFailedOrgInvitations(org string) ([]github.OrgInvitation, error) {
+	var ret []github.OrgInvitation
+	for login, ids := range c.failedInvites {
+		if login == "fail-list" {
+			return nil, errors.New("injected list failed org invitations failure")
+		}
+		for _, id := range ids {
+			ret = append(ret, github.OrgInvitation{
+				TeamMember:   github.TeamMember{Login: login},
+				ID:           id,
+				FailedReason: "2fa_required",
+			})
+		}
+	}
+	return ret, nil
+}
+
+func (c *fakeClient) DeleteOrgInvitation(org string, invitationID int) error {
+	if invitationID == -1 {
+		return errors.New("injected delete org invitation failure")
+	}
+	c.deletedInvites = append(c.deletedInvites, invitationID)
+	return nil
 }
 
 func (c *fakeClient) RemoveOrgMembership(org, user string) error {
@@ -498,12 +525,14 @@ func TestConfigureOrgMembers(t *testing.T) {
 		admins          []string
 		members         []string
 		invitations     []string
+		failedInvites   map[string][]int
 		teams           []github.Team
 		enterpriseTeams map[string][]github.TeamMember
 		err             bool
 		remove          []string
 		addAdmins       []string
 		addMembers      []string
+		deletedInvites  []int
 	}{
 		{
 			name: "too few admins",
@@ -738,6 +767,49 @@ func TestConfigureOrgMembers(t *testing.T) {
 			},
 			err: true,
 		},
+		{
+			name: "delete failed invite then re-invite",
+			config: org.Config{
+				Members: []string{"reinvite-me"},
+			},
+			failedInvites:  map[string][]int{"reinvite-me": {42}},
+			addMembers:     []string{"reinvite-me"},
+			deletedInvites: []int{42},
+		},
+		{
+			name: "delete all failed invites for same user then re-invite",
+			config: org.Config{
+				Members: []string{"reinvite-me"},
+			},
+			failedInvites:  map[string][]int{"reinvite-me": {42, 43}},
+			addMembers:     []string{"reinvite-me"},
+			deletedInvites: []int{42, 43},
+		},
+		{
+			name: "delete failed invite for admin role",
+			config: org.Config{
+				Admins: []string{"reinvite-admin"},
+			},
+			failedInvites:  map[string][]int{"reinvite-admin": {55}},
+			addAdmins:      []string{"reinvite-admin"},
+			deletedInvites: []int{55},
+		},
+		{
+			name: "delete failed invite failure still re-invites user",
+			config: org.Config{
+				Members: []string{"bad-delete"},
+			},
+			failedInvites: map[string][]int{"bad-delete": {-1}},
+			addMembers:    []string{"bad-delete"},
+		},
+		{
+			name: "pending invite takes precedence over failed invite",
+			config: org.Config{
+				Members: []string{"pending-and-failed"},
+			},
+			invitations:   []string{"pending-and-failed"},
+			failedInvites: map[string][]int{"pending-and-failed": {99}},
+		},
 	}
 
 	for _, tc := range cases {
@@ -750,9 +822,10 @@ func TestConfigureOrgMembers(t *testing.T) {
 				newMembers:      sets.Set[string]{},
 				teams:           tc.teams,
 				enterpriseTeams: tc.enterpriseTeams,
+				failedInvites:   tc.failedInvites,
 			}
 
-			err := configureOrgMembers(tc.opt, fc, fakeOrg, tc.config, sets.New[string](tc.invitations...))
+			err := configureOrgMembers(tc.opt, fc, fakeOrg, tc.config, sets.New[string](tc.invitations...), tc.failedInvites)
 			switch {
 			case err != nil:
 				if !tc.err {
@@ -767,10 +840,21 @@ func TestConfigureOrgMembers(t *testing.T) {
 					t.Errorf("Wrong members added: %v", err)
 				} else if err := cmpLists(tc.addAdmins, sets.List(fc.newAdmins)); err != nil {
 					t.Errorf("Wrong admins added: %v", err)
+				} else if err := cmpLists(intSliceToString(tc.deletedInvites), intSliceToString(fc.deletedInvites)); err != nil {
+					t.Errorf("Wrong invitations deleted: %v", err)
 				}
 			}
 		})
 	}
+}
+
+func intSliceToString(ints []int) []string {
+	var out []string
+	for _, i := range ints {
+		out = append(out, fmt.Sprintf("%d", i))
+	}
+	sort.Strings(out)
+	return out
 }
 
 type fakeTeamClient struct {
@@ -1863,11 +1947,11 @@ func TestDumpOrgConfig(t *testing.T) {
 		admins                []string
 		teams                 []github.Team
 		teamMembers           map[string][]string
-		maintainers       map[string][]string
-		repoPermissions   map[string][]github.Repo
-		repos             []github.FullRepo
-		expected          org.Config
-		err               bool
+		maintainers           map[string][]string
+		repoPermissions       map[string][]github.Repo
+		repos                 []github.FullRepo
+		expected              org.Config
+		err                   bool
 	}{
 		{
 			name:        "fails if GetOrg fails",
@@ -2454,6 +2538,82 @@ func TestOrgInvitations(t *testing.T) {
 				invitees: tc.invitees,
 			}
 			actual, err := orgInvitations(tc.opt, fc, "random-org")
+			switch {
+			case err != nil:
+				if !tc.err {
+					t.Errorf("unexpected error: %v", err)
+				}
+			case tc.err:
+				t.Errorf("failed to receive an error")
+			case !reflect.DeepEqual(actual, tc.expected):
+				t.Errorf("%#v != expected %#v", actual, tc.expected)
+			}
+		})
+	}
+}
+
+func TestOrgFailedInvitations(t *testing.T) {
+	cases := []struct {
+		name          string
+		opt           options
+		failedInvites map[string][]int
+		expected      map[string][]int
+		err           bool
+	}{
+		{
+			name:          "skip when fixOrgMembers is false",
+			failedInvites: map[string][]int{"him": {1}, "her": {2}},
+			expected:      nil,
+		},
+		{
+			name: "skip when ignoreInvitees is set",
+			opt: options{
+				fixOrgMembers:  true,
+				ignoreInvitees: true,
+			},
+			failedInvites: map[string][]int{"him": {1}},
+			expected:      nil,
+		},
+		{
+			name: "returns failed invitations when fixOrgMembers",
+			opt: options{
+				fixOrgMembers: true,
+			},
+			failedInvites: map[string][]int{"him": {1}, "her": {2}},
+			expected:      map[string][]int{"him": {1}, "her": {2}},
+		},
+		{
+			name: "collects multiple failed invitations for same user",
+			opt: options{
+				fixOrgMembers: true,
+			},
+			failedInvites: map[string][]int{"him": {1, 2}},
+			expected:      map[string][]int{"him": {1, 2}},
+		},
+		{
+			name: "normalizes login case",
+			opt: options{
+				fixOrgMembers: true,
+			},
+			failedInvites: map[string][]int{"MiXeD": {3}, "UPPER": {4}},
+			expected:      map[string][]int{"mixed": {3}, "upper": {4}},
+		},
+		{
+			name: "error if list fails",
+			opt: options{
+				fixOrgMembers: true,
+			},
+			failedInvites: map[string][]int{"fail-list": {0}},
+			err:           true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			fc := &fakeClient{
+				failedInvites: tc.failedInvites,
+			}
+			actual, err := orgFailedInvitations(tc.opt, fc, "random-org")
 			switch {
 			case err != nil:
 				if !tc.err {

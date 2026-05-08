@@ -44,27 +44,27 @@ const (
 )
 
 type options struct {
-	config            string
-	confirm           bool
-	dump              string
-	dumpFull          bool
-	maximumDelta      float64
-	minAdmins         int
-	requireSelf       bool
-	requiredAdmins    flagutil.Strings
-	fixOrg            bool
-	fixOrgMembers     bool
-	fixTeamMembers    bool
-	fixTeams          bool
-	fixTeamRepos      bool
-	fixRepos          bool
-	fixCollaborators  bool
+	config                string
+	confirm               bool
+	dump                  string
+	dumpFull              bool
+	maximumDelta          float64
+	minAdmins             int
+	requireSelf           bool
+	requiredAdmins        flagutil.Strings
+	fixOrg                bool
+	fixOrgMembers         bool
+	fixTeamMembers        bool
+	fixTeams              bool
+	fixTeamRepos          bool
+	fixRepos              bool
+	fixCollaborators      bool
 	ignoreInvitees        bool
 	ignoreSecretTeams     bool
 	ignoreEnterpriseTeams bool
-	allowRepoArchival bool
-	allowRepoPublish  bool
-	github            flagutil.GitHubOptions
+	allowRepoArchival     bool
+	allowRepoPublish      bool
+	github                flagutil.GitHubOptions
 
 	logLevel string
 }
@@ -397,6 +397,7 @@ func dumpOrgConfig(client dumpClient, orgName string, ignoreSecretTeams bool, ig
 
 type orgClient interface {
 	BotUser() (*github.UserData, error)
+	DeleteOrgInvitation(org string, invitationID int) error
 	ListOrgMembers(org, role string) ([]github.TeamMember, error)
 	ListTeams(org string) ([]github.Team, error)
 	ListTeamMembersBySlug(org, teamSlug, role string) ([]github.TeamMember, error)
@@ -404,7 +405,7 @@ type orgClient interface {
 	UpdateOrgMembership(org, user string, admin bool) (*github.OrgMembership, error)
 }
 
-func configureOrgMembers(opt options, client orgClient, orgName string, orgConfig org.Config, invitees sets.Set[string]) error {
+func configureOrgMembers(opt options, client orgClient, orgName string, orgConfig org.Config, invitees sets.Set[string], failedInvites map[string][]int) error {
 	// Get desired state
 	wantAdmins := sets.New[string](orgConfig.Admins...)
 	wantMembers := sets.New[string](orgConfig.Members...)
@@ -518,6 +519,13 @@ func configureOrgMembers(opt options, client orgClient, orgName string, orgConfi
 		if invitees.Has(user) { // Do not add them, as this causes another invite.
 			logrus.Infof("Waiting for %s to accept invitation to %s", user, orgName)
 			return nil
+		}
+		for _, invID := range failedInvites[user] {
+			if err := client.DeleteOrgInvitation(orgName, invID); err != nil {
+				logrus.WithError(err).Warnf("DeleteOrgInvitation(%s, %d) failed", orgName, invID)
+			} else {
+				logrus.Infof("Cleared failed invitation %d for %s in %s", invID, user, orgName)
+			}
 		}
 		role := github.RoleMember
 		if super {
@@ -910,6 +918,32 @@ func orgInvitations(opt options, client inviteClient, orgName string) (sets.Set[
 	return invitees, nil
 }
 
+type failedInviteClient interface {
+	ListFailedOrgInvitations(org string) ([]github.OrgInvitation, error)
+}
+
+func orgFailedInvitations(opt options, client failedInviteClient, orgName string) (map[string][]int, error) {
+	// Unlike orgInvitations, this only considers fixOrgMembers — failed invitation cleanup
+	// is irrelevant to team member sync, which has no equivalent delete-then-reinvite flow.
+	if !opt.fixOrgMembers || opt.ignoreInvitees {
+		return nil, nil
+	}
+	is, err := client.ListFailedOrgInvitations(orgName)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[string][]int)
+	for _, i := range is {
+		if i.Login == "" {
+			continue
+		}
+		login := github.NormLogin(i.Login)
+		logrus.Infof("Found failed invitation for %s in %s (reason: %s, at: %s)", login, orgName, i.FailedReason, i.FailedAt)
+		result[login] = append(result[login], i.ID)
+	}
+	return result, nil
+}
+
 func configureOrg(opt options, client github.Client, orgName string, orgConfig org.Config) error {
 	// Ensure that metadata is configured correctly.
 	if !opt.fixOrg {
@@ -923,10 +957,15 @@ func configureOrg(opt options, client github.Client, orgName string, orgConfig o
 		return fmt.Errorf("failed to list %s invitations: %w", orgName, err)
 	}
 
+	failedInvites, err := orgFailedInvitations(opt, client, orgName)
+	if err != nil {
+		return fmt.Errorf("failed to list %s failed invitations: %w", orgName, err)
+	}
+
 	// Invite/remove/update members to the org.
 	if !opt.fixOrgMembers {
 		logrus.Infof("Skipping org member configuration")
-	} else if err := configureOrgMembers(opt, client, orgName, orgConfig, invitees); err != nil {
+	} else if err := configureOrgMembers(opt, client, orgName, orgConfig, invitees, failedInvites); err != nil {
 		return fmt.Errorf("failed to configure %s members: %w", orgName, err)
 	}
 

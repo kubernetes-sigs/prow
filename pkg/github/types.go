@@ -1195,8 +1195,11 @@ type TeamMembership struct {
 // OrgInvitation contains Login and other details about the invitation.
 type OrgInvitation struct {
 	TeamMember
-	Email   string     `json:"email"`
-	Inviter TeamMember `json:"inviter"`
+	ID           int        `json:"id"`
+	Email        string     `json:"email"`
+	Inviter      TeamMember `json:"inviter"`
+	FailedAt     time.Time  `json:"failed_at,omitempty"`
+	FailedReason string     `json:"failed_reason,omitempty"`
 }
 
 // UserRepoInvitation is returned by repo invitation obtained by user.
