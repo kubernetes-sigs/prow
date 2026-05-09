@@ -191,6 +191,10 @@ func (sg *Spyglass) ResolveSymlink(src string) (string, error) {
 		if bucket, exists := sg.cfg().Deck.Spyglass.BucketAliases[potentialAlias]; exists {
 			key = strings.Replace(key, potentialAlias, bucket, 1)
 		}
+		bucket := strings.Split(key, "/")[0]
+		if err := sg.cfg().ValidateStorageBucket(bucket); err != nil {
+			return "", fmt.Errorf("refusing to resolve symlink in disallowed bucket %q: %w", bucket, err)
+		}
 		reader, err := sg.opener.Reader(context.TODO(), fmt.Sprintf("%s://%s.txt", keyType, key))
 		if err != nil {
 			if pkgio.IsNotExist(err) {
