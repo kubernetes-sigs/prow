@@ -638,6 +638,25 @@ triggers:
       # OnlyOrgMembers requires PRs and/or /ok-to-test comments to come from org members.
       # By default, trigger also include repo collaborators.
       only_org_members: true
+      # OrgInvite holds configuration for the org invite message
+      # shown to non-org members when they open a PR.
+      org_invite:
+        # Prominent configures the prominent org invite message shown to
+        # non-org members who have contributed multiple merged PRs.
+        prominent:
+            # Disabled disables the prominent org invite functionality entirely.
+            # When true, only the regular "join the org" message is shown without
+            # querying for merged PRs.
+            disabled: true
+            # MergedPRThreshold is the number of merged PRs after which the user gets
+            # a prominent message about joining the org. Default: 3.
+            # Use a pointer so that we can distinguish between "not set" (use default)
+            # and "explicitly set to 0".
+            merged_pr_threshold: 0
+            # Message is a custom message template for the prominent org invite.
+            # Supports {join_org_url} as a placeholder for the org join URL.
+            # Default: ">[!TIP]\n>**We noticed you've done this a few times! Consider [joining the org]({join_org_url}) ..."
+            message: ' '
       # Repos is either of the form org/repos or just org.
       repos:
         - ""
