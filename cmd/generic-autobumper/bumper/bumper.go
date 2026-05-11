@@ -32,6 +32,7 @@ import (
 
 	"sigs.k8s.io/prow/cmd/generic-autobumper/updater"
 	"sigs.k8s.io/prow/pkg/config/secret"
+	"sigs.k8s.io/prow/pkg/flagutil"
 	"sigs.k8s.io/prow/pkg/github"
 )
 
@@ -74,6 +75,12 @@ type Options struct {
 	HeadBranchName string `json:"headBranchName"`
 	// Optional list of labels to add to the bump PR
 	Labels []string `json:"labels"`
+	// PRSourceMode controls how the PR branch is pushed: "fork" (PAT, legacy) or "branch" (App auth, push directly to org/repo).
+	// If empty, auto-detected based on available credentials.
+	PRSourceMode string `json:"prSourceMode"`
+	// GitHubOptions provides standard Prow GitHub auth flags. When set and containing app credentials,
+	// takes precedence over GitHubToken. Not serialized from YAML -- populated from CLI flags.
+	GitHubOptions *flagutil.GitHubOptions `json:"-"`
 }
 
 // Information needed for gerrit bump
@@ -146,19 +153,45 @@ func (gc GitCommand) getCommand() string {
 	return fmt.Sprintf("%s %s", gc.baseCommand, strings.Join(gc.buildCommand(), " "))
 }
 
+// resolvedPRSourceMode returns the effective PR source mode. If not explicitly
+// set, it auto-detects based on available credentials: "branch" when GitHub App
+// credentials are present, "fork" otherwise.
+func (o *Options) resolvedPRSourceMode() string {
+	if o.PRSourceMode != "" {
+		return o.PRSourceMode
+	}
+	if o.GitHubOptions != nil && o.GitHubOptions.AppID != "" {
+		return "branch"
+	}
+	return "fork"
+}
+
 func validateOptions(o *Options) error {
 	if !o.SkipPullRequest && o.Gerrit == nil {
-		if o.GitHubToken == "" {
-			return fmt.Errorf("gitHubToken is mandatory when skipPullRequest is false or unspecified")
+		mode := o.resolvedPRSourceMode()
+		switch mode {
+		case "branch":
+			if o.GitHubOptions == nil || o.GitHubOptions.AppID == "" {
+				return fmt.Errorf("--pr-source-mode=branch requires --github-app-id and --github-app-private-key-path")
+			}
+			if err := o.GitHubOptions.Validate(false); err != nil {
+				return fmt.Errorf("invalid GitHub options: %w", err)
+			}
+		case "fork":
+			if o.GitHubToken == "" {
+				return fmt.Errorf("gitHubToken is mandatory when skipPullRequest is false or unspecified")
+			}
+			if o.RemoteName == "" {
+				return fmt.Errorf("remoteName is mandatory when skipPullRequest is false or unspecified")
+			}
+		default:
+			return fmt.Errorf("invalid pr-source-mode %q, expected one of: fork, branch", mode)
 		}
 		if (o.GitEmail == "") != (o.GitName == "") {
 			return fmt.Errorf("gitName and gitEmail must be specified together")
 		}
 		if o.GitHubOrg == "" || o.GitHubRepo == "" {
 			return fmt.Errorf("gitHubOrg and gitHubRepo are mandatory when skipPullRequest is false or unspecified")
-		}
-		if o.RemoteName == "" {
-			return fmt.Errorf("remoteName is mandatory when skipPullRequest is false or unspecified")
 		}
 	}
 	if !o.SkipPullRequest && o.Gerrit != nil {
@@ -196,10 +229,13 @@ func Run(ctx context.Context, o *Options, prh PRHandler) error {
 	if o.SkipPullRequest {
 		logrus.Debugf("--skip-pull-request is set to true, won't create a pull request.")
 	}
-	if o.Gerrit == nil {
-		return processGitHub(ctx, o, prh)
+	if o.Gerrit != nil {
+		return processGerrit(ctx, o, prh)
 	}
-	return processGerrit(ctx, o, prh)
+	if o.resolvedPRSourceMode() == "branch" {
+		return processGitHubAppAuth(ctx, o, prh)
+	}
+	return processGitHub(ctx, o, prh)
 }
 
 func processGitHub(ctx context.Context, o *Options, prh PRHandler) error {
@@ -274,6 +310,102 @@ func processGitHub(ctx context.Context, o *Options, prh PRHandler) error {
 		return fmt.Errorf("to create the PR: %w", err)
 	}
 	return nil
+}
+
+// processGitHubAppAuth handles the GitHub App authentication flow. It uses
+// flagutil.GitHubOptions to construct the GitHub API client and GitClientFactory
+// to push branches directly to the upstream repository (no fork needed).
+func processGitHubAppAuth(ctx context.Context, o *Options, prh PRHandler) error {
+	stdout := HideSecretsWriter{Delegate: os.Stdout, Censor: secret.Censor}
+	stderr := HideSecretsWriter{Delegate: os.Stderr, Censor: secret.Censor}
+
+	gc, err := o.GitHubOptions.GitHubClient(false)
+	if err != nil {
+		return fmt.Errorf("construct GitHub client: %w", err)
+	}
+
+	if o.GitName == "" || o.GitEmail == "" {
+		user, err := gc.BotUser()
+		if err != nil {
+			return fmt.Errorf("get bot user: %w", err)
+		}
+		login := user.Login
+		if !strings.HasSuffix(login, "[bot]") {
+			login += "[bot]"
+		}
+		if o.GitName == "" {
+			o.GitName = login
+		}
+		if o.GitEmail == "" {
+			o.GitEmail = login + "@users.noreply.github.com"
+		}
+	}
+
+	var anyChange bool
+	for i, changeFunc := range prh.Changes() {
+		msg, err := changeFunc(ctx)
+		if err != nil {
+			return fmt.Errorf("process function %d: %w", i, err)
+		}
+
+		changed, err := HasChanges()
+		if err != nil {
+			return fmt.Errorf("checking changes: %w", err)
+		}
+
+		if !changed {
+			logrus.WithField("function", i).Info("Nothing changed, skip commit ...")
+			continue
+		}
+
+		anyChange = true
+		if err := gitCommit(o.GitName, o.GitEmail, msg, stdout, stderr, o.Signoff); err != nil {
+			return fmt.Errorf("git commit: %w", err)
+		}
+	}
+	if !anyChange {
+		logrus.Info("Nothing changed from all functions, skip PR ...")
+		return nil
+	}
+
+	gitClientFactory, err := o.GitHubOptions.GitClientFactory("", nil, false, false)
+	if err != nil {
+		return fmt.Errorf("create git client factory: %w", err)
+	}
+	defer func() {
+		if cleanErr := gitClientFactory.Clean(); cleanErr != nil {
+			logrus.WithError(cleanErr).Warn("Failed to clean git client factory")
+		}
+	}()
+
+	repoClient, err := gitClientFactory.ClientFromDir(o.GitHubOrg, o.GitHubRepo, ".")
+	if err != nil {
+		return fmt.Errorf("create repo client for %s/%s: %w", o.GitHubOrg, o.GitHubRepo, err)
+	}
+
+	if o.SkipPullRequest {
+		return nil
+	}
+
+	logrus.WithField("branch", o.HeadBranchName).Info("Pushing branch directly to upstream repo")
+	if err := repoClient.PushToCentral(o.HeadBranchName, true); err != nil {
+		return fmt.Errorf("push branch %s to %s/%s: %w", o.HeadBranchName, o.GitHubOrg, o.GitHubRepo, err)
+	}
+
+	summary, body := prh.PRTitleBody()
+	if o.GitHubBaseBranch == "" {
+		repo, err := gc.GetRepo(o.GitHubOrg, o.GitHubRepo)
+		if err != nil {
+			return fmt.Errorf("detect default remote branch for %s/%s: %w", o.GitHubOrg, o.GitHubRepo, err)
+		}
+		o.GitHubBaseBranch = repo.DefaultBranch
+	}
+
+	orgAwareGC := &OrgAwareClient{Client: gc, Org: o.GitHubOrg, IsAppAuth: true}
+	return UpdatePullRequestWithLabels(orgAwareGC, o.GitHubOrg, o.GitHubRepo,
+		summary, generatePRBody(body, getAssignment(o.AssignTo)),
+		o.HeadBranchName, o.GitHubBaseBranch, o.HeadBranchName,
+		true, o.Labels, false)
 }
 
 func processGerrit(ctx context.Context, o *Options, prh PRHandler) error {
