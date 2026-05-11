@@ -171,7 +171,7 @@ func (rg testResourceGetter) GetNode(_ context.Context, cluster, name string) (*
 	return rg.node, nil
 }
 
-func (rg testResourceGetter) GetEvents(cluster, namespace string, pod *v1.Pod) ([]v1.Event, error) {
+func (rg testResourceGetter) GetEvents(_ context.Context, cluster, namespace string, pod *v1.Pod) ([]v1.Event, error) {
 	if rg.cluster != cluster {
 		return nil, fmt.Errorf("expected cluster %q but got cluster %q", rg.cluster, cluster)
 	}

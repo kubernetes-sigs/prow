@@ -281,6 +281,13 @@ func (ehsi *eventHandlerSignalingInformer) AddEventHandler(handler toolscache.Re
 	return reg, err
 }
 
+func (ehsi *eventHandlerSignalingInformer) AddEventHandlerWithOptions(handler toolscache.ResourceEventHandler, opts toolscache.HandlerOptions) (toolscache.ResourceEventHandlerRegistration, error) {
+	reg, err := ehsi.SharedIndexInformer.AddEventHandlerWithOptions(handler, opts)
+	close(ehsi.signal)
+
+	return reg, err
+}
+
 func signalOrTimeout(signal <-chan struct{}) error {
 	select {
 	case <-signal:
