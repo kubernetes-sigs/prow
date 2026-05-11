@@ -188,6 +188,8 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.6.0 // indirect
 )
 
+require github.com/yuin/goldmark v1.8.2
+
 require (
 	cel.dev/expr v0.25.1 // indirect
 	cloud.google.com/go/monitoring v1.24.0 // indirect
