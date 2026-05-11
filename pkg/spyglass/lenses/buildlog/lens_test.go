@@ -1133,6 +1133,97 @@ func testHighlighter(t *testing.T, wantReq highlightRequest, code int, response 
 	})
 }
 
+type errArtifact struct {
+	fake.Artifact
+	readAllErr   error
+	sizeOverride *int64
+	sizeErr      error
+}
+
+func (ea *errArtifact) ReadAll() ([]byte, error) {
+	if ea.readAllErr != nil {
+		return nil, ea.readAllErr
+	}
+	return ea.Artifact.ReadAll()
+}
+
+func (ea *errArtifact) Size() (int64, error) {
+	if ea.sizeErr != nil {
+		return 0, ea.sizeErr
+	}
+	if ea.sizeOverride != nil {
+		return *ea.sizeOverride, nil
+	}
+	return ea.Artifact.Size()
+}
+
+func TestBodyReadAllError(t *testing.T) {
+	art := &errArtifact{
+		Artifact: fake.Artifact{
+			Path:    "build-log.txt",
+			Content: []byte("content"),
+		},
+		readAllErr: fmt.Errorf("file size over specified limit"),
+	}
+	got := Lens{}.Body([]api.Artifact{art}, ".", "", nil, prowconfig.Spyglass{})
+	if !strings.Contains(got, "Failed to read log") {
+		t.Errorf("Body() should render an error message when ReadAll fails, got: %s", got[:min(200, len(got))])
+	}
+	if !strings.Contains(got, "file size over specified limit") {
+		t.Errorf("Body() should include the underlying error, got: %s", got[:min(200, len(got))])
+	}
+	if !strings.Contains(got, "build-log.txt") {
+		t.Errorf("Body() should still reference the artifact name, got: %s", got[:min(200, len(got))])
+	}
+}
+
+func TestBodyLargeLogSkipsHighlight(t *testing.T) {
+	largeSize := int64(highlightSizeThreshold + 1)
+	art := &errArtifact{
+		Artifact: fake.Artifact{
+			Path:    "build-log.txt",
+			Content: []byte("line one\nERROR: something failed\nline three\n"),
+		},
+		sizeOverride: &largeSize,
+	}
+	got := Lens{}.Body([]api.Artifact{art}, ".", "", nil, prowconfig.Spyglass{})
+	if strings.Contains(got, "log-error") {
+		t.Error("Body() should not render an error for large but readable logs")
+	}
+	if !strings.Contains(got, "line one") {
+		t.Error("Body() should still render log content for large logs")
+	}
+	if !strings.Contains(got, "log-warning") {
+		t.Error("Body() should render a warning when highlighting is disabled due to size")
+	}
+	if !strings.Contains(got, "Syntax highlighting disabled") {
+		t.Error("Body() warning should mention highlighting is disabled")
+	}
+}
+
+func TestBodySizeErrorDisablesHighlight(t *testing.T) {
+	art := &errArtifact{
+		Artifact: fake.Artifact{
+			Path:    "build-log.txt",
+			Content: []byte("line one\nERROR: something failed\nline three\n"),
+		},
+		sizeErr: fmt.Errorf("network timeout"),
+	}
+	got := Lens{}.Body([]api.Artifact{art}, ".", "", nil, prowconfig.Spyglass{})
+	if strings.Contains(got, "log-error") {
+		t.Error("Body() should not render an error when only Size() fails")
+	}
+	if !strings.Contains(got, "line one") {
+		t.Error("Body() should still render log content when Size() fails")
+	}
+	if !strings.Contains(got, "log-warning") {
+		t.Error("Body() should render a warning when Size() fails")
+	}
+	if !strings.Contains(got, "unable to determine log size") {
+		t.Error("Body() warning should mention inability to determine size")
+	}
+}
+
 func BenchmarkHighlightLines(b *testing.B) {
 	lorem := []string{
 		"Lorem ipsum dolor sit amet",

@@ -45,6 +45,8 @@ const (
 	priority        = 10
 	neighborLines   = 5 // number of "important" lines to be displayed in either direction
 	minLinesSkipped = 5
+
+	highlightSizeThreshold = 10 * 1024 * 1024 // 10 MiB
 )
 
 var defaultHighlightLineLengthMax = 10000 // Default maximum length of a line worth highlighting
@@ -161,6 +163,8 @@ type LogArtifactView struct {
 	ShowRawLog   bool
 	CanSave      bool
 	CanAnalyze   bool
+	Error        string
+	Warning      string
 }
 
 // buildLogsView holds each log file view
@@ -224,8 +228,24 @@ func (lens Lens) Body(artifacts []api.Artifact, resourceDir string, data string,
 		lines, err := logLinesAll(a)
 		if err != nil {
 			logrus.WithError(err).Info("Error reading log.")
+			av.Error = fmt.Sprintf("Failed to read log: %v", err)
+			buildLogsView.LogViews = append(buildLogsView.LogViews, av)
 			continue
 		}
+
+		// For large logs, skip regex highlighting to avoid excessive CPU usage.
+		// Lines are still rendered and grouped, just without colored highlights.
+		highlightRegex := conf.highlightRegex
+		sz, err := a.Size()
+		if err != nil {
+			logrus.WithError(err).Warn("Could not determine artifact size, disabling highlighting as a precaution.")
+			highlightRegex = nil
+			av.Warning = "Syntax highlighting disabled (unable to determine log size)"
+		} else if sz > highlightSizeThreshold {
+			highlightRegex = nil
+			av.Warning = "Syntax highlighting disabled (log exceeds 10 MiB)"
+		}
+
 		artifact := av.ArtifactName
 		meta, _ := a.Metadata()
 		start, end := -1, -1
@@ -255,7 +275,7 @@ func (lens Lens) Body(artifacts []api.Artifact, resourceDir string, data string,
 				start, end = resp.Min, resp.Max
 			}
 		}
-		av.LineGroups = groupLines(&artifact, start, end, highlightLines(lines, 0, &artifact, conf.highlightRegex, conf.highlightLengthMax)...)
+		av.LineGroups = groupLines(&artifact, start, end, highlightLines(lines, 0, &artifact, highlightRegex, conf.highlightLengthMax)...)
 		av.ViewAll = true
 		av.CanSave = canSave(a.CanonicalLink())
 		av.CanAnalyze = analyze
@@ -505,7 +525,7 @@ func highlightLines(lines []string, startLine int, artifact *string, highlightRe
 	for i, text := range lines {
 		length := len(text)
 		subLines := []SubLine{}
-		if length <= maxLen {
+		if highlightRegex != nil && length <= maxLen {
 			loc := highlightRegex.FindStringIndex(text)
 			for loc != nil {
 				subLines = append(subLines, SubLine{false, text[:loc[0]]})
