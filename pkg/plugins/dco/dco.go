@@ -297,7 +297,7 @@ func handle(config plugins.Dco, gc gitHubClient, cp commentPruner, log *logrus.E
 		return err
 	}
 
-	if config.SkipDCOCheckForMembers || config.SkipDCOCheckForCollaborators {
+	if config.SkipDCOCheckForMembers || config.SkipDCOCheckForCollaborators || len(config.TrustedApps) > 0 {
 		commitsMissingDCO, err = filterTrustedUsers(gc, l, config.SkipDCOCheckForCollaborators, config.TrustedApps, config.TrustedOrg, org, repo, commitsMissingDCO)
 		if err != nil {
 			l.WithError(err).Infof("Error running trusted org member check against commits in PR")
