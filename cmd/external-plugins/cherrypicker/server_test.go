@@ -1506,7 +1506,6 @@ From 3333333333333333333333333333333333333333 Mon Sep 17 00:00:00 2001`,
 	}
 
 	for _, tt := range tests {
-		tt := tt
 
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
