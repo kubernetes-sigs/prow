@@ -159,7 +159,7 @@ func handle(h *handler) error {
 	}
 
 	h.log.Printf("Adding %s to %s/%s#%d: %v", h.userType, org, repo, e.Number, toAdd)
-	if err := h.maybeRestrictSelfAssign(org, repo, users[e.User.Login], &toAdd); err != nil {
+	if err := h.enforceSelfAssignRestriction(org, repo, users[e.User.Login], &toAdd); err != nil {
 		return err
 	}
 	if len(toAdd) == 0 {
@@ -168,7 +168,7 @@ func handle(h *handler) error {
 	return h.addUsersOrComment(org, repo, toAdd)
 }
 
-func (h *handler) maybeRestrictSelfAssign(org, repo string, selfAssign bool, toAdd *[]string) error {
+func (h *handler) enforceSelfAssignRestriction(org, repo string, selfAssign bool, toAdd *[]string) error {
 	if !h.shouldRestrictSelfAssign(selfAssign) {
 		return nil
 	}
