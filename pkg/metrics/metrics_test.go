@@ -18,9 +18,14 @@ package metrics
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+
+	"github.com/prometheus/client_golang/prometheus/collectors"
+	ctrlruntimemetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
 
 	"sigs.k8s.io/prow/pkg/config"
 	"sigs.k8s.io/prow/pkg/flagutil"
@@ -59,5 +64,40 @@ func TestExposeMetrics(t *testing.T) {
 	}
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("response status was not %d but %d", http.StatusOK, resp.StatusCode)
+	}
+}
+
+// TestExposeMetricsWithControllerRuntimeCollectors verifies that the
+// Unregister calls in ExposeMetricsWithRegistry match what controller-runtime
+// v0.21.0 registers via its init in pkg/internal/controller/metrics. The test
+// binary does not trigger that init, so we register the same collectors
+// manually.
+func TestExposeMetricsWithControllerRuntimeCollectors(t *testing.T) {
+	goC := collectors.NewGoCollector(collectors.WithGoCollectorRuntimeMetrics(collectors.MetricsAll))
+	procC := collectors.NewProcessCollector(collectors.ProcessCollectorOpts{})
+	//nolint:staticcheck
+	ctrlruntimemetrics.Registry.MustRegister(goC, procC)
+	t.Cleanup(func() {
+		//nolint:staticcheck
+		ctrlruntimemetrics.Registry.Unregister(goC)
+		//nolint:staticcheck
+		ctrlruntimemetrics.Registry.Unregister(procC)
+	})
+
+	ctx := t.Context()
+	fls := fakeListenAndServer{ctx: ctx}
+	ExposeMetricsWithRegistry("test", config.PushGateway{}, flagutil.DefaultMetricsPort, nil, fls.CreateServer)
+
+	resp, err := http.Get(fls.server.URL + "/metrics")
+	if err != nil {
+		t.Fatalf("failed getting metrics: %v", err)
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("failed reading body: %v", err)
+	}
+	if strings.Contains(string(body), "collected before with the same name") {
+		t.Fatal("duplicate collector: Unregister options do not match controller-runtime")
 	}
 }
