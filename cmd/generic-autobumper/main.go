@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	goflag "flag"
 	"fmt"
 	"io"
 	"net/http"
@@ -37,6 +38,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"sigs.k8s.io/prow/cmd/generic-autobumper/bumper"
 	"sigs.k8s.io/prow/cmd/generic-autobumper/imagebumper"
+	"sigs.k8s.io/prow/pkg/flagutil"
 
 	"sigs.k8s.io/yaml"
 )
@@ -174,13 +176,19 @@ func parseOptions() (*options, *bumper.Options, error) {
 	var labelsOverride []string
 	var skipPullRequest bool
 	var signoff bool
+	var prSourceMode string
 
 	var o options
+	var githubOpts flagutil.GitHubOptions
+	githubOpts.AddFlags(goflag.CommandLine)
+	flag.CommandLine.AddGoFlagSet(goflag.CommandLine)
+
 	flag.StringVar(&config, "config", "", "The path to the config file for the autobumber.")
 	flag.StringSliceVar(&labelsOverride, "labels-override", nil, "Override labels to be added to PR.")
 	flag.BoolVar(&skipPullRequest, "skip-pullrequest", false, "")
 	flag.BoolVar(&signoff, "signoff", false, "Signoff the commits.")
 	flag.BoolVar(&o.SkipIfNoOncall, "skip-if-no-oncall", false, "Don't run anything if no oncall is discovered")
+	flag.StringVar(&prSourceMode, "pr-source-mode", "", "How to push PR source: fork (PAT, legacy) or branch (App auth, push directly to org/repo).")
 	flag.Parse()
 
 	var pro bumper.Options
@@ -205,6 +213,10 @@ func parseOptions() (*options, *bumper.Options, error) {
 	}
 	pro.SkipPullRequest = skipPullRequest
 	pro.Signoff = signoff
+	pro.GitHubOptions = &githubOpts
+	if prSourceMode != "" {
+		pro.PRSourceMode = prSourceMode
+	}
 	return &o, &pro, nil
 }
 

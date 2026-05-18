@@ -24,6 +24,8 @@ import (
 	"testing"
 
 	"sigs.k8s.io/prow/pkg/config/secret"
+	"sigs.k8s.io/prow/pkg/flagutil"
+	"sigs.k8s.io/prow/pkg/github"
 )
 
 func TestValidateOptions(t *testing.T) {
@@ -336,4 +338,242 @@ func TestCDToRootDir(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestResolvedPRSourceMode(t *testing.T) {
+	cases := []struct {
+		name     string
+		mode     string
+		appID    string
+		expected string
+	}{
+		{
+			name:     "explicit fork mode",
+			mode:     "fork",
+			expected: "fork",
+		},
+		{
+			name:     "explicit branch mode",
+			mode:     "branch",
+			expected: "branch",
+		},
+		{
+			name:     "auto-detect with app credentials",
+			mode:     "",
+			appID:    "12345",
+			expected: "branch",
+		},
+		{
+			name:     "auto-detect without app credentials",
+			mode:     "",
+			expected: "fork",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			o := &Options{PRSourceMode: tc.mode}
+			if tc.appID != "" {
+				o.GitHubOptions = &flagutil.GitHubOptions{AppID: tc.appID}
+			}
+			if got := o.resolvedPRSourceMode(); got != tc.expected {
+				t.Errorf("expected %q, got %q", tc.expected, got)
+			}
+		})
+	}
+}
+
+func TestValidateOptionsAppAuth(t *testing.T) {
+	cases := []struct {
+		name string
+		opts *Options
+		err  bool
+	}{
+		{
+			name: "branch mode with app credentials is valid",
+			opts: &Options{
+				GitHubOrg:    "org",
+				GitHubRepo:   "repo",
+				PRSourceMode: "branch",
+				GitHubOptions: &flagutil.GitHubOptions{
+					AppID:             "12345",
+					AppPrivateKeyPath: "/etc/github/cert",
+				},
+			},
+			err: false,
+		},
+		{
+			name: "branch mode with app-id but no private key fails",
+			opts: &Options{
+				GitHubOrg:    "org",
+				GitHubRepo:   "repo",
+				PRSourceMode: "branch",
+				GitHubOptions: &flagutil.GitHubOptions{
+					AppID: "12345",
+				},
+			},
+			err: true,
+		},
+		{
+			name: "branch mode without app credentials fails",
+			opts: &Options{
+				GitHubOrg:     "org",
+				GitHubRepo:    "repo",
+				PRSourceMode:  "branch",
+				GitHubOptions: &flagutil.GitHubOptions{},
+			},
+			err: true,
+		},
+		{
+			name: "branch mode without GitHubOptions fails",
+			opts: &Options{
+				GitHubOrg:    "org",
+				GitHubRepo:   "repo",
+				PRSourceMode: "branch",
+			},
+			err: true,
+		},
+		{
+			name: "fork mode without token fails",
+			opts: &Options{
+				GitHubOrg:    "org",
+				GitHubRepo:   "repo",
+				PRSourceMode: "fork",
+				RemoteName:   "remote",
+			},
+			err: true,
+		},
+		{
+			name: "fork mode with token is valid",
+			opts: &Options{
+				GitHubOrg:    "org",
+				GitHubRepo:   "repo",
+				PRSourceMode: "fork",
+				GitHubToken:  "/path/to/token",
+				RemoteName:   "remote",
+			},
+			err: false,
+		},
+		{
+			name: "invalid mode fails",
+			opts: &Options{
+				GitHubOrg:    "org",
+				GitHubRepo:   "repo",
+				PRSourceMode: "invalid",
+			},
+			err: true,
+		},
+		{
+			name: "skip pull request bypasses validation",
+			opts: &Options{
+				SkipPullRequest: true,
+				PRSourceMode:    "branch",
+			},
+			err: false,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateOptions(tc.opts)
+			if err == nil && tc.err {
+				t.Errorf("expected error but got nil")
+			}
+			if err != nil && !tc.err {
+				t.Errorf("expected no error but got: %v", err)
+			}
+		})
+	}
+}
+
+func TestOrgAwareClientFindIssues(t *testing.T) {
+	expectedOrg := "test-org"
+	expectedQuery := "is:pr author:bot"
+	var calledOrg, calledQuery string
+
+	fake := &fakeGHClient{
+		findIssuesWithOrgFunc: func(org, query, sort string, asc bool) ([]github.Issue, error) {
+			calledOrg = org
+			calledQuery = query
+			return []github.Issue{{Number: 1}}, nil
+		},
+	}
+
+	client := &OrgAwareClient{Client: fake, Org: expectedOrg, IsAppAuth: true}
+	issues, err := client.FindIssues(expectedQuery, "", false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(issues) != 1 || issues[0].Number != 1 {
+		t.Errorf("unexpected issues returned: %v", issues)
+	}
+	if calledOrg != expectedOrg {
+		t.Errorf("expected org %q, got %q", expectedOrg, calledOrg)
+	}
+	if calledQuery != expectedQuery {
+		t.Errorf("expected query %q, got %q", expectedQuery, calledQuery)
+	}
+}
+
+func TestOrgAwareClientBotUser(t *testing.T) {
+	cases := []struct {
+		name          string
+		login         string
+		isAppAuth     bool
+		expectedLogin string
+	}{
+		{
+			name:          "app auth appends [bot]",
+			login:         "my-app",
+			isAppAuth:     true,
+			expectedLogin: "my-app[bot]",
+		},
+		{
+			name:          "app auth does not double-append [bot]",
+			login:         "my-app[bot]",
+			isAppAuth:     true,
+			expectedLogin: "my-app[bot]",
+		},
+		{
+			name:          "PAT auth does not append [bot]",
+			login:         "my-user",
+			isAppAuth:     false,
+			expectedLogin: "my-user",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			fake := &fakeGHClient{
+				botUserFunc: func() (*github.UserData, error) {
+					return &github.UserData{Login: tc.login, Name: "Bot"}, nil
+				},
+			}
+			client := &OrgAwareClient{Client: fake, Org: "org", IsAppAuth: tc.isAppAuth}
+			user, err := client.BotUser()
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if user.Login != tc.expectedLogin {
+				t.Errorf("expected login %q, got %q", tc.expectedLogin, user.Login)
+			}
+		})
+	}
+}
+
+type fakeGHClient struct {
+	github.Client
+	findIssuesWithOrgFunc func(org, query, sort string, asc bool) ([]github.Issue, error)
+	botUserFunc           func() (*github.UserData, error)
+}
+
+func (f *fakeGHClient) FindIssuesWithOrg(org, query, sort string, asc bool) ([]github.Issue, error) {
+	if f.findIssuesWithOrgFunc != nil {
+		return f.findIssuesWithOrgFunc(org, query, sort, asc)
+	}
+	return nil, nil
+}
+
+func (f *fakeGHClient) BotUser() (*github.UserData, error) {
+	if f.botUserFunc != nil {
+		return f.botUserFunc()
+	}
+	return &github.UserData{Login: "bot"}, nil
 }
