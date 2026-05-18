@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/hashicorp/golang-lru/simplelru"
+	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"github.com/sirupsen/logrus"
 )
 
@@ -45,7 +45,7 @@ import (
 // LRUCache is the actual concurrent non-blocking cache.
 type LRUCache struct {
 	*sync.Mutex
-	*simplelru.LRU
+	*simplelru.LRU[any, any]
 	callbacks Callbacks
 }
 
@@ -64,7 +64,7 @@ type Callbacks struct {
 	LookupsCallback         EventCallback
 	HitsCallback            EventCallback
 	MissesCallback          EventCallback
-	ForcedEvictionsCallback simplelru.EvictCallback
+	ForcedEvictionsCallback simplelru.EvictCallback[any, any]
 	ManualEvictionsCallback EventCallback
 }
 
@@ -119,8 +119,9 @@ func (p *Promise) resolve() {
 // The forcedEvictionsCallback is a function that is called when an eviction occurs in the
 // underlying cache.
 func NewLRUCache(size int,
-	callbacks Callbacks) (*LRUCache, error) {
-	cache, err := simplelru.NewLRU(size, callbacks.ForcedEvictionsCallback)
+	callbacks Callbacks,
+) (*LRUCache, error) {
+	cache, err := simplelru.NewLRU[any, any](size, callbacks.ForcedEvictionsCallback)
 	if err != nil {
 		return nil, err
 	}
@@ -143,8 +144,8 @@ func NewLRUCache(size int,
 // suppression strategy. This is also called request coalescing.
 func (lruCache *LRUCache) GetOrAdd(
 	key any,
-	valConstructor ValConstructor) (any, bool, error) {
-
+	valConstructor ValConstructor,
+) (any, bool, error) {
 	// Cache lookup.
 	if lruCache.callbacks.LookupsCallback != nil {
 		lruCache.callbacks.LookupsCallback(key)
