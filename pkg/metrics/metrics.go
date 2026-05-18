@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
 	ctrlruntimemetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
@@ -51,7 +52,9 @@ func ExposeMetricsWithRegistry(component string, pushGateway config.PushGateway,
 	// we can not change it.
 
 	//nolint:staticcheck
-	ctrlruntimemetrics.Registry.Unregister(prometheus.NewGoCollector())
+	ctrlruntimemetrics.Registry.Unregister(
+		collectors.NewGoCollector(collectors.WithGoCollectorRuntimeMetrics(collectors.MetricsAll)),
+	)
 	//nolint:staticcheck
 	ctrlruntimemetrics.Registry.Unregister(prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}))
 
