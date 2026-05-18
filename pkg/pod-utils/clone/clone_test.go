@@ -20,7 +20,9 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -939,6 +941,111 @@ func TestGitHeadTimestamp(t *testing.T) {
 			if testCase.noPath {
 				if err := os.Setenv("PATH", origPath); err != nil {
 					t.Errorf("%s: failed to set PATH to original: %v", testCase.name, err)
+				}
+			}
+		})
+	}
+}
+
+func gitRepoHEAD(t *testing.T, dir string) string {
+	t.Helper()
+	c := exec.Command("git", "rev-parse", "HEAD")
+	c.Dir = dir
+	out, err := c.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git rev-parse HEAD in %s: %v\n%s", dir, err, out)
+	}
+	return strings.TrimSpace(string(out))
+}
+
+func TestRunSparseCheckout(t *testing.T) {
+	cases := []struct {
+		name           string
+		setup          func(t *testing.T, repoDir string)
+		expectFallback bool
+	}{
+		{
+			name: "fallback on failure",
+			setup: func(t *testing.T, repoDir string) {
+				// Pre-create .git/info/sparse-checkout as a directory so
+				// "git sparse-checkout init" fails trying to open it as a file.
+				if err := os.MkdirAll(repoDir, 0755); err != nil {
+					t.Fatal(err)
+				}
+				c := exec.Command("git", "init")
+				c.Dir = repoDir
+				if out, err := c.CombinedOutput(); err != nil {
+					t.Fatalf("git init: %v\n%s", err, out)
+				}
+				sparseCheckoutPath := filepath.Join(repoDir, ".git", "info", "sparse-checkout")
+				if err := os.MkdirAll(sparseCheckoutPath, 0755); err != nil {
+					t.Fatal(err)
+				}
+			},
+			expectFallback: true,
+		},
+		{
+			name:           "success without fallback",
+			setup:          func(t *testing.T, repoDir string) {},
+			expectFallback: false,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			srcDir, err := makeFakeGitRepo(t, 100200300)
+			if err != nil {
+				t.Fatal(err)
+			}
+			baseSHA := gitRepoHEAD(t, srcDir)
+
+			cloneDir := t.TempDir()
+			refs := prowapi.Refs{
+				Org:                 "org",
+				Repo:                "repo",
+				BaseRef:             "master",
+				BaseSHA:             baseSHA,
+				CloneURI:            srcDir,
+				SparseCheckoutFiles: []string{"a_file"},
+			}
+
+			tc.setup(t, PathForRefs(cloneDir, refs))
+
+			record := Run(refs, cloneDir, "test", "test@test.test", "", nil, nil, nil)
+
+			if record.Failed {
+				t.Error("expected clone to succeed, but it failed")
+				for _, cmd := range record.Commands {
+					if cmd.Error != "" {
+						t.Logf("  cmd: %s\n  err: %s", cmd.Command, cmd.Error)
+					}
+				}
+			}
+			if record.FinalSHA == "" {
+				t.Error("expected FinalSHA to be set")
+			}
+
+			if tc.expectFallback {
+				var hasSparseInit, hasTagFetch, hasSubmoduleUpdate bool
+				for _, cmd := range record.Commands {
+					if strings.Contains(cmd.Command, "sparse-checkout init") {
+						hasSparseInit = true
+					}
+					if strings.Contains(cmd.Command, "--tags --prune") {
+						hasTagFetch = true
+					}
+					if strings.Contains(cmd.Command, "submodule update") {
+						hasSubmoduleUpdate = true
+					}
+				}
+				if !hasSparseInit {
+					t.Error("expected record to contain sparse-checkout init from the failed first attempt")
+				}
+				if !hasTagFetch {
+					t.Error("expected record to contain a fetch with --tags --prune from the full clone fallback")
+				}
+				if !hasSubmoduleUpdate {
+					t.Error("expected record to contain submodule update from the full clone fallback")
 				}
 			}
 		})

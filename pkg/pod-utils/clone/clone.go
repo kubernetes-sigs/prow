@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"fmt"
 	"net/url"
+	"os"
 	"os/exec"
 	"path"
 	"strconv"
@@ -70,10 +71,30 @@ func Run(refs prowapi.Refs, dir, gitUserName, gitUserEmail, cookiePath string, e
 			return sets.New[string](token)
 		}))
 	}
+
+	record = runClone(refs, dir, gitUserName, gitUserEmail, cookiePath, env, user, token)
+
+	if record.Failed && isSparseCheckoutSet(refs) {
+		logrus.WithFields(logrus.Fields{"refs": refs}).Warn("Sparse checkout clone failed, falling back to full clone")
+		failedCommands := record.Commands
+		cloneDir := PathForRefs(dir, refs)
+		if err := os.RemoveAll(cloneDir); err != nil {
+			logrus.WithError(err).Warn("Failed to clean up clone directory for fallback")
+		}
+		fullRefs := refs
+		fullRefs.SparseCheckoutFiles = nil
+		record = runClone(fullRefs, dir, gitUserName, gitUserEmail, cookiePath, env, user, token)
+		record.Commands = append(failedCommands, record.Commands...)
+	}
+
+	record.Duration = time.Since(startTime)
+	return record
+}
+
+func runClone(refs prowapi.Refs, dir, gitUserName, gitUserEmail, cookiePath string, env []string, user, token string) Record {
+	record := Record{Refs: refs}
 	logrus.WithFields(logrus.Fields{"refs": refs}).Info("Cloning refs")
 
-	// This function runs the provided commands in order, logging them as they run,
-	// aborting early and returning if any command fails.
 	runCommands := func(commands []runnable) error {
 		for _, command := range commands {
 			startTime := time.Now()
@@ -120,8 +141,6 @@ func Run(refs prowapi.Refs, dir, gitUserName, gitUserEmail, cookiePath string, e
 	} else {
 		record.FinalSHA = finalSHA
 	}
-
-	record.Duration = time.Since(startTime)
 
 	return record
 }
