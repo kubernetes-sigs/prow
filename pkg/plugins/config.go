@@ -63,6 +63,9 @@ type Configuration struct {
 	// external plugins.
 	ExternalPlugins map[string][]ExternalPlugin `json:"external_plugins,omitempty"`
 
+	// GeminiAgents holds per-repo configuration for the gemini-agent external plugin.
+	GeminiAgents []GeminiAgentConfig `json:"gemini_agents,omitempty"`
+
 	// Owners contains configuration related to handling OWNERS files.
 	Owners Owners `json:"owners,omitempty"`
 
@@ -97,6 +100,19 @@ type Configuration struct {
 	Welcome              []Welcome                    `json:"welcome,omitempty"`
 	Override             Override                     `json:"override,omitempty"`
 	Help                 Help                         `json:"help,omitempty"`
+}
+
+// GeminiAgentConfig holds per-repo settings for the gemini-agent external plugin.
+type GeminiAgentConfig struct {
+	// Repos is either of the form org/repos or just org.
+	Repos []string `json:"repos,omitempty"`
+
+	// Model is the Gemini model to use (e.g. "gemini-3-flash-preview").
+	Model string `json:"model,omitempty"`
+
+	// AllowedTeams is a list of GitHub team slugs whose members are allowed
+	// to invoke /gemini-agent, in addition to standard trigger trust.
+	AllowedTeams []string `json:"allowed_teams,omitempty"`
 }
 
 type Help struct {
