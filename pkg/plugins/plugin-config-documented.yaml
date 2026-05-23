@@ -413,6 +413,17 @@ dco:
 # external plugins.
 external_plugins:
     "": null
+# GeminiAgents holds per-repo configuration for the gemini-agent external plugin.
+gemini_agents:
+    - # AllowedTeams is a list of GitHub team slugs whose members are allowed
+      # to invoke /gemini-agent, in addition to standard trigger trust.
+      allowed_teams:
+        - ""
+      # Model is the Gemini model to use (e.g. "gemini-3-flash-preview").
+      model: ' '
+      # Repos is either of the form org/repos or just org.
+      repos:
+        - ""
 golint:
     # MinimumConfidence is the smallest permissible confidence
     # in (0,1] over which problems will be printed. Defaults to
