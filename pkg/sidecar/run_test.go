@@ -240,12 +240,17 @@ func TestWaitParallelContainers(t *testing.T) {
 
 			waitResultsCh := make(chan WaitResult)
 
-			go func() {
-				pass, abort, failures := wait(ctx, entries)
-				waitResultsCh <- WaitResult{pass, abort, failures}
-			}()
+			startWait := func() {
+				go func() {
+					pass, abort, failures := wait(ctx, entries)
+					waitResultsCh <- WaitResult{pass, abort, failures}
+				}()
+			}
+			if !tc.missing {
+				startWait()
+			}
 
-			errCh := make(chan error, len(tc.markers))
+			markerErrCh := make(chan error, len(tc.markers))
 			for i, m := range tc.markers {
 
 				options := entries[i]
@@ -255,26 +260,24 @@ func TestWaitParallelContainers(t *testing.T) {
 				}
 				marker, err := strconv.Atoi(m)
 				if err != nil {
-					errCh <- fmt.Errorf("invalid exit code: %w", err)
+					markerErrCh <- fmt.Errorf("invalid exit code: %w", err)
 				}
 				go func() {
-					errCh <- entrypointOptions.Mark(marker)
+					markerErrCh <- entrypointOptions.Mark(marker)
 				}()
 
-			}
-
-			if tc.missing {
-				go func() {
-					time.Sleep(missingMarkerTimeout)
-					cancel()
-					errCh <- nil
-				}()
 			}
 
 			for range tc.markers {
-				if err := <-errCh; err != nil {
+				if err := <-markerErrCh; err != nil {
 					t.Fatalf("could not create marker: %v", err)
 				}
+			}
+
+			if tc.missing {
+				startWait()
+				time.Sleep(missingMarkerTimeout)
+				cancel()
 			}
 
 			waitRes := <-waitResultsCh
@@ -373,11 +376,11 @@ func TestCombineMetadata(t *testing.T) {
 			delete(tc.expected, errorKey)
 			delete(actual, errorKey)
 			if !equality.Semantic.DeepEqual(tc.expected, actual) {
-				t.Errorf("maps do not match:\n%s", diff.ObjectReflectDiff(tc.expected, actual))
+				t.Errorf("maps do not match:\n%s", diff.Diff(tc.expected, actual))
 			}
 
 			if !equality.Semantic.DeepEqual(sets.KeySet[string](expectedErrors), sets.KeySet[string](actualErrors)) { // ignore the error values
-				t.Errorf("errors do not match:\n%s", diff.ObjectReflectDiff(expectedErrors, actualErrors))
+				t.Errorf("errors do not match:\n%s", diff.Diff(expectedErrors, actualErrors))
 			}
 		})
 	}
@@ -504,7 +507,7 @@ func TestLogReaders(t *testing.T) {
 			}
 
 			if !equality.Semantic.DeepEqual(tc.expected, actual) {
-				t.Errorf("maps do not match:\n%s", diff.ObjectReflectDiff(tc.expected, actual))
+				t.Errorf("maps do not match:\n%s", diff.Diff(tc.expected, actual))
 			}
 		})
 	}

@@ -150,7 +150,7 @@ func TestSearch(t *testing.T) {
 					"searchCursor": tc.cursors[i],
 				}
 				if !equality.Semantic.DeepEqual(expected, actual) {
-					t.Errorf("call %d vars do not match:\n%s", i, diff.ObjectReflectDiff(expected, actual))
+					t.Errorf("call %d vars do not match:\n%s", i, diff.Diff(expected, actual))
 				}
 				ret := result.(*searchQuery)
 				err := tc.errs[i]
@@ -173,7 +173,7 @@ func TestSearch(t *testing.T) {
 			}
 
 			if !reflect.DeepEqual(tc.expected, prs) {
-				t.Errorf("prs do not match:\n%s", diff.ObjectReflectDiff(tc.expected, prs))
+				t.Errorf("prs do not match:\n%s", diff.Diff(tc.expected, prs))
 			}
 		})
 	}

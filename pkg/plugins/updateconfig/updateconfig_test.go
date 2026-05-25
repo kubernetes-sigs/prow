@@ -1613,7 +1613,7 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 			if err != nil && errors.IsNotFound(err) {
 				t.Errorf("%s: Should have updated or created configmap for '%s'", tc.name, expected)
 			} else if !equality.Semantic.DeepEqual(expected, actual) {
-				t.Errorf("%s: incorrect ConfigMap state after update: %v", tc.name, diff.ObjectReflectDiff(expected, actual))
+				t.Errorf("%s: incorrect ConfigMap state after update: %v", tc.name, diff.Diff(expected, actual))
 			}
 		}
 	}
@@ -1705,7 +1705,7 @@ func TestHandleDefaultNamespace(t *testing.T) {
 	for _, tc := range testcases {
 		actual := handleDefaultNamespace(tc.given, defaultNamespace)
 		if !equality.Semantic.DeepEqual(tc.expected, actual) {
-			t.Errorf("%s: incorrect changes: %v", tc.name, diff.ObjectReflectDiff(tc.expected, actual))
+			t.Errorf("%s: incorrect changes: %v", tc.name, diff.Diff(tc.expected, actual))
 		}
 	}
 }
@@ -1889,7 +1889,7 @@ func testUpdate(clients localgit.Clients, t *testing.T) {
 		if err != nil && errors.IsNotFound(err) {
 			t.Errorf("%s: Should have updated or created configmap for '%s'", tc.name, expected)
 		} else if !equality.Semantic.DeepEqual(expected, actual) {
-			t.Errorf("%s: incorrect ConfigMap state after update: %v", tc.name, diff.ObjectReflectDiff(expected, actual))
+			t.Errorf("%s: incorrect ConfigMap state after update: %v", tc.name, diff.Diff(expected, actual))
 		}
 	}
 }

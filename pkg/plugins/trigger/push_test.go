@@ -56,7 +56,7 @@ func TestCreateRefs(t *testing.T) {
 		BaseLink: "https://example.com/kubernetes/repo/compare/abcdee...abcdef",
 	}
 	if actual := createRefs(pe); !equality.Semantic.DeepEqual(expected, actual) {
-		t.Errorf("diff between expected and actual refs:%s", diff.ObjectReflectDiff(expected, actual))
+		t.Errorf("diff between expected and actual refs:%s", diff.Diff(expected, actual))
 	}
 }
 

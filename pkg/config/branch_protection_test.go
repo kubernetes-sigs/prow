@@ -315,7 +315,7 @@ func TestApply(test *testing.T) {
 			normalize(&actual)
 			normalize(&tc.expected)
 			if !reflect.DeepEqual(actual, tc.expected) {
-				test.Errorf("bad merged policy:\n%s", diff.ObjectReflectDiff(tc.expected, actual))
+				test.Errorf("bad merged policy:\n%s", diff.Diff(tc.expected, actual))
 			}
 		})
 	}
@@ -471,23 +471,23 @@ func TestBranchRequirements(t *testing.T) {
 		}
 		masterActual, masterActualIfPresent, masterOptional := BranchRequirements("master", presubmits["o/r"], &tc.requireManuallyTriggeredJobs)
 		if !reflect.DeepEqual(masterActual, tc.masterExpected) {
-			t.Errorf("%s: identified incorrect required contexts on branch master: %s", tc.name, diff.ObjectReflectDiff(masterActual, tc.masterExpected))
+			t.Errorf("%s: identified incorrect required contexts on branch master: %s", tc.name, diff.Diff(masterActual, tc.masterExpected))
 		}
 		if !reflect.DeepEqual(masterOptional, tc.masterOptional) {
-			t.Errorf("%s: identified incorrect optional contexts on branch master: %s", tc.name, diff.ObjectReflectDiff(masterOptional, tc.masterOptional))
+			t.Errorf("%s: identified incorrect optional contexts on branch master: %s", tc.name, diff.Diff(masterOptional, tc.masterOptional))
 		}
 		if !reflect.DeepEqual(masterActualIfPresent, tc.masterIfPresent) {
-			t.Errorf("%s: identified incorrect if-present contexts on branch master: %s", tc.name, diff.ObjectReflectDiff(masterActualIfPresent, tc.masterIfPresent))
+			t.Errorf("%s: identified incorrect if-present contexts on branch master: %s", tc.name, diff.Diff(masterActualIfPresent, tc.masterIfPresent))
 		}
 		otherActual, otherActualIfPresent, otherOptional := BranchRequirements("other", presubmits["o/r"], &tc.requireManuallyTriggeredJobs)
 		if !reflect.DeepEqual(masterActual, tc.masterExpected) {
-			t.Errorf("%s: identified incorrect required contexts on branch other: : %s", tc.name, diff.ObjectReflectDiff(otherActual, tc.otherExpected))
+			t.Errorf("%s: identified incorrect required contexts on branch other: : %s", tc.name, diff.Diff(otherActual, tc.otherExpected))
 		}
 		if !reflect.DeepEqual(otherOptional, tc.otherOptional) {
-			t.Errorf("%s: identified incorrect optional contexts on branch other: %s", tc.name, diff.ObjectReflectDiff(otherOptional, tc.otherOptional))
+			t.Errorf("%s: identified incorrect optional contexts on branch other: %s", tc.name, diff.Diff(otherOptional, tc.otherOptional))
 		}
 		if !reflect.DeepEqual(otherActualIfPresent, tc.otherIfPresent) {
-			t.Errorf("%s: identified incorrect if-present contexts on branch other: %s", tc.name, diff.ObjectReflectDiff(otherActualIfPresent, tc.otherIfPresent))
+			t.Errorf("%s: identified incorrect if-present contexts on branch other: %s", tc.name, diff.Diff(otherActualIfPresent, tc.otherIfPresent))
 		}
 	}
 }

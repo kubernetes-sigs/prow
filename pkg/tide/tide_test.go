@@ -1272,7 +1272,7 @@ func testPickBatch(clients localgit.Clients, t *testing.T) {
 		t.Fatalf("Error from pickBatch: %v", err)
 	}
 	if !apiequality.Semantic.DeepEqual(presubmits, ca.Config().PresubmitsStatic["o/r"]) {
-		t.Errorf("resolving presubmits failed, diff:\n%v\n", diff.ObjectReflectDiff(presubmits, ca.Config().PresubmitsStatic["o/r"]))
+		t.Errorf("resolving presubmits failed, diff:\n%v\n", diff.Diff(presubmits, ca.Config().PresubmitsStatic["o/r"]))
 	}
 	for _, testpr := range testprs {
 		var found bool
@@ -3527,10 +3527,10 @@ func TestPresubmitsByPull(t *testing.T) {
 				config.ClearCompiledRegexes(jobs)
 			}
 			if !apiequality.Semantic.DeepEqual(presubmits, tc.expectedPresubmits) {
-				t.Errorf("got incorrect presubmit mapping: %v\n", diff.ObjectReflectDiff(tc.expectedPresubmits, presubmits))
+				t.Errorf("got incorrect presubmit mapping: %v\n", diff.Diff(tc.expectedPresubmits, presubmits))
 			}
 			if got := c.changedFiles.changeCache; !reflect.DeepEqual(got, tc.expectedChangeCache) {
-				t.Errorf("got incorrect file change cache: %v", diff.ObjectReflectDiff(tc.expectedChangeCache, got))
+				t.Errorf("got incorrect file change cache: %v", diff.Diff(tc.expectedChangeCache, got))
 			}
 		})
 	}
@@ -4114,7 +4114,7 @@ func TestPresubmitsForBatch(t *testing.T) {
 			// Clear regexes, otherwise DeepEqual comparison wont work
 			config.ClearCompiledRegexes(presubmits)
 			if !apiequality.Semantic.DeepEqual(tc.expected, presubmits) {
-				t.Errorf("returned presubmits do not match expected, diff: %v\n", diff.ObjectReflectDiff(tc.expected, presubmits))
+				t.Errorf("returned presubmits do not match expected, diff: %v\n", diff.Diff(tc.expected, presubmits))
 			}
 		})
 	}
@@ -4164,7 +4164,7 @@ func TestChangedFilesAgentBatchChanges(t *testing.T) {
 				t.Fatalf("fauked to get changed files: %v", err)
 			}
 			if !apiequality.Semantic.DeepEqual(result, tc.expected) {
-				t.Errorf("returned changes do not match expected; diff: %v\n", diff.ObjectReflectDiff(tc.expected, result))
+				t.Errorf("returned changes do not match expected; diff: %v\n", diff.Diff(tc.expected, result))
 			}
 		})
 	}

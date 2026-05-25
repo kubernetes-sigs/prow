@@ -1285,7 +1285,7 @@ func TestParseTideContextPolicyOptions(t *testing.T) {
 	for _, tc := range testCases {
 		policy := ParseTideContextPolicyOptions(org, repo, branch, tc.config)
 		if !reflect.DeepEqual(policy, tc.expected) {
-			t.Errorf("%s - did not get expected policy: %s", tc.name, diff.ObjectReflectDiff(tc.expected, policy))
+			t.Errorf("%s - did not get expected policy: %s", tc.name, diff.Diff(tc.expected, policy))
 		}
 	}
 }
@@ -1576,7 +1576,7 @@ func TestConfigGetTideContextPolicy(t *testing.T) {
 			}
 			p, err := tc.config.GetTideContextPolicy(nil, org, repo, branch, baseSHAGetter, "some-sha")
 			if !reflect.DeepEqual(p, &tc.expected) {
-				t.Errorf("%s - did not get expected policy: %s", tc.name, diff.ObjectReflectDiff(&tc.expected, p))
+				t.Errorf("%s - did not get expected policy: %s", tc.name, diff.Diff(&tc.expected, p))
 			}
 			if err != nil {
 				if err.Error() != tc.error {
