@@ -344,7 +344,6 @@ deck:
 			t.Errorf("%s expected SizeLimit %d, got %d", tc.name, tc.expectedSizeLimit, cfg.Deck.Spyglass.SizeLimit)
 		}
 	}
-
 }
 
 func TestGetGCSBrowserPrefix(t *testing.T) {
@@ -570,7 +569,7 @@ func TestDefaultMatches(t *testing.T) {
 
 func TestDecorationRawYaml(t *testing.T) {
 	t.Parallel()
-	var testCases = []struct {
+	testCases := []struct {
 		name              string
 		expectError       bool
 		expectStrictError bool
@@ -1184,7 +1183,7 @@ periodics:
 
 func TestGerritRawYaml(t *testing.T) {
 	t.Parallel()
-	var testCases = []struct {
+	testCases := []struct {
 		name        string
 		expectError bool
 		rawConfig   string
@@ -1293,7 +1292,7 @@ gerrit:
 
 func TestDisabledClustersRawYaml(t *testing.T) {
 	t.Parallel()
-	var testCases = []struct {
+	testCases := []struct {
 		name        string
 		expectError bool
 		rawConfig   string
@@ -1492,7 +1491,6 @@ func TestValidatePodSpec(t *testing.T) {
 			spec: func(s *v1.PodSpec) {
 				// find a presubmit value
 				for n := range preEnv.Difference(postEnv).Difference(periodEnv) {
-
 					s.Containers[0].Env = append(s.Containers[0].Env, v1.EnvVar{Name: n, Value: "whatever"})
 				}
 				if len(s.Containers[0].Env) == 0 {
@@ -1506,7 +1504,6 @@ func TestValidatePodSpec(t *testing.T) {
 			spec: func(s *v1.PodSpec) {
 				// find a postsubmit value
 				for n := range postEnv.Difference(periodEnv) {
-
 					s.Containers[0].Env = append(s.Containers[0].Env, v1.EnvVar{Name: n, Value: "whatever"})
 				}
 				if len(s.Containers[0].Env) == 0 {
@@ -1520,7 +1517,6 @@ func TestValidatePodSpec(t *testing.T) {
 			spec: func(s *v1.PodSpec) {
 				// find a postsubmit value
 				for n := range periodEnv {
-
 					s.Containers[0].Env = append(s.Containers[0].Env, v1.EnvVar{Name: n, Value: "whatever"})
 				}
 				if len(s.Containers[0].Env) == 0 {
@@ -1696,7 +1692,8 @@ func TestValidatePipelineRunSpec(t *testing.T) {
 			jobType: prowapi.PeriodicJob,
 			spec: func(s *pipelinev1.PipelineRunSpec) {
 				s.PipelineSpec = &pipelinev1.PipelineSpec{
-					Tasks: []pipelinev1.PipelineTask{{Name: "git ref", TaskRef: &pipelinev1.TaskRef{Name: "PROW_IMPLICIT_GIT_REF"}}}}
+					Tasks: []pipelinev1.PipelineTask{{Name: "git ref", TaskRef: &pipelinev1.TaskRef{Name: "PROW_IMPLICIT_GIT_REF"}}},
+				}
 			},
 			pass: false,
 		},
@@ -1705,7 +1702,8 @@ func TestValidatePipelineRunSpec(t *testing.T) {
 			jobType: prowapi.PresubmitJob,
 			spec: func(s *pipelinev1.PipelineRunSpec) {
 				s.PipelineSpec = &pipelinev1.PipelineSpec{
-					Tasks: []pipelinev1.PipelineTask{{Name: "git ref", TaskRef: &pipelinev1.TaskRef{Name: "PROW_IMPLICIT_GIT_REF"}}}}
+					Tasks: []pipelinev1.PipelineTask{{Name: "git ref", TaskRef: &pipelinev1.TaskRef{Name: "PROW_IMPLICIT_GIT_REF"}}},
+				}
 			},
 			pass: true,
 		},
@@ -1714,7 +1712,8 @@ func TestValidatePipelineRunSpec(t *testing.T) {
 			jobType: prowapi.PostsubmitJob,
 			spec: func(s *pipelinev1.PipelineRunSpec) {
 				s.PipelineSpec = &pipelinev1.PipelineSpec{
-					Tasks: []pipelinev1.PipelineTask{{Name: "git ref", TaskRef: &pipelinev1.TaskRef{Name: "PROW_IMPLICIT_GIT_REF"}}}}
+					Tasks: []pipelinev1.PipelineTask{{Name: "git ref", TaskRef: &pipelinev1.TaskRef{Name: "PROW_IMPLICIT_GIT_REF"}}},
+				}
 			},
 			pass: true,
 		},
@@ -1722,7 +1721,8 @@ func TestValidatePipelineRunSpec(t *testing.T) {
 			name: "reject extra refs usage with no extra refs",
 			spec: func(s *pipelinev1.PipelineRunSpec) {
 				s.PipelineSpec = &pipelinev1.PipelineSpec{
-					Tasks: []pipelinev1.PipelineTask{{Name: "git ref", TaskRef: &pipelinev1.TaskRef{Name: "PROW_EXTRA_GIT_REF_0"}}}}
+					Tasks: []pipelinev1.PipelineTask{{Name: "git ref", TaskRef: &pipelinev1.TaskRef{Name: "PROW_EXTRA_GIT_REF_0"}}},
+				}
 			},
 			pass: false,
 		},
@@ -1730,7 +1730,8 @@ func TestValidatePipelineRunSpec(t *testing.T) {
 			name: "allow extra refs usage with extra refs",
 			spec: func(s *pipelinev1.PipelineRunSpec) {
 				s.PipelineSpec = &pipelinev1.PipelineSpec{
-					Tasks: []pipelinev1.PipelineTask{{Name: "git ref", TaskRef: &pipelinev1.TaskRef{Name: "PROW_EXTRA_GIT_REF_0"}}}}
+					Tasks: []pipelinev1.PipelineTask{{Name: "git ref", TaskRef: &pipelinev1.TaskRef{Name: "PROW_EXTRA_GIT_REF_0"}}},
+				}
 			},
 			extraRefs: []prowapi.Refs{{Org: "o", Repo: "r"}},
 			pass:      true,
@@ -1739,7 +1740,8 @@ func TestValidatePipelineRunSpec(t *testing.T) {
 			name: "reject wrong extra refs index usage",
 			spec: func(s *pipelinev1.PipelineRunSpec) {
 				s.PipelineSpec = &pipelinev1.PipelineSpec{
-					Tasks: []pipelinev1.PipelineTask{{Name: "git ref", TaskRef: &pipelinev1.TaskRef{Name: "PROW_EXTRA_GIT_REF_1"}}}}
+					Tasks: []pipelinev1.PipelineTask{{Name: "git ref", TaskRef: &pipelinev1.TaskRef{Name: "PROW_EXTRA_GIT_REF_1"}}},
+				}
 			},
 			extraRefs: []prowapi.Refs{{Org: "o", Repo: "r"}},
 			pass:      false,
@@ -1753,7 +1755,8 @@ func TestValidatePipelineRunSpec(t *testing.T) {
 			name: "allow unrelated resource refs",
 			spec: func(s *pipelinev1.PipelineRunSpec) {
 				s.PipelineSpec = &pipelinev1.PipelineSpec{
-					Tasks: []pipelinev1.PipelineTask{{Name: "git ref", TaskRef: &pipelinev1.TaskRef{Name: "some-other-ref"}}}}
+					Tasks: []pipelinev1.PipelineTask{{Name: "git ref", TaskRef: &pipelinev1.TaskRef{Name: "some-other-ref"}}},
+				}
 			},
 			pass: true,
 		},
@@ -1761,7 +1764,8 @@ func TestValidatePipelineRunSpec(t *testing.T) {
 			name: "reject leading zeros when extra ref usage is otherwise valid",
 			spec: func(s *pipelinev1.PipelineRunSpec) {
 				s.PipelineSpec = &pipelinev1.PipelineSpec{
-					Tasks: []pipelinev1.PipelineTask{{Name: "git ref", TaskRef: &pipelinev1.TaskRef{Name: "PROW_EXTRA_GIT_REF_000"}}}}
+					Tasks: []pipelinev1.PipelineTask{{Name: "git ref", TaskRef: &pipelinev1.TaskRef{Name: "PROW_EXTRA_GIT_REF_000"}}},
+				}
 			},
 			extraRefs: []prowapi.Refs{{Org: "o", Repo: "r"}},
 			pass:      false,
@@ -2518,7 +2522,7 @@ func TestValidConfigLoading(t *testing.T) {
 
 		return "nil"
 	}
-	var testCases = []struct {
+	testCases := []struct {
 		name               string
 		prowConfig         string
 		versionFileContent string
@@ -3065,7 +3069,8 @@ tide:
   queries:
   - repos:
     - stranded/fish`,
-			jobConfigs: []string{`
+			jobConfigs: []string{
+				`
 presubmits:
   k/k:
   - name: my-job
@@ -3462,7 +3467,6 @@ postsubmits:
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-
 			// save the config
 			prowConfigDir := t.TempDir()
 
@@ -3597,7 +3601,7 @@ func TestReadJobConfigProwIgnore(t *testing.T) {
 		"extraneous.md": `I am unrelated.`,
 	}
 
-	var testCases = []struct {
+	testCases := []struct {
 		name   string
 		files  map[string]string
 		verify func(*JobConfig) error
@@ -3880,11 +3884,10 @@ func TestSecretAgentLoading(t *testing.T) {
 	if len(errors) > 0 {
 		t.Fatal(errors)
 	}
-
 }
 
 func TestValidGitHubReportType(t *testing.T) {
-	var testCases = []struct {
+	testCases := []struct {
 		name        string
 		prowConfig  string
 		expectError bool
@@ -3942,7 +3945,7 @@ github_reporter:
 }
 
 func TestRerunAuthConfigsGetRerunAuthConfig(t *testing.T) {
-	var testCases = []struct {
+	testCases := []struct {
 		name     string
 		configs  RerunAuthConfigs
 		jobSpec  *prowapi.ProwJobSpec
@@ -4065,7 +4068,7 @@ func TestRerunAuthConfigsGetRerunAuthConfig(t *testing.T) {
 }
 
 func TestDefaultRerunAuthConfigsGetRerunAuthConfig(t *testing.T) {
-	var testCases = []struct {
+	testCases := []struct {
 		name     string
 		configs  []*DefaultRerunAuthConfigEntry
 		jobSpec  *prowapi.ProwJobSpec
@@ -4354,7 +4357,7 @@ func TestDefaultRerunAuthConfigsGetRerunAuthConfig(t *testing.T) {
 }
 
 func TestMergeCommitTemplateLoading(t *testing.T) {
-	var testCases = []struct {
+	testCases := []struct {
 		name        string
 		prowConfig  string
 		expectError bool
@@ -4599,13 +4602,15 @@ func TestValidateComponentConfig(t *testing.T) {
 		{
 			name: "Valid default URL, no err",
 			config: &Config{ProwConfig: ProwConfig{Plank: Plank{
-				JobURLPrefixConfig: map[string]string{"*": "https://my-prow"}}}},
+				JobURLPrefixConfig: map[string]string{"*": "https://my-prow"},
+			}}},
 			errExpected: false,
 		},
 		{
 			name: "Invalid default URL, err",
 			config: &Config{ProwConfig: ProwConfig{Plank: Plank{
-				JobURLPrefixConfig: map[string]string{"*": "https:// my-prow"}}}},
+				JobURLPrefixConfig: map[string]string{"*": "https:// my-prow"},
+			}}},
 			errExpected: true,
 		},
 		{
@@ -4655,7 +4660,8 @@ func TestValidateComponentConfig(t *testing.T) {
 					"*":              "https://my-prow",
 					"my-org":         "https://my-alternate-prow",
 					"my-org/my-repo": "https://my-third-prow",
-				}}}},
+				},
+			}}},
 			errExpected: false,
 		},
 		{
@@ -4665,7 +4671,8 @@ func TestValidateComponentConfig(t *testing.T) {
 					"*":              "https://my-prow",
 					"my-org":         "https://my-alternate-prow",
 					"my-org/my-repo": "https:// my-third-prow",
-				}}}},
+				},
+			}}},
 			errExpected: true,
 		},
 		{
@@ -4878,6 +4885,7 @@ func TestSlackReporterValidation(t *testing.T) {
 		})
 	}
 }
+
 func TestManagedHmacEntityValidation(t *testing.T) {
 	testCases := []struct {
 		name       string
@@ -4916,15 +4924,14 @@ func TestManagedHmacEntityValidation(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-
 			err := tc.prowConfig.validateComponentConfig()
 			if tc.shouldFail != (err != nil) {
 				t.Errorf("%s: Unexpected outcome. Error expected %v, Error found %s", tc.name, tc.shouldFail, err)
 			}
-
 		})
 	}
 }
+
 func TestValidateTriggering(t *testing.T) {
 	testCases := []struct {
 		name        string
@@ -5043,7 +5050,8 @@ func TestRefGetterForGitHubPullRequest(t *testing.T) {
 			name: "PullRequest is fetched, stored and returned",
 			rg: &RefGetterForGitHubPullRequest{
 				ghc: &fakegithub.FakeClient{
-					PullRequests: map[int]*github.PullRequest{0: {ID: 123456}}},
+					PullRequests: map[int]*github.PullRequest{0: {ID: 123456}},
+				},
 			},
 			verify: func(rg *RefGetterForGitHubPullRequest) error {
 				pr, err := rg.PullRequest()
@@ -7918,7 +7926,6 @@ func TestDefaultAndValidateReportTemplate(t *testing.T) {
 		expected    *Controller
 		expectedErr bool
 	}{
-
 		{
 			id:         "no report_template or report_templates specified, no changes expected",
 			controller: &Controller{},
@@ -8194,7 +8201,7 @@ func TestValidatePeriodics(t *testing.T) {
 			periodics: []Periodic{
 				{JobBase: JobBase{Name: "a"}, Cron: "hello"},
 			},
-			expectedError: "invalid cron string hello in periodic a: Expected 5 or 6 fields, found 1: hello",
+			expectedError: "invalid cron string hello in periodic a: expected 5 to 6 fields, found 1: [hello]",
 		},
 		{
 			name: "Invalid interval",
@@ -8243,6 +8250,20 @@ func TestValidatePeriodics(t *testing.T) {
 			expected: []Periodic{
 				{JobBase: JobBase{Name: "a"}, MinimumInterval: "10ns", minimum_interval: time.Duration(10)},
 			},
+		},
+		{
+			name: "Valid 5-field cron",
+			periodics: []Periodic{
+				{JobBase: JobBase{Name: "a"}, Cron: "05 15 * * 1-5"},
+			},
+			expectedError: "",
+		},
+		{
+			name: "Valid 6-field cron",
+			periodics: []Periodic{
+				{JobBase: JobBase{Name: "a"}, Cron: "0 05 15 * * 1-5"},
+			},
+			expectedError: "",
 		},
 	}
 
@@ -8998,7 +9019,6 @@ func TestHasConfigFor(t *testing.T) {
 					t.Errorf("expected repos differ from actual: %s", diff)
 				}
 			}
-
 		})
 	}
 }
@@ -9186,10 +9206,8 @@ func TestProwConfigMergingProperties(t *testing.T) {
 	// Do not parallelize, the PRNG used by the fuzzer is not threadsafe
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-
 			for _, propertyTest := range expectedProperties {
 				t.Run(propertyTest.name, func(t *testing.T) {
-
 					for range 100 {
 						fuzzedConfig := &ProwConfig{}
 						fuzzedConfig.SlackReporterConfigs = map[string]SlackReporter{}
@@ -9459,7 +9477,8 @@ func TestGetAndCheckRefs(t *testing.T) {
 			baseSHAGetter: goodSHAGetter("ba5e"),
 			headSHAGetters: []RefGetter{
 				goodSHAGetter("abcd"),
-				goodSHAGetter("ef01")},
+				goodSHAGetter("ef01"),
+			},
 			expected: expected{
 				baseSHA:  "ba5e",
 				headSHAs: []string{"abcd", "ef01"},
@@ -9481,7 +9500,8 @@ func TestGetAndCheckRefs(t *testing.T) {
 			baseSHAGetter: badSHAGetter,
 			headSHAGetters: []RefGetter{
 				goodSHAGetter("abcd"),
-				goodSHAGetter("ef01")},
+				goodSHAGetter("ef01"),
+			},
 			expected: expected{
 				baseSHA:  "",
 				headSHAs: nil,
@@ -9493,7 +9513,8 @@ func TestGetAndCheckRefs(t *testing.T) {
 			baseSHAGetter: goodSHAGetter("ba5e"),
 			headSHAGetters: []RefGetter{
 				goodSHAGetter("abcd"),
-				badSHAGetter},
+				badSHAGetter,
+			},
 			expected: expected{
 				baseSHA:  "",
 				headSHAs: nil,

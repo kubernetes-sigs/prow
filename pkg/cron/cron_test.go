@@ -19,7 +19,7 @@ package cron
 import (
 	"testing"
 
-	cron "gopkg.in/robfig/cron.v2"
+	cron "github.com/robfig/cron/v3"
 	"sigs.k8s.io/prow/pkg/config"
 )
 
