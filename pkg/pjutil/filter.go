@@ -35,6 +35,9 @@ var RetestRe = regexp.MustCompile(`(?m)^/retest\s*$`)
 // RetestRe provides the regex for `/retest-required`
 var RetestRequiredRe = regexp.MustCompile(`(?m)^/retest-required\s*$`)
 
+// TestManualRequiredRe provides the regex for `/test-manual-required`
+var TestManualRequiredRe = regexp.MustCompile(`(?m)^/test-manual-required\s*$`)
+
 var OkToTestRe = regexp.MustCompile(`(?m)^/ok-to-test\s*$`)
 
 // OkToTestCancelRe checks for cancellation of the `/ok-to-test` approval
@@ -263,6 +266,23 @@ func (rrf *RetestRequiredFilter) Name() string {
 	return "retest-required-filter"
 }
 
+type TestManualRequiredFilter struct{}
+
+func NewTestManualRequiredFilter() *TestManualRequiredFilter {
+	return &TestManualRequiredFilter{}
+}
+
+func (tmrf *TestManualRequiredFilter) ShouldRun(ps config.Presubmit) (bool, bool, bool) {
+	if ps.Optional || !ps.NeedsExplicitTrigger() || ps.RunIfChanged != "" || ps.SkipIfOnlyChanged != "" {
+		return false, false, false
+	}
+	return true, true, false
+}
+
+func (tmrf *TestManualRequiredFilter) Name() string {
+	return "test-manual-required-filter"
+}
+
 type contextGetter func() (sets.Set[string], sets.Set[string], error)
 
 // PresubmitFilter creates a filter for presubmits
@@ -290,6 +310,10 @@ func PresubmitFilter(honorOkToTest bool, contextGetter contextGetter, body strin
 			return nil, err
 		}
 		filters = append(filters, NewRetestRequiredFilter(failedContexts, allContexts))
+	}
+	if TestManualRequiredRe.MatchString(body) {
+		logger.Info("Using test-manual-required filter")
+		filters = append(filters, NewTestManualRequiredFilter())
 	}
 	if (honorOkToTest && OkToTestRe.MatchString(body)) || TestAllRe.MatchString(body) {
 		logger.Debug("Using test-all filter.")

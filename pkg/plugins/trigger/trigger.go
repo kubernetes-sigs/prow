@@ -111,6 +111,7 @@ func helpProvider(config *plugins.Configuration, enabledRepos []config.OrgRepo) 
 <br>Trigger will not automatically start jobs for a PR in draft state, and if a PR is changed to draft it cancels pending jobs.
 <br>If jobs are not run automatically for a PR because it is not trusted or is in draft state, a trusted user can still start jobs manually via the '/test' command.
 <br>The '/retest' command can be used to rerun jobs that have reported failure.
+<br>The '/test-manual-required' command can be used to start required manually triggered presubmit jobs.
 <br>Trigger starts postsubmit jobs when commits are pushed if the filters on the job match files and branches affected by that push.`,
 		Config:  configInfo,
 		Snippet: yamlSnippet,
@@ -142,6 +143,13 @@ func helpProvider(config *plugins.Configuration, enabledRepos []config.OrgRepo) 
 		Featured:    true,
 		WhoCanUse:   "Anyone can trigger this command on a trusted PR.",
 		Examples:    []string{"/retest"},
+	})
+	pluginHelp.AddCommand(pluginhelp.Command{
+		Usage:       "/test-manual-required",
+		Description: "Manually starts required presubmit jobs that require an explicit trigger and do not use file change conditions.",
+		Featured:    true,
+		WhoCanUse:   "Anyone can trigger this command on a trusted PR.",
+		Examples:    []string{"/test-manual-required"},
 	})
 	pluginHelp.AddCommand(pluginhelp.Command{
 		Usage:       "/test ?",
