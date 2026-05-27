@@ -217,11 +217,14 @@ func getRevisionFromRef(refs *prowapi.Refs) string {
 	return refs.BaseRef
 }
 
-// GetRevisionFromSpec returns a main ref or sha from a spec object
+// GetRevisionFromSpec returns a main ref or sha from a spec object.
+// Auxiliary extra references are ignored.
 func GetRevisionFromSpec(jobSpec *JobSpec) string {
 	return GetRevisionFromRefs(jobSpec.Refs, jobSpec.ExtraRefs)
 }
 
+// GetRevisionFromRefs returns a main ref or sha from main (if available) or extra references.
+// Auxiliary extra references are ignored.
 func GetRevisionFromRefs(refs *prowapi.Refs, extra []prowapi.Refs) string {
 	return getRevisionFromRef(mainRefs(refs, extra))
 }
@@ -230,8 +233,10 @@ func mainRefs(refs *prowapi.Refs, extra []prowapi.Refs) *prowapi.Refs {
 	if refs != nil {
 		return refs
 	}
-	if len(extra) > 0 {
-		return &extra[0]
+	for i := range extra {
+		if !extra[i].Auxiliary {
+			return &extra[i]
+		}
 	}
 	return nil
 }

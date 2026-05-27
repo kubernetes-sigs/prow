@@ -323,6 +323,35 @@ func TestGetRevisionFromSpec(t *testing.T) {
 			},
 			expected: "master",
 		},
+		{
+			name: "Refs from many extra_refs",
+			spec: JobSpec{
+				ExtraRefs: []prowapi.Refs{
+					{
+						BaseRef: "master",
+					},
+					{
+						BaseRef: "main",
+					},
+				},
+			},
+			expected: "master",
+		},
+		{
+			name: "Skip auxiliary extra ref",
+			spec: JobSpec{
+				ExtraRefs: []prowapi.Refs{
+					{
+						BaseRef:   "master",
+						Auxiliary: true,
+					},
+					{
+						BaseRef: "main",
+					},
+				},
+			},
+			expected: "main",
+		},
 	}
 
 	for _, test := range tests {

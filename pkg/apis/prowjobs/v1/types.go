@@ -1222,6 +1222,19 @@ type Refs struct {
 	// directory.
 	WorkDir bool `json:"workdir,omitempty"`
 
+	// Auxiliary indicates that the repository really only provides
+	// auxiliary files for the job and is not the main repository that is
+	// being tested.
+	//
+	// This is relevant when determining which version to record in a
+	// periodic job's started.json file: the first repository where
+	// Auxiliary is false or unset is considered the main repository
+	// and determines the version.
+	//
+	// In presubmit jobs the version always comes from the repository
+	// for which the job is defined.
+	Auxiliary bool `json:"auxiliary,omitempty"`
+
 	// CloneURI is the URI that is used to clone the
 	// repository. If unset, will default to
 	// `https://github.com/org/repo.git`.
