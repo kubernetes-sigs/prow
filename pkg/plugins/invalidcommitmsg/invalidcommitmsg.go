@@ -51,7 +51,7 @@ func helpProvider(config *plugins.Configuration, _ []config.OrgRepo) (*pluginhel
 		Description: "The invalidcommitmsg plugin applies the '" + invalidCommitMsgLabel + "' label to pull requests whose commit messages and titles contain keywords which can automatically close issues or contain temporary commits such as fixup!, amend!, or squash!",
 	}
 	pluginHelp.Config = map[string]string{
-		"": "The plugin can be configured to check for fixup/amend/squash commits by setting 'check_fixup_commits: true' in the invalid_commit_msg configuration for specific repos or orgs.",
+		"": "The plugin can be configured per-check using the 'checks' field. Each check can be individually disabled by setting 'disabled: true'. Available checks: 'fixupPrefix' (for fixup!/amend!/squash! commits) and 'issueClosingKeywords' (for issue-closing keywords in titles/commits).",
 	}
 	return pluginHelp, nil
 }
