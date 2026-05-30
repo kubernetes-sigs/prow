@@ -2739,3 +2739,147 @@ func TestConfigMapSpecIsAllowed(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateInvalidCommitMsg(t *testing.T) {
+	tests := []struct {
+		name        string
+		config      []InvalidCommitMsg
+		expectedErr bool
+	}{
+		{
+			name: "valid config",
+			config: []InvalidCommitMsg{
+				{
+					Repos:             []string{"kubernetes/test-infra", "kubernetes"},
+					CheckFixupCommits: true,
+				},
+			},
+			expectedErr: false,
+		},
+		{
+			name: "empty repo name",
+			config: []InvalidCommitMsg{
+				{
+					Repos:             []string{"kubernetes/test-infra", ""},
+					CheckFixupCommits: true,
+				},
+			},
+			expectedErr: true,
+		},
+		{
+			name: "whitespace repo name",
+			config: []InvalidCommitMsg{
+				{
+					Repos:             []string{"kubernetes/test-infra", "  "},
+					CheckFixupCommits: false,
+				},
+			},
+			expectedErr: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := validateInvalidCommitMsg(test.config)
+			if test.expectedErr && err == nil {
+				t.Errorf("expected error but got none")
+			}
+			if !test.expectedErr && err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+func TestInvalidCommitMsgFor(t *testing.T) {
+	tests := []struct {
+		name     string
+		config   Configuration
+		org      string
+		repo     string
+		expected InvalidCommitMsg
+	}{
+		{
+			name: "repo level config",
+			config: Configuration{
+				InvalidCommitMsg: []InvalidCommitMsg{
+					{
+						Repos:             []string{"kubernetes/test-infra"},
+						CheckFixupCommits: true,
+					},
+					{
+						Repos:             []string{"kubernetes"},
+						CheckFixupCommits: false,
+					},
+				},
+			},
+			org:  "kubernetes",
+			repo: "test-infra",
+			expected: InvalidCommitMsg{
+				Repos:             []string{"kubernetes/test-infra"},
+				CheckFixupCommits: true,
+			},
+		},
+		{
+			name: "org level config",
+			config: Configuration{
+				InvalidCommitMsg: []InvalidCommitMsg{
+					{
+						Repos:             []string{"kubernetes"},
+						CheckFixupCommits: true,
+					},
+				},
+			},
+			org:  "kubernetes",
+			repo: "community",
+			expected: InvalidCommitMsg{
+				Repos:             []string{"kubernetes"},
+				CheckFixupCommits: true,
+			},
+		},
+		{
+			name: "no config",
+			config: Configuration{
+				InvalidCommitMsg: []InvalidCommitMsg{
+					{
+						Repos:             []string{"other-org"},
+						CheckFixupCommits: true,
+					},
+				},
+			},
+			org:      "kubernetes",
+			repo:     "test-infra",
+			expected: InvalidCommitMsg{},
+		},
+		{
+			name: "repo config takes precedence over org config",
+			config: Configuration{
+				InvalidCommitMsg: []InvalidCommitMsg{
+					{
+						Repos:             []string{"kubernetes"},
+						CheckFixupCommits: false,
+					},
+					{
+						Repos:             []string{"kubernetes/test-infra"},
+						CheckFixupCommits: true,
+					},
+				},
+			},
+			org:  "kubernetes",
+			repo: "test-infra",
+			expected: InvalidCommitMsg{
+				Repos:             []string{"kubernetes/test-infra"},
+				CheckFixupCommits: true,
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result := test.config.InvalidCommitMsgFor(test.org, test.repo)
+			if !reflect.DeepEqual(*result, test.expected) {
+				t.Errorf("expected %+v, got %+v", test.expected, *result)
+			}
+		})
+	}
+}

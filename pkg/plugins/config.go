@@ -97,6 +97,7 @@ type Configuration struct {
 	Welcome              []Welcome                    `json:"welcome,omitempty"`
 	Override             Override                     `json:"override,omitempty"`
 	Help                 Help                         `json:"help,omitempty"`
+	InvalidCommitMsg     []InvalidCommitMsg           `json:"invalid_commit_msg,omitempty"`
 }
 
 type Help struct {
@@ -116,6 +117,19 @@ func (h *Help) setDefaults() {
 	if h.HelpGuidelinesURL == "" {
 		h.HelpGuidelinesURL = "https://git.k8s.io/community/contributors/guide/help-wanted.md"
 	}
+}
+
+// InvalidCommitMsg is config for the invalidcommitmsg plugin.
+type InvalidCommitMsg struct {
+	// Repos is either of the form org/repos or just org.
+	Repos []string `json:"repos,omitempty"`
+	// CheckFixupCommits enables checking for fixup!/amend!/squash! commits.
+	// When enabled, PRs with such commits will be labeled with do-not-merge/invalid-commit-message.
+	CheckFixupCommits bool `json:"check_fixup_commits,omitempty"`
+}
+
+func (i InvalidCommitMsg) getRepos() []string {
+	return i.Repos
 }
 
 // Golint holds configuration for the golint plugin
@@ -1094,6 +1108,28 @@ func (c *Configuration) DcoFor(org, repo string) *Dco {
 	return &Dco{}
 }
 
+// InvalidCommitMsgFor finds the InvalidCommitMsg configuration for a repo, if one exists.
+// A configuration can be listed for the repo itself or for the owning organization.
+func (c *Configuration) InvalidCommitMsgFor(org, repo string) *InvalidCommitMsg {
+	fullName := fmt.Sprintf("%s/%s", org, repo)
+	// Prioritize repo level triggers over org level triggers.
+	for _, cfg := range c.InvalidCommitMsg {
+		if !sets.New[string](cfg.Repos...).Has(fullName) {
+			continue
+		}
+		return &cfg
+	}
+	// If you don't find anything, loop again looking for an org config
+	for _, cfg := range c.InvalidCommitMsg {
+		if !sets.New[string](cfg.Repos...).Has(org) {
+			continue
+		}
+		return &cfg
+	}
+
+	return &InvalidCommitMsg{}
+}
+
 func OldToNewPlugins(oldPlugins map[string][]string) Plugins {
 	newPlugins := make(Plugins)
 	for repo, plugins := range oldPlugins {
@@ -1471,6 +1507,18 @@ func validateTrigger(triggers []Trigger) error {
 	}
 	return nil
 }
+func validateInvalidCommitMsg(cfgs []InvalidCommitMsg) error {
+	var errs []error
+	for i, cfg := range cfgs {
+		for _, repo := range cfg.Repos {
+			if strings.TrimSpace(repo) == "" {
+				errs = append(errs, fmt.Errorf(
+					"error validating invalid_commit_msg config #%d: repo %q must be of form org or org/repo", i, repo))
+			}
+		}
+	}
+	return utilerrors.NewAggregate(errs)
+}
 
 var warnRepoMilestone time.Time
 
@@ -1585,6 +1633,12 @@ func (c *Configuration) Validate() error {
 		return err
 	}
 	if err := validateRepoDupes(c.Welcome); err != nil {
+		return err
+	}
+	if err := validateInvalidCommitMsg(c.InvalidCommitMsg); err != nil {
+		return err
+	}
+	if err := validateRepoDupes(c.InvalidCommitMsg); err != nil {
 		return err
 	}
 	validateRepoMilestone(c.RepoMilestone)

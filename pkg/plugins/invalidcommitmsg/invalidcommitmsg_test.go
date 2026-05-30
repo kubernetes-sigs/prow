@@ -26,6 +26,7 @@ import (
 
 	"sigs.k8s.io/prow/pkg/github"
 	"sigs.k8s.io/prow/pkg/github/fakegithub"
+	"sigs.k8s.io/prow/pkg/plugins"
 )
 
 type fakePruner struct{}
@@ -57,7 +58,7 @@ func TestHandlePullRequest(t *testing.T) {
 		commits                      []github.RepositoryCommit
 		title                        string
 		hasInvalidCommitMessageLabel bool
-		enableFixupEnv               bool
+		checkFixupCommits            bool
 
 		// expectations
 		addedLabel   string
@@ -166,7 +167,7 @@ func TestHandlePullRequest(t *testing.T) {
 				{SHA: "sha1", Commit: github.GitCommit{Message: "fixup! update tests"}},
 			},
 			hasInvalidCommitMessageLabel: false,
-			enableFixupEnv:               true,
+			checkFixupCommits:            true,
 			addedLabel:                   fmt.Sprintf("k/k#3:%s", invalidCommitMsgLabel),
 		},
 		{
@@ -176,7 +177,7 @@ func TestHandlePullRequest(t *testing.T) {
 				{SHA: "sha1", Commit: github.GitCommit{Message: "amend! update tests"}},
 			},
 			hasInvalidCommitMessageLabel: false,
-			enableFixupEnv:               true,
+			checkFixupCommits:            true,
 			addedLabel:                   fmt.Sprintf("k/k#3:%s", invalidCommitMsgLabel),
 		},
 		{
@@ -186,7 +187,7 @@ func TestHandlePullRequest(t *testing.T) {
 				{SHA: "sha1", Commit: github.GitCommit{Message: "squash! update tests"}},
 			},
 			hasInvalidCommitMessageLabel: false,
-			enableFixupEnv:               true,
+			checkFixupCommits:            true,
 			addedLabel:                   fmt.Sprintf("k/k#3:%s", invalidCommitMsgLabel),
 		},
 		{
@@ -195,7 +196,7 @@ func TestHandlePullRequest(t *testing.T) {
 			commits: []github.RepositoryCommit{
 				{SHA: "sha1", Commit: github.GitCommit{Message: "fixup! update tests"}},
 			},
-			enableFixupEnv: false,
+			checkFixupCommits: false,
 		},
 		{
 			name:   "fixup commit detected when feature flag enabled",
@@ -203,8 +204,8 @@ func TestHandlePullRequest(t *testing.T) {
 			commits: []github.RepositoryCommit{
 				{SHA: "sha1", Commit: github.GitCommit{Message: "fixup! update tests"}},
 			},
-			addedLabel:     fmt.Sprintf("k/k#3:%s", invalidCommitMsgLabel),
-			enableFixupEnv: true,
+			addedLabel:        fmt.Sprintf("k/k#3:%s", invalidCommitMsgLabel),
+			checkFixupCommits: true,
 		},
 		{
 			name:   "commit with fixup and close keyword",
@@ -212,8 +213,8 @@ func TestHandlePullRequest(t *testing.T) {
 			commits: []github.RepositoryCommit{
 				{SHA: "sha1", Commit: github.GitCommit{Message: "fixup! fixes #123"}},
 			},
-			enableFixupEnv: true,
-			addedLabel:     fmt.Sprintf("k/k#3:%s", invalidCommitMsgLabel),
+			checkFixupCommits: true,
+			addedLabel:        fmt.Sprintf("k/k#3:%s", invalidCommitMsgLabel),
 		},
 		{
 			name:   "fixup commits removed -> remove label",
@@ -222,7 +223,7 @@ func TestHandlePullRequest(t *testing.T) {
 				{SHA: "sha1", Commit: github.GitCommit{Message: "normal commit"}},
 			},
 			hasInvalidCommitMessageLabel: true,
-			enableFixupEnv:               true,
+			checkFixupCommits:            true,
 			removedLabel:                 fmt.Sprintf("k/k#3:%s", invalidCommitMsgLabel),
 		},
 	}
@@ -246,13 +247,16 @@ func TestHandlePullRequest(t *testing.T) {
 				fc.IssueLabelsAdded = append(fc.IssueLabelsAdded, fmt.Sprintf("k/k#3:%s", invalidCommitMsgLabel))
 			}
 
-			if tc.enableFixupEnv {
-				t.Setenv("ENABLE_FIXUP_CHECK", "true")
-			} else {
-				t.Setenv("ENABLE_FIXUP_CHECK", "false")
+			config := &plugins.Configuration{
+				InvalidCommitMsg: []plugins.InvalidCommitMsg{
+					{
+						Repos:             []string{"k"},
+						CheckFixupCommits: tc.checkFixupCommits,
+					},
+				},
 			}
 
-			if err := handle(fc, logrus.WithField("plugin", pluginName), event, &fakePruner{}); err != nil {
+			if err := handle(fc, logrus.WithField("plugin", pluginName), config, event, &fakePruner{}); err != nil {
 				t.Errorf("For case %s, didn't expect error from invalidcommitmsg plugin: %v", tc.name, err)
 			}
 

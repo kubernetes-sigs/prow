@@ -20,7 +20,6 @@ package invalidcommitmsg
 
 import (
 	"fmt"
-	"os"
 	"regexp"
 	"strings"
 
@@ -47,11 +46,14 @@ func init() {
 }
 
 func helpProvider(config *plugins.Configuration, _ []config.OrgRepo) (*pluginhelp.PluginHelp, error) {
-	// Only the Description field is specified because this plugin is not triggered with commands and is not configurable.
-	return &pluginhelp.PluginHelp{
-			Description: "The invalidcommitmsg plugin applies the '" + invalidCommitMsgLabel + "' label to pull requests whose commit messages and titles contain keywords which can automatically close issues or contain temporary commits such as fixup!, amend!, or squash!",
-		},
-		nil
+	// The plugin is configurable via the invalid_commit_msg section in plugins.yaml.
+	pluginHelp := &pluginhelp.PluginHelp{
+		Description: "The invalidcommitmsg plugin applies the '" + invalidCommitMsgLabel + "' label to pull requests whose commit messages and titles contain keywords which can automatically close issues or contain temporary commits such as fixup!, amend!, or squash!",
+	}
+	pluginHelp.Config = map[string]string{
+		"": "The plugin can be configured to check for fixup/amend/squash commits by setting 'check_fixup_commits: true' in the invalid_commit_msg configuration for specific repos or orgs.",
+	}
+	return pluginHelp, nil
 }
 
 type githubClient interface {
@@ -71,10 +73,10 @@ func handlePullRequest(pc plugins.Agent, pr github.PullRequestEvent) error {
 	if err != nil {
 		return err
 	}
-	return handle(pc.GitHubClient, pc.Logger, pr, cp)
+	return handle(pc.GitHubClient, pc.Logger, pc.PluginConfig, pr, cp)
 }
 
-func handle(gc githubClient, log *logrus.Entry, pr github.PullRequestEvent, cp commentPruner) error {
+func handle(gc githubClient, log *logrus.Entry, config *plugins.Configuration, pr github.PullRequestEvent, cp commentPruner) error {
 	// Only consider actions indicating that the code diffs may have changed.
 	if !hasPRChanged(pr) {
 		return nil
@@ -87,7 +89,8 @@ func handle(gc githubClient, log *logrus.Entry, pr github.PullRequestEvent, cp c
 		title  = pr.PullRequest.Title
 	)
 
-	checkFixup := os.Getenv("ENABLE_FIXUP_CHECK") == "true"
+	cfg := config.InvalidCommitMsgFor(org, repo)
+	checkFixup := cfg.CheckFixupCommits
 
 	labels, err := gc.GetIssueLabels(org, repo, number)
 	if err != nil {
