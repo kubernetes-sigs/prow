@@ -2750,8 +2750,10 @@ func TestValidateInvalidCommitMsg(t *testing.T) {
 			name: "valid config",
 			config: []InvalidCommitMsg{
 				{
-					Repos:             []string{"kubernetes/test-infra", "kubernetes"},
-					CheckFixupCommits: true,
+					Repos: []string{"kubernetes/test-infra", "kubernetes"},
+					Checks: []InvalidCommitMsgCheck{
+						{Name: "fixupPrefix", Disabled: false},
+					},
 				},
 			},
 			expectedErr: false,
@@ -2760,8 +2762,10 @@ func TestValidateInvalidCommitMsg(t *testing.T) {
 			name: "empty repo name",
 			config: []InvalidCommitMsg{
 				{
-					Repos:             []string{"kubernetes/test-infra", ""},
-					CheckFixupCommits: true,
+					Repos: []string{"kubernetes/test-infra", ""},
+					Checks: []InvalidCommitMsgCheck{
+						{Name: "fixupPrefix"},
+					},
 				},
 			},
 			expectedErr: true,
@@ -2770,8 +2774,34 @@ func TestValidateInvalidCommitMsg(t *testing.T) {
 			name: "whitespace repo name",
 			config: []InvalidCommitMsg{
 				{
-					Repos:             []string{"kubernetes/test-infra", "  "},
-					CheckFixupCommits: false,
+					Repos: []string{"kubernetes/test-infra", "  "},
+					Checks: []InvalidCommitMsgCheck{
+						{Name: "fixupPrefix", Disabled: true},
+					},
+				},
+			},
+			expectedErr: true,
+		},
+		{
+			name: "invalid check name",
+			config: []InvalidCommitMsg{
+				{
+					Repos: []string{"kubernetes"},
+					Checks: []InvalidCommitMsgCheck{
+						{Name: "invalidCheck"},
+					},
+				},
+			},
+			expectedErr: true,
+		},
+		{
+			name: "empty check name",
+			config: []InvalidCommitMsg{
+				{
+					Repos: []string{"kubernetes"},
+					Checks: []InvalidCommitMsgCheck{
+						{Name: ""},
+					},
 				},
 			},
 			expectedErr: true,
@@ -2804,20 +2834,26 @@ func TestInvalidCommitMsgFor(t *testing.T) {
 			config: Configuration{
 				InvalidCommitMsg: []InvalidCommitMsg{
 					{
-						Repos:             []string{"kubernetes/test-infra"},
-						CheckFixupCommits: true,
+						Repos: []string{"kubernetes/test-infra"},
+						Checks: []InvalidCommitMsgCheck{
+							{Name: "fixupPrefix", Disabled: false},
+						},
 					},
 					{
-						Repos:             []string{"kubernetes"},
-						CheckFixupCommits: false,
+						Repos: []string{"kubernetes"},
+						Checks: []InvalidCommitMsgCheck{
+							{Name: "fixupPrefix", Disabled: true},
+						},
 					},
 				},
 			},
 			org:  "kubernetes",
 			repo: "test-infra",
 			expected: InvalidCommitMsg{
-				Repos:             []string{"kubernetes/test-infra"},
-				CheckFixupCommits: true,
+				Repos: []string{"kubernetes/test-infra"},
+				Checks: []InvalidCommitMsgCheck{
+					{Name: "fixupPrefix", Disabled: false},
+				},
 			},
 		},
 		{
@@ -2825,16 +2861,20 @@ func TestInvalidCommitMsgFor(t *testing.T) {
 			config: Configuration{
 				InvalidCommitMsg: []InvalidCommitMsg{
 					{
-						Repos:             []string{"kubernetes"},
-						CheckFixupCommits: true,
+						Repos: []string{"kubernetes"},
+						Checks: []InvalidCommitMsgCheck{
+							{Name: "fixupPrefix", Disabled: false},
+						},
 					},
 				},
 			},
 			org:  "kubernetes",
 			repo: "community",
 			expected: InvalidCommitMsg{
-				Repos:             []string{"kubernetes"},
-				CheckFixupCommits: true,
+				Repos: []string{"kubernetes"},
+				Checks: []InvalidCommitMsgCheck{
+					{Name: "fixupPrefix", Disabled: false},
+				},
 			},
 		},
 		{
@@ -2842,8 +2882,10 @@ func TestInvalidCommitMsgFor(t *testing.T) {
 			config: Configuration{
 				InvalidCommitMsg: []InvalidCommitMsg{
 					{
-						Repos:             []string{"other-org"},
-						CheckFixupCommits: true,
+						Repos: []string{"other-org"},
+						Checks: []InvalidCommitMsgCheck{
+							{Name: "fixupPrefix", Disabled: false},
+						},
 					},
 				},
 			},
@@ -2856,20 +2898,26 @@ func TestInvalidCommitMsgFor(t *testing.T) {
 			config: Configuration{
 				InvalidCommitMsg: []InvalidCommitMsg{
 					{
-						Repos:             []string{"kubernetes"},
-						CheckFixupCommits: false,
+						Repos: []string{"kubernetes"},
+						Checks: []InvalidCommitMsgCheck{
+							{Name: "fixupPrefix", Disabled: true},
+						},
 					},
 					{
-						Repos:             []string{"kubernetes/test-infra"},
-						CheckFixupCommits: true,
+						Repos: []string{"kubernetes/test-infra"},
+						Checks: []InvalidCommitMsgCheck{
+							{Name: "fixupPrefix", Disabled: false},
+						},
 					},
 				},
 			},
 			org:  "kubernetes",
 			repo: "test-infra",
 			expected: InvalidCommitMsg{
-				Repos:             []string{"kubernetes/test-infra"},
-				CheckFixupCommits: true,
+				Repos: []string{"kubernetes/test-infra"},
+				Checks: []InvalidCommitMsgCheck{
+					{Name: "fixupPrefix", Disabled: false},
+				},
 			},
 		},
 	}

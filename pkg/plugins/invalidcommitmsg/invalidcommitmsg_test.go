@@ -247,11 +247,22 @@ func TestHandlePullRequest(t *testing.T) {
 				fc.IssueLabelsAdded = append(fc.IssueLabelsAdded, fmt.Sprintf("k/k#3:%s", invalidCommitMsgLabel))
 			}
 
+			var checks []plugins.InvalidCommitMsgCheck
+			if tc.checkFixupCommits {
+				checks = []plugins.InvalidCommitMsgCheck{
+					{Name: "fixupPrefix", Disabled: false},
+				}
+			} else {
+				checks = []plugins.InvalidCommitMsgCheck{
+					{Name: "fixupPrefix", Disabled: true},
+				}
+			}
+
 			config := &plugins.Configuration{
 				InvalidCommitMsg: []plugins.InvalidCommitMsg{
 					{
-						Repos:             []string{"k"},
-						CheckFixupCommits: tc.checkFixupCommits,
+						Repos:  []string{"k"},
+						Checks: checks,
 					},
 				},
 			}
@@ -288,7 +299,7 @@ func TestHandlePullRequest(t *testing.T) {
 
 			comments := fc.IssueCommentsAdded
 
-			if hasIssues(tc.commits, tc.title, tc.enableFixupEnv) {
+			if hasIssues(tc.commits, tc.title, tc.checkFixupCommits) {
 				if len(comments) != 1 {
 					t.Errorf("Expected 1 comment, got %d", len(comments))
 					return
@@ -306,7 +317,7 @@ func TestHandlePullRequest(t *testing.T) {
 					}
 				}
 
-				if tc.enableFixupEnv && containsFixup(tc.commits) {
+				if tc.checkFixupCommits && containsFixup(tc.commits) {
 					if !strings.Contains(comment, "Fixup/amend/squash commits") {
 						t.Errorf("Missing fixup section")
 					}

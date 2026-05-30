@@ -90,7 +90,7 @@ func handle(gc githubClient, log *logrus.Entry, config *plugins.Configuration, p
 	)
 
 	cfg := config.InvalidCommitMsgFor(org, repo)
-	checkFixup := cfg.CheckFixupCommits
+	checkFixup := !cfg.IsCheckDisabled("fixupPrefix")
 
 	labels, err := gc.GetIssueLabels(org, repo, number)
 	if err != nil {
