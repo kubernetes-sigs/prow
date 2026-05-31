@@ -46,8 +46,9 @@ import (
 )
 
 const (
-	statusContext = "tide"
-	statusInPool  = "In merge pool."
+	statusContext               = "tide"
+	statusInPool                = "In merge pool."
+	statusInPoolDespiteBlocked  = "In merge pool (despite BLOCKED)."
 	// statusNotInPool is a format string used when a PR is not in a tide pool.
 	// The '%s' field is populated with the reason why the PR is not in a
 	// tide pool or the empty string if the reason is unknown. See requirementDiff.
@@ -126,7 +127,7 @@ func (sc *statusController) shutdown() {
 // Note: an empty diff can be returned if the reason that the PR does not match
 // the TideQuery is unknown. This can happen if this function's logic
 // does not match GitHub's and does not indicate that the PR matches the query.
-func requirementDiff(pr *PullRequest, q *config.TideQuery, cc contextChecker) (string, int) {
+func requirementDiff(pr *PullRequest, q *config.TideQuery, cc contextChecker, mergeBlocksPolicy config.GitHubMergeBlocksPolicy) (string, int) {
 	const maxLabelChars = 50
 	var desc string
 	var diff int
@@ -252,6 +253,12 @@ func requirementDiff(pr *PullRequest, q *config.TideQuery, cc contextChecker) (s
 			desc = " PullRequest is missing sufficient approving GitHub review(s)"
 		}
 	}
+	if mergeBlocksPolicy == config.GitHubMergeBlocksBlock && pr.MergeStateStatus == MergeStateStatusBlocked {
+		diff += 100
+		if desc == "" {
+			desc = " Blocked by GitHub (branch rulesets or protection)"
+		}
+	}
 	return desc, diff
 }
 
@@ -270,6 +277,7 @@ func (sc *statusController) expectedStatus(log *logrus.Entry, queryMap *config.Q
 	}
 
 	repo := config.OrgRepo{Org: crc.Org, Repo: crc.Repo}
+	mergeBlocksPolicy := sc.config().Tide.GitHubMergeBlocksPolicy(repo)
 
 	if reason, err := sc.ghProvider.isAllowedToMerge(crc); err != nil {
 		return "", "", fmt.Errorf("error checking if merge is allowed: %w", err)
@@ -307,7 +315,7 @@ func (sc *statusController) expectedStatus(log *logrus.Entry, queryMap *config.Q
 		minDiffCount := -1
 		var minDiff string
 		for _, q := range queryMap.ForRepo(repo) {
-			diff, diffCount := requirementDiff(pr, &q, cc)
+			diff, diffCount := requirementDiff(pr, &q, cc, mergeBlocksPolicy)
 			if diffCount == 0 {
 				hasFulfilledQuery = true
 				break
@@ -339,7 +347,7 @@ func (sc *statusController) expectedStatus(log *logrus.Entry, queryMap *config.Q
 	if err := sc.pjClient.List(context.Background(), passingUpToDatePJs, ctrlruntimeclient.MatchingFields{indexNamePassingJobs: indexKey}); err != nil {
 		// Just log the error and return success, as the PR is in the merge pool
 		log.WithError(err).Error("Failed to list ProwJobs.")
-		return github.StatusSuccess, statusInPool, nil
+		return github.StatusSuccess, poolStatus(pr, mergeBlocksPolicy, log), nil
 	}
 
 	var passingUpToDateContexts []string
@@ -349,7 +357,24 @@ func (sc *statusController) expectedStatus(log *logrus.Entry, queryMap *config.Q
 	if diff := cc.MissingRequiredContexts(passingUpToDateContexts); len(diff) > 0 {
 		return github.StatePending, retestingStatus(diff), nil
 	}
-	return github.StatusSuccess, statusInPool, nil
+	return github.StatusSuccess, poolStatus(pr, mergeBlocksPolicy, log), nil
+}
+
+// poolStatus returns the appropriate status message for a PR that is in the merge pool.
+// If the PR has BLOCKED merge state and the policy is "permit", it returns a warning message.
+// This also logs a warning for monitoring purposes.
+func poolStatus(pr *PullRequest, mergeBlocksPolicy config.GitHubMergeBlocksPolicy, log *logrus.Entry) string {
+	if mergeBlocksPolicy == config.GitHubMergeBlocksPermit && pr.MergeStateStatus == MergeStateStatusBlocked {
+		log.WithFields(logrus.Fields{
+			"org":         string(pr.Repository.Owner.Login),
+			"repo":        string(pr.Repository.Name),
+			"pr":          pr.Number,
+			"merge_state": pr.MergeStateStatus,
+			"policy":      config.GitHubMergeBlocksPermit,
+		}).Warning("PR is in merge pool despite GitHub BLOCKED status (policy: permit)")
+		return statusInPoolDespiteBlocked
+	}
+	return statusInPool
 }
 
 func retestingStatus(retested []string) string {
