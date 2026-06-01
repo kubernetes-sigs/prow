@@ -136,6 +136,18 @@ html {
   background: #42425A;
 }
 
+.log-error {
+  color: #c23621;
+  padding: 8px 12px;
+  margin: 4px 0;
+}
+
+.log-warning {
+  color: #adad27;
+  padding: 8px 12px;
+  margin: 4px 0;
+}
+
 /* ansi colors from https://en.wikipedia.org/wiki/ANSI_escape_code#Colors */
 .ansi-0 { color: #000000; }  /* Black */
 .ansi-1 { color: #c23621; }  /* Red */
