@@ -59,6 +59,7 @@ func TestHandlePullRequest(t *testing.T) {
 		title                        string
 		hasInvalidCommitMessageLabel bool
 		checkFixupCommits            bool
+		checkIssueClosing            bool
 
 		// expectations
 		addedLabel   string
@@ -86,8 +87,8 @@ func TestHandlePullRequest(t *testing.T) {
 				{SHA: "sha3", Commit: github.GitCommit{Message: "resolved k/k#9999"}},
 			},
 			hasInvalidCommitMessageLabel: false,
-
-			addedLabel: fmt.Sprintf("k/k#3:%s", invalidCommitMsgLabel),
+			checkIssueClosing:            true,
+			addedLabel:                   fmt.Sprintf("k/k#3:%s", invalidCommitMsgLabel),
 		},
 		{
 			name:   "msg does not contain invalid keywords but has label -> remove label",
@@ -96,8 +97,8 @@ func TestHandlePullRequest(t *testing.T) {
 				{SHA: "sha", Commit: github.GitCommit{Message: "this is a valid message"}},
 			},
 			hasInvalidCommitMessageLabel: true,
-
-			removedLabel: fmt.Sprintf("k/k#3:%s", invalidCommitMsgLabel),
+			checkIssueClosing:            true,
+			removedLabel:                 fmt.Sprintf("k/k#3:%s", invalidCommitMsgLabel),
 		},
 		{
 			name:   "contains valid title -> no-op",
@@ -107,6 +108,7 @@ func TestHandlePullRequest(t *testing.T) {
 			},
 			title:                        "valid title",
 			hasInvalidCommitMessageLabel: false,
+			checkIssueClosing:            true,
 		},
 		{
 			name:   "contains invalid title with fixes keyword -> add label and comment",
@@ -116,6 +118,7 @@ func TestHandlePullRequest(t *testing.T) {
 			},
 			title:                        "fixes #9999",
 			hasInvalidCommitMessageLabel: false,
+			checkIssueClosing:            true,
 			addedLabel:                   fmt.Sprintf("k/k#3:%s", invalidCommitMsgLabel),
 		},
 		{
@@ -128,6 +131,7 @@ func TestHandlePullRequest(t *testing.T) {
 			},
 			title:                        "fixes #9999",
 			hasInvalidCommitMessageLabel: false,
+			checkIssueClosing:            true,
 			addedLabel:                   fmt.Sprintf("k/k#3:%s", invalidCommitMsgLabel),
 		},
 		{
@@ -138,6 +142,7 @@ func TestHandlePullRequest(t *testing.T) {
 			},
 			title:                        "fixes #9999",
 			hasInvalidCommitMessageLabel: true,
+			checkIssueClosing:            true,
 		},
 		{
 			name:   "invalid commits and valid title, and has label -> keep label and add comment",
@@ -149,6 +154,7 @@ func TestHandlePullRequest(t *testing.T) {
 			},
 			title:                        "valid title",
 			hasInvalidCommitMessageLabel: true,
+			checkIssueClosing:            true,
 		},
 		{
 			name:   "valid title and valid commits, and has label -> remove label",
@@ -158,6 +164,7 @@ func TestHandlePullRequest(t *testing.T) {
 			},
 			title:                        "valid title",
 			hasInvalidCommitMessageLabel: true,
+			checkIssueClosing:            true,
 			removedLabel:                 fmt.Sprintf("k/k#3:%s", invalidCommitMsgLabel),
 		},
 		{
@@ -214,6 +221,7 @@ func TestHandlePullRequest(t *testing.T) {
 				{SHA: "sha1", Commit: github.GitCommit{Message: "fixup! fixes #123"}},
 			},
 			checkFixupCommits: true,
+			checkIssueClosing: true,
 			addedLabel:        fmt.Sprintf("k/k#3:%s", invalidCommitMsgLabel),
 		},
 		{
@@ -224,7 +232,27 @@ func TestHandlePullRequest(t *testing.T) {
 			},
 			hasInvalidCommitMessageLabel: true,
 			checkFixupCommits:            true,
+			checkIssueClosing:            true,
 			removedLabel:                 fmt.Sprintf("k/k#3:%s", invalidCommitMsgLabel),
+		},
+		{
+			name:   "issue closing keywords ignored when check disabled",
+			action: github.PullRequestActionOpened,
+			commits: []github.RepositoryCommit{
+				{SHA: "sha1", Commit: github.GitCommit{Message: "fixes k/k#9999"}},
+			},
+			title:                        "fixes #9999",
+			checkIssueClosing:            false,
+			hasInvalidCommitMessageLabel: false,
+		},
+		{
+			name:   "issue closing keywords detected when check enabled",
+			action: github.PullRequestActionOpened,
+			commits: []github.RepositoryCommit{
+				{SHA: "sha1", Commit: github.GitCommit{Message: "fixes k/k#9999"}},
+			},
+			checkIssueClosing: true,
+			addedLabel:        fmt.Sprintf("k/k#3:%s", invalidCommitMsgLabel),
 		},
 	}
 
@@ -248,15 +276,14 @@ func TestHandlePullRequest(t *testing.T) {
 			}
 
 			var checks []plugins.InvalidCommitMsgCheck
-			if tc.checkFixupCommits {
-				checks = []plugins.InvalidCommitMsgCheck{
-					{Name: "fixupPrefix", Disabled: false},
-				}
-			} else {
-				checks = []plugins.InvalidCommitMsgCheck{
-					{Name: "fixupPrefix", Disabled: true},
-				}
-			}
+			checks = append(checks, plugins.InvalidCommitMsgCheck{
+				Name:     "fixupPrefix",
+				Disabled: !tc.checkFixupCommits,
+			})
+			checks = append(checks, plugins.InvalidCommitMsgCheck{
+				Name:     "issueClosingKeywords",
+				Disabled: !tc.checkIssueClosing,
+			})
 
 			config := &plugins.Configuration{
 				InvalidCommitMsg: []plugins.InvalidCommitMsg{
@@ -299,7 +326,7 @@ func TestHandlePullRequest(t *testing.T) {
 
 			comments := fc.IssueCommentsAdded
 
-			if hasIssues(tc.commits, tc.title, tc.checkFixupCommits) {
+			if hasIssues(tc.commits, tc.title, tc.checkFixupCommits, tc.checkIssueClosing) {
 				if len(comments) != 1 {
 					t.Errorf("Expected 1 comment, got %d", len(comments))
 					return
@@ -359,8 +386,8 @@ func isInvalidTitle(title string) bool {
 	return CloseIssueRegex.MatchString(title)
 }
 
-func hasIssues(commits []github.RepositoryCommit, title string, fixupEnabled bool) bool {
-	return containsInvalidCommits(commits) ||
-		isInvalidTitle(title) ||
+func hasIssues(commits []github.RepositoryCommit, title string, fixupEnabled bool, issueClosingEnabled bool) bool {
+	return (issueClosingEnabled && containsInvalidCommits(commits)) ||
+		(issueClosingEnabled && isInvalidTitle(title)) ||
 		(fixupEnabled && containsFixup(commits))
 }

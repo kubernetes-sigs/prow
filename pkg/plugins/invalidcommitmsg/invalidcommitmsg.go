@@ -91,6 +91,7 @@ func handle(gc githubClient, log *logrus.Entry, config *plugins.Configuration, p
 
 	cfg := config.InvalidCommitMsgFor(org, repo)
 	checkFixup := !cfg.IsCheckDisabled("fixupPrefix")
+	checkIssueClosing := !cfg.IsCheckDisabled("issueClosingKeywords")
 
 	labels, err := gc.GetIssueLabels(org, repo, number)
 	if err != nil {
@@ -112,7 +113,7 @@ func handle(gc githubClient, log *logrus.Entry, config *plugins.Configuration, p
 		msg := commit.Commit.Message
 		subject := strings.Split(msg, "\n")[0]
 
-		if CloseIssueRegex.MatchString(msg) {
+		if checkIssueClosing && CloseIssueRegex.MatchString(msg) {
 			invalidCommits = append(invalidCommits, commit)
 		}
 
@@ -121,7 +122,7 @@ func handle(gc githubClient, log *logrus.Entry, config *plugins.Configuration, p
 		}
 	}
 
-	invalidPRTitle := CloseIssueRegex.MatchString(title)
+	invalidPRTitle := checkIssueClosing && CloseIssueRegex.MatchString(title)
 
 	// Determine if any check failed
 	hasIssues := len(invalidCommits) != 0 || invalidPRTitle || (checkFixup && len(fixupCommits) != 0)
