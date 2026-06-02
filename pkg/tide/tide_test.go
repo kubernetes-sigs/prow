@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -919,8 +920,8 @@ func (f *fgc) BotUserChecker() (func(candidate string) bool, error) {
 
 func (f *fgc) DeleteComment(org, repo string, id int) error {
 	for issue, ics := range f.issueComments {
-		for j := len(ics) - 1; j >= 0; j-- {
-			if ics[j].ID == id {
+		for j, v := range slices.Backward(ics) {
+			if v.ID == id {
 				f.issueComments[issue] = append(ics[:j], ics[j+1:]...)
 			}
 		}

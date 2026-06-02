@@ -20,6 +20,7 @@ package lgtm
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -454,8 +455,8 @@ func handlePullRequest(log *logrus.Entry, gc githubClient, config *plugins.Confi
 		}
 		// older comments are still present
 		// iterate backwards to find the last LGTM tree-hash
-		for i := len(comments) - 1; i >= 0; i-- {
-			comment := comments[i]
+		for _, v := range slices.Backward(comments) {
+			comment := v
 			m := addLGTMLabelNotificationRe.FindStringSubmatch(comment.Body)
 			if botUserChecker(comment.User.Login) && m != nil && comment.UpdatedAt.Equal(comment.CreatedAt) {
 				lastLgtmTreeHash = m[1]

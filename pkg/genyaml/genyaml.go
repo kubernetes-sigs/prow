@@ -334,7 +334,7 @@ func isBuiltinType(typeName string) bool {
 // getType returns the type's name within its package for a defined type. For other (non-defined) types it returns the empty string.
 func getType(typ any) string {
 	t := reflect.TypeOf(typ)
-	if t.Kind() == reflect.Ptr {
+	if t.Kind() == reflect.Pointer {
 		return t.Elem().Name()
 	}
 	return t.Name()
