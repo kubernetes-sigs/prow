@@ -30,6 +30,10 @@ them when they have up-to-date passing test results ("tide goes out").
 - Scales efficiently so that a single instance with a single bot token can provide merge automation to dozens of orgs and repos with unique merge criteria. Every distinct 'org/repo:branch' combination defines a disjoint merge pool so that merges only affect other PRs in the same branch.
 - Provides configurable merge modes ('merge', 'squash', or 'rebase').
 
+## GitHub API Access
+
+Tide is a heavy consumer of the GitHub API. It uses the GraphQL API (v4) to search for mergeable pull requests and the REST API (v3) to manage commit statuses and perform merges. It requires GitHub authentication credentials and should be configured with ghproxy to manage rate limits. See [Managing GitHub API Access](/docs/github-api-access/) for details on authentication methods, endpoint configuration, and rate limit management.
+
 ## History
 
 Tide was created in 2017 by @spxtr to replace `mungegithub`'s Submit Queue.  It was designed to manage a large number of repositories across organizations without using many API rate limit tokens by identifying mergeable PRs with GitHub search queries fulfilled by GitHub's v4 GraphQL API.

@@ -5,6 +5,10 @@ description: >
   Shows what jobs are running or have recently run in prow
 ---
 
+## GitHub API Access
+
+Deck uses the GitHub API to display pull request status information and to authorize rerun and abort actions based on GitHub organization membership. It requires GitHub authentication credentials and should be configured with ghproxy to manage rate limits. See [Managing GitHub API Access](/docs/github-api-access/) for details on authentication methods, endpoint configuration, and rate limit management.
+
 ## Running Deck locally
 
 Deck can be run locally by executing `./cmd/deck/runlocal`. The scripts starts Deck via
