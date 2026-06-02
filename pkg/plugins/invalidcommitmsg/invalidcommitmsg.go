@@ -20,7 +20,6 @@ package invalidcommitmsg
 
 import (
 	"fmt"
-	"os"
 	"regexp"
 	"strings"
 
@@ -47,11 +46,14 @@ func init() {
 }
 
 func helpProvider(config *plugins.Configuration, _ []config.OrgRepo) (*pluginhelp.PluginHelp, error) {
-	// Only the Description field is specified because this plugin is not triggered with commands and is not configurable.
-	return &pluginhelp.PluginHelp{
-			Description: "The invalidcommitmsg plugin applies the '" + invalidCommitMsgLabel + "' label to pull requests whose commit messages and titles contain keywords which can automatically close issues or contain temporary commits such as fixup!, amend!, or squash!",
-		},
-		nil
+	// The plugin is configurable via the invalid_commit_msg section in plugins.yaml.
+	pluginHelp := &pluginhelp.PluginHelp{
+		Description: "The invalidcommitmsg plugin applies the '" + invalidCommitMsgLabel + "' label to pull requests whose commit messages and titles contain keywords which can automatically close issues or contain temporary commits such as fixup!, amend!, or squash!",
+	}
+	pluginHelp.Config = map[string]string{
+		"": "The plugin can be configured per-check using the 'checks' field. Each check can be individually disabled by setting 'disabled: true'. Available checks: 'fixupPrefix' (for fixup!/amend!/squash! commits) and 'issueClosingKeywords' (for issue-closing keywords in titles/commits).",
+	}
+	return pluginHelp, nil
 }
 
 type githubClient interface {
@@ -71,10 +73,10 @@ func handlePullRequest(pc plugins.Agent, pr github.PullRequestEvent) error {
 	if err != nil {
 		return err
 	}
-	return handle(pc.GitHubClient, pc.Logger, pr, cp)
+	return handle(pc.GitHubClient, pc.Logger, pc.PluginConfig, pr, cp)
 }
 
-func handle(gc githubClient, log *logrus.Entry, pr github.PullRequestEvent, cp commentPruner) error {
+func handle(gc githubClient, log *logrus.Entry, config *plugins.Configuration, pr github.PullRequestEvent, cp commentPruner) error {
 	// Only consider actions indicating that the code diffs may have changed.
 	if !hasPRChanged(pr) {
 		return nil
@@ -87,7 +89,9 @@ func handle(gc githubClient, log *logrus.Entry, pr github.PullRequestEvent, cp c
 		title  = pr.PullRequest.Title
 	)
 
-	checkFixup := os.Getenv("ENABLE_FIXUP_CHECK") == "true"
+	cfg := config.InvalidCommitMsgFor(org, repo)
+	checkFixup := !cfg.IsCheckDisabled("fixupPrefix")
+	checkIssueClosing := !cfg.IsCheckDisabled("issueClosingKeywords")
 
 	labels, err := gc.GetIssueLabels(org, repo, number)
 	if err != nil {
@@ -109,7 +113,7 @@ func handle(gc githubClient, log *logrus.Entry, pr github.PullRequestEvent, cp c
 		msg := commit.Commit.Message
 		subject := strings.Split(msg, "\n")[0]
 
-		if CloseIssueRegex.MatchString(msg) {
+		if checkIssueClosing && CloseIssueRegex.MatchString(msg) {
 			invalidCommits = append(invalidCommits, commit)
 		}
 
@@ -118,7 +122,7 @@ func handle(gc githubClient, log *logrus.Entry, pr github.PullRequestEvent, cp c
 		}
 	}
 
-	invalidPRTitle := CloseIssueRegex.MatchString(title)
+	invalidPRTitle := checkIssueClosing && CloseIssueRegex.MatchString(title)
 
 	// Determine if any check failed
 	hasIssues := len(invalidCommits) != 0 || invalidPRTitle || (checkFixup && len(fixupCommits) != 0)

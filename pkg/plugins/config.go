@@ -97,6 +97,7 @@ type Configuration struct {
 	Welcome              []Welcome                    `json:"welcome,omitempty"`
 	Override             Override                     `json:"override,omitempty"`
 	Help                 Help                         `json:"help,omitempty"`
+	InvalidCommitMsg     []InvalidCommitMsg           `json:"invalid_commit_msg,omitempty"`
 }
 
 type Help struct {
@@ -116,6 +117,37 @@ func (h *Help) setDefaults() {
 	if h.HelpGuidelinesURL == "" {
 		h.HelpGuidelinesURL = "https://git.k8s.io/community/contributors/guide/help-wanted.md"
 	}
+}
+
+// InvalidCommitMsg is config for the invalidcommitmsg plugin.
+type InvalidCommitMsg struct {
+	// Repos is either of the form org/repos or just org.
+	Repos []string `json:"repos,omitempty"`
+	// Checks is a list of check configurations.
+	// Each check can be individually enabled or disabled.
+	Checks []InvalidCommitMsgCheck `json:"checks,omitempty"`
+}
+
+// InvalidCommitMsgCheck represents a single check configuration.
+type InvalidCommitMsgCheck struct {
+	// Name is the name of the check (e.g., "fixupPrefix", "issueClosingKeywords").
+	Name string `json:"name"`
+	// Disabled indicates whether this check should be skipped.
+	Disabled bool `json:"disabled,omitempty"`
+}
+
+func (i InvalidCommitMsg) getRepos() []string {
+	return i.Repos
+}
+
+// IsCheckDisabled returns true if the named check is disabled in the configuration.
+func (i *InvalidCommitMsg) IsCheckDisabled(checkName string) bool {
+	for _, check := range i.Checks {
+		if check.Name == checkName {
+			return check.Disabled
+		}
+	}
+	return false
 }
 
 // Golint holds configuration for the golint plugin
@@ -1094,6 +1126,28 @@ func (c *Configuration) DcoFor(org, repo string) *Dco {
 	return &Dco{}
 }
 
+// InvalidCommitMsgFor finds the InvalidCommitMsg configuration for a repo, if one exists.
+// A configuration can be listed for the repo itself or for the owning organization.
+func (c *Configuration) InvalidCommitMsgFor(org, repo string) *InvalidCommitMsg {
+	fullName := fmt.Sprintf("%s/%s", org, repo)
+	// Prioritize repo level triggers over org level triggers.
+	for _, cfg := range c.InvalidCommitMsg {
+		if !sets.New[string](cfg.Repos...).Has(fullName) {
+			continue
+		}
+		return &cfg
+	}
+	// If you don't find anything, loop again looking for an org config
+	for _, cfg := range c.InvalidCommitMsg {
+		if !sets.New[string](cfg.Repos...).Has(org) {
+			continue
+		}
+		return &cfg
+	}
+
+	return &InvalidCommitMsg{}
+}
+
 func OldToNewPlugins(oldPlugins map[string][]string) Plugins {
 	newPlugins := make(Plugins)
 	for repo, plugins := range oldPlugins {
@@ -1472,6 +1526,31 @@ func validateTrigger(triggers []Trigger) error {
 	return nil
 }
 
+var validInvalidCommitMsgChecks = sets.New[string]("fixupPrefix", "issueClosingKeywords")
+
+func validateInvalidCommitMsg(cfgs []InvalidCommitMsg) error {
+	var errs []error
+	for i, cfg := range cfgs {
+		for _, repo := range cfg.Repos {
+			if strings.TrimSpace(repo) == "" {
+				errs = append(errs, fmt.Errorf(
+					"error validating invalid_commit_msg config #%d: repo %q must be of form org or org/repo", i, repo))
+			}
+		}
+		for j, check := range cfg.Checks {
+			if strings.TrimSpace(check.Name) == "" {
+				errs = append(errs, fmt.Errorf(
+					"error validating invalid_commit_msg config #%d check #%d: check name cannot be empty", i, j))
+			} else if !validInvalidCommitMsgChecks.Has(check.Name) {
+				errs = append(errs, fmt.Errorf(
+					"error validating invalid_commit_msg config #%d check #%d: unknown check name %q (valid: %v)",
+					i, j, check.Name, sets.List(validInvalidCommitMsgChecks)))
+			}
+		}
+	}
+	return utilerrors.NewAggregate(errs)
+}
+
 var warnRepoMilestone time.Time
 
 func validateRepoMilestone(milestones map[string]Milestone) {
@@ -1585,6 +1664,12 @@ func (c *Configuration) Validate() error {
 		return err
 	}
 	if err := validateRepoDupes(c.Welcome); err != nil {
+		return err
+	}
+	if err := validateInvalidCommitMsg(c.InvalidCommitMsg); err != nil {
+		return err
+	}
+	if err := validateRepoDupes(c.InvalidCommitMsg); err != nil {
 		return err
 	}
 	validateRepoMilestone(c.RepoMilestone)
