@@ -388,7 +388,7 @@ func processGitHubAppAuth(ctx context.Context, o *Options, prh PRHandler) error 
 	}
 
 	logrus.WithField("branch", o.HeadBranchName).Info("Pushing branch directly to upstream repo")
-	if err := repoClient.PushToCentral(o.HeadBranchName, true); err != nil {
+	if err := repoClient.PushToCentral("HEAD:"+o.HeadBranchName, true); err != nil {
 		return fmt.Errorf("push branch %s to %s/%s: %w", o.HeadBranchName, o.GitHubOrg, o.GitHubRepo, err)
 	}
 
