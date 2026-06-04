@@ -669,7 +669,11 @@ func (sc *statusController) search() []CodeReviewCommon {
 	var lock sync.Mutex
 	var wg sync.WaitGroup
 
-	for org, query := range queries {
+	// Track per-shard latest PR times so we can compute the minimum per org after all shards complete.
+	shardLatest := map[string]time.Time{}
+
+	for shardKey, query := range queries {
+		org := shardOrg(shardKey)
 
 		wg.Go(func() {
 			now := time.Now()
@@ -677,39 +681,24 @@ func (sc *statusController) search() []CodeReviewCommon {
 
 			sc.storedStateLock.Lock()
 			latestPR := sc.storedState[org].LatestPR
-			if query != sc.storedState[org].PreviousQuery {
-				// Query changed and/or tide restarted, recompute everything
-				log.WithField("previously", sc.storedState[org].PreviousQuery).Info("Query changed, resetting start time to zero")
-				sc.storedState[org] = storedState{PreviousQuery: query}
+			if query != sc.storedState[shardKey].PreviousQuery {
+				log.WithField("previously", sc.storedState[shardKey].PreviousQuery).Info("Query changed, resetting start time to zero")
+				sc.storedState[shardKey] = storedState{PreviousQuery: query}
 			}
 			sc.storedStateLock.Unlock()
 
 			result, err := sc.ghProvider.search(sc.ghc.QueryWithGitHubAppsSupport, sc.logger, query, latestPR.Time, now, org)
 			log.WithField("duration", time.Since(now).String()).WithField("result_count", len(result)).Debug("Searched for open PRs.")
 
-			func() {
-				sc.storedStateLock.Lock()
-				defer sc.storedStateLock.Unlock()
-
-				log := log.WithField("latestPR", sc.storedState[org].LatestPR)
-				if len(result) == 0 {
-					log.Debug("no new results")
-					return
-				}
-				latest := result[len(result)-1].UpdatedAt
-				if latest.IsZero() {
-					log.Debug("latest PR has zero time")
-					return
-				}
-				sc.storedState[org] = storedState{
-					LatestPR:      metav1.Time{Time: latest.Add(-30 * time.Second)},
-					PreviousQuery: sc.storedState[org].PreviousQuery,
-				}
-				log.WithField("latestPR", sc.storedState[org].LatestPR).Debug("Advanced start time")
-			}()
-
 			lock.Lock()
 			defer lock.Unlock()
+
+			if len(result) > 0 {
+				latest := result[len(result)-1].UpdatedAt
+				if !latest.IsZero() {
+					shardLatest[shardKey] = latest.Add(-30 * time.Second)
+				}
+			}
 
 			for _, pr := range result {
 				prs = append(prs, *CodeReviewCommonFromPullRequest(&pr))
@@ -719,6 +708,24 @@ func (sc *statusController) search() []CodeReviewCommon {
 
 	}
 	wg.Wait()
+
+	// Advance latestPR per org to the minimum across all its shards.
+	sc.storedStateLock.Lock()
+	orgMinLatest := map[string]time.Time{}
+	for shardKey, t := range shardLatest {
+		org := shardOrg(shardKey)
+		if prev, ok := orgMinLatest[org]; !ok || t.Before(prev) {
+			orgMinLatest[org] = t
+		}
+	}
+	for org, t := range orgMinLatest {
+		sc.storedState[org] = storedState{
+			LatestPR:      metav1.Time{Time: t},
+			PreviousQuery: sc.storedState[org].PreviousQuery,
+		}
+		sc.logger.WithField("org", org).WithField("latestPR", t).Debug("Advanced start time (minimum across shards)")
+	}
+	sc.storedStateLock.Unlock()
 
 	err := utilerrors.NewAggregate(errs)
 	if err != nil {
@@ -753,6 +760,54 @@ func openPRsQueries(orgs, repos []string, orgExceptions map[string]sets.Set[stri
 	result := map[string]string{}
 	for org, query := range orgRepoQueryStrings(orgs, repos, orgExceptions) {
 		result[org] = "is:pr state:open sort:updated-asc archived:false " + query
+	}
+	return shardQueries(result, maxReposPerQuery)
+}
+
+const maxReposPerQuery = 100
+
+// shardOrg extracts the org name from a shard key like "org#0", returning "org".
+// For unsharded keys (no "#"), returns the key as-is.
+func shardOrg(shardKey string) string {
+	if i := strings.IndexByte(shardKey, '#'); i >= 0 {
+		return shardKey[:i]
+	}
+	return shardKey
+}
+
+// shardQueries splits query strings with more than maxRepos repo:"..." terms
+// into multiple smaller queries. Each shard preserves the non-repo prefix
+// (is:pr state:open etc) and gets a subset of the repo: tokens. Shards are
+// keyed as "org#0", "org#1", etc. Queries at or under the limit are unchanged.
+func shardQueries(queries map[string]string, maxRepos int) map[string]string {
+	result := make(map[string]string, len(queries))
+	for org, query := range queries {
+		tokens := strings.Fields(query)
+		var prefix []string
+		var repos []string
+		for _, t := range tokens {
+			if strings.HasPrefix(t, `repo:"`) {
+				repos = append(repos, t)
+			} else {
+				prefix = append(prefix, t)
+			}
+		}
+
+		if len(repos) <= maxRepos {
+			result[org] = query
+			continue
+		}
+
+		prefixStr := strings.Join(prefix, " ")
+		for shard := 0; shard*maxRepos < len(repos); shard++ {
+			start := shard * maxRepos
+			end := start + maxRepos
+			if end > len(repos) {
+				end = len(repos)
+			}
+			key := fmt.Sprintf("%s#%d", org, shard)
+			result[key] = prefixStr + " " + strings.Join(repos[start:end], " ")
+		}
 	}
 	return result
 }
