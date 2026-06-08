@@ -49,9 +49,7 @@ You can check the reported result by [list the pubsub topic](https://cloud.googl
 
 You can enable github reporter in crier by specifying `--github-workers=N` flag (N>0).
 
-You also need to mount a github oauth token by specifying `--github-token-path` flag, which defaults to `/etc/github/oauth`.
-
-If you have a [ghproxy](/docs/ghproxy/) deployed, also remember to point `--github-endpoint` to your ghproxy to avoid token throttle.
+The GitHub reporter uses the GitHub API to report job results as commit statuses and check runs. It requires GitHub authentication credentials and should be configured with ghproxy to manage rate limits. See [Managing GitHub API Access](/docs/github-api-access/) for details on authentication methods, endpoint configuration, and rate limit management.
 
 The actual report logic is in the [github report library](https://github.com/kubernetes-sigs/prow/tree/main/pkg/github/report) for your reference.
 

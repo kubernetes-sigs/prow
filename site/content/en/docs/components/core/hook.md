@@ -142,6 +142,10 @@ Common flags for Hook:
 
 Production deployments must set `--dry-run=false`.
 
+## GitHub API Access
+
+Hook uses the GitHub API to interact with repositories on behalf of plugins — for example, adding labels, posting comments, or updating commit statuses. It requires GitHub authentication credentials and should be configured with ghproxy to manage rate limits. See [Managing GitHub API Access](/docs/github-api-access/) for details on authentication methods, endpoint configuration, and rate limit management.
+
 ## Endpoints
 
 Hook exposes these HTTP endpoints:

@@ -8,6 +8,10 @@ description: >
 branchprotector configures [github branch protection] according to a specified
 policy.
 
+## GitHub API Access
+
+Branchprotector uses the GitHub API to read and update branch protection rules across repositories. It requires GitHub authentication credentials and should be configured with ghproxy to manage rate limits. See [Managing GitHub API Access](/docs/github-api-access/) for details on authentication methods, endpoint configuration, and rate limit management.
+
 ## Policy configuration
 
 Extend the primary prow [`config.yaml`] document to include a top-level
