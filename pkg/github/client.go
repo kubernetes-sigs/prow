@@ -1989,24 +1989,28 @@ func (c *client) readPaginatedResultsWithValuesWithContext(ctx context.Context, 
 			break
 		}
 
-		// Example for github.com:
-		// * c.bases[0]: api.github.com
-		// * initial call: api.github.com/repos/kubernetes/kubernetes/pulls?per_page=100
-		// * next: api.github.com/repositories/22/pulls?per_page=100&page=2
-		// * in this case prefix will be empty and we're just calling the path returned by next
-		// Example for github enterprise:
-		// * c.bases[0]: <ghe-url>/api/v3
-		// * initial call: <ghe-url>/api/v3/repos/kubernetes/kubernetes/pulls?per_page=100
-		// * next: <ghe-url>/api/v3/repositories/22/pulls?per_page=100&page=2
-		// * in this case prefix will be "/api/v3" and we will strip the prefix. If we don't do that,
-		//   the next call will go to <ghe-url>/api/v3/api/v3/repositories/22/pulls?per_page=100&page=2
-		prefix := strings.TrimSuffix(resp.Request.URL.RequestURI(), pagedPath)
+		// For GitHub Enterprise, c.bases[0] may include a path prefix like /api/v3.
+		// We need to strip that prefix from the Link header URL so that when we
+		// prepend c.bases[hostIndex] we don't duplicate it.
+		// For standard GitHub (with or without ghproxy), there is no path prefix.
+		//
+		// We compare only the Path components (ignoring query strings) to compute
+		// the prefix. The previous approach used the full RequestURI (path+query)
+		// for TrimSuffix, which breaks when resp.Request.URL differs from what we
+		// sent (e.g. due to a redirect): the suffix doesn't match, leaving prefix
+		// set to the entire response URI. A subsequent TrimPrefix then strips too
+		// much from the next-page URL, producing a malformed path like "&page=2".
+		pathOnly := strings.SplitN(pagedPath, "?", 2)[0]
+		prefix := strings.TrimSuffix(resp.Request.URL.Path, pathOnly)
 
 		u, err := url.Parse(link)
 		if err != nil {
 			return fmt.Errorf("failed to parse 'next' link: %w", err)
 		}
 		pagedPath = strings.TrimPrefix(u.RequestURI(), prefix)
+		if len(pagedPath) == 0 || pagedPath[0] != '/' {
+			pagedPath = u.RequestURI()
+		}
 	}
 	return nil
 }
