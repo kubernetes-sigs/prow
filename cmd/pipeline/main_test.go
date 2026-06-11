@@ -21,6 +21,7 @@ import (
 	"reflect"
 	"testing"
 
+	"k8s.io/client-go/rest"
 	prowflagutil "sigs.k8s.io/prow/pkg/flagutil"
 	configflagutil "sigs.k8s.io/prow/pkg/flagutil/config"
 )
@@ -81,6 +82,48 @@ func TestOptions(t *testing.T) {
 				t.Error("failed to received expected error")
 			case !reflect.DeepEqual(&actual, tc.expected):
 				t.Errorf("actual %#v != expected %#v", actual, *tc.expected)
+			}
+		})
+	}
+}
+
+func TestValidateUniqueClusters(t *testing.T) {
+	cases := []struct {
+		name    string
+		configs map[string]rest.Config
+		wantErr bool
+	}{
+		{
+			name: "unique hosts pass",
+			configs: map[string]rest.Config{
+				"ctx-a": {Host: "https://a.example.com"},
+				"ctx-b": {Host: "https://b.example.com"},
+			},
+		},
+		{
+			name: "duplicate hosts fail",
+			configs: map[string]rest.Config{
+				"ctx-a": {Host: "https://a.example.com"},
+				"ctx-b": {Host: "https://a.example.com"},
+			},
+			wantErr: true,
+		},
+		{
+			name:    "empty configs pass",
+			configs: map[string]rest.Config{},
+		},
+		{
+			name: "single config passes",
+			configs: map[string]rest.Config{
+				"ctx-a": {Host: "https://a.example.com"},
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateUniqueClusters(tc.configs)
+			if (err != nil) != tc.wantErr {
+				t.Errorf("validateUniqueClusters() error = %v, wantErr %v", err, tc.wantErr)
 			}
 		})
 	}

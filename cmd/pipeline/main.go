@@ -21,6 +21,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"sort"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -103,6 +104,22 @@ func newPipelineConfig(cfg rest.Config, stop <-chan struct{}) (*pipelineConfig, 
 	}, nil
 }
 
+// validateUniqueClusters returns an error if multiple contexts resolve to the same API server endpoint.
+// Duplicate endpoints cause the controller to set up redundant informers, leading to incorrect PipelineRun deletions.
+func validateUniqueClusters(configs map[string]rest.Config) error {
+	hostToCtxs := make(map[string][]string, len(configs))
+	for ctx, cfg := range configs {
+		hostToCtxs[cfg.Host] = append(hostToCtxs[cfg.Host], ctx)
+	}
+	for host, ctxs := range hostToCtxs {
+		if len(ctxs) > 1 {
+			sort.Strings(ctxs)
+			return fmt.Errorf("contexts %v resolve to the same cluster endpoint %s; deduplicate them in the kubeconfig", ctxs, host)
+		}
+	}
+	return nil
+}
+
 func main() {
 	logrusutil.ComponentInit()
 
@@ -133,6 +150,10 @@ func main() {
 	} else {
 		// the InClusterContext is always mapped to DefaultClusterAlias in the controller, so there is no need to watch for this config.
 		delete(configs, kube.InClusterContext)
+	}
+
+	if err := validateUniqueClusters(configs); err != nil {
+		logrus.WithError(err).Fatal("Invalid cluster configs")
 	}
 
 	kc, err := kubernetes.NewForConfig(&local)
