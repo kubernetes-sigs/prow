@@ -527,10 +527,14 @@ func CloneIssue(jc Client, parent *jira.Issue) (*jira.Issue, error) {
 	// update description
 	childIssue.Fields.Description = fmt.Sprintf("This is a clone of issue %s. The following is the description of the original issue: \n---\n%s", parent.Key, parent.Fields.Description)
 
-	// attempt to create the new issue
-	createdIssue, err := jc.CreateIssue(childIssue)
-	if err != nil {
-		// some fields cannot be set on creation; unset them
+	// attempt to create the new issue; some fields cannot be set on creation,
+	// and Jira may report them across multiple attempts, so retry in a loop
+	var createdIssue *jira.Issue
+	for range 5 {
+		createdIssue, err = jc.CreateIssue(childIssue)
+		if err == nil {
+			break
+		}
 		if JiraErrorStatusCode(err) != 400 {
 			return nil, err
 		}
@@ -542,10 +546,9 @@ func CloneIssue(jc Client, parent *jira.Issue) (*jira.Issue, error) {
 			// unsetProblematicFields is not useful in these cases
 			return nil, err
 		}
-		createdIssue, err = jc.CreateIssue(childIssue)
-		if err != nil {
-			return nil, err
-		}
+	}
+	if err != nil {
+		return nil, err
 	}
 
 	// create clone links
