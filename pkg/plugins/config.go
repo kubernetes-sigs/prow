@@ -77,6 +77,7 @@ type Configuration struct {
 	CherryPickUnapproved CherryPickUnapproved         `json:"cherry_pick_unapproved,omitempty"`
 	ConfigUpdater        ConfigUpdater                `json:"config_updater,omitempty"`
 	Dco                  map[string]*Dco              `json:"dco,omitempty"`
+	DeleteSpamIssue      DeleteSpamIssue              `json:"delete_spam_issue,omitempty"`
 	Golint               Golint                       `json:"golint,omitempty"`
 	Goose                Goose                        `json:"goose,omitempty"`
 	Heart                Heart                        `json:"heart,omitempty"`
@@ -295,6 +296,16 @@ func (c *Configuration) SkipCollaborators(org, repo string) bool {
 		}
 	}
 	return false
+}
+
+// DeleteSpamIssue specifies configuration for the delete-spam-issue plugin.
+type DeleteSpamIssue struct {
+	// AllowedTeams is a list of GitHub team slugs whose members are authorized
+	// to delete spam issues with the /delete-spam-issue command.
+	AllowedTeams []string `json:"allowed_teams,omitempty"`
+	// AllowedUsers is a list of GitHub logins that are authorized to
+	// delete spam issues with the /delete-spam-issue command.
+	AllowedUsers []string `json:"allowed_users,omitempty"`
 }
 
 // Retitle specifies configuration for the retitle plugin.
