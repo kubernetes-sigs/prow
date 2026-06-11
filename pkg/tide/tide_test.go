@@ -1609,7 +1609,7 @@ func TestIsAllowedToMerge_ReviewDecision(t *testing.T) {
 			name:             "BLOCKED status - repo config overrides org config (ignore)",
 			mergeStateStatus: "BLOCKED",
 			policyConfig: map[string]config.GitHubMergeBlocksPolicy{
-				orgName: config.GitHubMergeBlocksBlock,
+				orgName:                                 config.GitHubMergeBlocksBlock,
 				fmt.Sprintf("%s/%s", orgName, repoName): config.GitHubMergeBlocksIgnore,
 			},
 			expectedMergeOutput:  "",
@@ -1619,7 +1619,7 @@ func TestIsAllowedToMerge_ReviewDecision(t *testing.T) {
 			name:             "BLOCKED status - repo config overrides org config (block)",
 			mergeStateStatus: "BLOCKED",
 			policyConfig: map[string]config.GitHubMergeBlocksPolicy{
-				orgName: config.GitHubMergeBlocksPermit,
+				orgName:                                 config.GitHubMergeBlocksPermit,
 				fmt.Sprintf("%s/%s", orgName, repoName): config.GitHubMergeBlocksBlock,
 			},
 			expectedMergeOutput:  "PR is blocked from merging by GitHub (check branch protection, required reviews, or rulesets)",
@@ -1715,15 +1715,17 @@ func testTakeAction(clients localgit.Clients, t *testing.T) {
 	testcases := []struct {
 		name string
 
-		batchPending     bool
-		successes        []int
-		pendings         []int
-		nones            []int
-		batchMerges      []int
-		presubmits       map[int][]config.Presubmit
-		preExistingJobs  []runtime.Object
-		mergeErrs        map[int]error
-		enableScheduling bool
+		batchPending                   bool
+		successes                      []int
+		pendings                       []int
+		nones                          []int
+		batchMerges                    []int
+		presubmits                     map[int][]config.Presubmit
+		preExistingJobs                []runtime.Object
+		abortedPreExistingJobs         []string
+		mergeErrs                      map[int]error
+		enableScheduling               bool
+		enableAbortSupersededBatchJobs bool
 
 		merged           int
 		triggered        int
@@ -2059,6 +2061,77 @@ func testTakeAction(clients localgit.Clients, t *testing.T) {
 			action:           TriggerBatch,
 		},
 		{
+			name: "superseded batches are aborted before triggering new batch",
+
+			batchPending: false,
+			successes:    []int{},
+			pendings:     []int{},
+			nones:        []int{1, 2, 3},
+			batchMerges:  []int{},
+			presubmits: map[int][]config.Presubmit{
+				100: {
+					{Reporter: config.Reporter{Context: "foo"}},
+					{Reporter: config.Reporter{Context: "if-changed"}},
+				},
+			},
+			preExistingJobs: []runtime.Object{
+				&prowapi.ProwJob{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "old-batch",
+						Namespace: "pj-ns",
+						Labels: map[string]string{
+							kube.CreatedByTideLabel: "true",
+							kube.ProwJobTypeLabel:   string(prowapi.BatchJob),
+							kube.OrgLabel:           "o",
+							kube.RepoLabel:          "r",
+							kube.BaseRefLabel:       defaultBranch,
+						},
+					},
+					Spec: prowapi.ProwJobSpec{
+						Type: prowapi.BatchJob,
+						Refs: &prowapi.Refs{
+							Org:     "o",
+							Repo:    "r",
+							BaseRef: defaultBranch,
+							BaseSHA: "old-sha",
+							Pulls:   []prowapi.Pull{{Number: 90, SHA: "origin/pr-90"}, {Number: 91, SHA: "origin/pr-91"}},
+						},
+					},
+					Status: prowapi.ProwJobStatus{State: prowapi.PendingState},
+				},
+				&prowapi.ProwJob{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "current-batch",
+						Namespace: "pj-ns",
+						Labels: map[string]string{
+							kube.CreatedByTideLabel: "true",
+							kube.ProwJobTypeLabel:   string(prowapi.BatchJob),
+							kube.OrgLabel:           "o",
+							kube.RepoLabel:          "r",
+							kube.BaseRefLabel:       defaultBranch,
+						},
+					},
+					Spec: prowapi.ProwJobSpec{
+						Type: prowapi.BatchJob,
+						Refs: &prowapi.Refs{
+							Org:     "o",
+							Repo:    "r",
+							BaseRef: defaultBranch,
+							BaseSHA: defaultBranch,
+							Pulls:   []prowapi.Pull{{Number: 92, SHA: "origin/pr-92"}, {Number: 93, SHA: "origin/pr-93"}},
+						},
+					},
+					Status: prowapi.ProwJobStatus{State: prowapi.PendingState},
+				},
+			},
+			abortedPreExistingJobs:         []string{"old-batch"},
+			enableAbortSupersededBatchJobs: true,
+			merged:                         0,
+			triggered:                      2,
+			triggeredBatches:               2,
+			action:                         TriggerBatch,
+		},
+		{
 			name: "pending batch, no serial, should trigger serial",
 
 			batchPending: true,
@@ -2156,6 +2229,9 @@ func testTakeAction(clients localgit.Clients, t *testing.T) {
 					ProwJobNamespace: pjNamespace,
 					Scheduler:        config.Scheduler{Enabled: tc.enableScheduling},
 				},
+			}
+			if tc.enableAbortSupersededBatchJobs {
+				cfg.Tide.AbortSupersededBatchJobsMap = map[string]bool{"*": true}
 			}
 			if err := cfg.SetPresubmits(
 				map[string][]config.Presubmit{
@@ -2321,16 +2397,25 @@ func testTakeAction(clients localgit.Clients, t *testing.T) {
 			if err := c.prowJobClient.List(ctx, prowJobs); err != nil {
 				t.Fatalf("failed to list ProwJobs: %v", err)
 			}
+			preExistingNames := sets.Set[string]{}
+			for _, preExistingJob := range tc.preExistingJobs {
+				preExistingNames.Insert(preExistingJob.(*prowapi.ProwJob).Name)
+			}
+			expectedAbortedPreExistingJobs := sets.New[string](tc.abortedPreExistingJobs...)
+			for _, job := range prowJobs.Items {
+				if !preExistingNames.Has(job.Name) {
+					continue
+				}
+				shouldBeAborted := expectedAbortedPreExistingJobs.Has(job.Name)
+				isAborted := job.Status.State == prowapi.AbortedState
+				if isAborted != shouldBeAborted {
+					t.Errorf("job %s aborted=%t, expected %t", job.Name, isAborted, shouldBeAborted)
+				}
+			}
 			var filteredProwJobs []prowapi.ProwJob
 			// Filter out the ones we passed in
 			for _, job := range prowJobs.Items {
-				var preExists bool
-				for _, preExistingJob := range tc.preExistingJobs {
-					if reflect.DeepEqual(*preExistingJob.(*prowapi.ProwJob), job) {
-						preExists = true
-					}
-				}
-				if !preExists {
+				if !preExistingNames.Has(job.Name) {
 					filteredProwJobs = append(filteredProwJobs, job)
 				}
 
