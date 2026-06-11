@@ -2,6 +2,11 @@ module sigs.k8s.io/prow/hack/tools
 
 go 1.25.5
 
+tool (
+	github.com/golangci/golangci-lint/v2/cmd/golangci-lint
+	sigs.k8s.io/kube-api-linter/cmd/golangci-lint-kube-api-linter
+)
+
 require (
 	github.com/client9/misspell v0.3.4
 	github.com/golangci/golangci-lint/v2 v2.12.2
@@ -13,6 +18,7 @@ require (
 	gotest.tools/gotestsum v1.13.0
 	k8s.io/code-generator v0.32.8
 	sigs.k8s.io/controller-tools v0.17.3
+	sigs.k8s.io/kube-api-linter v0.0.0-20260206102632-39e3d06a2850
 	sigs.k8s.io/yaml v1.6.0
 )
 
