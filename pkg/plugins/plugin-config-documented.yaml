@@ -410,6 +410,10 @@ dco:
         # if the skip DCO option is enabled. The default is the PR's org.
         trusted_org: ' '
 delete_spam_issue:
+    # AllowTopLevelApprovers allows approvers from the top-level OWNERS file
+    # of the repository to delete spam issues with the /delete-spam-issue command.
+    # Defaults to true.
+    allow_top_level_approvers: false
     # AllowedTeams is a list of GitHub team slugs whose members are authorized
     # to delete spam issues with the /delete-spam-issue command.
     allowed_teams:

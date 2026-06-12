@@ -25,10 +25,14 @@ import (
 	githubql "github.com/shurcooL/githubv4"
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/utils/ptr"
 
 	"sigs.k8s.io/prow/pkg/github"
 	"sigs.k8s.io/prow/pkg/github/fakegithub"
+	"sigs.k8s.io/prow/pkg/layeredsets"
 	"sigs.k8s.io/prow/pkg/plugins"
+	"sigs.k8s.io/prow/pkg/plugins/ownersconfig"
+	"sigs.k8s.io/prow/pkg/repoowners"
 )
 
 // fakeClient wraps fakegithub.FakeClient and adds MutateWithGitHubAppsSupport,
@@ -53,10 +57,63 @@ func (c *fakeClient) TeamBySlugHasMember(org string, teamSlug string, memberLogi
 	return c.FakeClient.TeamBySlugHasMember(org, teamSlug, memberLogin)
 }
 
+// TODO(MadhavJivrajani): see if this can be put into a package somewhere and reused along with
+// the issue-management plugins.
+//
+// fakeOwnersClient implements repoowners.RepoOwner.
+type fakeOwnersClient struct {
+	topLevelApprovers sets.Set[string]
+}
+
+func (foc *fakeOwnersClient) FindApproverOwnersForFile(path string) string    { return "" }
+func (foc *fakeOwnersClient) FindReviewersOwnersForFile(path string) string   { return "" }
+func (foc *fakeOwnersClient) FindLabelsForFile(path string) sets.Set[string]  { return nil }
+func (foc *fakeOwnersClient) IsNoParentOwners(path string) bool               { return false }
+func (foc *fakeOwnersClient) IsAutoApproveUnownedSubfolders(path string) bool { return false }
+func (foc *fakeOwnersClient) LeafApprovers(path string) sets.Set[string]      { return nil }
+func (foc *fakeOwnersClient) Approvers(path string) layeredsets.String        { return layeredsets.String{} }
+func (foc *fakeOwnersClient) LeafReviewers(path string) sets.Set[string]      { return nil }
+func (foc *fakeOwnersClient) Reviewers(path string) layeredsets.String        { return layeredsets.String{} }
+func (foc *fakeOwnersClient) RequiredReviewers(path string) sets.Set[string]  { return nil }
+func (foc *fakeOwnersClient) ParseSimpleConfig(path string) (repoowners.SimpleConfig, error) {
+	return repoowners.SimpleConfig{}, nil
+}
+func (foc *fakeOwnersClient) ParseFullConfig(path string) (repoowners.FullConfig, error) {
+	return repoowners.FullConfig{}, nil
+}
+func (foc *fakeOwnersClient) TopLevelApprovers() sets.Set[string] { return foc.topLevelApprovers }
+func (foc *fakeOwnersClient) Filenames() ownersconfig.Filenames   { return ownersconfig.FakeFilenames }
+func (foc *fakeOwnersClient) AllOwners() sets.Set[string]         { return nil }
+func (foc *fakeOwnersClient) AllApprovers() sets.Set[string]      { return nil }
+func (foc *fakeOwnersClient) AllReviewers() sets.Set[string]      { return nil }
+
+// fakeRepoownersClient implements ownersClient.
+// It wraps fakeOwnersClient and returns it from LoadRepoOwners.
+type fakeRepoownersClient struct {
+	foc *fakeOwnersClient
+	err error
+}
+
+func (froc *fakeRepoownersClient) LoadRepoOwners(org, repo, base string) (repoowners.RepoOwner, error) {
+	if froc.err != nil {
+		return nil, froc.err
+	}
+	return froc.foc, nil
+}
+
+// newFakeRepoownersClient builds a fakeRepoownersClient from a list of approver logins.
+func newFakeRepoownersClient(approvers []string) *fakeRepoownersClient {
+	approverSet := sets.New[string]()
+	for _, a := range approvers {
+		approverSet.Insert(github.NormLogin(a))
+	}
+	return &fakeRepoownersClient{foc: &fakeOwnersClient{topLevelApprovers: approverSet}}
+}
+
 func TestDeleteSpamIssue(t *testing.T) {
 	validEvent := github.GenericCommentEvent{
 		Action: github.GenericCommentActionCreated,
-		Repo:   github.Repo{Owner: github.User{Login: "kubernetes"}, Name: "test-repo"},
+		Repo:   github.Repo{Owner: github.User{Login: "kubernetes"}, Name: "test-repo", DefaultBranch: "main"},
 		Number: 101,
 		NodeID: "fakeIssueNodeID",
 		User:   github.User{Login: "allowed-user"},
@@ -65,16 +122,19 @@ func TestDeleteSpamIssue(t *testing.T) {
 	}
 
 	testCases := []struct {
-		name           string
-		event          github.GenericCommentEvent
-		allowedUsers   []string
-		allowedTeams   []string
-		teamMembers    []string
-		mutateErr      error
-		teamMemberErr  error
-		wantErr        bool
-		expectComments []string
-		expectDeleted  bool
+		name                   string
+		event                  github.GenericCommentEvent
+		allowedUsers           []string
+		allowedTeams           []string
+		teamMembers            []string
+		allowTopLevelApprovers *bool
+		topLevelApprovers      []string
+		loadOwnersErr          error
+		mutateErr              error
+		teamMemberErr          error
+		wantErr                bool
+		expectComments         []string
+		expectDeleted          bool
 	}{
 		{
 			name:           "allowed user deletes issue",
@@ -99,25 +159,25 @@ func TestDeleteSpamIssue(t *testing.T) {
 			expectDeleted:  true,
 		},
 		{
-			name:           "user not in allowed team posts error comment with teams",
+			name:           "user not in allowed team posts comment - should reject",
 			event:          validEvent,
 			allowedTeams:   []string{"spam-fighters"},
 			teamMembers:    []string{"other-user"},
 			expectComments: []string{"not in one of the allowed teams and are not an allowed user. Must be a member of one of these teams: spam-fighters"},
 		},
 		{
-			name:           "unauthorized user posts error comment",
+			name:           "unauthorized user posts comment - should reject",
 			event:          validEvent,
 			allowedUsers:   []string{"other-user"},
 			expectComments: []string{"not in one of the allowed teams and are not an allowed user"},
 		},
 		{
-			name:           "no allowed users or teams configured rejects everyone",
+			name:           "no allowed users or teams configured - rejects everyone",
 			event:          validEvent,
 			expectComments: []string{"not in one of the allowed teams and are not an allowed user"},
 		},
 		{
-			name: "command on pull request posts error comment",
+			name: "command on pull request - should reject",
 			event: func() github.GenericCommentEvent {
 				e := validEvent
 				e.IsPR = true
@@ -143,6 +203,32 @@ func TestDeleteSpamIssue(t *testing.T) {
 				return e
 			}(),
 			allowedUsers: []string{"allowed-user"},
+		},
+		{
+			name:              "top-level approver deletes issue by default",
+			event:             validEvent,
+			topLevelApprovers: []string{"allowed-user"},
+			expectComments:    []string{"This issue is being deleted because it has been deemed spam"},
+			expectDeleted:     true,
+		},
+		{
+			name:                   "top-level approver is rejected when disabled",
+			event:                  validEvent,
+			allowTopLevelApprovers: ptr.To(false),
+			topLevelApprovers:      []string{"allowed-user"},
+			expectComments:         []string{"not in one of the allowed teams and are not an allowed user"},
+		},
+		{
+			name:              "non-approver posts error comment mentioning OWNERS",
+			event:             validEvent,
+			topLevelApprovers: []string{"other-user"},
+			expectComments:    []string{"Approvers from the top-level OWNERS file can also use this command."},
+		},
+		{
+			name:          "LoadRepoOwners failure returns error without deleting",
+			event:         validEvent,
+			loadOwnersErr: errors.New("owners error"),
+			wantErr:       true,
 		},
 		{
 			name:          "team membership check failure returns error without deleting",
@@ -175,9 +261,15 @@ func TestDeleteSpamIssue(t *testing.T) {
 				}
 			}
 			gc := &fakeClient{FakeClient: fc, mutateErr: tc.mutateErr, teamMemberErr: tc.teamMemberErr}
-			config := plugins.DeleteSpamIssue{AllowedUsers: tc.allowedUsers, AllowedTeams: tc.allowedTeams}
+			froc := newFakeRepoownersClient(tc.topLevelApprovers)
+			froc.err = tc.loadOwnersErr
+			config := plugins.DeleteSpamIssue{
+				AllowedUsers:           tc.allowedUsers,
+				AllowedTeams:           tc.allowedTeams,
+				AllowTopLevelApprovers: tc.allowTopLevelApprovers,
+			}
 
-			err := handleGenericComment(gc, config, log, tc.event)
+			err := handleGenericComment(gc, froc, config, log, tc.event)
 
 			if tc.wantErr {
 				if err == nil {

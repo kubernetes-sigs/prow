@@ -25,11 +25,13 @@ import (
 
 	githubql "github.com/shurcooL/githubv4"
 	"github.com/sirupsen/logrus"
+	"k8s.io/utils/ptr"
 
 	"sigs.k8s.io/prow/pkg/config"
 	"sigs.k8s.io/prow/pkg/github"
 	"sigs.k8s.io/prow/pkg/pluginhelp"
 	"sigs.k8s.io/prow/pkg/plugins"
+	"sigs.k8s.io/prow/pkg/repoowners"
 )
 
 const pluginName = "delete-spam-issue"
@@ -42,6 +44,10 @@ type githubClient interface {
 	MutateWithGitHubAppsSupport(context.Context, any, githubql.Input, map[string]any, string) error
 }
 
+type ownersClient interface {
+	LoadRepoOwners(org, repo, base string) (repoowners.RepoOwner, error)
+}
+
 func init() {
 	plugins.RegisterGenericCommentHandler(pluginName, handleGenericCommentEvent, helpProvider)
 }
@@ -49,8 +55,9 @@ func init() {
 func helpProvider(_ *plugins.Configuration, _ []config.OrgRepo) (*pluginhelp.PluginHelp, error) {
 	yamlSnippet, err := plugins.CommentMap.GenYaml(&plugins.Configuration{
 		DeleteSpamIssue: plugins.DeleteSpamIssue{
-			AllowedTeams: []string{"spam-fighters"},
-			AllowedUsers: []string{"alice", "bob"},
+			AllowTopLevelApprovers: ptr.To(true),
+			AllowedTeams:           []string{"spam-fighters"},
+			AllowedUsers:           []string{"alice", "bob"},
 		},
 	})
 	if err != nil {
@@ -63,17 +70,17 @@ func helpProvider(_ *plugins.Configuration, _ []config.OrgRepo) (*pluginhelp.Plu
 	pluginHelp.AddCommand(pluginhelp.Command{
 		Usage:       "/delete-spam-issue",
 		Description: "Deletes the issue because it is deemed spam.",
-		WhoCanUse:   "Users listed under the plugin's allowed_users configuration and members of teams listed under allowed_teams.",
+		WhoCanUse:   "Users listed under the plugin's allowed_users configuration, members of teams listed under allowed_teams, and, unless allow_top_level_approvers is disabled, approvers from the top-level OWNERS file of the repository.",
 		Examples:    []string{"/delete-spam-issue"},
 	})
 	return pluginHelp, nil
 }
 
 func handleGenericCommentEvent(pc plugins.Agent, e github.GenericCommentEvent) error {
-	return handleGenericComment(pc.GitHubClient, pc.PluginConfig.DeleteSpamIssue, pc.Logger, e)
+	return handleGenericComment(pc.GitHubClient, pc.OwnersClient, pc.PluginConfig.DeleteSpamIssue, pc.Logger, e)
 }
 
-func handleGenericComment(gc githubClient, config plugins.DeleteSpamIssue, log *logrus.Entry, e github.GenericCommentEvent) error {
+func handleGenericComment(gc githubClient, oc ownersClient, config plugins.DeleteSpamIssue, log *logrus.Entry, e github.GenericCommentEvent) error {
 	if e.Action != github.GenericCommentActionCreated {
 		return nil
 	}
@@ -91,7 +98,7 @@ func handleGenericComment(gc githubClient, config plugins.DeleteSpamIssue, log *
 		return gc.CreateComment(org, repo, number, plugins.FormatResponseRaw(e.Body, e.HTMLURL, user, "`/delete-spam-issue` can only be used on GitHub issues."))
 	}
 
-	canDelete, canNotDeleteReason, err := canUserDeleteIssue(gc, org, user, config)
+	canDelete, canNotDeleteReason, err := canUserDeleteIssue(gc, oc, org, repo, e.Repo.DefaultBranch, user, config)
 	if err != nil {
 		return fmt.Errorf("failed to check if user can delete issue: %w", err)
 	}
@@ -112,7 +119,7 @@ func handleGenericComment(gc githubClient, config plugins.DeleteSpamIssue, log *
 	return nil
 }
 
-func canUserDeleteIssue(gc githubClient, org string, user string, config plugins.DeleteSpamIssue) (canDelete bool, canNotDeleteReason string, err error) {
+func canUserDeleteIssue(gc githubClient, oc ownersClient, org, repo, defaultBranch, user string, config plugins.DeleteSpamIssue) (canDelete bool, canNotDeleteReason string, err error) {
 	for _, allowedUser := range config.AllowedUsers {
 		if strings.EqualFold(allowedUser, user) {
 			return true, "", nil
@@ -129,9 +136,22 @@ func canUserDeleteIssue(gc githubClient, org string, user string, config plugins
 		}
 	}
 
+	if config.TopLevelApproversAllowed() {
+		owners, err := oc.LoadRepoOwners(org, repo, defaultBranch)
+		if err != nil {
+			return false, "", err
+		}
+		if owners.TopLevelApprovers().Has(github.NormLogin(user)) {
+			return true, "", nil
+		}
+	}
+
 	msg := "This issue cannot be deleted, because you are not in one of the allowed teams and are not an allowed user."
 	if len(config.AllowedTeams) > 0 {
 		msg += fmt.Sprintf(" Must be a member of one of these teams: %s", strings.Join(config.AllowedTeams, ", "))
+	}
+	if config.TopLevelApproversAllowed() {
+		msg += " Approvers from the top-level OWNERS file can also use this command."
 	}
 	return false, msg, nil
 }
