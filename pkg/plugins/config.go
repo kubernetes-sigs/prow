@@ -68,6 +68,7 @@ type Configuration struct {
 
 	// Built-in plugins specific configuration.
 	Approve              []Approve                    `json:"approve,omitempty"`
+	Assign               map[string]*Assign           `json:"assign,omitempty"`
 	Blockades            []Blockade                   `json:"blockades,omitempty"`
 	Blunderbuss          Blunderbuss                  `json:"blunderbuss,omitempty"`
 	Bugzilla             Bugzilla                     `json:"bugzilla,omitempty"`
@@ -98,6 +99,32 @@ type Configuration struct {
 	Override             Override                     `json:"override,omitempty"`
 	Help                 Help                         `json:"help,omitempty"`
 	InvalidCommitMsg     []InvalidCommitMsg           `json:"invalid_commit_msg,omitempty"`
+}
+
+// AssignAction defines the action to take when a non-org-member uses /assign.
+type AssignAction string
+
+const (
+	// AssignActionWarn allows the assign but posts a nudge comment.
+	AssignActionWarn AssignAction = "warn"
+	// AssignActionBlock rejects the assign and posts an error comment.
+	AssignActionBlock AssignAction = "block"
+)
+
+// Assign specifies configuration for the assign plugin.
+type Assign struct {
+	// OnlyOrgMembers restricts issue/PR assignment to only org members.
+	OnlyOrgMembers bool `json:"only_org_members,omitempty"`
+	// ExemptLabels is a list of labels that exempt an issue from the
+	// OnlyOrgMembers restriction, allowing anyone to self-assign.
+	// For example, setting this to ["good first issue"] lets non-members
+	// assign themselves to issues labeled "good first issue" while still
+	// blocking drive-by assigns on other issues.
+	ExemptLabels []string `json:"exempt_labels,omitempty"`
+	// Action controls what happens when a non-org-member tries to use
+	// /assign on an issue without an exempt label.
+	// Valid values: "warn" (default), "block".
+	Action AssignAction `json:"action,omitempty"`
 }
 
 type Help struct {
@@ -1079,6 +1106,21 @@ func (c *Configuration) LgtmFor(org, repo string) *Lgtm {
 	return &Lgtm{}
 }
 
+// AssignFor finds the Assign config for a repo, if one exists.
+// Repo-level config is prioritized over org-level config.
+func (c *Configuration) AssignFor(org, repo string) *Assign {
+	if c.Assign[fmt.Sprintf("%s/%s", org, repo)] != nil {
+		return c.Assign[fmt.Sprintf("%s/%s", org, repo)]
+	}
+	if c.Assign[org] != nil {
+		return c.Assign[org]
+	}
+	if c.Assign["*"] != nil {
+		return c.Assign["*"]
+	}
+	return &Assign{}
+}
+
 // TriggerFor finds the Trigger for a repo, if one exists
 // a trigger can be listed for the repo itself or for the
 // owning organization
@@ -1526,6 +1568,18 @@ func validateTrigger(triggers []Trigger) error {
 	return nil
 }
 
+func validateAssign(assign map[string]*Assign) error {
+	for key, cfg := range assign {
+		if cfg == nil {
+			continue
+		}
+		if cfg.Action != "" && cfg.Action != AssignActionWarn && cfg.Action != AssignActionBlock {
+			return fmt.Errorf("assign[%q]: invalid action %q, must be %q or %q", key, cfg.Action, AssignActionWarn, AssignActionBlock)
+		}
+	}
+	return nil
+}
+
 var validInvalidCommitMsgChecks = sets.New[string]("fixupPrefix", "issueClosingKeywords")
 
 func validateInvalidCommitMsg(cfgs []InvalidCommitMsg) error {
@@ -1658,6 +1712,9 @@ func (c *Configuration) Validate() error {
 		return err
 	}
 	if err := validateTrigger(c.Triggers); err != nil {
+		return err
+	}
+	if err := validateAssign(c.Assign); err != nil {
 		return err
 	}
 	if err := validateRepoDupes(c.Approve); err != nil {
