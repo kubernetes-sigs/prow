@@ -1492,6 +1492,69 @@ func TestReadPaginatedResultsWithRedirect(t *testing.T) {
 	}
 }
 
+func TestReadPaginatedResultsWithGHEAndRedirect(t *testing.T) {
+	requestCount := 0
+	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
+		switch r.URL.Path {
+		case "/api/v3/repos/old-org/old-repo/branches":
+			newURL := fmt.Sprintf("https://%s/api/v3/repos/new-org/new-repo/branches", r.Host)
+			if r.URL.RawQuery != "" {
+				newURL += "?" + r.URL.RawQuery
+			}
+			http.Redirect(w, r, newURL, http.StatusMovedPermanently)
+		case "/api/v3/repos/new-org/new-repo/branches":
+			var labels []Label
+			if r.URL.Query().Get("page") == "" {
+				labels = []Label{{Name: "page1"}}
+				w.Header().Set("Link", fmt.Sprintf(
+					`<https://%s/api/v3/repos/new-org/new-repo/branches?%s&page=2>; rel="next"`,
+					r.Host, r.URL.RawQuery))
+			} else {
+				labels = []Label{{Name: "page2"}}
+			}
+			b, err := json.Marshal(labels)
+			if err != nil {
+				t.Errorf("Failed to marshal: %v", err)
+			}
+			fmt.Fprint(w, string(b))
+		default:
+			t.Errorf("Unexpected request path: %s (full: %s)", r.URL.Path, r.URL.String())
+			http.Error(w, "not found", http.StatusNotFound)
+		}
+	}))
+	defer ts.Close()
+
+	c := getClient(ts.URL)
+	c.bases[0] = c.bases[0] + "/api/v3"
+	var labels []Label
+	err := c.readPaginatedResultsWithValues(
+		"/repos/old-org/old-repo/branches",
+		url.Values{
+			"per_page":  []string{"100"},
+			"protected": []string{"false"},
+		},
+		"",
+		"",
+		func() interface{} {
+			return &[]Label{}
+		},
+		func(obj interface{}) {
+			labels = append(labels, *(obj.(*[]Label))...)
+		},
+	)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	expected := []Label{{Name: "page1"}, {Name: "page2"}}
+	if !reflect.DeepEqual(labels, expected) {
+		t.Errorf("Expected %v, got %v", expected, labels)
+	}
+	if requestCount != 3 {
+		t.Errorf("Expected 3 requests (redirect + page1 + page2), got %d", requestCount)
+	}
+}
+
 func TestListPullRequestComments(t *testing.T) {
 	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
