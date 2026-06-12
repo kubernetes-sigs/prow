@@ -46,9 +46,9 @@ import (
 )
 
 const (
-	statusContext               = "tide"
-	statusInPool                = "In merge pool."
-	statusInPoolDespiteBlocked  = "In merge pool (despite BLOCKED)."
+	statusContext              = "tide"
+	statusInPool               = "In merge pool."
+	statusInPoolDespiteBlocked = "In merge pool (despite BLOCKED)."
 	// statusNotInPool is a format string used when a PR is not in a tide pool.
 	// The '%s' field is populated with the reason why the PR is not in a
 	// tide pool or the empty string if the reason is unknown. See requirementDiff.
@@ -231,14 +231,21 @@ func requirementDiff(pr *PullRequest, q *config.TideQuery, cc contextChecker, me
 	log := logrus.WithFields(pr.logFields())
 	for _, commit := range pr.Commits.Nodes {
 		if commit.Commit.OID == pr.HeadRefOID {
-			for _, ctx := range unsuccessfulContexts(append(commit.Commit.Status.Contexts, checkRunNodesToContexts(log, commit.Commit.StatusCheckRollup.Contexts.Nodes)...), cc, log) {
+			headContexts := append(commit.Commit.Status.Contexts, checkRunNodesToContexts(log, commit.Commit.StatusCheckRollup.Contexts.Nodes)...)
+			for _, ctx := range unsuccessfulContexts(headContexts, cc, log) {
 				contexts = append(contexts, string(ctx.Context))
 			}
+			presentContexts := sets.New[string]()
+			for _, ctx := range headContexts {
+				presentContexts.Insert(string(ctx.Context))
+			}
+			contexts = append(contexts, cc.MissingRequiredContexts(presentContexts.UnsortedList())...)
 		}
 	}
 	diff += len(contexts)
 	if desc == "" && len(contexts) > 0 {
 		sort.Strings(contexts)
+		contexts = slices.Compact(contexts)
 		trunced := truncate(contexts)
 		if len(trunced) == 1 {
 			desc = fmt.Sprintf(" Job %s has not succeeded.", trunced[0])
@@ -784,7 +791,9 @@ func contextCheckerGetterFactory(cfg *config.Config, gc git.ClientFactory, org, 
 		if err != nil {
 			return nil, err
 		}
-		contextPolicy.RequiredContexts = requiredContexts
+		if len(requiredContexts) > 0 {
+			contextPolicy.RequiredContexts = append(contextPolicy.RequiredContexts, requiredContexts...)
+		}
 		return contextPolicy, nil
 	}
 }
