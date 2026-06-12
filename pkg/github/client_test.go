@@ -1387,11 +1387,11 @@ func TestReadPaginatedResultsWithValuesSamePathPagination(t *testing.T) {
 		case r.URL.Query().Get("page") == "2":
 			labels = []Label{{Name: "page2"}}
 		default:
-			t.Fatalf("Unexpected request: %s", r.URL.String())
+			t.Errorf("Unexpected request: %s", r.URL.String())
 		}
 		b, err := json.Marshal(labels)
 		if err != nil {
-			t.Fatalf("Failed to marshal: %v", err)
+			t.Errorf("Failed to marshal: %v", err)
 		}
 		fmt.Fprint(w, string(b))
 	}))
@@ -1431,7 +1431,9 @@ func TestReadPaginatedResultsWithRedirect(t *testing.T) {
 	// due to a repo rename/transfer). After the redirect, resp.Request.URL
 	// differs from the original pagedPath. The pagination URL construction
 	// must still produce a valid URL for the next page.
+	requestCount := 0
 	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
 		switch r.URL.Path {
 		case "/repos/old-org/old-repo/branches":
 			newURL := fmt.Sprintf("https://%s/repos/new-org/new-repo/branches", r.Host)
@@ -1444,14 +1446,14 @@ func TestReadPaginatedResultsWithRedirect(t *testing.T) {
 			if r.URL.Query().Get("page") == "" {
 				labels = []Label{{Name: "page1"}}
 				w.Header().Set("Link", fmt.Sprintf(
-					`<https://%s/repos/new-org/new-repo/branches?per_page=100&page=2>; rel="next"`,
-					r.Host))
+					`<https://%s/repos/new-org/new-repo/branches?%s&page=2>; rel="next"`,
+					r.Host, r.URL.RawQuery))
 			} else {
 				labels = []Label{{Name: "page2"}}
 			}
 			b, err := json.Marshal(labels)
 			if err != nil {
-				t.Fatalf("Failed to marshal: %v", err)
+				t.Errorf("Failed to marshal: %v", err)
 			}
 			fmt.Fprint(w, string(b))
 		default:
@@ -1484,6 +1486,9 @@ func TestReadPaginatedResultsWithRedirect(t *testing.T) {
 	expected := []Label{{Name: "page1"}, {Name: "page2"}}
 	if !reflect.DeepEqual(labels, expected) {
 		t.Errorf("Expected %v, got %v", expected, labels)
+	}
+	if requestCount != 3 {
+		t.Errorf("Expected 3 requests (redirect + page1 + page2), got %d", requestCount)
 	}
 }
 
