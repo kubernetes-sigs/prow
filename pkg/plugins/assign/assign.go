@@ -41,16 +41,31 @@ func init() {
 	plugins.RegisterGenericCommentHandler(pluginName, handleGenericComment, helpProvider)
 }
 
-func helpProvider(config *plugins.Configuration, _ []config.OrgRepo) (*pluginhelp.PluginHelp, error) {
-	// The Config field is omitted because this plugin is not configurable.
+func helpProvider(config *plugins.Configuration, enabledRepos []config.OrgRepo) (*pluginhelp.PluginHelp, error) {
+	configInfo := map[string]string{}
+	for _, repo := range enabledRepos {
+		cfg := config.AssignFor(repo.Org, repo.Repo)
+		if cfg.OnlyOrgMembers {
+			action := string(plugins.AssignActionWarn)
+			if cfg.Action == plugins.AssignActionBlock {
+				action = string(plugins.AssignActionBlock)
+			}
+			msg := fmt.Sprintf("Non-org-member assigns are handled with action=%q.", action)
+			if len(cfg.ExemptLabels) > 0 {
+				msg += fmt.Sprintf(" Issues with any of the following labels are exempt: %s.", strings.Join(cfg.ExemptLabels, ", "))
+			}
+			configInfo[repo.String()] = msg
+		}
+	}
 	pluginHelp := &pluginhelp.PluginHelp{
+		Config: configInfo,
 		Description: "The assign plugin assigns or requests reviews from users/teams. Specific users can be assigned with the command '/assign @user1' or have reviews requested of them with the command '/cc @user1'. If no users are specified, the commands default to targeting the user who created the command. Assignments and requested reviews can be removed in the same way that they are added by prefixing the commands with 'un'.",
 	}
 	pluginHelp.AddCommand(pluginhelp.Command{
 		Usage:       "/[un]assign [[@]<username>...|[@]<orgname/teamname>...]",
 		Description: "Assigns assignee(s) or team(s) to the PR",
 		Featured:    true,
-		WhoCanUse:   "Anyone can use the command, but the target user(s) must be an org member, a repo collaborator, or should have previously commented on the issue or PR.",
+		WhoCanUse:   "Anyone can use the command, but the target user(s) must be an org member, a repo collaborator, or should have previously commented on the issue or PR. When only_org_members is configured, non-org-member assigns are either warned (default) or blocked depending on the action setting. Issues with exempt labels bypass this restriction.",
 		Examples:    []string{"/assign", "/unassign", "/assign @spongebob", "/assign spongebob patrick", "/assign @kubernetes/sig-foo-bar"},
 	})
 	pluginHelp.AddCommand(pluginhelp.Command{
@@ -71,13 +86,17 @@ type githubClient interface {
 	UnrequestReview(org, repo string, number int, logins []string) error
 
 	CreateComment(owner, repo string, number int, comment string) error
+
+	GetIssueLabels(org, repo string, number int) ([]github.Label, error)
+	IsMember(org, user string) (bool, error)
 }
 
 func handleGenericComment(pc plugins.Agent, e github.GenericCommentEvent) error {
 	if e.Action != github.GenericCommentActionCreated {
 		return nil
 	}
-	err := handle(newAssignHandler(e, pc.GitHubClient, pc.Logger))
+	cfg := pc.PluginConfig.AssignFor(e.Repo.Owner.Login, e.Repo.Name)
+	err := handle(newAssignHandler(e, pc.GitHubClient, pc.Logger, cfg))
 	if e.IsPR {
 		err = combineErrors(err, handle(newReviewHandler(e, pc.GitHubClient, pc.Logger)))
 	}
@@ -187,22 +206,114 @@ type handler struct {
 	userType string
 }
 
-func newAssignHandler(e github.GenericCommentEvent, gc githubClient, log *logrus.Entry) *handler {
+func newAssignHandler(e github.GenericCommentEvent, gc githubClient, log *logrus.Entry, cfg *plugins.Assign) *handler {
 	org := e.Repo.Owner.Login
 	addFailureResponse := func(mu github.MissingUsers) string {
 		return fmt.Sprintf("GitHub didn't allow me to assign the following users: %s.\n\nNote that only [%s members](https://%s/orgs/%s/people) with read permissions, repo collaborators and people who have commented on this issue/PR can be assigned. Additionally, issues/PRs can only have 10 assignees at the same time.\nFor more information please see [the contributor guide](https://git.k8s.io/community/contributors/guide/first-contribution.md#issue-assignment-in-github)", strings.Join(mu.Users, ", "), org, github.DefaultHost, org)
 	}
 
+	add := gc.AssignIssue
+	if cfg.OnlyOrgMembers {
+		add = orgMemberAssignFunc(e, gc, log, cfg, org)
+		if cfg.Action == plugins.AssignActionBlock {
+			addFailureResponse = func(mu github.MissingUsers) string {
+				return fmt.Sprintf("Cannot assign the following users: %s.\n\nOnly [%s members](https://%s/orgs/%s/people) can be assigned when `only_org_members` is configured.", strings.Join(mu.Users, ", "), org, github.DefaultHost, org)
+			}
+		}
+	}
+
 	return &handler{
 		addFailureResponse: addFailureResponse,
 		remove:             gc.UnassignIssue,
-		add:                gc.AssignIssue,
+		add:                add,
 		event:              &e,
 		regexp:             assignRe,
 		gc:                 gc,
 		log:                log,
 		userType:           "assignee(s)",
 	}
+}
+
+func orgMemberAssignFunc(e github.GenericCommentEvent, gc githubClient, log *logrus.Entry, cfg *plugins.Assign, org string) func(string, string, int, []string) error {
+	return func(owner, repo string, number int, logins []string) error {
+		if len(cfg.ExemptLabels) > 0 {
+			labels, err := gc.GetIssueLabels(owner, repo, number)
+			if err != nil {
+				return err
+			}
+			if hasExemptLabel(labels, cfg.ExemptLabels) {
+				return gc.AssignIssue(owner, repo, number, logins)
+			}
+		}
+
+		members, nonMembers, err := splitByMembership(gc, org, logins)
+		if err != nil {
+			return err
+		}
+
+		if cfg.Action == plugins.AssignActionBlock {
+			return blockNonMembers(gc, owner, repo, number, members, nonMembers)
+		}
+
+		// AssignActionWarn (default): assign everyone but post a nudge comment for non-members.
+		assignErr := gc.AssignIssue(owner, repo, number, logins)
+		if len(nonMembers) > 0 {
+			warnMsg := fmt.Sprintf(
+				"Note: the following users are not members of the **%s** organization: %s.\n\n"+
+					"This issue has not been labeled as available for new contributors. "+
+					"If you are new to this project, consider looking for issues labeled "+
+					"`good first issue` to get started.",
+				org, strings.Join(nonMembers, ", "),
+			)
+			if cerr := gc.CreateComment(owner, repo, number, plugins.FormatResponseRaw(e.Body, e.HTMLURL, e.User.Login, warnMsg)); cerr != nil {
+				log.WithError(cerr).Error("failed to post warning comment for non-org-member assign")
+			}
+		}
+		return assignErr
+	}
+}
+
+func splitByMembership(gc githubClient, org string, logins []string) (members, nonMembers []string, err error) {
+	for _, login := range logins {
+		member, err := gc.IsMember(org, login)
+		if err != nil {
+			return nil, nil, err
+		}
+		if member {
+			members = append(members, login)
+		} else {
+			nonMembers = append(nonMembers, login)
+		}
+	}
+	return members, nonMembers, nil
+}
+
+func blockNonMembers(gc githubClient, owner, repo string, number int, members, nonMembers []string) error {
+	var assignErr error
+	if len(members) > 0 {
+		assignErr = gc.AssignIssue(owner, repo, number, members)
+	}
+	if len(nonMembers) > 0 {
+		mu := github.MissingUsers{Users: nonMembers}
+		if merr, ok := assignErr.(github.MissingUsers); ok {
+			mu.Users = append(mu.Users, merr.Users...)
+		} else if assignErr != nil {
+			return assignErr
+		}
+		return mu
+	}
+	return assignErr
+}
+
+func hasExemptLabel(issueLabels []github.Label, exemptLabels []string) bool {
+	for _, il := range issueLabels {
+		for _, el := range exemptLabels {
+			if strings.EqualFold(il.Name, el) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func newReviewHandler(e github.GenericCommentEvent, gc githubClient, log *logrus.Entry) *handler {
