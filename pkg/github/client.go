@@ -1989,17 +1989,23 @@ func (c *client) readPaginatedResultsWithValuesWithContext(ctx context.Context, 
 			break
 		}
 
-		// For GitHub Enterprise, c.bases[0] may include a path prefix like /api/v3.
-		// We need to strip that prefix from the Link header URL so that when we
-		// prepend c.bases[hostIndex] we don't duplicate it.
-		// For standard GitHub (with or without ghproxy), there is no path prefix.
-		//
-		// We compare only the Path components (ignoring query strings) to compute
-		// the prefix. The previous approach used the full RequestURI (path+query)
-		// for TrimSuffix, which breaks when resp.Request.URL differs from what we
-		// sent (e.g. due to a redirect): the suffix doesn't match, leaving prefix
-		// set to the entire response URI. A subsequent TrimPrefix then strips too
-		// much from the next-page URL, producing a malformed path like "&page=2".
+		// Example for github.com:
+		// * c.bases[0]: api.github.com
+		// * initial call: api.github.com/repos/kubernetes/kubernetes/pulls?per_page=100
+		// * next: api.github.com/repositories/22/pulls?per_page=100&page=2
+		// * prefix will be empty; we call the path returned by next as-is
+		// Example for github enterprise:
+		// * c.bases[0]: <ghe-url>/api/v3
+		// * initial call: <ghe-url>/api/v3/repos/kubernetes/kubernetes/pulls?per_page=100
+		// * next: <ghe-url>/api/v3/repositories/22/pulls?per_page=100&page=2
+		// * prefix will be "/api/v3" and we strip it so we don't duplicate it
+		//   when prepending c.bases[hostIndex]
+		// Example for a redirect (e.g. repo rename):
+		// * initial call: api.github.com/repos/old-org/old-repo/pulls?per_page=100
+		// * resp.Request.URL (after redirect): api.github.com/repos/new-org/new-repo/pulls?per_page=100
+		// * next: api.github.com/repos/new-org/new-repo/pulls?per_page=100&page=2
+		// * prefix will be empty; we compare only Path (not full RequestURI) so
+		//   the differing response URL doesn't break the suffix match
 		pathOnly := strings.SplitN(pagedPath, "?", 2)[0]
 		prefix := strings.TrimSuffix(resp.Request.URL.Path, pathOnly)
 
