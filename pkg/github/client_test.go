@@ -3765,6 +3765,20 @@ func TestIsAppInstalled(t *testing.T) {
 			}
 		})
 	}
+
+	// IsAppInstalled is a GET request, so it should work in dry-run mode too
+	c.dry = true
+	for _, tc := range testCases {
+		t.Run("dry-run/"+tc.name, func(t *testing.T) {
+			installed, err := c.IsAppInstalled(tc.org, tc.repo)
+			if err != nil {
+				t.Fatalf("unexpected error in dry-run mode: %v", err)
+			}
+			if installed != tc.expected {
+				t.Fatalf("response: %v doesn't match expected: %v", installed, tc.expected)
+			}
+		})
+	}
 }
 
 func TestCollaboratorMethodsDryRun(t *testing.T) {

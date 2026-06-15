@@ -932,8 +932,13 @@ func (c *client) requestWithContext(ctx context.Context, r *request, ret interfa
 }
 
 // isDryRunAllowed returns true if this request should be allowed in dry-run mode.
-// Enforces a hardcoded allowlist; currently only allows GitHub App token acquisition.
+// GET requests are always allowed. Non-GET requests are only allowed if they match
+// a hardcoded allowlist (currently only GitHub App token acquisition).
 func isDryRunAllowed(r *request) bool {
+	if r.method == http.MethodGet {
+		return true
+	}
+
 	if !r.allowInDryRun {
 		return false
 	}
@@ -959,8 +964,7 @@ func (c *client) requestRaw(r *request) (int, []byte, error) {
 }
 
 func (c *client) requestRawWithContext(ctx context.Context, r *request) (int, []byte, error) {
-	// In dry-run mode, block all non-GET requests except for explicitly allowed read-only operations
-	if c.fake || (c.dry && r.method != http.MethodGet && !isDryRunAllowed(r)) {
+	if c.fake || (c.dry && !isDryRunAllowed(r)) {
 		return r.exitCodes[0], nil, nil
 	}
 	resp, err := c.requestRetryWithContext(ctx, r.method, r.path, r.accept, r.org, r.requestBody)
@@ -5122,9 +5126,6 @@ func (c *client) IsAppInstalled(org, repo string) (bool, error) {
 	durationLogger := c.log("IsAppInstalled", org, repo)
 	defer durationLogger()
 
-	if c.dry {
-		return false, fmt.Errorf("not getting AppInstallation in dry-run mode")
-	}
 	if !c.usesAppsAuth {
 		return false, fmt.Errorf("IsAppInstalled was called when not using appsAuth")
 	}
