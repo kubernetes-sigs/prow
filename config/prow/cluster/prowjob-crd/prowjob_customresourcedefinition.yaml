@@ -1623,6 +1623,18 @@ spec:
                 items:
                   description: Refs describes how the repo was constructed.
                   properties:
+                    auxiliary:
+                      description: |-
+                        Auxiliary indicates that the repository really only provides
+                        auxiliary files for the job and is not the main repository that is
+                        being tested.
+                        This is relevant when determining which version to record in a
+                        periodic job's started.json file: the first repository where
+                        Auxiliary is false or unset is considered the main repository
+                        and determines the version.
+                        In presubmit jobs the version always comes from the repository
+                        for which the job is defined.
+                      type: boolean
                     base_link:
                       description: BaseLink is a link to the commit identified by
                         BaseSHA.
@@ -9730,6 +9742,18 @@ spec:
                   Refs is the code under test, determined at
                   runtime by Prow itself
                 properties:
+                  auxiliary:
+                    description: |-
+                      Auxiliary indicates that the repository really only provides
+                      auxiliary files for the job and is not the main repository that is
+                      being tested.
+                      This is relevant when determining which version to record in a
+                      periodic job's started.json file: the first repository where
+                      Auxiliary is false or unset is considered the main repository
+                      and determines the version.
+                      In presubmit jobs the version always comes from the repository
+                      for which the job is defined.
+                    type: boolean
                   base_link:
                     description: BaseLink is a link to the commit identified by BaseSHA.
                     type: string
