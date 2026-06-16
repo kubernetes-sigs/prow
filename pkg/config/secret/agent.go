@@ -46,6 +46,7 @@ func init() {
 // censoring formatter that removes secret occurrences from the logs.
 func (a *agent) Start(paths []string) error {
 	a.secretsMap = make(map[string]secretReloader, len(paths))
+	a.expiringTokens = make(map[string]time.Time)
 	a.ReloadingCensorer = secretutil.NewCensorer()
 
 	for _, path := range paths {
@@ -196,6 +197,9 @@ func (a *agent) getSecrets() sets.Set[string] {
 	secrets := sets.New[string]()
 	for _, v := range a.secretsMap {
 		secrets.Insert(string(v.getRaw()))
+	}
+	for token := range a.expiringTokens {
+		secrets.Insert(token)
 	}
 	return secrets
 }
