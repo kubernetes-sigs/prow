@@ -36,6 +36,7 @@ import (
 
 	prowapi "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 	"sigs.k8s.io/prow/pkg/config"
+	git "sigs.k8s.io/prow/pkg/git/v2"
 	"sigs.k8s.io/prow/pkg/github"
 	"sigs.k8s.io/prow/pkg/tide/blockers"
 )
@@ -888,6 +889,7 @@ func TestRequirementDiff(t *testing.T) {
 		queryExcludedBranches  []string
 		queryIncludedBranches  []string
 		reviewApprovedRequired bool
+		requiredContexts       []string
 		expectedDiff           int
 		expectedDescContains   string
 	}{
@@ -1318,6 +1320,116 @@ func TestRequirementDiff(t *testing.T) {
 			expectedDiff:         100,
 			expectedDescContains: "Blocked by GitHub (branch rulesets or protection)",
 		},
+		// Tests for missing required contexts (new functionality)
+		{
+			name: "Missing required context not present in PR",
+			prContexts: []Context{
+				{Context: githubql.String("ci/test"), State: githubql.StatusStateSuccess},
+			},
+			requiredContexts:     []string{"ci/required-check"},
+			expectedDiff:         2, // 1 for ci/test being present + 1 for missing ci/required-check
+			expectedDescContains: "Job ci/required-check has not succeeded",
+		},
+		{
+			name: "Multiple missing required contexts",
+			prContexts: []Context{
+				{Context: githubql.String("ci/test"), State: githubql.StatusStateSuccess},
+			},
+			requiredContexts:     []string{"ci/required-1", "ci/required-2"},
+			expectedDiff:         4, // 1 for ci/test + 2 for missing required contexts + 1 for total context count
+			expectedDescContains: "Jobs ci/required-1, ci/required-2 have not succeeded",
+		},
+		{
+			name: "Required context present and successful",
+			prContexts: []Context{
+				{Context: githubql.String("ci/test"), State: githubql.StatusStateSuccess},
+				{Context: githubql.String("ci/required-check"), State: githubql.StatusStateSuccess},
+			},
+			requiredContexts:     []string{"ci/required-check"},
+			expectedDiff:         0,
+			expectedDescContains: "",
+		},
+		{
+			name: "Required context present but failed",
+			prContexts: []Context{
+				{Context: githubql.String("ci/test"), State: githubql.StatusStateSuccess},
+				{Context: githubql.String("ci/required-check"), State: githubql.StatusStateFailure},
+			},
+			requiredContexts:     []string{"ci/required-check"},
+			expectedDiff:         1,
+			expectedDescContains: "Job ci/required-check has not succeeded",
+		},
+		{
+			name: "Duplicate contexts are deduplicated",
+			prContexts: []Context{
+				{Context: githubql.String("ci/test"), State: githubql.StatusStateFailure},
+			},
+			prCheckRuns: []CheckRun{
+				{Name: githubql.String("ci/test"), Status: githubql.String(githubql.CheckStatusStateCompleted), Conclusion: githubql.String(githubql.StatusStateFailure)},
+			},
+			expectedDiff:         2, // Before deduplication: 2 failed ci/test, after: still counted as 2 in diff
+			expectedDescContains: "Job ci/test has not succeeded",
+		},
+		{
+			name: "Missing required context combined with failed context",
+			prContexts: []Context{
+				{Context: githubql.String("ci/test"), State: githubql.StatusStateFailure},
+			},
+			requiredContexts:     []string{"ci/required-check"},
+			expectedDiff:         3, // 1 for ci/test in contexts + 1 for failed ci/test + 1 for missing ci/required-check
+			expectedDescContains: "Jobs ci/required-check, ci/test have not succeeded",
+		},
+		{
+			name: "Multiple missing required contexts with some failed contexts",
+			prContexts: []Context{
+				{Context: githubql.String("ci/test"), State: githubql.StatusStateFailure},
+				{Context: githubql.String("ci/lint"), State: githubql.StatusStateError},
+			},
+			requiredContexts:     []string{"ci/required-1", "ci/required-2"},
+			expectedDiff:         6, // 2 for contexts in PR + 2 failed + 2 missing required
+			expectedDescContains: "Jobs ci/lint, ci/required-1, ci/required-2, ci/test have not succeeded",
+		},
+		{
+			name: "Required context in checkrun format",
+			prCheckRuns: []CheckRun{
+				{Name: githubql.String("ci/required-check"), Status: githubql.String(githubql.CheckStatusStateCompleted), Conclusion: githubql.String(githubql.StatusStateSuccess)},
+			},
+			requiredContexts:     []string{"ci/required-check"},
+			expectedDiff:         0,
+			expectedDescContains: "",
+		},
+		{
+			name: "Required context missing when only checkruns present",
+			prCheckRuns: []CheckRun{
+				{Name: githubql.String("ci/other-check"), Status: githubql.String(githubql.CheckStatusStateCompleted), Conclusion: githubql.String(githubql.StatusStateSuccess)},
+			},
+			requiredContexts:     []string{"ci/required-check"},
+			expectedDiff:         2, // 1 for ci/other-check present + 1 for missing ci/required-check
+			expectedDescContains: "Job ci/required-check has not succeeded",
+		},
+		{
+			name: "Deduplication with failed context and missing required context with same name",
+			prContexts: []Context{
+				{Context: githubql.String("ci/test"), State: githubql.StatusStateFailure},
+			},
+			requiredContexts:     []string{"ci/test"},
+			expectedDiff:         1,
+			expectedDescContains: "Job ci/test has not succeeded",
+		},
+		{
+			name: "Complex scenario with duplicates across contexts and checkruns",
+			prContexts: []Context{
+				{Context: githubql.String("ci/build"), State: githubql.StatusStateFailure},
+				{Context: githubql.String("ci/test"), State: githubql.StatusStateSuccess},
+			},
+			prCheckRuns: []CheckRun{
+				{Name: githubql.String("ci/build"), Status: githubql.String(githubql.CheckStatusStateCompleted), Conclusion: githubql.String(githubql.StatusStateFailure)},
+				{Name: githubql.String("ci/lint"), Status: githubql.String(githubql.CheckStatusStateCompleted), Conclusion: githubql.String(githubql.StatusStateFailure)},
+			},
+			requiredContexts:     []string{"ci/required", "ci/build"},
+			expectedDiff:         5, // 2 contexts + 2 checkruns = 4 total, 2 failed ci/build + 1 failed ci/lint + 1 missing ci/required + 1 for ci/build in required = 5
+			expectedDescContains: "Jobs ci/build, ci/lint, ci/required have not succeeded",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -1397,7 +1509,9 @@ func TestRequirementDiff(t *testing.T) {
 				},
 			}
 
-			cc := &config.TideContextPolicy{}
+			cc := &config.TideContextPolicy{
+				RequiredContexts: tc.requiredContexts,
+			}
 
 			desc, diff := requirementDiff(pr, query, cc, config.GitHubMergeBlocksBlock)
 
@@ -1411,6 +1525,109 @@ func TestRequirementDiff(t *testing.T) {
 				}
 			} else if desc != "" {
 				t.Errorf("Expected empty description, but got %q", desc)
+			}
+		})
+	}
+}
+
+// TestContextCheckerGetterFactoryAppend tests that contextCheckerGetterFactory
+// appends additional required contexts instead of replacing them.
+func TestContextCheckerGetterFactoryAppend(t *testing.T) {
+	testCases := []struct {
+		name                    string
+		baseRequiredContexts    []string
+		additionalContexts      []string
+		expectedRequiredCount   int
+		expectedContextsContain []string
+	}{
+		{
+			name:                    "Append additional contexts to base contexts",
+			baseRequiredContexts:    []string{"ci/test", "ci/build"},
+			additionalContexts:      []string{"ci/lint", "ci/security"},
+			expectedRequiredCount:   4,
+			expectedContextsContain: []string{"ci/test", "ci/build", "ci/lint", "ci/security"},
+		},
+		{
+			name:                    "No additional contexts - base contexts remain",
+			baseRequiredContexts:    []string{"ci/test", "ci/build"},
+			additionalContexts:      []string{},
+			expectedRequiredCount:   2,
+			expectedContextsContain: []string{"ci/test", "ci/build"},
+		},
+		{
+			name:                    "Empty base contexts with additional contexts",
+			baseRequiredContexts:    []string{},
+			additionalContexts:      []string{"ci/lint", "ci/security"},
+			expectedRequiredCount:   2,
+			expectedContextsContain: []string{"ci/lint", "ci/security"},
+		},
+		{
+			name:                    "Both empty - no contexts",
+			baseRequiredContexts:    []string{},
+			additionalContexts:      []string{},
+			expectedRequiredCount:   0,
+			expectedContextsContain: []string{},
+		},
+		{
+			name:                    "Duplicate contexts are preserved (no deduplication in factory)",
+			baseRequiredContexts:    []string{"ci/test", "ci/build"},
+			additionalContexts:      []string{"ci/test", "ci/lint"},
+			expectedRequiredCount:   4,
+			expectedContextsContain: []string{"ci/test", "ci/build", "ci/lint"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create a mock config with base required contexts
+			cfg := &config.Config{
+				ProwConfig: config.ProwConfig{
+					Tide: config.Tide{
+						TideGitHubConfig: config.TideGitHubConfig{
+							ContextOptions: config.TideContextPolicyOptions{
+								TideContextPolicy: config.TideContextPolicy{
+									RequiredContexts: tc.baseRequiredContexts,
+								},
+							},
+						},
+					},
+				},
+			}
+
+			// Mock git client factory - return nil as it's not used in this test path
+			var gc git.ClientFactory
+
+			// Mock base SHA getter
+			baseSHAGetter := func() (string, error) {
+				return "base-sha", nil
+			}
+
+			// Create the context checker getter
+			ccGetter := contextCheckerGetterFactory(cfg, gc, "test-org", "test-repo", "main", baseSHAGetter, "head-sha", tc.additionalContexts)
+
+			// Call the getter to get the context checker
+			cc, err := ccGetter()
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+
+			// Cast to TideContextPolicy to access RequiredContexts
+			policy, ok := cc.(*config.TideContextPolicy)
+			if !ok {
+				t.Fatalf("Expected *config.TideContextPolicy, got %T", cc)
+			}
+
+			// Check the count
+			if len(policy.RequiredContexts) != tc.expectedRequiredCount {
+				t.Errorf("Expected %d required contexts, but got %d: %v", tc.expectedRequiredCount, len(policy.RequiredContexts), policy.RequiredContexts)
+			}
+
+			// Check that all expected contexts are present
+			contextSet := sets.New[string](policy.RequiredContexts...)
+			for _, expected := range tc.expectedContextsContain {
+				if !contextSet.Has(expected) {
+					t.Errorf("Expected context %q to be in required contexts, but it was not found. Got: %v", expected, policy.RequiredContexts)
+				}
 			}
 		})
 	}
@@ -1531,7 +1748,7 @@ func TestGitHubMergeBlocksPolicy(t *testing.T) {
 			mergeStateStatus: "BLOCKED",
 			tideConfig: &config.Tide{
 				GitHubMergeBlocksPolicyMap: map[string]config.GitHubMergeBlocksPolicy{
-					"test-org":             config.GitHubMergeBlocksBlock,
+					"test-org":              config.GitHubMergeBlocksBlock,
 					"test-org/special-repo": config.GitHubMergeBlocksIgnore,
 				},
 			},
@@ -1544,7 +1761,7 @@ func TestGitHubMergeBlocksPolicy(t *testing.T) {
 			mergeStateStatus: "BLOCKED",
 			tideConfig: &config.Tide{
 				GitHubMergeBlocksPolicyMap: map[string]config.GitHubMergeBlocksPolicy{
-					"test-org":             config.GitHubMergeBlocksPermit,
+					"test-org":              config.GitHubMergeBlocksPermit,
 					"test-org/special-repo": config.GitHubMergeBlocksBlock,
 				},
 			},
