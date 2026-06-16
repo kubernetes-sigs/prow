@@ -1385,6 +1385,7 @@ type Refs struct {
 	//
 	// In presubmit jobs the version always comes from the repository
 	// for which the job is defined.
+	// +optional
 	Auxiliary bool `json:"auxiliary,omitempty"`
 
 	// clone_uri is the URI that is used to clone the

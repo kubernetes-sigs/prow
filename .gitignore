@@ -29,6 +29,7 @@ go.work.sum
 *.dll
 *.so
 *.dylib
+hack/tools/tmp/
 cmd/branchprotector/branchprotector
 cmd/build/build
 cmd/checkconfig/checkconfig

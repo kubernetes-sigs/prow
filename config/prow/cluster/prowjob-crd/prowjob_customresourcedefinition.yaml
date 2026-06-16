@@ -1624,7 +1624,7 @@ spec:
                   properties:
                     auxiliary:
                       description: |-
-                        Auxiliary indicates that the repository really only provides
+                        auxiliary indicates that the repository really only provides
                         auxiliary files for the job and is not the main repository that is
                         being tested.
                         This is relevant when determining which version to record in a
@@ -9754,7 +9754,7 @@ spec:
                 properties:
                   auxiliary:
                     description: |-
-                      Auxiliary indicates that the repository really only provides
+                      auxiliary indicates that the repository really only provides
                       auxiliary files for the job and is not the main repository that is
                       being tested.
                       This is relevant when determining which version to record in a
