@@ -98,6 +98,84 @@ func TestAddExpiringToken(t *testing.T) {
 	}
 }
 
+func TestStartResetsExpiringTokens(t *testing.T) {
+	a := &agent{
+		secretsMap: make(map[string]secretReloader),
+		expiringTokens: map[string]time.Time{
+			"stale-token": time.Date(2099, 1, 1, 0, 0, 0, 0, time.UTC),
+		},
+		ReloadingCensorer: secretutil.NewCensorer(),
+	}
+
+	if err := a.Start(nil); err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+
+	if len(a.expiringTokens) != 0 {
+		t.Fatalf("expiringTokens after Start = %v, want empty map", a.expiringTokens)
+	}
+}
+
+func TestExpiringTokenCensoring(t *testing.T) {
+	token := "ghs_secret123"
+	input := []byte("https://x-access-token:" + token + "@github.com/org/repo")
+	censored := "https://x-access-token:" + "XXXXXXXXXXXXX" + "@github.com/org/repo"
+
+	t.Run("active token is censored", func(t *testing.T) {
+		a := &agent{
+			secretsMap:        make(map[string]secretReloader),
+			expiringTokens:    make(map[string]time.Time),
+			ReloadingCensorer: secretutil.NewCensorer(),
+		}
+		a.addExpiringToken(token, time.Date(2099, 1, 1, 0, 0, 0, 0, time.UTC))
+
+		got := a.Censor(input)
+		if string(got) != censored {
+			t.Fatalf("Censor() = %q, want %q", string(got), censored)
+		}
+	})
+
+	t.Run("expired token is not censored", func(t *testing.T) {
+		a := &agent{
+			secretsMap:        make(map[string]secretReloader),
+			expiringTokens:    make(map[string]time.Time),
+			ReloadingCensorer: secretutil.NewCensorer(),
+		}
+		a.addExpiringToken(token, time.Date(1980, 1, 1, 0, 0, 0, 0, time.UTC))
+
+		got := a.Censor(input)
+		if string(got) != string(input) {
+			t.Fatalf("Censor() = %q, want %q (unchanged)", string(got), string(input))
+		}
+	})
+}
+
+func TestGetSecretsIncludesExpiringTokens(t *testing.T) {
+	dir := t.TempDir()
+	secretPath := filepath.Join(dir, "secret")
+	if err := os.WriteFile(secretPath, []byte("file-secret"), 0644); err != nil {
+		t.Fatalf("failed to write secret file: %v", err)
+	}
+
+	a := &agent{
+		secretsMap:        make(map[string]secretReloader),
+		expiringTokens:    make(map[string]time.Time),
+		ReloadingCensorer: secretutil.NewCensorer(),
+	}
+	if err := a.Add(secretPath); err != nil {
+		t.Fatalf("Add failed: %v", err)
+	}
+	a.addExpiringToken("expiring-token", time.Date(2099, 1, 1, 0, 0, 0, 0, time.UTC))
+
+	secrets := a.getSecrets()
+	if !secrets.Has("file-secret") {
+		t.Errorf("getSecrets() missing file-based secret")
+	}
+	if !secrets.Has("expiring-token") {
+		t.Errorf("getSecrets() missing expiring token")
+	}
+}
+
 func TestCensoringFormatter(t *testing.T) {
 	var err error
 	secret1, err := os.CreateTemp("", "")
