@@ -58,6 +58,7 @@ require (
 	github.com/tektoncd/pipeline v1.6.2
 	github.com/yuin/goldmark v1.8.2
 	go.uber.org/zap v1.27.0
+	go.yaml.in/yaml/v3 v3.0.4
 	go4.org v0.0.0-20201209231011-d4a079459e60
 	gocloud.dev v0.40.0
 	golang.org/x/lint v0.0.0-20241112194109-818c5a804067
@@ -74,7 +75,6 @@ require (
 	google.golang.org/protobuf v1.36.10
 	gopkg.in/fsnotify.v1 v1.4.7
 	gopkg.in/ini.v1 v1.67.0
-	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/api v0.33.11
 	k8s.io/apimachinery v0.33.11
 	k8s.io/client-go v0.33.11
@@ -231,5 +231,6 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.43.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
 )

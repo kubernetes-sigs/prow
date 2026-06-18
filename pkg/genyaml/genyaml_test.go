@@ -24,7 +24,7 @@ import (
 	"strings"
 	"testing"
 
-	yaml3 "gopkg.in/yaml.v3"
+	yaml3 "go.yaml.in/yaml/v3"
 
 	simplealiases "sigs.k8s.io/prow/pkg/genyaml/testdata/alias_simple_types"
 	aliases "sigs.k8s.io/prow/pkg/genyaml/testdata/alias_types"
@@ -256,7 +256,6 @@ func TestAddPath(t *testing.T) {
 
 			expectedComments := readFile(t, "json")
 			actualComments, err := json.MarshalIndent(cm.comments, "", "  ")
-
 			if err != nil {
 				t.Errorf("Unexpected error generating JSON from comments: %v.", err)
 			}
@@ -268,7 +267,6 @@ func TestAddPath(t *testing.T) {
 			}
 		})
 	}
-
 }
 
 func TestGenYAML(t *testing.T) {
@@ -465,7 +463,6 @@ string: string
 			}
 
 			actualYaml, err := cm.GenYaml(test.structObj)
-
 			if err != nil {
 				t.Errorf("Unexpected error generating YAML from struct: %v.", err)
 			}

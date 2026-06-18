@@ -80,7 +80,7 @@ import (
 	"unicode"
 
 	"github.com/clarketm/json"
-	yaml3 "gopkg.in/yaml.v3"
+	yaml3 "go.yaml.in/yaml/v3"
 	"k8s.io/apimachinery/pkg/util/sets"
 )
 
