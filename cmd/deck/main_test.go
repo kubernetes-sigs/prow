@@ -485,6 +485,36 @@ func TestHandleProwJobsWithFilter(t *testing.T) {
 		},
 		{
 			ObjectMeta: metav1.ObjectMeta{
+				Name: "extrarefs-org-match",
+			},
+			Spec: prowapi.ProwJobSpec{
+				Agent: prowapi.KubernetesAgent,
+				Job:   "periodic-job",
+				ExtraRefs: []prowapi.Refs{
+					{
+						Org:  "amazingk8s",
+						Repo: "testinfra",
+					},
+				},
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "extrarefs-different-org",
+			},
+			Spec: prowapi.ProwJobSpec{
+				Agent: prowapi.KubernetesAgent,
+				Job:   "periodic-job",
+				ExtraRefs: []prowapi.Refs{
+					{
+						Org:  "otherk8s",
+						Repo: "testinfra",
+					},
+				},
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
 				Name: "noowner",
 			},
 			Spec: prowapi.ProwJobSpec{
@@ -530,7 +560,7 @@ func TestHandleProwJobsWithFilter(t *testing.T) {
 	testCases := []testCase{
 		{
 			Name:         "no filter should return all the tests",
-			ExpectedJobs: []string{"fullref", "nullref", "noowner", "multiowner", "differentorg"},
+			ExpectedJobs: []string{"fullref", "nullref", "noowner", "multiowner", "differentorg", "extrarefs-org-match", "extrarefs-different-org"},
 		},
 		{
 			Name:         "owner filter should return just jobs with the right owner",
@@ -549,6 +579,22 @@ func TestHandleProwJobsWithFilter(t *testing.T) {
 			Org:          "otherk8s",
 			Repo:         "pizzacontroller",
 			ExpectedJobs: []string{"differentorg"},
+		},
+		{
+			Name:         "org filter should match jobs with ExtraRefs",
+			Org:          "amazingk8s",
+			ExpectedJobs: []string{"fullref", "noowner", "multiowner", "extrarefs-org-match"},
+		},
+		{
+			Name:         "repo filter should match jobs with ExtraRefs",
+			Repo:         "testinfra",
+			ExpectedJobs: []string{"extrarefs-org-match", "extrarefs-different-org"},
+		},
+		{
+			Name:         "org and repo filter should match jobs with ExtraRefs",
+			Org:          "otherk8s",
+			Repo:         "testinfra",
+			ExpectedJobs: []string{"extrarefs-different-org"},
 		},
 	}
 
@@ -581,7 +627,9 @@ func TestHandleProwJobsWithFilter(t *testing.T) {
 			t.Errorf("Bad error code: %d", rr.Code)
 		}
 		resp := rr.Result()
-		defer resp.Body.Close()
+		if err := resp.Body.Close(); err != nil {
+			t.Errorf("Error closing the body stream: %v", err)
+		}
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			t.Errorf("Error reading response body: %v", err)

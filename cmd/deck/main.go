@@ -32,6 +32,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -781,35 +782,49 @@ func handleNotCached(next http.Handler) http.HandlerFunc {
 	}
 }
 
+// handleProwJobs returns an http.HandlerFunc that serves the /prowjobs.js endpoint.
+// It accepts the following optional query parameters:
+//
+// - omit: comma-separated list of fields to strip from each job in the response.
+// - org: filter jobs to those whose Spec.Refs.Org matches exactly (case-sensitive).
+// - repo: filter jobs to those whose Spec.Refs.Repo matches exactly (case-sensitive).
+// - owner: filter jobs to those with a pull in Spec.Refs.Pulls whose Author matches exactly (case-sensitive)
 func handleProwJobs(ja *jobs.JobAgent, log *logrus.Entry) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		setHeadersNoCaching(w)
 		jobs := ja.ProwJobs()
 		omit := r.URL.Query().Get("omit")
-		omitSet := sets.New(strings.Split(omit, ",")...)
+		omitSet := sets.New[string](strings.Split(omit, ",")...)
 
 		org := r.URL.Query().Get("org")
 		repo := r.URL.Query().Get("repo")
 		owner := r.URL.Query().Get("owner")
 
 		ownerMatch := func(job prowapi.ProwJob, owner string) bool {
+			// Periodic jobs do not have a Pull request owner
 			if job.Spec.Refs == nil {
 				return false
 			}
-			for _, pull := range job.Spec.Refs.Pulls {
-				if pull.Author == owner {
-					return true
-				}
+			return slices.ContainsFunc(job.Spec.Refs.Pulls, func(pull prowapi.Pull) bool {
+				return pull.Author == owner
+			})
+		}
+
+		refsMatch := func(job prowapi.ProwJob, value string, field func(prowapi.Refs) string) bool {
+			if job.Spec.Refs == nil {
+				return slices.ContainsFunc(job.Spec.ExtraRefs, func(ref prowapi.Refs) bool {
+					return field(ref) == value
+				})
 			}
-			return false
+			return field(*job.Spec.Refs) == value
 		}
 
 		finalJobs := make([]prowapi.ProwJob, 0)
 		for i := range jobs {
-			if org != "" && (jobs[i].Spec.Refs == nil || jobs[i].Spec.Refs.Org != org) {
+			if org != "" && !refsMatch(jobs[i], org, func(r prowapi.Refs) string { return r.Org }) {
 				continue
 			}
-			if repo != "" && (jobs[i].Spec.Refs == nil || jobs[i].Spec.Refs.Repo != repo) {
+			if repo != "" && !refsMatch(jobs[i], repo, func(r prowapi.Refs) string { return r.Repo }) {
 				continue
 			}
 			if owner != "" && !ownerMatch(jobs[i], owner) {
