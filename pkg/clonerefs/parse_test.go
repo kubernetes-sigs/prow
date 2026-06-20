@@ -163,7 +163,7 @@ func TestParseRefs(t *testing.T) {
 		}
 
 		if !testCase.expectErr && !reflect.DeepEqual(actual, testCase.expected) {
-			t.Errorf("%s: incorrect refs parsed:\n%s", testCase.name, diff.ObjectReflectDiff(testCase.expected, actual))
+			t.Errorf("%s: incorrect refs parsed:\n%s", testCase.name, diff.Diff(testCase.expected, actual))
 		}
 	}
 }

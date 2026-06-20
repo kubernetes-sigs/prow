@@ -9533,7 +9533,7 @@ func TestGetAndCheckRefs(t *testing.T) {
 					t.Errorf("Expected baseSHA '%v', got '%v'", tc.expected.baseSHA, baseSHA)
 				}
 				if !reflect.DeepEqual(tc.expected.headSHAs, headSHAs) {
-					t.Errorf("headSHAs do not match:\n%s", diff.ObjectReflectDiff(tc.expected.headSHAs, headSHAs))
+					t.Errorf("headSHAs do not match:\n%s", diff.Diff(tc.expected.headSHAs, headSHAs))
 				}
 			} else {
 				if err == nil {

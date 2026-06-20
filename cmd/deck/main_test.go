@@ -368,7 +368,7 @@ func TestHandleProwJobs(t *testing.T) {
 		Containers: []coreapi.Container{{}, {}},
 	}
 	if !equality.Semantic.DeepEqual(res.Items[0].Spec.PodSpec, emptyPodspec) {
-		t.Errorf("Failed to omit podspec correctly\n%s", diff.ObjectReflectDiff(res.Items[0].Spec.PodSpec, emptyPodspec))
+		t.Errorf("Failed to omit podspec correctly\n%s", diff.Diff(res.Items[0].Spec.PodSpec, emptyPodspec))
 	}
 
 	if res.Items[1].Spec.PodSpec != nil {

@@ -109,7 +109,7 @@ func TestMergeConfigs(t *testing.T) {
 			case tc.err:
 				t.Error("failed to receive an error")
 			case !equality.Semantic.DeepEqual(actual, tc.expected):
-				t.Errorf("configs do not match:\n%s", diff.ObjectReflectDiff(tc.expected, actual))
+				t.Errorf("configs do not match:\n%s", diff.Diff(tc.expected, actual))
 			}
 		})
 	}
