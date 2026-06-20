@@ -66,7 +66,7 @@ type gitHubClient interface {
 	AddLabel(owner, repo string, number int, label string) error
 	RemoveLabel(owner, repo string, number int, label string) error
 	GetPullRequest(owner, repo string, number int) (*github.PullRequest, error)
-	FindIssues(query, sort string, asc bool) ([]github.Issue, error)
+	FindIssuesWithOrg(org, query, sort string, asc bool) ([]github.Issue, error)
 	GetIssueLabels(org, repo string, number int) ([]github.Label, error)
 	GetCombinedStatus(org, repo, ref string) (*github.CombinedStatus, error)
 }
@@ -102,7 +102,7 @@ func handle(gc gitHubClient, log *logrus.Entry, se github.StatusEvent) error {
 	var issues []github.Issue
 	var err error
 	for range maxRetries {
-		issues, err = gc.FindIssues(fmt.Sprintf("%s repo:%s/%s type:pr state:open", se.SHA, org, repo), "", false)
+		issues, err = gc.FindIssuesWithOrg(org, fmt.Sprintf("%s repo:%s/%s type:pr state:open", se.SHA, org, repo), "", false)
 		if err != nil {
 			return fmt.Errorf("error searching for issues matching commit: %w", err)
 		}
