@@ -20,6 +20,7 @@ import (
 	"math"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -142,9 +143,18 @@ func traceHandlerWithCustomTimer(simplifier simplifypath.Simplifier, httpRequest
 			trw := &traceResponseWriter{ResponseWriter: w, statusCode: http.StatusOK}
 			h.ServeHTTP(trw, r)
 			latency := timeSince(t)
-			labels := prometheus.Labels{"path": simplifier.Simplify(r.URL.Path), "method": r.Method, "status": strconv.Itoa(trw.statusCode), "user_agent": r.Header.Get("User-Agent")}
+			labels := prometheus.Labels{
+				"path":       validMetricLabel(simplifier.Simplify(r.URL.Path)),
+				"method":     r.Method,
+				"status":     strconv.Itoa(trw.statusCode),
+				"user_agent": validMetricLabel(r.Header.Get("User-Agent")),
+			}
 			httpRequestDuration.With(labels).Observe(latency.Seconds())
 			httpResponseSize.With(labels).Observe(float64(trw.size))
 		})
 	}
+}
+
+func validMetricLabel(value string) string {
+	return strings.ToValidUTF8(value, "")
 }
