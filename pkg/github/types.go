@@ -211,7 +211,7 @@ const (
 
 // GenericEvent is a lightweight struct containing just Sender, Organization and Repo as
 // they are allWebhook payload object common properties:
-// https://developer.github.com/webhooks/event-payloads/#webhook-payload-object-common-properties
+// https://docs.github.com/en/webhooks/webhook-events-and-payloads#webhook-payload-object-common-properties
 type GenericEvent struct {
 	Sender User         `json:"sender"`
 	Org    Organization `json:"organization"`

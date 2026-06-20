@@ -62,8 +62,9 @@ func ValidateWebhook(w http.ResponseWriter, r *http.Request, tokenGenerator func
 		return "", "", nil, false, http.StatusInternalServerError
 	}
 	// Validate the payload with our HMAC secret.
-	if !ValidatePayload(payload, sig, tokenGenerator) {
-		responseHTTPError(w, http.StatusForbidden, "403 Forbidden: Invalid X-Hub-Signature-256")
+	valid, message := ValidatePayload(payload, sig, tokenGenerator)
+	if !valid {
+		responseHTTPError(w, http.StatusForbidden, "403 Forbidden: Invalid X-Hub-Signature-256 - "+message)
 		return "", "", nil, false, http.StatusForbidden
 	}
 
