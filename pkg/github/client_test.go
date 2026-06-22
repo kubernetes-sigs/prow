@@ -2255,11 +2255,11 @@ func TestEditTeam(t *testing.T) {
 	}
 }
 
-func TestListTeamMembers(t *testing.T) {
-	ts := simpleTestServer(t, "/teams/1/members", []TeamMember{{Login: "foo"}}, http.StatusOK)
+func TestListTeamMembersByID(t *testing.T) {
+	ts := simpleTestServer(t, "/orgs/orgName/team/1/members", []TeamMember{{Login: "foo"}}, http.StatusOK)
 	defer ts.Close()
 	c := getClient(ts.URL)
-	teamMembers, err := c.ListTeamMembers("orgName", 1, RoleAll)
+	teamMembers, err := c.ListTeamMembersByID("orgName", 1, RoleAll)
 	if err != nil {
 		t.Errorf("Didn't expect error: %v", err)
 	} else if len(teamMembers) != 1 {
@@ -3836,7 +3836,6 @@ func TestCollaboratorMethodsDryRun(t *testing.T) {
 		t.Errorf("Expected 0 API calls in dry-run mode, but got %d", callCount)
 	}
 }
-
 
 func TestGetPendingApprovalActionRuns(t *testing.T) {
 	const (
