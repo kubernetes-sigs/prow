@@ -95,9 +95,9 @@ func TestValidatePayload(t *testing.T) {
 		},
 	}
 	for _, tc := range testcases {
-		res := ValidatePayload([]byte(tc.payload), tc.sig, tc.tokenGenerator)
-		if res != tc.valid {
-			t.Errorf("Wrong validation for the test %q: expected %t but got %t", tc.name, tc.valid, res)
+		valid, msg := ValidatePayload([]byte(tc.payload), tc.sig, tc.tokenGenerator)
+		if valid != tc.valid {
+			t.Errorf("Wrong validation for the test %q: expected %t but got %t, message: %s", tc.name, tc.valid, valid, msg)
 		}
 	}
 }
