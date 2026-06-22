@@ -32,7 +32,7 @@ import (
 	"github.com/go-git/go-git/v5/plumbing"
 	gitmemory "github.com/go-git/go-git/v5/storage/memory"
 	"github.com/sirupsen/logrus"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 )
