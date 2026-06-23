@@ -652,6 +652,62 @@ func TestDeleteRef(t *testing.T) {
 	}
 }
 
+func TestCreateRef(t *testing.T) {
+	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("Bad method: %s", r.Method)
+		}
+		if r.URL.Path != "/repos/k8s/kuber/git/refs" {
+			t.Errorf("Bad request path: %s", r.URL.Path)
+		}
+		var body map[string]interface{}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		if diff := cmp.Diff(map[string]interface{}{"ref": "refs/heads/my-feature", "sha": "abcde"}, body); diff != "" {
+			t.Errorf("unexpected request body (-want +got):\n%s", diff)
+		}
+		w.WriteHeader(http.StatusCreated)
+	}))
+	defer ts.Close()
+	if err := getClient(ts.URL).CreateRef("k8s", "kuber", "refs/heads/my-feature", "abcde"); err != nil {
+		t.Fatalf("CreateRef: %v", err)
+	}
+}
+
+func TestUpdateRef(t *testing.T) {
+	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPatch {
+			t.Errorf("Bad method: %s", r.Method)
+		}
+		if r.URL.Path != "/repos/k8s/kuber/git/refs/heads/my-feature" {
+			t.Errorf("Bad request path: %s", r.URL.Path)
+		}
+		var body map[string]interface{}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		if diff := cmp.Diff(map[string]interface{}{"force": false, "sha": "abcde"}, body); diff != "" {
+			t.Errorf("unexpected request body (-want +got):\n%s", diff)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts.Close()
+	if err := getClient(ts.URL).UpdateRef("k8s", "kuber", "heads/my-feature", "abcde", false); err != nil {
+		t.Fatalf("UpdateRef: %v", err)
+	}
+}
+
+func TestIsUnprocessableEntity(t *testing.T) {
+	err := requestError{StatusCode: http.StatusUnprocessableEntity}
+	if !IsUnprocessableEntity(fmt.Errorf("wrapped: %w", err)) {
+		t.Fatal("expected wrapped 422 error to be recognized")
+	}
+	if IsUnprocessableEntity(requestError{StatusCode: http.StatusBadRequest}) {
+		t.Fatal("did not expect 400 error to be recognized as 422")
+	}
+}
+
 func TestListFileCommits(t *testing.T) {
 	githubResponse := []byte(`
 [

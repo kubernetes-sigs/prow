@@ -158,6 +158,11 @@ type CommitClient interface {
 	GetCombinedStatus(org, repo, ref string) (*CombinedStatus, error)
 	ListCheckRuns(org, repo, ref string) (*CheckRunList, error)
 	GetRef(org, repo, ref string) (string, error)
+	GetRefWithContext(ctx context.Context, org, repo, ref string) (string, error)
+	CreateRef(org, repo, ref, sha string) error
+	CreateRefWithContext(ctx context.Context, org, repo, ref, sha string) error
+	UpdateRef(org, repo, ref, sha string, force bool) error
+	UpdateRefWithContext(ctx context.Context, org, repo, ref, sha string, force bool) error
 	DeleteRef(org, repo, ref string) error
 	ListFileCommits(org, repo, path string) ([]RepositoryCommit, error)
 	CreateCheckRun(org, repo string, checkRun CheckRun) (int64, error)
@@ -889,6 +894,21 @@ func IsNotFound(err error) bool {
 		}
 	}
 	return false
+}
+
+// IsUnprocessableEntity reports whether GitHub rejected a semantically invalid
+// request, such as a non-fast-forward ref update.
+func IsUnprocessableEntity(err error) bool {
+	if err == nil {
+		return false
+	}
+	var requestErr requestError
+	return errors.As(err, &requestErr) && requestErr.StatusCode == http.StatusUnprocessableEntity
+}
+
+// NewUnprocessableEntity returns an unprocessable-entity error for tests.
+func NewUnprocessableEntity() error {
+	return requestError{StatusCode: http.StatusUnprocessableEntity}
 }
 
 // NewForbidden returns a forbiddenError which may be useful for tests
@@ -3486,11 +3506,16 @@ func (c *client) ReopenPullRequest(org, repo string, number int) error {
 // The gitbub api does prefix matching and might return multiple results,
 // in which case we will return a GetRefTooManyResultsError
 func (c *client) GetRef(org, repo, ref string) (string, error) {
+	return c.GetRefWithContext(context.Background(), org, repo, ref)
+}
+
+// GetRefWithContext returns the SHA of the given ref, such as "heads/master".
+func (c *client) GetRefWithContext(ctx context.Context, org, repo, ref string) (string, error) {
 	durationLogger := c.log("GetRef", org, repo, ref)
 	defer durationLogger()
 
 	res := GetRefResponse{}
-	_, err := c.request(&request{
+	_, err := c.requestWithContext(ctx, &request{
 		method:    http.MethodGet,
 		path:      fmt.Sprintf("/repos/%s/%s/git/refs/%s", org, repo, ref),
 		org:       org,
@@ -3510,6 +3535,53 @@ func (c *client) GetRef(org, repo, ref string) (string, error) {
 		return "", GetRefTooManyResultsError{org: org, repo: repo, ref: ref, resultsRefs: res.RefNames()}
 	}
 	return res[0].Object.SHA, nil
+}
+
+// CreateRef creates a ref at the given SHA. The ref must include its namespace,
+// for example "refs/heads/my-branch".
+func (c *client) CreateRef(org, repo, ref, sha string) error {
+	return c.CreateRefWithContext(context.Background(), org, repo, ref, sha)
+}
+
+// CreateRefWithContext creates a ref at the given SHA.
+func (c *client) CreateRefWithContext(ctx context.Context, org, repo, ref, sha string) error {
+	durationLogger := c.log("CreateRef", org, repo, ref, sha)
+	defer durationLogger()
+
+	_, err := c.requestWithContext(ctx, &request{
+		method: http.MethodPost,
+		path:   fmt.Sprintf("/repos/%s/%s/git/refs", org, repo),
+		org:    org,
+		requestBody: map[string]string{
+			"ref": ref,
+			"sha": sha,
+		},
+		exitCodes: []int{http.StatusCreated},
+	}, nil)
+	return err
+}
+
+// UpdateRef updates a ref to the given SHA.
+func (c *client) UpdateRef(org, repo, ref, sha string, force bool) error {
+	return c.UpdateRefWithContext(context.Background(), org, repo, ref, sha, force)
+}
+
+// UpdateRefWithContext updates a ref to the given SHA.
+func (c *client) UpdateRefWithContext(ctx context.Context, org, repo, ref, sha string, force bool) error {
+	durationLogger := c.log("UpdateRef", org, repo, ref, sha, force)
+	defer durationLogger()
+
+	_, err := c.requestWithContext(ctx, &request{
+		method: http.MethodPatch,
+		path:   fmt.Sprintf("/repos/%s/%s/git/refs/%s", org, repo, ref),
+		org:    org,
+		requestBody: map[string]interface{}{
+			"sha":   sha,
+			"force": force,
+		},
+		exitCodes: []int{http.StatusOK},
+	}, nil)
+	return err
 }
 
 type GetRefTooManyResultsError struct {

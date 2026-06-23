@@ -104,6 +104,11 @@ type FakeClient struct {
 	RemoteDirectories map[string]map[string][]github.DirectoryContent
 
 	// A list of refs that got deleted via DeleteRef
+	RefsCreated []struct{ Org, Repo, Ref, SHA string }
+	RefsUpdated []struct {
+		Org, Repo, Ref, SHA string
+		Force               bool
+	}
 	RefsDeleted []struct{ Org, Repo, Ref string }
 
 	// A map of repo names to projects
@@ -495,6 +500,35 @@ func (f *FakeClient) GetPullRequestChanges(org, repo string, number int) ([]gith
 // GetRef returns the hash of a ref.
 func (f *FakeClient) GetRef(owner, repo, ref string) (string, error) {
 	return TestRef, nil
+}
+
+func (f *FakeClient) GetRefWithContext(_ context.Context, owner, repo, ref string) (string, error) {
+	return f.GetRef(owner, repo, ref)
+}
+
+func (f *FakeClient) CreateRef(owner, repo, ref, sha string) error {
+	return f.CreateRefWithContext(context.Background(), owner, repo, ref, sha)
+}
+
+func (f *FakeClient) CreateRefWithContext(_ context.Context, owner, repo, ref, sha string) error {
+	f.lock.Lock()
+	defer f.lock.Unlock()
+	f.RefsCreated = append(f.RefsCreated, struct{ Org, Repo, Ref, SHA string }{owner, repo, ref, sha})
+	return nil
+}
+
+func (f *FakeClient) UpdateRef(owner, repo, ref, sha string, force bool) error {
+	return f.UpdateRefWithContext(context.Background(), owner, repo, ref, sha, force)
+}
+
+func (f *FakeClient) UpdateRefWithContext(_ context.Context, owner, repo, ref, sha string, force bool) error {
+	f.lock.Lock()
+	defer f.lock.Unlock()
+	f.RefsUpdated = append(f.RefsUpdated, struct {
+		Org, Repo, Ref, SHA string
+		Force               bool
+	}{owner, repo, ref, sha, force})
+	return nil
 }
 
 // DeleteRef returns an error indicating if deletion of the given ref was successful
