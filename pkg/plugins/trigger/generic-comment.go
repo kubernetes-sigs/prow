@@ -23,6 +23,7 @@ import (
 	"sigs.k8s.io/prow/pkg/kube"
 
 	"k8s.io/apimachinery/pkg/util/sets"
+	prowapi "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 	"sigs.k8s.io/prow/pkg/config"
 	"sigs.k8s.io/prow/pkg/github"
 	"sigs.k8s.io/prow/pkg/labels"
@@ -203,7 +204,11 @@ func handleGenericComment(c Client, cp commentPruner, trigger plugins.Trigger, g
 		})
 	}
 
-	return RunRequestedWithLabels(c, pr, baseSHA, toTest, gc.GUID, additionalLabels)
+	triggerComment := &prowapi.TriggerComment{HTMLURL: gc.HTMLURL}
+	if gc.CommentID != nil {
+		triggerComment.ID = *gc.CommentID
+	}
+	return RunRequestedWithLabels(c, pr, baseSHA, toTest, gc.GUID, additionalLabels, triggerComment)
 }
 
 func HonorOkToTest(trigger plugins.Trigger) bool {
