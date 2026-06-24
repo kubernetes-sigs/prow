@@ -84,10 +84,21 @@ func gatherOptions() options {
 }
 
 type requirements struct {
-	Org     string
-	Repo    string
-	Branch  string
+	Org    string
+	Repo   string
+	Branch string
+	// Request is the main branch protection PUT payload.
 	Request *github.BranchProtectionRequest
+	// Separate holds settings managed via dedicated GitHub API endpoints
+	// rather than the main branch protection PUT.
+	Separate *separateRequests
+}
+
+// separateRequests groups branch protection settings that GitHub manages
+// through individual API endpoints (POST/DELETE) rather than the main
+// branch protection PUT body.
+type separateRequests struct {
+	RequireSignedCommits *bool
 }
 
 // Errors holds a list of errors, including a method to concurrently append.
@@ -159,6 +170,8 @@ type client interface {
 	GetBranchProtection(org, repo, branch string) (*github.BranchProtection, error)
 	RemoveBranchProtection(org, repo, branch string) error
 	UpdateBranchProtection(org, repo, branch string, config github.BranchProtectionRequest) error
+	EnableCommitSignProtection(org, repo, branch string) error
+	DisableCommitSignProtection(org, repo, branch string) error
 	GetBranches(org, repo string, onlyProtected bool) ([]github.Branch, error)
 	GetRepo(owner, name string) (github.FullRepo, error)
 	GetRepos(org string, user bool) ([]github.Repo, error)
@@ -191,8 +204,26 @@ func (p *protector) configureBranches() {
 		if err := p.client.UpdateBranchProtection(u.Org, u.Repo, u.Branch, *u.Request); err != nil {
 			p.errors.add(fmt.Errorf("update %s/%s=%s protection to %v failed: %w", u.Org, u.Repo, u.Branch, *u.Request, err))
 		}
+
+		if u.Separate != nil {
+			p.applySeparateRequests(u.Org, u.Repo, u.Branch, u.Separate)
+		}
 	}
 	p.done <- p.errors.errs
+}
+
+func (p *protector) applySeparateRequests(org, repo, branch string, sep *separateRequests) {
+	if sep.RequireSignedCommits != nil {
+		if *sep.RequireSignedCommits {
+			if err := p.client.EnableCommitSignProtection(org, repo, branch); err != nil {
+				p.errors.add(fmt.Errorf("enable %s/%s=%s commit sign protection failed: %w", org, repo, branch, err))
+			}
+		} else {
+			if err := p.client.DisableCommitSignProtection(org, repo, branch); err != nil {
+				p.errors.add(fmt.Errorf("disable %s/%s=%s commit sign protection failed: %w", org, repo, branch, err))
+			}
+		}
+	}
 }
 
 // protect protects branches specified in the presubmit and branch-protection config sections.
@@ -502,16 +533,24 @@ func (p *protector) UpdateBranch(orgName, repo string, branchName string, branch
 		return fmt.Errorf("get current branch protection: %w", err)
 	}
 
-	if equalBranchProtections(currentBP, req) {
+	var sep *separateRequests
+	if bp.RequireSignedCommits != nil {
+		sep = &separateRequests{
+			RequireSignedCommits: bp.RequireSignedCommits,
+		}
+	}
+
+	if equalBranchProtections(currentBP, req) && equalSeparateRequests(currentBP, sep) {
 		logrus.Debugf("%s/%s=%s: current branch protection matches policy, skipping", orgName, repo, branchName)
 		return nil
 	}
 
 	p.updates <- requirements{
-		Org:     orgName,
-		Repo:    repo,
-		Branch:  branchName,
-		Request: req,
+		Org:      orgName,
+		Repo:     repo,
+		Branch:   branchName,
+		Request:  req,
+		Separate: sep,
 	}
 	return nil
 }
@@ -576,6 +615,19 @@ func equalAllowDeletions(state github.AllowDeletions, request bool) bool {
 
 func equalAllowForcePushes(state github.AllowForcePushes, request bool) bool {
 	return state.Enabled == request
+}
+
+func equalSeparateRequests(state *github.BranchProtection, sep *separateRequests) bool {
+	if sep == nil {
+		return true
+	}
+	if sep.RequireSignedCommits != nil {
+		currentSigned := state != nil && state.RequiredSignatures.Enabled
+		if currentSigned != *sep.RequireSignedCommits {
+			return false
+		}
+	}
+	return true
 }
 
 func equalAdminEnforcement(state github.EnforceAdmins, request *bool) bool {

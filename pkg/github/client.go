@@ -178,6 +178,8 @@ type RepositoryClient interface {
 	GetBranchProtection(org, repo, branch string) (*BranchProtection, error)
 	RemoveBranchProtection(org, repo, branch string) error
 	UpdateBranchProtection(org, repo, branch string, config BranchProtectionRequest) error
+	EnableCommitSignProtection(org, repo, branch string) error
+	DisableCommitSignProtection(org, repo, branch string) error
 	AddRepoLabel(org, repo, label, description, color string) error
 	UpdateRepoLabel(org, repo, label, newName, description, color string) error
 	DeleteRepoLabel(org, repo, label string) error
@@ -2909,6 +2911,38 @@ func (c *client) UpdateBranchProtection(org, repo, branch string, config BranchP
 		org:         org,
 		requestBody: config,
 		exitCodes:   []int{200},
+	}, nil)
+	return err
+}
+
+// EnableCommitSignProtection enables required signed commits for a branch.
+//
+// See https://docs.github.com/en/rest/branches/branch-protection#create-commit-signature-protection
+func (c *client) EnableCommitSignProtection(org, repo, branch string) error {
+	durationLogger := c.log("EnableCommitSignProtection", org, repo, branch)
+	defer durationLogger()
+
+	_, err := c.request(&request{
+		method:    http.MethodPost,
+		path:      fmt.Sprintf("/repos/%s/%s/branches/%s/protection/required_signatures", org, repo, branch),
+		org:       org,
+		exitCodes: []int{200},
+	}, nil)
+	return err
+}
+
+// DisableCommitSignProtection disables required signed commits for a branch.
+//
+// See https://docs.github.com/en/rest/branches/branch-protection#delete-commit-signature-protection
+func (c *client) DisableCommitSignProtection(org, repo, branch string) error {
+	durationLogger := c.log("DisableCommitSignProtection", org, repo, branch)
+	defer durationLogger()
+
+	_, err := c.request(&request{
+		method:    http.MethodDelete,
+		path:      fmt.Sprintf("/repos/%s/%s/branches/%s/protection/required_signatures", org, repo, branch),
+		org:       org,
+		exitCodes: []int{204},
 	}, nil)
 	return err
 }

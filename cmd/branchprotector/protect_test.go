@@ -81,14 +81,15 @@ func TestOptions_Validate(t *testing.T) {
 }
 
 type fakeClient struct {
-	repos             map[string][]github.Repo
-	branches          map[string][]github.Branch
-	deleted           map[string]bool
-	updated           map[string]github.BranchProtectionRequest
-	branchProtections map[string]github.BranchProtection
-	appInstallations  []github.AppInstallation
-	collaborators     []github.User
-	teams             []github.Team
+	repos                map[string][]github.Repo
+	branches             map[string][]github.Branch
+	deleted              map[string]bool
+	updated              map[string]github.BranchProtectionRequest
+	branchProtections    map[string]github.BranchProtection
+	appInstallations     []github.AppInstallation
+	collaborators        []github.User
+	teams                []github.Team
+	signedCommitsEnabled map[string]bool
 }
 
 func (c fakeClient) GetRepo(org string, repo string) (github.FullRepo, error) {
@@ -162,6 +163,30 @@ func (c *fakeClient) RemoveBranchProtection(org, repo, branch string) error {
 	}
 	ctx := org + "/" + repo + "=" + branch
 	c.deleted[ctx] = true
+	return nil
+}
+
+func (c *fakeClient) EnableCommitSignProtection(org, repo, branch string) error {
+	if branch == "error" {
+		return errors.New("failed to enable commit sign protection")
+	}
+	if c.signedCommitsEnabled == nil {
+		c.signedCommitsEnabled = map[string]bool{}
+	}
+	ctx := org + "/" + repo + "=" + branch
+	c.signedCommitsEnabled[ctx] = true
+	return nil
+}
+
+func (c *fakeClient) DisableCommitSignProtection(org, repo, branch string) error {
+	if branch == "error" {
+		return errors.New("failed to disable commit sign protection")
+	}
+	if c.signedCommitsEnabled == nil {
+		c.signedCommitsEnabled = map[string]bool{}
+	}
+	ctx := org + "/" + repo + "=" + branch
+	c.signedCommitsEnabled[ctx] = false
 	return nil
 }
 
@@ -1364,6 +1389,46 @@ branch-protection:
 			},
 		},
 		{
+			name:     "require signed commits",
+			branches: []string{"cfgdef/repo1=master", "cfgdef/repo1=branch", "cfgdef/repo2=master"},
+			config: `
+branch-protection:
+  protect: true
+  require_signed_commits: true
+  orgs:
+    cfgdef:
+`,
+			expected: []requirements{
+				{
+					Org:    "cfgdef",
+					Repo:   "repo1",
+					Branch: "master",
+					Request: &github.BranchProtectionRequest{
+						EnforceAdmins: &no,
+					},
+					Separate: &separateRequests{RequireSignedCommits: &yes},
+				},
+				{
+					Org:    "cfgdef",
+					Repo:   "repo1",
+					Branch: "branch",
+					Request: &github.BranchProtectionRequest{
+						EnforceAdmins: &no,
+					},
+					Separate: &separateRequests{RequireSignedCommits: &yes},
+				},
+				{
+					Org:    "cfgdef",
+					Repo:   "repo2",
+					Branch: "master",
+					Request: &github.BranchProtectionRequest{
+						EnforceAdmins: &no,
+					},
+					Separate: &separateRequests{RequireSignedCommits: &yes},
+				},
+			},
+		},
+		{
 			name:     "Global unmanaged: true makes us not do anything",
 			branches: []string{"cfgdef/repo1=master", "cfgdef/repo1=branch", "cfgdef/repo2=master"},
 			config: `
@@ -1893,6 +1958,72 @@ func TestEqualBranchProtection(t *testing.T) {
 	for _, testCase := range testCases {
 		if actual, expected := equalBranchProtections(testCase.state, testCase.request), testCase.expected; actual != expected {
 			t.Errorf("%s: didn't compute equality correctly, expected %v got %v", testCase.name, expected, actual)
+		}
+	}
+}
+
+func TestEqualSeparateRequests(t *testing.T) {
+	yes := true
+	no := false
+	var testCases = []struct {
+		name     string
+		state    *github.BranchProtection
+		sep      *separateRequests
+		expected bool
+	}{
+		{
+			name:     "nil separate always matches",
+			state:    &github.BranchProtection{},
+			sep:      nil,
+			expected: true,
+		},
+		{
+			name:     "nil signed commits desired always matches",
+			state:    &github.BranchProtection{},
+			sep:      &separateRequests{},
+			expected: true,
+		},
+		{
+			name:     "nil state with desired false matches",
+			state:    nil,
+			sep:      &separateRequests{RequireSignedCommits: &no},
+			expected: true,
+		},
+		{
+			name:     "nil state with desired true does not match",
+			state:    nil,
+			sep:      &separateRequests{RequireSignedCommits: &yes},
+			expected: false,
+		},
+		{
+			name: "enabled state matches desired true",
+			state: &github.BranchProtection{
+				RequiredSignatures: github.RequiredSignatures{Enabled: true},
+			},
+			sep:      &separateRequests{RequireSignedCommits: &yes},
+			expected: true,
+		},
+		{
+			name: "disabled state does not match desired true",
+			state: &github.BranchProtection{
+				RequiredSignatures: github.RequiredSignatures{Enabled: false},
+			},
+			sep:      &separateRequests{RequireSignedCommits: &yes},
+			expected: false,
+		},
+		{
+			name: "enabled state does not match desired false",
+			state: &github.BranchProtection{
+				RequiredSignatures: github.RequiredSignatures{Enabled: true},
+			},
+			sep:      &separateRequests{RequireSignedCommits: &no},
+			expected: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		if actual := equalSeparateRequests(tc.state, tc.sep); actual != tc.expected {
+			t.Errorf("%s: expected %v got %v", tc.name, tc.expected, actual)
 		}
 	}
 }

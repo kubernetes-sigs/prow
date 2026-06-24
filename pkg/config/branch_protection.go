@@ -51,6 +51,8 @@ type Policy struct {
 	AllowForcePushes *bool `json:"allow_force_pushes,omitempty"`
 	// AllowDeletions allows deletion of the protected branch by anyone with write access to the repository.
 	AllowDeletions *bool `json:"allow_deletions,omitempty"`
+	// RequireSignedCommits requires all commits pushed to the branch to be signed with a verified signature.
+	RequireSignedCommits *bool `json:"require_signed_commits,omitempty"`
 	// Exclude specifies a set of regular expressions which identify branches
 	// that should be excluded from the protection policy, mutually exclusive with Include
 	Exclude []string `json:"exclude,omitempty"`
@@ -66,7 +68,8 @@ func (p Policy) Managed() bool {
 
 func (p Policy) defined() bool {
 	return p.Protect != nil || p.RequiredStatusChecks != nil || p.Admins != nil || p.Restrictions != nil || p.RequireManuallyTriggeredJobs != nil ||
-		p.RequiredPullRequestReviews != nil || p.RequiredLinearHistory != nil || p.AllowForcePushes != nil || p.AllowDeletions != nil
+		p.RequiredPullRequestReviews != nil || p.RequiredLinearHistory != nil || p.AllowForcePushes != nil || p.AllowDeletions != nil ||
+		p.RequireSignedCommits != nil
 }
 
 // ContextPolicy configures required github contexts.
@@ -225,6 +228,7 @@ func (p Policy) Apply(child Policy) Policy {
 		RequiredLinearHistory:        selectBool(p.RequiredLinearHistory, child.RequiredLinearHistory),
 		AllowForcePushes:             selectBool(p.AllowForcePushes, child.AllowForcePushes),
 		AllowDeletions:               selectBool(p.AllowDeletions, child.AllowDeletions),
+		RequireSignedCommits:         selectBool(p.RequireSignedCommits, child.RequireSignedCommits),
 		RequireManuallyTriggeredJobs: selectBool(p.RequireManuallyTriggeredJobs, child.RequireManuallyTriggeredJobs),
 		Restrictions:                 mergeRestrictions(p.Restrictions, child.Restrictions),
 		RequiredPullRequestReviews:   mergeReviewPolicy(p.RequiredPullRequestReviews, child.RequiredPullRequestReviews),
