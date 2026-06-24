@@ -557,10 +557,16 @@ type BranchProtection struct {
 	AllowForcePushes           AllowForcePushes            `json:"allow_force_pushes"`
 	RequiredLinearHistory      RequiredLinearHistory       `json:"required_linear_history"`
 	AllowDeletions             AllowDeletions              `json:"allow_deletions"`
+	RequiredSignatures         RequiredSignatures          `json:"required_signatures"`
 }
 
 // AllowDeletions specifies whether to permit users with push access to delete matching branches.
 type AllowDeletions struct {
+	Enabled bool `json:"enabled"`
+}
+
+// RequiredSignatures specifies whether commits pushed to the branch must be signed with a verified signature.
+type RequiredSignatures struct {
 	Enabled bool `json:"enabled"`
 }
 
