@@ -68,7 +68,7 @@ func repositoryTree() []simplifypath.Node {
 			l("ref", v("refId")),
 			l("tags", v("tagId")),
 			l("trees", v("sha")),
-			l("refs", l("heads", v("ref")))),
+			l("refs", l("heads", simplifypath.VGreedy("ref")))),
 		l("stars"),
 		l("merges"),
 		l("stargazers"),
