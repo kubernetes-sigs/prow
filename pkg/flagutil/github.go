@@ -48,6 +48,7 @@ type GitHubOptions struct {
 	AllowDirectAccess bool
 	AppID             string
 	AppPrivateKeyPath string
+	SigningKeyPath    string
 
 	ThrottleHourlyTokens int
 	ThrottleAllowBurst   int
@@ -147,6 +148,7 @@ func (o *GitHubOptions) addFlags(fs *flag.FlagSet, paramFuncs ...FlagParameter) 
 	fs.IntVar(&o.max404Retries, "github-client.max-404-retries", github.DefaultMax404Retries, "Maximum number of retries that will be used for a 404-ing request to the GitHub API.")
 	fs.DurationVar(&o.maxSleepTime, "github-client.backoff-timeout", github.DefaultMaxSleepTime, "Largest allowable Retry-After time for requests to the GitHub API.")
 	fs.DurationVar(&o.initialDelay, "github-client.initial-delay", github.DefaultInitialDelay, "Initial delay before retries begin for requests to the GitHub API.")
+	fs.StringVar(&o.SigningKeyPath, "git-signing-key-path", "", "Path to an SSH private key for signing git commits. When set, all commits made by the git client are signed using SSH.")
 }
 
 func (o *GitHubOptions) parseOrgThrottlers() error {
@@ -341,6 +343,7 @@ func (o *GitHubOptions) GitClientFactory(cookieFilePath string, cacheDir *string
 		CookieFilePath: cookieFilePath,
 		Host:           o.Host,
 		Persist:        &persistCache,
+		SigningKeyPath: o.SigningKeyPath,
 	}
 	if cacheDir != nil && *cacheDir != "" {
 		opts.CacheDirBase = cacheDir
