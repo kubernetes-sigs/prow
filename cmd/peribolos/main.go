@@ -1158,7 +1158,7 @@ func configureRepos(opt options, client repoClient, orgName string, orgConfig or
 				case existing == nil:
 					if full, err := client.GetRepo(orgName, repo.Name); err != nil {
 						repoLogger.WithError(err).Error("failed to get repository data")
-						allErrors = append(allErrors, err)
+						allErrors = append(allErrors, fmt.Errorf("failed to get repo %s: %w", wantName, err))
 					} else {
 						existing = &full
 					}
@@ -1183,7 +1183,7 @@ func configureRepos(opt options, client repoClient, orgName string, orgConfig or
 			created, err := client.CreateRepo(orgName, false, newRepoCreateRequest(wantName, wantRepo))
 			if err != nil {
 				repoLogger.WithError(err).Error("failed to create repository")
-				allErrors = append(allErrors, err)
+				allErrors = append(allErrors, fmt.Errorf("failed to create repo %s: %w", wantName, err))
 			} else {
 				existing = created
 			}
@@ -1208,7 +1208,7 @@ func configureRepos(opt options, client repoClient, orgName string, orgConfig or
 				repoLogger.Info("repo exists and differs from desired state, updating")
 				if _, err := client.UpdateRepo(orgName, existing.Name, delta); err != nil {
 					repoLogger.WithError(err).Error("failed to update repository")
-					allErrors = append(allErrors, err)
+					allErrors = append(allErrors, fmt.Errorf("failed to update repo %s: %w", wantName, err))
 				}
 			}
 		}
