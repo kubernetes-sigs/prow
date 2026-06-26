@@ -368,10 +368,17 @@ func dumpOrgConfig(client dumpClient, orgName string, ignoreSecretTeams bool, ig
 		}
 		logrus.WithField("repo", full.FullName).Debug("Recording repo.")
 
+		var visibility org.RepoVisibility
+		var visibilityPtr *org.RepoVisibility
+		if err := visibility.UnmarshalText([]byte(full.Visibility)); err != nil {
+			logrus.WithField("repo", full.FullName).WithField("visibility", full.Visibility).Warn("Unknown repo visibility from GitHub API, omitting field")
+		} else {
+			visibilityPtr = &visibility
+		}
 		repoConfig := org.PruneRepoDefaults(org.Repo{
 			Description:      &full.Description,
 			HomePage:         &full.Homepage,
-			Private:          &full.Private,
+			Visibility:       visibilityPtr,
 			HasIssues:        &full.HasIssues,
 			HasProjects:      &full.HasProjects,
 			HasWiki:          &full.HasWiki,
@@ -1023,12 +1030,17 @@ type repoClient interface {
 }
 
 func newRepoCreateRequest(name string, definition org.Repo) github.RepoCreateRequest {
+	var visibility *string
+	if definition.Visibility != nil {
+		s := string(*definition.Visibility)
+		visibility = &s
+	}
 	repoCreate := github.RepoCreateRequest{
 		RepoRequest: github.RepoRequest{
 			Name:                     &name,
 			Description:              definition.Description,
 			Homepage:                 definition.HomePage,
-			Private:                  definition.Private,
+			Visibility:               visibility,
 			HasIssues:                definition.HasIssues,
 			HasProjects:              definition.HasProjects,
 			HasWiki:                  definition.HasWiki,
@@ -1090,12 +1102,19 @@ func newRepoUpdateRequest(current github.FullRepo, name string, repo org.Repo) g
 		}
 		return nil
 	}
+	var visibilityPtr *string
+	if repo.Visibility != nil {
+		want := string(*repo.Visibility)
+		if want != current.Visibility {
+			visibilityPtr = &want
+		}
+	}
 	repoUpdate := github.RepoUpdateRequest{
 		RepoRequest: github.RepoRequest{
 			Name:                     setString(current.Name, &name),
 			Description:              setString(current.Description, repo.Description),
 			Homepage:                 setString(current.Homepage, repo.HomePage),
-			Private:                  setBool(current.Private, repo.Private),
+			Visibility:               visibilityPtr,
 			HasIssues:                setBool(current.HasIssues, repo.HasIssues),
 			HasProjects:              setBool(current.HasProjects, repo.HasProjects),
 			HasWiki:                  setBool(current.HasWiki, repo.HasWiki),
@@ -1123,9 +1142,9 @@ func sanitizeRepoDelta(opt options, delta *github.RepoUpdateRequest) []error {
 		delta.Archived = nil
 		errs = append(errs, fmt.Errorf("asked to archive a repo but this is not allowed by default (see --allow-repo-archival)"))
 	}
-	if delta.Private != nil && !(*delta.Private || opt.allowRepoPublish) {
-		delta.Private = nil
-		errs = append(errs, fmt.Errorf("asked to publish a private repo but this is not allowed by default (see --allow-repo-publish)"))
+	if delta.Visibility != nil && *delta.Visibility == string(org.RepoVisibilityPublic) && !opt.allowRepoPublish {
+		delta.Visibility = nil
+		errs = append(errs, fmt.Errorf("asked to change repo visibility to public but this is not allowed by default (see --allow-repo-publish)"))
 	}
 
 	return errs
