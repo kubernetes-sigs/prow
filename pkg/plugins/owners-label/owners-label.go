@@ -53,6 +53,7 @@ type githubClient interface {
 	GetIssueLabels(org, repo string, number int) ([]github.Label, error)
 	GetRepoLabels(owner, repo string) ([]github.Label, error)
 	GetPullRequestChanges(org, repo string, number int) ([]github.PullRequestChange, error)
+	ListPullRequestCommits(org, repo string, number int) ([]github.RepositoryCommit, error)
 }
 
 func handlePullRequest(pc plugins.Agent, pre github.PullRequestEvent) error {
@@ -65,13 +66,26 @@ func handlePullRequest(pc plugins.Agent, pre github.PullRequestEvent) error {
 		return fmt.Errorf("error loading RepoOwners: %w", err)
 	}
 
-	return handle(pc.GitHubClient, oc, pc.Logger, &pre)
+	return handle(pc.GitHubClient, oc, pc.Logger, &pre, pc.PluginConfig.Owners.IgnoreMergeCommits)
 }
 
-func handle(ghc githubClient, oc ownersClient, log *logrus.Entry, pre *github.PullRequestEvent) error {
+func handle(ghc githubClient, oc ownersClient, log *logrus.Entry, pre *github.PullRequestEvent, ignoreMergeCommits bool) error {
 	org := pre.Repo.Owner.Login
 	repo := pre.Repo.Name
 	number := pre.Number
+
+	if ignoreMergeCommits {
+		commits, err := ghc.ListPullRequestCommits(org, repo, number)
+		if err != nil {
+			return fmt.Errorf("error listing PR commits: %w", err)
+		}
+		for _, commit := range commits {
+			if len(commit.Parents) > 1 {
+				log.Infof("Skipping label sync for PR with merge commit %s", commit.SHA)
+				return nil
+			}
+		}
+	}
 
 	// First see if there are any labels requested based on the files changed.
 	changes, err := ghc.GetPullRequestChanges(org, repo, number)
