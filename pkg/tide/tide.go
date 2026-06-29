@@ -46,6 +46,7 @@ import (
 	"sigs.k8s.io/prow/pkg/io"
 	"sigs.k8s.io/prow/pkg/kube"
 	"sigs.k8s.io/prow/pkg/pjutil"
+	"sigs.k8s.io/prow/pkg/plugins/override"
 	"sigs.k8s.io/prow/pkg/tide/blockers"
 	"sigs.k8s.io/prow/pkg/tide/history"
 	_ "sigs.k8s.io/prow/pkg/version"
@@ -1050,8 +1051,10 @@ func (c *syncController) prowJobsFromContexts(pr *CodeReviewCommon, baseSHA stri
 		if headContext.State != githubql.StatusStateSuccess {
 			continue
 		}
-		if baseSHAForContext := config.BaseSHAFromContextDescription(string(headContext.Description)); baseSHAForContext != "" && baseSHAForContext == baseSHA {
-			passingCurrentContexts = append(passingCurrentContexts, string((headContext.Context)))
+		desc := string(headContext.Description)
+		baseSHAForContext := config.BaseSHAFromContextDescription(desc)
+		if override.IsStickyOverride(desc) || baseSHAForContext != "" && baseSHAForContext == baseSHA {
+			passingCurrentContexts = append(passingCurrentContexts, string(headContext.Context))
 		}
 	}
 

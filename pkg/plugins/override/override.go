@@ -40,8 +40,15 @@ import (
 
 const pluginName = "override"
 
+const StickyOverrideSentinel = "[prow:sticky]"
+
+func IsStickyOverride(description string) bool {
+	return strings.Contains(description, StickyOverrideSentinel)
+}
+
 var (
-	overrideRe = regexp.MustCompile(`(?mi)^/override( ([^\r\n]+))?[\r\n]?$`)
+	overrideRe       = regexp.MustCompile(`(?mi)^/override( ([^\r\n]+))?[\r\n]?$`)
+	overrideCancelRe = regexp.MustCompile(`(?mi)^/override-cancel( ([^\r\n]+))?[\r\n]?$`)
 )
 
 type Context struct {
@@ -181,12 +188,23 @@ func helpProvider(config *plugins.Configuration, _ []config.OrgRepo) (*pluginhel
 	if config != nil {
 		overrideConfig = config.Override
 	}
+	overrideDesc := "Forces github status contexts to green (multiple can be given). If the desired context has spaces, it must be quoted."
+	if overrideConfig.StickyForHEAD {
+		overrideDesc += " With sticky_for_head enabled, overrides persist across retests on the same PR HEAD SHA. Pushing a new commit clears them."
+	}
 	pluginHelp.AddCommand(pluginhelp.Command{
 		Usage:       "/override [context1] [context2]",
-		Description: "Forces github status contexts to green (multiple can be given). If the desired context has spaces, it must be quoted.",
+		Description: overrideDesc,
 		Featured:    false,
 		WhoCanUse:   whoCanUse(overrideConfig, "", ""),
 		Examples:    []string{"/override pull-repo-whatever", "/override \"test / Unit Tests\"", "/override ci/circleci", "/override deleted-job other-job"},
+	})
+	pluginHelp.AddCommand(pluginhelp.Command{
+		Usage:       "/override-cancel [context]",
+		Description: "Cancels sticky overrides (requires sticky_for_head). If a context is given, only that override is cancelled. If no context is given, all sticky overrides on the PR are cancelled.",
+		Featured:    false,
+		WhoCanUse:   whoCanUse(overrideConfig, "", ""),
+		Examples:    []string{"/override-cancel pull-repo-whatever", "/override-cancel"},
 	})
 	return pluginHelp, nil
 }
@@ -223,7 +241,14 @@ func handleGenericComment(pc plugins.Agent, e github.GenericCommentEvent) error 
 		prowJobClient: pc.ProwJobClient,
 		ownersClient:  pc.OwnersClient,
 	}
-	return handle(c, pc.Logger, &e, pc.PluginConfig.Override)
+
+	options := pc.PluginConfig.Override
+
+	if options.StickyForHEAD && overrideCancelRe.MatchString(e.Body) {
+		return handleOverrideCancel(c, pc.Logger, &e, options)
+	}
+
+	return handle(c, pc.Logger, &e, options, options.StickyForHEAD)
 }
 
 func authorizedUser(gc githubClient, log *logrus.Entry, org, repo, user string) bool {
@@ -291,6 +316,10 @@ func description(user string) string {
 	return fmt.Sprintf("Overridden by %s", user)
 }
 
+func stickyDescription(user string) string {
+	return fmt.Sprintf("Overridden by %s %s", user, StickyOverrideSentinel)
+}
+
 func formatList(list []string) string {
 	var lines []string
 	for _, item := range list {
@@ -321,15 +350,22 @@ func parseOverrideInput(in string) []string {
 	return retval
 }
 
-func handle(oc overrideClient, log *logrus.Entry, e *github.GenericCommentEvent, options plugins.Override) error {
+func handle(oc overrideClient, log *logrus.Entry, e *github.GenericCommentEvent, options plugins.Override, sticky bool) error {
 
 	if !e.IsPR || e.IssueState != "open" || e.Action != github.GenericCommentActionCreated {
 		return nil
 	}
 
+	descFn := description
+	successMsg := "Overrode contexts on behalf of %s: %s"
+	if sticky {
+		descFn = stickyDescription
+		successMsg = "Overrode contexts on behalf of %s: %s\n\nThese overrides will persist across retests on the current HEAD SHA. Pushing a new commit will clear them."
+	}
+
 	mat := overrideRe.FindAllStringSubmatch(e.Body, -1)
 	if len(mat) == 0 {
-		return nil // no /override commands given in the comment
+		return nil
 	}
 
 	org := e.Repo.Owner.Login
@@ -479,7 +515,7 @@ If you are trying to override a checkrun that has a space in it, you must put a 
 		if len(done) == 0 {
 			return
 		}
-		msg := fmt.Sprintf("Overrode contexts on behalf of %s: %s", user, strings.Join(sets.List(done), ", "))
+		msg := fmt.Sprintf(successMsg, user, strings.Join(sets.List(done), ", "))
 		log.Info(msg)
 		oc.CreateComment(org, repo, number, plugins.FormatResponseRaw(e.Body, e.HTMLURL, user, msg))
 	}()
@@ -505,7 +541,7 @@ If you are trying to override a checkrun that has a space in it, you must put a 
 				StartTime:      now,
 				CompletionTime: &now,
 				State:          prowapi.SuccessState,
-				Description:    description(user),
+				Description:    descFn(user),
 				URL:            e.HTMLURL,
 			}
 
@@ -518,7 +554,7 @@ If you are trying to override a checkrun that has a space in it, you must put a 
 			contextsWithCreatedJobs.Insert(status.Context)
 		}
 		status.State = github.StatusSuccess
-		status.Description = description(user)
+		status.Description = descFn(user)
 		if err := oc.CreateStatus(org, repo, sha, status); err != nil {
 			resp := fmt.Sprintf("Cannot update PR status for context %s", status.Context)
 			log.WithError(err).Warn(resp)
@@ -554,6 +590,95 @@ If you are trying to override a checkrun that has a space in it, you must put a 
 	}
 
 	return nil
+}
+
+func handleOverrideCancel(oc overrideClient, log *logrus.Entry, e *github.GenericCommentEvent, options plugins.Override) error {
+	if !e.IsPR || e.IssueState != "open" || e.Action != github.GenericCommentActionCreated {
+		return nil
+	}
+
+	mat := overrideCancelRe.FindAllStringSubmatch(e.Body, -1)
+	if len(mat) == 0 {
+		return nil
+	}
+
+	org := e.Repo.Owner.Login
+	repo := e.Repo.Name
+	number := e.Number
+	user := e.User.Login
+
+	authorized := authorizedUser(oc, log, org, repo, user)
+	if !authorized && len(options.AllowedGitHubTeams) > 0 {
+		authorized = authorizedGitHubTeamMember(oc, log, options.AllowedGitHubTeams, org, repo, user)
+	}
+	if !authorized && !options.AllowTopLevelOwners {
+		resp := fmt.Sprintf("%s unauthorized: override cancel is restricted to %s", user, whoCanUse(options, org, repo))
+		log.Debug(resp)
+		return oc.CreateComment(org, repo, number, plugins.FormatResponseRaw(e.Body, e.HTMLURL, user, resp))
+	}
+
+	pr, err := oc.GetPullRequest(org, repo, number)
+	if err != nil {
+		resp := fmt.Sprintf("Cannot get PR #%d in %s/%s", number, org, repo)
+		log.WithError(err).Warn(resp)
+		return oc.CreateComment(org, repo, number, plugins.FormatResponseRaw(e.Body, e.HTMLURL, user, resp))
+	}
+
+	if !authorized && !authorizedTopLevelOwner(oc, options.AllowTopLevelOwners, log, org, repo, user, pr) {
+		resp := fmt.Sprintf("%s unauthorized: override cancel is restricted to %s", user, whoCanUse(options, org, repo))
+		log.Debug(resp)
+		return oc.CreateComment(org, repo, number, plugins.FormatResponseRaw(e.Body, e.HTMLURL, user, resp))
+	}
+
+	sha := pr.Head.SHA
+
+	// Determine which contexts to cancel
+	cancelAll := false
+	cancelContexts := sets.New[string]()
+	for _, m := range mat {
+		if m[1] == "" {
+			cancelAll = true
+			break
+		}
+		cancelContexts.Insert(parseOverrideInput(m[2])...)
+	}
+
+	statuses, err := oc.ListStatuses(org, repo, sha)
+	if err != nil {
+		resp := fmt.Sprintf("Cannot get commit statuses for PR #%d in %s/%s", number, org, repo)
+		log.WithError(err).Warn(resp)
+		return oc.CreateComment(org, repo, number, plugins.FormatResponseRaw(e.Body, e.HTMLURL, user, resp))
+	}
+
+	cancelled := sets.New[string]()
+	cancelDesc := fmt.Sprintf("Override cancelled by %s", user)
+
+	for _, status := range statuses {
+		if !IsStickyOverride(status.Description) {
+			continue
+		}
+		if !cancelAll && !cancelContexts.Has(status.Context) {
+			continue
+		}
+		status.State = github.StatusFailure
+		status.Description = cancelDesc
+		if err := oc.CreateStatus(org, repo, sha, status); err != nil {
+			resp := fmt.Sprintf("Cannot update PR status for context %s", status.Context)
+			log.WithError(err).Warn(resp)
+			return oc.CreateComment(org, repo, number, plugins.FormatResponseRaw(e.Body, e.HTMLURL, user, resp))
+		}
+		cancelled.Insert(status.Context)
+	}
+
+	if cancelled.Len() == 0 {
+		resp := "No sticky overrides found to cancel"
+		log.Debug(resp)
+		return oc.CreateComment(org, repo, number, plugins.FormatResponseRaw(e.Body, e.HTMLURL, user, resp))
+	}
+
+	msg := fmt.Sprintf("Cancelled sticky overrides on behalf of %s: %s", user, strings.Join(sets.List(cancelled), ", "))
+	log.Info(msg)
+	return oc.CreateComment(org, repo, number, plugins.FormatResponseRaw(e.Body, e.HTMLURL, user, msg))
 }
 
 // shaGetterFactory is a closure to retrieve a sha once. It is not threadsafe.
