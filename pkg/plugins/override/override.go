@@ -188,10 +188,7 @@ func helpProvider(config *plugins.Configuration, _ []config.OrgRepo) (*pluginhel
 	if config != nil {
 		overrideConfig = config.Override
 	}
-	overrideDesc := "Forces github status contexts to green (multiple can be given). If the desired context has spaces, it must be quoted."
-	if overrideConfig.StickyForHEAD {
-		overrideDesc += " With sticky_for_head enabled, overrides persist across retests on the same PR HEAD SHA. Pushing a new commit clears them."
-	}
+	overrideDesc := "Forces github status contexts to green (multiple can be given). If the desired context has spaces, it must be quoted. When sticky_for_head is enabled, overrides persist across retests on the same PR HEAD SHA. Pushing a new commit clears them."
 	pluginHelp.AddCommand(pluginhelp.Command{
 		Usage:       "/override [context1] [context2]",
 		Description: overrideDesc,
