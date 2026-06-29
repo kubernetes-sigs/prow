@@ -60,7 +60,9 @@ func NewCensoringExecutor(dir string, censor Censor, logger *logrus.Entry) (exec
 		git:    g,
 		censor: censor,
 		execute: func(dir, command string, args ...string) ([]byte, error) {
-			c := exec.Command(command, args...)
+			// gc.autoDetach=false prevents git gc --auto from forking a detached
+			// background process, which would become a zombie when running as PID 1.
+			c := exec.Command(command, append([]string{"-c", "gc.autoDetach=false"}, args...)...)
 			c.Dir = dir
 			return c.CombinedOutput()
 		},
