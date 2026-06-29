@@ -197,6 +197,7 @@ func Test_GetSimplifiedPathRepos(t *testing.T) {
 		{name: "repo transfer", args: args{path: "/repos/testOwner/testRepo/transfer"}, want: "/repos/:owner/:repo/transfer"},
 
 		{name: "master ref", args: args{path: "/repos/cri-o/cri-o/git/refs/heads/master"}, want: "/repos/:owner/:repo/git/refs/heads/:ref"},
+		{name: "ref with slashes", args: args{path: "/repos/kubernetes-sigs/agent-sandbox/git/refs/heads/feature/v1beta1-migrate"}, want: "/repos/:owner/:repo/git/refs/heads/:ref"},
 		{name: "issue comments", args: args{path: "/repos/openshift/aws-account-operator/issues/104/comments"}, want: "/repos/:owner/:repo/issues/:issueId/comments"},
 		{name: "issue labels", args: args{path: "/repos/openshift/aws-account-operator/issues/104/labels"}, want: "/repos/:owner/:repo/issues/:issueId/labels"},
 		{name: "issue label", args: args{path: "/repos/openshift/aws-account-operator/issues/104/labels/needs-rebase"}, want: "/repos/:owner/:repo/issues/:issueId/labels/:labelId"},
@@ -331,6 +332,7 @@ func Test_GetSimplifiedPathRepositories(t *testing.T) {
 		{name: "repo transfer", args: args{path: "/repositories/testRepository/transfer"}, want: "/repositories/:repoId/transfer"},
 
 		{name: "master ref", args: args{path: "/repositories/168397/git/refs/heads/master"}, want: "/repositories/:repoId/git/refs/heads/:ref"},
+		{name: "ref with slashes", args: args{path: "/repositories/168397/git/refs/heads/feature/v1beta1-migrate"}, want: "/repositories/:repoId/git/refs/heads/:ref"},
 		{name: "issue comments", args: args{path: "/repositories/168397/issues/104/comments"}, want: "/repositories/:repoId/issues/:issueId/comments"},
 		{name: "issue labels", args: args{path: "/repositories/168397/issues/104/labels"}, want: "/repositories/:repoId/issues/:issueId/labels"},
 		{name: "issue label", args: args{path: "/repositories/168397/issues/104/labels/needs-rebase"}, want: "/repositories/:repoId/issues/:issueId/labels/:labelId"},
