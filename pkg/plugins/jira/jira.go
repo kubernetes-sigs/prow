@@ -225,7 +225,12 @@ func insertLinksIntoLine(line string, issueNames []string, jiraBaseURL string) s
 // * `[` which we use as heuristic for "Already replaced",
 // * `/` which we use as heuristic for "Part of a link in a previous replacement",
 // * ``` (backtick) which we use as heuristic for "Inline code",
-// * `-` (dash) to prevent replacing a substring that accidentally matches a JIRA issue.
+// * `-` (dash) to prevent replacing a substring that accidentally matches a JIRA issue,
+// * an alphanumeric character, to prevent replacing a shorter issue key that is a
+//   substring of a longer one (e.g. BC-1 inside ABC-123).
+// Similarly, a match is skipped if it is immediately followed by an alphanumeric
+// character, to prevent partial replacements within longer issue numbers
+// (e.g. AC-1 inside AC-1234).
 // If golang would support back-references in regex replacements, this would have been a lot
 // simpler.
 func replaceStringIfNeeded(text, old, new string) string {
@@ -255,16 +260,23 @@ func replaceStringIfNeeded(text, old, new string) string {
 	startingIdx = 0
 	for _, idx := range allOldIdx {
 		result.WriteString(text[startingIdx:idx])
-		if idx == 0 || !strings.Contains("[/`-", string(text[idx-1])) {
+		endIdx := idx + len(old)
+		prefixOk := idx == 0 || (!strings.Contains("[/`-", string(text[idx-1])) && !isAlphanumeric(text[idx-1]))
+		suffixOk := endIdx >= len(text) || !isAlphanumeric(text[endIdx])
+		if prefixOk && suffixOk {
 			result.WriteString(new)
 		} else {
 			result.WriteString(old)
 		}
-		startingIdx = idx + len(old)
+		startingIdx = endIdx
 	}
 	result.WriteString(text[startingIdx:])
 
 	return result.String()
+}
+
+func isAlphanumeric(c byte) bool {
+	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
 }
 
 func upsertGitHubLinkToIssue(log *logrus.Entry, issueID string, jc jiraclient.Client, e *github.GenericCommentEvent) error {

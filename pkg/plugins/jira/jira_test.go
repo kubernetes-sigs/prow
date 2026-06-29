@@ -366,9 +366,10 @@ func TestInsertLinksIntoComment(t *testing.T) {
 	t.Parallel()
 	const issueName = "ABC-123"
 	testCases := []struct {
-		name     string
-		body     string
-		expected string
+		name       string
+		body       string
+		issueNames []string
+		expected   string
 	}{
 		{
 			name: "Multiline body starting with issue name",
@@ -467,11 +468,31 @@ is very important` + "\n``ABC-123`` and `ABC-123` shouldn't be replaced, as well
 			body:     "this shouldn't be replaced: whatever-ABC-123 and also inline `whatever-ABC-123`",
 			expected: "this shouldn't be replaced: whatever-ABC-123 and also inline `whatever-ABC-123`",
 		},
+		{
+			name:       "Shorter issue key that is a substring of a longer key is not double linked",
+			issueNames: []string{"ABC-123", "BC-1", "BC-2", "BC-3"},
+			body: `This pull request references ABC-123 which is a valid jira issue.
+
+Additional context
+BC-1: first issue
+BC-2: second issue
+BC-3: third issue`,
+			expected: `This pull request references [ABC-123](https://my-jira.com/browse/ABC-123) which is a valid jira issue.
+
+Additional context
+[BC-1](https://my-jira.com/browse/BC-1): first issue
+[BC-2](https://my-jira.com/browse/BC-2): second issue
+[BC-3](https://my-jira.com/browse/BC-3): third issue`,
+		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			if diff := cmp.Diff(insertLinksIntoComment(tc.body, []string{issueName}, fakejira.FakeJiraUrl), tc.expected); diff != "" {
+			issues := tc.issueNames
+			if issues == nil {
+				issues = []string{issueName}
+			}
+			if diff := cmp.Diff(insertLinksIntoComment(tc.body, issues, fakejira.FakeJiraUrl), tc.expected); diff != "" {
 				t.Errorf("actual result differs from expected result: %s", diff)
 			}
 		})
