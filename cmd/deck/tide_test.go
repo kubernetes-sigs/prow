@@ -535,7 +535,7 @@ func TestFilter(t *testing.T) {
 			},
 			expectedHist: map[string][]history.Record{
 				"tenanted/test:master":         {{Action: "TRIGGER_BATCH"}, {Action: "MERGE_BATCH"}},
-				"clustered-tenant/test:master": {{Action: "TRIGGER_BATCH", TenantIDs: []string{"t"}}, {Action: "MERGE_BATCH"}},
+				"clustered-tenant/test:master": {{Action: "TRIGGER_BATCH", TenantIDs: []string{"t"}}},
 			},
 		},
 		{
@@ -589,7 +589,7 @@ func TestFilter(t *testing.T) {
 			},
 			expectedHist: map[string][]history.Record{
 				"tenanted/test:master":         {{Action: "TRIGGER_BATCH"}, {Action: "MERGE_BATCH"}},
-				"clustered-tenant/test:master": {{Action: "TRIGGER_BATCH", TenantIDs: []string{"t"}}, {Action: "MERGE_BATCH"}},
+				"clustered-tenant/test:master": {{Action: "TRIGGER_BATCH", TenantIDs: []string{"t"}}},
 			},
 		},
 		{
@@ -731,6 +731,32 @@ func TestFilter(t *testing.T) {
 			expectedHist: map[string][]history.Record{
 				"kubernetes/test-infra:master": {{Action: "MERGE", TenantIDs: []string{config.DefaultTenantID}}},
 				"upstream/no-prow-jobs:main":   {{Action: "MERGE"}},
+			},
+		},
+		{
+			name: "per-record filtering keeps matching records when pool has mixed tenant IDs",
+
+			tenantIDs: []string{config.DefaultTenantID},
+			pools: []tide.Pool{
+				{Org: "kubernetes", Repo: "test-infra", TenantIDs: []string{config.DefaultTenantID}},
+			},
+			hist: map[string][]history.Record{
+				"kubernetes/test-infra:master": {
+					{Action: "MERGE", TenantIDs: []string{config.DefaultTenantID}},
+					{Action: "TRIGGER", TenantIDs: []string{config.DefaultTenantID, "private"}},
+					{Action: "MERGE_BATCH", TenantIDs: []string{"private"}},
+					{Action: "TRIGGER_BATCH"},
+				},
+			},
+
+			expectedPools: []tide.Pool{
+				{Org: "kubernetes", Repo: "test-infra", TenantIDs: []string{config.DefaultTenantID}},
+			},
+			expectedHist: map[string][]history.Record{
+				"kubernetes/test-infra:master": {
+					{Action: "MERGE", TenantIDs: []string{config.DefaultTenantID}},
+					{Action: "TRIGGER_BATCH"},
+				},
 			},
 		},
 	}
