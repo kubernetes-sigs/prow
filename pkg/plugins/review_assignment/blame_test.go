@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package blunderbuss
+package review_assignment
 
 import (
 	"errors"
@@ -24,7 +24,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"sigs.k8s.io/prow/pkg/github"
-	"sigs.k8s.io/prow/pkg/layeredsets"
 )
 
 type fakeBlameGetter struct {
@@ -37,6 +36,18 @@ func (f *fakeBlameGetter) GetBlame(org, repo, ref, path string) ([]github.BlameR
 		return nil, err
 	}
 	return f.data[path], nil
+}
+
+func logrusEntry() *logrus.Entry {
+	return logrus.NewEntry(logrus.StandardLogger())
+}
+
+func filenames(files []github.PullRequestChange) []string {
+	var names []string
+	for _, f := range files {
+		names = append(names, f.Filename)
+	}
+	return names
 }
 
 func TestParseDiffHunks(t *testing.T) {
@@ -204,12 +215,12 @@ func TestScoreReviewersBlameErrors(t *testing.T) {
 	now := time.Now()
 
 	tests := []struct {
-		name          string
-		files         []github.PullRequestChange
-		blameData     map[string][]github.BlameRange
-		blameErrs     map[string]error
-		expectScored  []string
-		expectEmpty   bool
+		name         string
+		files        []github.PullRequestChange
+		blameData    map[string][]github.BlameRange
+		blameErrs    map[string]error
+		expectScored []string
+		expectEmpty  bool
 	}{
 		{
 			name: "error on one file, scores from the other",
@@ -277,198 +288,6 @@ func TestScoreReviewersBlameErrors(t *testing.T) {
 			for _, login := range tc.expectScored {
 				if scores[login] <= 0 {
 					t.Errorf("expected %q to have a positive score, got %f", login, scores[login])
-				}
-			}
-		})
-	}
-}
-
-func TestSelectBestReviewer(t *testing.T) {
-	scores := map[string]float64{
-		"alice":   100.0,
-		"bob":     50.0,
-		"charlie": 25.0,
-	}
-
-	candidates := layeredsets.NewString("alice", "bob", "charlie")
-	busyReviewers := sets.New[string]()
-	fghc := newFakeGitHubClient(&github.PullRequest{Number: 5, User: github.User{Login: "author"}, Head: github.PullRequestBranch{SHA: "abc"}}, nil)
-
-	selected := selectBestReviewer(scores, &candidates, &busyReviewers, fghc, logrusEntry(), false)
-	if selected != "alice" {
-		t.Errorf("expected highest-scored 'alice', got %q", selected)
-	}
-
-	selected = selectBestReviewer(scores, &candidates, &busyReviewers, fghc, logrusEntry(), false)
-	if selected != "bob" {
-		t.Errorf("expected next highest 'bob', got %q", selected)
-	}
-}
-
-func TestSelectBestReviewerSkipsBusy(t *testing.T) {
-	scores := map[string]float64{
-		"alice": 100.0,
-		"bob":   50.0,
-	}
-
-	candidates := layeredsets.NewString("alice", "bob")
-	busyReviewers := sets.New[string]("alice")
-	fghc := newFakeGitHubClient(&github.PullRequest{Number: 5, User: github.User{Login: "author"}, Head: github.PullRequestBranch{SHA: "abc"}}, nil)
-
-	selected := selectBestReviewer(scores, &candidates, &busyReviewers, fghc, logrusEntry(), false)
-	if selected != "bob" {
-		t.Errorf("expected 'bob' (alice is busy), got %q", selected)
-	}
-}
-
-func TestSelectBestReviewerNoScores(t *testing.T) {
-	scores := map[string]float64{}
-
-	candidates := layeredsets.NewString("alice", "bob")
-	busyReviewers := sets.New[string]()
-	fghc := newFakeGitHubClient(&github.PullRequest{Number: 5, User: github.User{Login: "author"}, Head: github.PullRequestBranch{SHA: "abc"}}, nil)
-
-	selected := selectBestReviewer(scores, &candidates, &busyReviewers, fghc, logrusEntry(), false)
-	if selected == "" {
-		t.Error("should still select someone even with zero scores")
-	}
-}
-
-func TestHasBlameScores(t *testing.T) {
-	if hasBlameScores(map[string]float64{}) {
-		t.Error("empty scores should return false")
-	}
-	if !hasBlameScores(map[string]float64{"alice": 5.0}) {
-		t.Error("non-empty scores should return true")
-	}
-	if hasBlameScores(map[string]float64{"alice": 0}) {
-		t.Error("zero score should return false")
-	}
-}
-
-func TestFindFallbackReviewers(t *testing.T) {
-	tests := []struct {
-		name            string
-		blameScores     map[string]float64
-		allOwners       sets.Set[string]
-		exclude         sets.Set[string]
-		needed          int
-		expected        []string
-		expectedCount   int
-		checkOrder      bool
-	}{
-		{
-			name: "owners ranked by score",
-			blameScores: map[string]float64{
-				"alice": 100.0,
-				"bob":   50.0,
-			},
-			allOwners:     sets.New[string]("alice", "bob"),
-			exclude:       sets.Set[string]{},
-			needed:        2,
-			expected:      []string{"alice", "bob"},
-			checkOrder:    true,
-		},
-		{
-			name: "non-owners excluded",
-			blameScores: map[string]float64{
-				"alice":   100.0,
-				"charlie": 75.0,
-			},
-			allOwners:     sets.New[string]("alice"),
-			exclude:       sets.Set[string]{},
-			needed:        2,
-			expected:      []string{"alice"},
-			checkOrder:    true,
-		},
-		{
-			name: "existing reviewers excluded",
-			blameScores: map[string]float64{
-				"alice": 100.0,
-				"bob":   50.0,
-			},
-			allOwners:     sets.New[string]("alice", "bob"),
-			exclude:       sets.New[string]("alice"),
-			needed:        1,
-			expected:      []string{"bob"},
-			checkOrder:    true,
-		},
-		{
-			name: "respects needed count",
-			blameScores: map[string]float64{
-				"alice": 100.0,
-				"bob":   50.0,
-				"carol": 25.0,
-			},
-			allOwners:     sets.New[string]("alice", "bob", "carol"),
-			exclude:       sets.Set[string]{},
-			needed:        1,
-			expected:      []string{"alice"},
-			checkOrder:    true,
-		},
-		{
-			name: "zero blame scores fall back to random",
-			blameScores: map[string]float64{
-				"alice": 0,
-				"bob":   50.0,
-			},
-			allOwners:     sets.New[string]("alice", "bob"),
-			exclude:       sets.Set[string]{},
-			needed:        2,
-			expectedCount: 2,
-		},
-		{
-			name:          "no blame scores falls back to random",
-			blameScores:   map[string]float64{},
-			allOwners:     sets.New[string]("alice", "bob"),
-			exclude:       sets.Set[string]{},
-			needed:        1,
-			expectedCount: 1,
-		},
-		{
-			name:          "nil blame scores falls back to random",
-			blameScores:   nil,
-			allOwners:     sets.New[string]("alice"),
-			exclude:       sets.Set[string]{},
-			needed:        1,
-			expectedCount: 1,
-		},
-		{
-			name:          "no eligible owners",
-			blameScores:   nil,
-			allOwners:     sets.New[string]("alice"),
-			exclude:       sets.New[string]("alice"),
-			needed:        1,
-			expectedCount: 0,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			foc := &fakeOwnersClient{}
-			foc.allOwners = tc.allOwners
-
-			got := findFallbackReviewers(
-				tc.blameScores, foc, tc.exclude, tc.needed,
-			)
-
-			if tc.checkOrder {
-				if len(got) != len(tc.expected) {
-					t.Fatalf("expected %d reviewers, got %d: %v", len(tc.expected), len(got), got)
-				}
-				for i, expected := range tc.expected {
-					if got[i] != expected {
-						t.Errorf("reviewer %d: expected %q, got %q", i, expected, got[i])
-					}
-				}
-			} else {
-				if len(got) != tc.expectedCount {
-					t.Fatalf("expected %d reviewers, got %d: %v", tc.expectedCount, len(got), got)
-				}
-				gotSet := sets.New[string](got...)
-				eligible := tc.allOwners.Difference(tc.exclude)
-				if !gotSet.IsSuperset(sets.New[string]()) && !eligible.IsSuperset(gotSet) {
-					t.Errorf("got reviewers %v not all in eligible set %v", got, eligible)
 				}
 			}
 		})
@@ -566,16 +385,4 @@ func TestFileDir(t *testing.T) {
 			t.Errorf("fileDir(%q) = %q, want %q", tc.path, got, tc.want)
 		}
 	}
-}
-
-func filenames(files []github.PullRequestChange) []string {
-	var names []string
-	for _, f := range files {
-		names = append(names, f.Filename)
-	}
-	return names
-}
-
-func logrusEntry() *logrus.Entry {
-	return logrus.NewEntry(logrus.StandardLogger())
 }

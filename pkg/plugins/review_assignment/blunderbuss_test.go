@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package blunderbuss
+package review_assignment
 
 import (
 	"context"
@@ -28,7 +28,6 @@ import (
 	"sort"
 	"strings"
 	"testing"
-	"time"
 
 	githubql "github.com/shurcooL/githubv4"
 	"github.com/sirupsen/logrus"
@@ -47,7 +46,6 @@ type fakeGitHubClient struct {
 	pr        *github.PullRequest
 	changes   []github.PullRequestChange
 	requested []string
-	blames    map[string][]github.BlameRange
 }
 
 func newFakeGitHubClient(pr *github.PullRequest, filesChanged []string) *fakeGitHubClient {
@@ -105,15 +103,7 @@ func (c *fakeGitHubClient) Query(ctx context.Context, q any, vars map[string]any
 	return nil
 }
 
-func (c *fakeGitHubClient) GetBlame(org, repo, ref, path string) ([]github.BlameRange, error) {
-	if c.blames != nil {
-		return c.blames[path], nil
-	}
-	return nil, nil
-}
-
 func (c *fakeGitHubClient) FindIssuesWithOrg(org string, query string, sort string, asc bool) ([]github.Issue, error) {
-	// Query should match the head commit of the pull request
 	if strings.HasPrefix(query, c.pr.Head.SHA) || slices.ContainsFunc(c.changes, func(change github.PullRequestChange) bool {
 		return strings.HasPrefix(query, change.SHA)
 	}) {
@@ -135,7 +125,6 @@ func (c *fakeGitHubClient) FindIssuesWithOrg(org string, query string, sort stri
 		}}, nil
 	}
 
-	// No match
 	return []github.Issue{}, nil
 }
 
@@ -268,7 +257,7 @@ var (
 	reviewers = map[string]layeredsets.String{
 		"a.go": layeredsets.NewString("al"),
 		"b.go": layeredsets.NewString("al"),
-		"c.go": layeredsets.NewStringFromSlices([]string{"charles"}, []string{"ben"}), // ben is top level, charles is lower
+		"c.go": layeredsets.NewStringFromSlices([]string{"charles"}, []string{"ben"}),
 
 		"e.go":  layeredsets.NewString("erick", "evan"),
 		"ee.go": layeredsets.NewString("erick", "evan"),
@@ -313,7 +302,7 @@ var (
 			name:              "one file, 3 leaf reviewers, 1 parent reviewer, 1 top level reviewer, request 5",
 			filesChanged:      []string{"c.go"},
 			reviewerCount:     5,
-			expectedRequested: []string{"cole", "carl", "chad", "charles", "ben"}, // last resort we take the top level reviewer
+			expectedRequested: []string{"cole", "carl", "chad", "charles", "ben"},
 		},
 		{
 			name:              "two files, 2 leaf reviewers, 1 common parent, request 2",
@@ -381,9 +370,6 @@ var (
 	}
 )
 
-// TestHandleWithExcludeApprovers tests that the handle function requests
-// reviews from the correct number of unique users when ExcludeApprovers is
-// true.
 func TestHandleWithExcludeApproversOnlyReviewers(t *testing.T) {
 	froc := &fakeRepoownersClient{
 		foc: &fakeOwnersClient{
@@ -400,7 +386,7 @@ func TestHandleWithExcludeApproversOnlyReviewers(t *testing.T) {
 		fghc := newFakeGitHubClient(&pr, tc.filesChanged)
 
 		if err := handle(
-			fghc, froc, logrus.WithField("plugin", PluginName),
+			fghc, froc, logrus.WithField("plugin", BlunderbussPluginName),
 			&tc.reviewerCount, tc.maxReviewerCount, true, false, &repo, &pr,
 		); err != nil {
 			t.Errorf("[%s] unexpected error from handle: %v", tc.name, err)
@@ -422,10 +408,6 @@ func TestHandleWithExcludeApproversOnlyReviewers(t *testing.T) {
 	}
 }
 
-// TestHandleWithoutExcludeApprovers verifies that behavior is the same
-// when ExcludeApprovers is false and only approvers exist in the OWNERS files.
-// The owners fixture and test cases should always be the same as the ones in
-// TestHandleWithExcludeApprovers.
 func TestHandleWithoutExcludeApproversNoReviewers(t *testing.T) {
 	froc := &fakeRepoownersClient{
 		foc: &fakeOwnersClient{
@@ -442,7 +424,7 @@ func TestHandleWithoutExcludeApproversNoReviewers(t *testing.T) {
 		fghc := newFakeGitHubClient(&pr, tc.filesChanged)
 
 		if err := handle(
-			fghc, froc, logrus.WithField("plugin", PluginName),
+			fghc, froc, logrus.WithField("plugin", BlunderbussPluginName),
 			&tc.reviewerCount, tc.maxReviewerCount, false, false, &repo, &pr,
 		); err != nil {
 			t.Errorf("[%s] unexpected error from handle: %v", tc.name, err)
@@ -587,7 +569,7 @@ func TestHandleWithoutExcludeApproversMixed(t *testing.T) {
 		repo := github.Repo{Owner: github.User{Login: "org"}, Name: "repo"}
 		fghc := newFakeGitHubClient(&pr, tc.filesChanged)
 		if err := handle(
-			fghc, froc, logrus.WithField("plugin", PluginName),
+			fghc, froc, logrus.WithField("plugin", BlunderbussPluginName),
 			&tc.reviewerCount, tc.maxReviewerCount, false, false, &repo, &pr,
 		); err != nil {
 			t.Errorf("[%s] unexpected error from handle: %v", tc.name, err)
@@ -708,7 +690,7 @@ func TestHandlePullRequest(t *testing.T) {
 			}
 
 			if err := handlePullRequest(
-				fghc, froc, logrus.WithField("plugin", PluginName),
+				fghc, froc, logrus.WithField("plugin", BlunderbussPluginName),
 				c, tc.action, &pr, &repo,
 			); err != nil {
 				t.Fatalf("unexpected error from handle: %v", err)
@@ -803,7 +785,7 @@ func TestHandleGenericComment(t *testing.T) {
 			}
 
 			if err := handleGenericComment(
-				fghc, froc, logrus.WithField("plugin", PluginName), config,
+				fghc, froc, logrus.WithField("plugin", BlunderbussPluginName), config,
 				tc.action, tc.isPR, pr.Number, tc.issueState, &repo, tc.body,
 			); err != nil {
 				t.Fatalf("unexpected error from handle: %v", err)
@@ -977,7 +959,7 @@ func TestHandleStatus(t *testing.T) {
 			}
 
 			if err := handleStatus(
-				fghc, froc, logrus.WithField("plugin", PluginName), config,
+				fghc, froc, logrus.WithField("plugin", BlunderbussPluginName), config,
 				tc.sha, tc.context, tc.state, tc.description, &repo,
 			); err != nil {
 				t.Fatalf("unexpected error from handle: %v", err)
@@ -1032,7 +1014,7 @@ func TestHelpProvider(t *testing.T) {
 			name:               "Empty config",
 			config:             &plugins.Configuration{},
 			enabledRepos:       enabledRepos,
-			configInfoIncludes: []string{configString(0)},
+			configInfoIncludes: []string{configString(BlunderbussPluginName, 0)},
 		},
 		{
 			name: "ReviewerCount specified",
@@ -1042,7 +1024,7 @@ func TestHelpProvider(t *testing.T) {
 				},
 			},
 			enabledRepos:       enabledRepos,
-			configInfoIncludes: []string{configString(2)},
+			configInfoIncludes: []string{configString(BlunderbussPluginName, 2)},
 		},
 	}
 	for _, c := range cases {
@@ -1060,8 +1042,6 @@ func TestHelpProvider(t *testing.T) {
 	}
 }
 
-// TestPopActiveReviewer checks to ensure that no matter how hard we try, we
-// never assign a user that has their availability marked as busy.
 func TestPopActiveReviewer(t *testing.T) {
 	froc := &fakeRepoownersClient{
 		foc: &fakeOwnersClient{
@@ -1114,7 +1094,7 @@ func TestPopActiveReviewer(t *testing.T) {
 		repo := github.Repo{Owner: github.User{Login: "org"}, Name: "repo"}
 		fghc := newFakeGitHubClient(&pr, tc.filesChanged)
 		if err := handle(
-			fghc, froc, logrus.WithField("plugin", PluginName),
+			fghc, froc, logrus.WithField("plugin", BlunderbussPluginName),
 			&tc.reviewerCount, tc.maxReviewerCount, false, true, &repo, &pr,
 		); err != nil {
 			t.Errorf("[%s] unexpected error from handle: %v", tc.name, err)
@@ -1133,92 +1113,5 @@ func TestPopActiveReviewer(t *testing.T) {
 			}
 			t.Errorf("[%s] expected the requested reviewers to be %q, but got %q.", tc.name, tc.expectedRequested, fghc.requested)
 		}
-	}
-}
-
-func TestHandleWithBlameScoring(t *testing.T) {
-	froc := &fakeRepoownersClient{
-		foc: &fakeOwnersClient{
-			owners: map[string]string{
-				"pkg/foo/a.go": "1",
-			},
-			approvers: map[string]layeredsets.String{},
-			leafReviewers: map[string]sets.Set[string]{
-				"pkg/foo/a.go": sets.New[string]("alice", "bob", "carol"),
-			},
-			reviewers: map[string]layeredsets.String{
-				"pkg/foo/a.go": layeredsets.NewString("alice", "bob", "carol"),
-			},
-		},
-	}
-
-	now := time.Now()
-	pr := github.PullRequest{
-		Number: 5,
-		User:   github.User{Login: "author"},
-		Base:   github.PullRequestBranch{Ref: "main"},
-		Head:   github.PullRequestBranch{SHA: "abc123"},
-	}
-	repo := github.Repo{Owner: github.User{Login: "org"}, Name: "repo"}
-
-	tests := []struct {
-		name              string
-		reviewerCount     int
-		blames            map[string][]github.BlameRange
-		expectedRequested []string
-	}{
-		{
-			name:          "selects highest-scored reviewer",
-			reviewerCount: 1,
-			blames: map[string][]github.BlameRange{
-				"pkg/foo/a.go": {
-					{StartingLine: 1, EndingLine: 10, AuthorLogin: "alice", Date: now.Add(-24 * time.Hour)},
-					{StartingLine: 1, EndingLine: 2, AuthorLogin: "bob", Date: now.Add(-30 * 24 * time.Hour)},
-				},
-			},
-			expectedRequested: []string{"alice"},
-		},
-		{
-			name:          "ranks multiple reviewers by score",
-			reviewerCount: 2,
-			blames: map[string][]github.BlameRange{
-				"pkg/foo/a.go": {
-					{StartingLine: 1, EndingLine: 10, AuthorLogin: "alice", Date: now.Add(-24 * time.Hour)},
-					{StartingLine: 1, EndingLine: 5, AuthorLogin: "bob", Date: now.Add(-24 * time.Hour)},
-					{StartingLine: 1, EndingLine: 1, AuthorLogin: "carol", Date: now.Add(-365 * 24 * time.Hour)},
-				},
-			},
-			expectedRequested: []string{"alice", "bob"},
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			fghc := &fakeGitHubClient{
-				pr: &pr,
-				changes: []github.PullRequestChange{
-					{
-						Filename: "pkg/foo/a.go",
-						Status:   "modified",
-						Patch:    "@@ -1,10 +1,12 @@ package foo",
-						SHA:      "abc123",
-					},
-				},
-				blames: tc.blames,
-			}
-
-			if err := handle(
-				fghc, froc, logrus.WithField("plugin", PluginName),
-				&tc.reviewerCount, 0, true, false, &repo, &pr,
-			); err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-
-			sort.Strings(fghc.requested)
-			sort.Strings(tc.expectedRequested)
-			if !reflect.DeepEqual(fghc.requested, tc.expectedRequested) {
-				t.Errorf("expected %v, got %v", tc.expectedRequested, fghc.requested)
-			}
-		})
 	}
 }
