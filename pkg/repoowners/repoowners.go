@@ -56,6 +56,7 @@ type Config struct {
 	Approvers         []string `json:"approvers,omitempty"`
 	Reviewers         []string `json:"reviewers,omitempty"`
 	RequiredReviewers []string `json:"required_reviewers,omitempty"`
+	AdvisoryApprovers []string `json:"advisory_approvers,omitempty"`
 	Labels            []string `json:"labels,omitempty"`
 }
 
@@ -67,7 +68,7 @@ type SimpleConfig struct {
 
 // Empty checks if a SimpleConfig could be considered empty
 func (s *SimpleConfig) Empty() bool {
-	return len(s.Approvers) == 0 && len(s.Reviewers) == 0 && len(s.RequiredReviewers) == 0 && len(s.Labels) == 0
+	return len(s.Approvers) == 0 && len(s.Reviewers) == 0 && len(s.RequiredReviewers) == 0 && len(s.AdvisoryApprovers) == 0 && len(s.Labels) == 0
 }
 
 // FullConfig contains Filters which apply specific Config to files matching its regexp
@@ -247,6 +248,7 @@ type RepoOwner interface {
 	IsAutoApproveUnownedSubfolders(directory string) bool
 	LeafApprovers(path string) sets.Set[string]
 	Approvers(path string) layeredsets.String
+	AdvisoryApprovers(path string) sets.Set[string]
 	LeafReviewers(path string) sets.Set[string]
 	Reviewers(path string) layeredsets.String
 	RequiredReviewers(path string) sets.Set[string]
@@ -265,11 +267,12 @@ var _ RepoOwner = &RepoOwners{}
 type RepoOwners struct {
 	RepoAliases
 
-	approvers         map[string]map[*regexp.Regexp]sets.Set[string]
-	reviewers         map[string]map[*regexp.Regexp]sets.Set[string]
-	requiredReviewers map[string]map[*regexp.Regexp]sets.Set[string]
-	labels            map[string]map[*regexp.Regexp]sets.Set[string]
-	options           map[string]dirOptions
+	approvers          map[string]map[*regexp.Regexp]sets.Set[string]
+	reviewers          map[string]map[*regexp.Regexp]sets.Set[string]
+	requiredReviewers  map[string]map[*regexp.Regexp]sets.Set[string]
+	advisoryApprovers  map[string]map[*regexp.Regexp]sets.Set[string]
+	labels             map[string]map[*regexp.Regexp]sets.Set[string]
+	options            map[string]dirOptions
 
 	baseDir      string
 	enableMDYAML bool
@@ -490,6 +493,7 @@ func loadOwnersFrom(baseDir string, mdYaml bool, aliases RepoAliases, dirIgnorel
 		approvers:         make(map[string]map[*regexp.Regexp]sets.Set[string]),
 		reviewers:         make(map[string]map[*regexp.Regexp]sets.Set[string]),
 		requiredReviewers: make(map[string]map[*regexp.Regexp]sets.Set[string]),
+		advisoryApprovers: make(map[string]map[*regexp.Regexp]sets.Set[string]),
 		labels:            make(map[string]map[*regexp.Regexp]sets.Set[string]),
 		options:           make(map[string]dirOptions),
 
@@ -749,6 +753,21 @@ func (o *RepoOwners) applyConfigToPath(path string, re *regexp.Regexp, config *C
 		}
 		o.requiredReviewers[path][re] = o.ExpandAliases(NormLogins(config.RequiredReviewers))
 	}
+	if len(config.AdvisoryApprovers) > 0 {
+		advisorySet := o.ExpandAliases(NormLogins(config.AdvisoryApprovers))
+		if o.advisoryApprovers[path] == nil {
+			o.advisoryApprovers[path] = make(map[*regexp.Regexp]sets.Set[string])
+		}
+		o.advisoryApprovers[path][re] = advisorySet
+		if o.approvers[path] == nil {
+			o.approvers[path] = make(map[*regexp.Regexp]sets.Set[string])
+		}
+		if existing, ok := o.approvers[path][re]; ok {
+			o.approvers[path][re] = existing.Union(advisorySet)
+		} else {
+			o.approvers[path][re] = advisorySet.Union(sets.New[string]())
+		}
+	}
 	if len(config.Labels) > 0 {
 		if o.labels[path] == nil {
 			o.labels[path] = make(map[*regexp.Regexp]sets.Set[string])
@@ -783,6 +802,7 @@ func (o *RepoOwners) filterCollaborators(toKeep []github.User) *RepoOwners {
 	result := *o
 	result.approvers = filter(o.approvers)
 	result.reviewers = filter(o.reviewers)
+	result.advisoryApprovers = filter(o.advisoryApprovers)
 	return &result
 }
 
@@ -877,10 +897,19 @@ func (o *RepoOwners) entriesForFile(path string, people map[string]map[*regexp.R
 }
 
 // LeafApprovers returns a set of users who are the closest approvers to the
-// requested file. If pkg/OWNERS has user1 and pkg/util/OWNERS has user2 this
-// will only return user2 for the path pkg/util/sets/file.go
+// requested file, excluding advisory approvers. If pkg/OWNERS has user1 and
+// pkg/util/OWNERS has user2 this will only return user2 for the path
+// pkg/util/sets/file.go
 func (o *RepoOwners) LeafApprovers(path string) sets.Set[string] {
-	return o.entriesForFile(path, o.approvers, true).Set()
+	all := o.entriesForFile(path, o.approvers, true).Set()
+	advisory := o.entriesForFile(path, o.advisoryApprovers, true).Set()
+	return all.Difference(advisory)
+}
+
+// AdvisoryApprovers returns the set of advisory approvers for the requested
+// file. These users retain approval power but are excluded from auto-assignment.
+func (o *RepoOwners) AdvisoryApprovers(path string) sets.Set[string] {
+	return o.entriesForFile(path, o.advisoryApprovers, false).Set()
 }
 
 // Approvers returns ALL of the users who are approvers for the
