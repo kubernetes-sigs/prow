@@ -540,6 +540,10 @@ func (f *FakeClient) DeleteRef(owner, repo, ref string) error {
 }
 
 // GetSingleCommit returns a single commit.
+func (f *FakeClient) GetBlame(org, repo, ref, path string) ([]github.BlameRange, error) {
+	return nil, nil
+}
+
 func (f *FakeClient) GetSingleCommit(org, repo, SHA string) (github.RepositoryCommit, error) {
 	f.lock.RLock()
 	defer f.lock.RUnlock()

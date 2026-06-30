@@ -28,6 +28,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	githubql "github.com/shurcooL/githubv4"
 	"github.com/sirupsen/logrus"
@@ -46,6 +47,7 @@ type fakeGitHubClient struct {
 	pr        *github.PullRequest
 	changes   []github.PullRequestChange
 	requested []string
+	blames    map[string][]github.BlameRange
 }
 
 func newFakeGitHubClient(pr *github.PullRequest, filesChanged []string) *fakeGitHubClient {
@@ -103,6 +105,13 @@ func (c *fakeGitHubClient) Query(ctx context.Context, q any, vars map[string]any
 	return nil
 }
 
+func (c *fakeGitHubClient) GetBlame(org, repo, ref, path string) ([]github.BlameRange, error) {
+	if c.blames != nil {
+		return c.blames[path], nil
+	}
+	return nil, nil
+}
+
 func (c *fakeGitHubClient) FindIssuesWithOrg(org string, query string, sort string, asc bool) ([]github.Issue, error) {
 	// Query should match the head commit of the pull request
 	if strings.HasPrefix(query, c.pr.Head.SHA) || slices.ContainsFunc(c.changes, func(change github.PullRequestChange) bool {
@@ -146,6 +155,7 @@ type fakeOwnersClient struct {
 	requiredReviewers map[string]sets.Set[string]
 	leafReviewers     map[string]sets.Set[string]
 	dirDenylist       []*regexp.Regexp
+	allOwners         sets.Set[string]
 }
 
 func (foc *fakeOwnersClient) AllApprovers() sets.Set[string] {
@@ -153,6 +163,9 @@ func (foc *fakeOwnersClient) AllApprovers() sets.Set[string] {
 }
 
 func (foc *fakeOwnersClient) AllOwners() sets.Set[string] {
+	if foc.allOwners != nil {
+		return foc.allOwners
+	}
 	return sets.Set[string]{}
 }
 
@@ -1120,5 +1133,92 @@ func TestPopActiveReviewer(t *testing.T) {
 			}
 			t.Errorf("[%s] expected the requested reviewers to be %q, but got %q.", tc.name, tc.expectedRequested, fghc.requested)
 		}
+	}
+}
+
+func TestHandleWithBlameScoring(t *testing.T) {
+	froc := &fakeRepoownersClient{
+		foc: &fakeOwnersClient{
+			owners: map[string]string{
+				"pkg/foo/a.go": "1",
+			},
+			approvers: map[string]layeredsets.String{},
+			leafReviewers: map[string]sets.Set[string]{
+				"pkg/foo/a.go": sets.New[string]("alice", "bob", "carol"),
+			},
+			reviewers: map[string]layeredsets.String{
+				"pkg/foo/a.go": layeredsets.NewString("alice", "bob", "carol"),
+			},
+		},
+	}
+
+	now := time.Now()
+	pr := github.PullRequest{
+		Number: 5,
+		User:   github.User{Login: "author"},
+		Base:   github.PullRequestBranch{Ref: "main"},
+		Head:   github.PullRequestBranch{SHA: "abc123"},
+	}
+	repo := github.Repo{Owner: github.User{Login: "org"}, Name: "repo"}
+
+	tests := []struct {
+		name              string
+		reviewerCount     int
+		blames            map[string][]github.BlameRange
+		expectedRequested []string
+	}{
+		{
+			name:          "selects highest-scored reviewer",
+			reviewerCount: 1,
+			blames: map[string][]github.BlameRange{
+				"pkg/foo/a.go": {
+					{StartingLine: 1, EndingLine: 10, AuthorLogin: "alice", Date: now.Add(-24 * time.Hour)},
+					{StartingLine: 1, EndingLine: 2, AuthorLogin: "bob", Date: now.Add(-30 * 24 * time.Hour)},
+				},
+			},
+			expectedRequested: []string{"alice"},
+		},
+		{
+			name:          "ranks multiple reviewers by score",
+			reviewerCount: 2,
+			blames: map[string][]github.BlameRange{
+				"pkg/foo/a.go": {
+					{StartingLine: 1, EndingLine: 10, AuthorLogin: "alice", Date: now.Add(-24 * time.Hour)},
+					{StartingLine: 1, EndingLine: 5, AuthorLogin: "bob", Date: now.Add(-24 * time.Hour)},
+					{StartingLine: 1, EndingLine: 1, AuthorLogin: "carol", Date: now.Add(-365 * 24 * time.Hour)},
+				},
+			},
+			expectedRequested: []string{"alice", "bob"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			fghc := &fakeGitHubClient{
+				pr: &pr,
+				changes: []github.PullRequestChange{
+					{
+						Filename: "pkg/foo/a.go",
+						Status:   "modified",
+						Patch:    "@@ -1,10 +1,12 @@ package foo",
+						SHA:      "abc123",
+					},
+				},
+				blames: tc.blames,
+			}
+
+			if err := handle(
+				fghc, froc, logrus.WithField("plugin", PluginName),
+				&tc.reviewerCount, 0, true, false, &repo, &pr,
+			); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			sort.Strings(fghc.requested)
+			sort.Strings(tc.expectedRequested)
+			if !reflect.DeepEqual(fghc.requested, tc.expectedRequested) {
+				t.Errorf("expected %v, got %v", tc.expectedRequested, fghc.requested)
+			}
+		})
 	}
 }

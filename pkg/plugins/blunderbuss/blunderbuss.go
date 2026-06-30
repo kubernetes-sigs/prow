@@ -19,8 +19,12 @@ package blunderbuss
 import (
 	"context"
 	"fmt"
+	"math"
+	"math/rand"
 	"regexp"
 	"slices"
+	"sort"
+	"time"
 
 	githubql "github.com/shurcooL/githubv4"
 	"github.com/sirupsen/logrus"
@@ -40,9 +44,7 @@ const (
 	PluginName = "blunderbuss"
 )
 
-var (
-	match = regexp.MustCompile(`(?mi)^/auto-cc\s*$`)
-)
+var match = regexp.MustCompile(`(?mi)^/auto-cc\s*$`)
 
 func init() {
 	plugins.RegisterPullRequestHandler(PluginName, handlePullRequestEvent, helpProvider)
@@ -105,6 +107,7 @@ type ownersClient interface {
 	FindApproverOwnersForFile(path string) string
 	Approvers(path string) layeredsets.String
 	LeafApprovers(path string) sets.Set[string]
+	AllOwners() sets.Set[string]
 }
 
 type fallbackReviewersClient struct {
@@ -128,6 +131,7 @@ type githubClient interface {
 	FindIssuesWithOrg(org string, query string, sort string, asc bool) ([]github.Issue, error)
 	GetPullRequestChanges(org string, repo string, number int) ([]github.PullRequestChange, error)
 	GetPullRequest(org string, repo string, number int) (*github.PullRequest, error)
+	GetBlame(org, repo, ref, path string) ([]github.BlameRange, error)
 	Query(context.Context, any, map[string]any) error
 }
 
@@ -327,10 +331,35 @@ func handle(ghc githubClient, roc repoownersClient, log *logrus.Entry, reviewerC
 		return fmt.Errorf("error getting PR changes: %w", err)
 	}
 
+	allReviewerCandidates := sets.New[string]()
+	allApproverCandidates := sets.New[string]()
+	for _, file := range changes {
+		allReviewerCandidates = allReviewerCandidates.Union(oc.Reviewers(file.Filename).Set())
+		allApproverCandidates = allApproverCandidates.Union(oc.Approvers(file.Filename).Set())
+	}
+
+	scorer := &reviewerScorer{
+		ghc:       ghc,
+		org:       repo.Owner.Login,
+		repo:      repo.Name,
+		ref:       pr.Base.Ref,
+		approvers: allApproverCandidates,
+		reviewers: allReviewerCandidates,
+		now:       time.Now(),
+		log:       log,
+	}
+	var blameScores map[string]float64
+	scores, err := scorer.scoreReviewers(changes)
+	if err != nil {
+		log.WithError(err).Warn("Failed to compute blame scores, falling back to random selection")
+	} else {
+		blameScores = scores
+	}
+
 	var reviewers []string
 	var requiredReviewers []string
 	if reviewerCount != nil {
-		reviewers, requiredReviewers, err = getReviewers(oc, ghc, log, pr.User.Login, changes, *reviewerCount, useStatusAvailability)
+		reviewers, requiredReviewers, err = getReviewers(oc, ghc, log, pr.User.Login, changes, *reviewerCount, useStatusAvailability, blameScores)
 		if err != nil {
 			return err
 		}
@@ -341,7 +370,7 @@ func handle(ghc githubClient, roc repoownersClient, log *logrus.Entry, reviewerC
 				// and approvers and the search might stop too early if it finds
 				// duplicates.
 				frc := fallbackReviewersClient{ownersClient: oc}
-				approvers, _, err := getReviewers(frc, ghc, log, pr.User.Login, changes, *reviewerCount, useStatusAvailability)
+				approvers, _, err := getReviewers(frc, ghc, log, pr.User.Login, changes, *reviewerCount, useStatusAvailability, blameScores)
 				if err != nil {
 					return err
 				}
@@ -359,6 +388,16 @@ func handle(ghc githubClient, roc repoownersClient, log *logrus.Entry, reviewerC
 		}
 		if missing := *reviewerCount - len(reviewers); missing > 0 {
 			log.Debugf("Not enough reviewers found in OWNERS files for files touched by this PR. %d/%d reviewers found.", len(reviewers), *reviewerCount)
+
+			excludeFromFallback := sets.New[string](reviewers...)
+			excludeFromFallback.Insert(github.NormLogin(pr.User.Login))
+			fallbackReviewers := findFallbackReviewers(
+				blameScores, oc, excludeFromFallback, missing,
+			)
+			if len(fallbackReviewers) > 0 {
+				reviewers = append(reviewers, fallbackReviewers...)
+				log.Infof("Fallback added %d reviewer(s) from broader OWNERS scope: %v", len(fallbackReviewers), fallbackReviewers)
+			}
 		}
 	}
 
@@ -377,7 +416,7 @@ func handle(ghc githubClient, roc repoownersClient, log *logrus.Entry, reviewerC
 	return nil
 }
 
-func getReviewers(rc reviewersClient, ghc githubClient, log *logrus.Entry, author string, files []github.PullRequestChange, minReviewers int, useStatusAvailability bool) ([]string, []string, error) {
+func getReviewers(rc reviewersClient, ghc githubClient, log *logrus.Entry, author string, files []github.PullRequestChange, minReviewers int, useStatusAvailability bool, blameScores map[string]float64) ([]string, []string, error) {
 	authorSet := sets.New[string](github.NormLogin(author))
 	reviewers := layeredsets.NewString()
 	requiredReviewers := sets.New[string]()
@@ -387,7 +426,17 @@ func getReviewers(rc reviewersClient, ghc githubClient, log *logrus.Entry, autho
 	if minReviewers == 0 {
 		return reviewers.List(), sets.List(requiredReviewers), nil
 	}
-	// first build 'reviewers' by taking a unique reviewer from each OWNERS file.
+
+	useSmartSelection := hasBlameScores(blameScores)
+
+	selectReviewer := func(candidates *layeredsets.String) string {
+		if useSmartSelection {
+			return selectBestReviewer(blameScores, candidates, &busyReviewers, ghc, log, useStatusAvailability)
+		}
+		return findReviewer(ghc, log, useStatusAvailability, &busyReviewers, candidates)
+	}
+
+	// First build 'reviewers' by taking a unique reviewer from each OWNERS file.
 	for _, file := range files {
 		ownersFile := rc.FindReviewersOwnersForFile(file.Filename)
 		if ownersSeen.Has(ownersFile) {
@@ -395,7 +444,6 @@ func getReviewers(rc reviewersClient, ghc githubClient, log *logrus.Entry, autho
 		}
 		ownersSeen.Insert(ownersFile)
 
-		// record required reviewers if any
 		requiredReviewers.Insert(rc.RequiredReviewers(file.Filename).UnsortedList()...)
 
 		fileUnusedLeaves := layeredsets.NewString(sets.List(rc.LeafReviewers(file.Filename))...).Difference(reviewers.Set()).Difference(authorSet)
@@ -403,14 +451,14 @@ func getReviewers(rc reviewersClient, ghc githubClient, log *logrus.Entry, autho
 			continue
 		}
 		leafReviewers = leafReviewers.Union(fileUnusedLeaves)
-		if r := findReviewer(ghc, log, useStatusAvailability, &busyReviewers, &fileUnusedLeaves); r != "" {
+		if r := selectReviewer(&fileUnusedLeaves); r != "" {
 			reviewers.Insert(0, r)
 		}
 	}
-	// now ensure that we request review from at least minReviewers reviewers. Favor leaf reviewers.
+	// Ensure that we request review from at least minReviewers reviewers. Favor leaf reviewers.
 	unusedLeaves := leafReviewers.Difference(reviewers.Set())
 	for reviewers.Len() < minReviewers && unusedLeaves.Len() > 0 {
-		if r := findReviewer(ghc, log, useStatusAvailability, &busyReviewers, &unusedLeaves); r != "" {
+		if r := selectReviewer(&unusedLeaves); r != "" {
 			reviewers.Insert(1, r)
 		}
 	}
@@ -420,7 +468,7 @@ func getReviewers(rc reviewersClient, ghc githubClient, log *logrus.Entry, autho
 		}
 		fileReviewers := rc.Reviewers(file.Filename).Difference(authorSet)
 		for reviewers.Len() < minReviewers && fileReviewers.Len() > 0 {
-			if r := findReviewer(ghc, log, useStatusAvailability, &busyReviewers, &fileReviewers); r != "" {
+			if r := selectReviewer(&fileReviewers); r != "" {
 				reviewers.Insert(2, r)
 			}
 		}
@@ -455,6 +503,118 @@ func findReviewer(ghc githubClient, log *logrus.Entry, useStatusAvailability boo
 		busyReviewers.Insert(candidate)
 	}
 	return ""
+}
+
+func selectBestReviewer(
+	scores map[string]float64,
+	candidates *layeredsets.String,
+	busyReviewers *sets.Set[string],
+	ghc githubClient,
+	log *logrus.Entry,
+	useStatusAvailability bool,
+) string {
+	type candidate struct {
+		login string
+		score float64
+	}
+
+	var ranked []candidate
+	candidateSet := candidates.Set()
+	for login := range candidateSet {
+		if busyReviewers.Has(login) {
+			continue
+		}
+		ranked = append(ranked, candidate{login: login, score: scores[login]})
+	}
+
+	// Sort by score descending, break ties randomly
+	rand.Shuffle(len(ranked), func(i, j int) {
+		ranked[i], ranked[j] = ranked[j], ranked[i]
+	})
+	for i := 1; i < len(ranked); i++ {
+		for j := i; j > 0 && ranked[j].score > ranked[j-1].score; j-- {
+			ranked[j], ranked[j-1] = ranked[j-1], ranked[j]
+		}
+	}
+
+	for _, c := range ranked {
+		if useStatusAvailability {
+			busy, err := isUserBusy(ghc, c.login)
+			if err != nil {
+				log.WithError(err).WithField("user", c.login).Warn("Failed to check user availability")
+			} else if busy {
+				busyReviewers.Insert(c.login)
+				continue
+			}
+		}
+		candidates.Delete(c.login)
+		return c.login
+	}
+	return ""
+}
+
+func hasBlameScores(scores map[string]float64) bool {
+	for _, s := range scores {
+		if !math.IsNaN(s) && s > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// findFallbackReviewers finds additional reviewers from the broader OWNERS scope
+// when not enough were found for the changed files. If blame scores are available,
+// candidates are ranked by score. Remaining slots are filled randomly.
+func findFallbackReviewers(
+	blameScores map[string]float64,
+	oc ownersClient,
+	exclude sets.Set[string],
+	needed int,
+) []string {
+	allOwners := oc.AllOwners()
+	eligible := allOwners.Difference(exclude)
+	if eligible.Len() == 0 {
+		return nil
+	}
+
+	var result []string
+	if hasBlameScores(blameScores) {
+		type scored struct {
+			login string
+			score float64
+		}
+		var candidates []scored
+		for login := range eligible {
+			if s := blameScores[login]; s > 0 {
+				candidates = append(candidates, scored{login, s})
+			}
+		}
+		sort.Slice(candidates, func(i, j int) bool {
+			return candidates[i].score > candidates[j].score
+		})
+		for i := 0; i < len(candidates) && len(result) < needed; i++ {
+			result = append(result, candidates[i].login)
+		}
+	}
+
+	// Fill remaining slots randomly from eligible OWNERS members
+	if remaining := needed - len(result); remaining > 0 {
+		picked := sets.New[string](result...)
+		var pool []string
+		for login := range eligible {
+			if !picked.Has(login) {
+				pool = append(pool, login)
+			}
+		}
+		rand.Shuffle(len(pool), func(i, j int) {
+			pool[i], pool[j] = pool[j], pool[i]
+		})
+		for i := 0; i < len(pool) && len(result) < needed; i++ {
+			result = append(result, pool[i])
+		}
+	}
+
+	return result
 }
 
 type githubAvailabilityQuery struct {
