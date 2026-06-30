@@ -215,7 +215,7 @@ def get_files(extensions):
 
 
 def get_dates():
-    year_alternatives = '|'.join((str(year) for year in range(2014, 2026)))
+    year_alternatives = '|'.join((str(year) for year in range(2014, datetime.date.today().year + 1)))
     return r'Copyright (?:(?:%s) )?' % year_alternatives
 
 
@@ -223,7 +223,7 @@ def get_regexs():
     regexs = {}
     # Search for "YEAR" which exists in the boilerplate, but shouldn't in the real thing
     regexs["year"] = re.compile('YEAR')
-    # dates can be any year between 2014 and the current year, company holder names can be anything
+    # dates can be any year between 2014 and the current year (inclusive), company holder names can be anything
     regexs["date"] = re.compile(get_dates())
     # strip // +build \n\n build constraints
     regexs["go_build_constraints"] = re.compile(r"^(//( \+build|go:build).*\n)+\n",
