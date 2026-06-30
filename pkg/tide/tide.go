@@ -46,7 +46,6 @@ import (
 	"sigs.k8s.io/prow/pkg/io"
 	"sigs.k8s.io/prow/pkg/kube"
 	"sigs.k8s.io/prow/pkg/pjutil"
-	"sigs.k8s.io/prow/pkg/plugins/override"
 	"sigs.k8s.io/prow/pkg/tide/blockers"
 	"sigs.k8s.io/prow/pkg/tide/history"
 	_ "sigs.k8s.io/prow/pkg/version"
@@ -1039,7 +1038,7 @@ func (c *syncController) accumulateBatch(sp subpool) (successBatch []CodeReviewC
 }
 
 // prowJobsFromContexts constructs ProwJob objects from successful presubmit contexts that either
-// include a matching baseSHA in their description or carry a sticky override sentinel.
+// include a matching baseSHA in their description or carry the skip-retest sentinel.
 // This is needed because otherwise we would always need retesting for results that are older than sinkers
 // max_prowjob_age.
 func (c *syncController) prowJobsFromContexts(pr *CodeReviewCommon, baseSHA string) ([]prowapi.ProwJob, error) {
@@ -1054,7 +1053,7 @@ func (c *syncController) prowJobsFromContexts(pr *CodeReviewCommon, baseSHA stri
 		}
 		desc := string(headContext.Description)
 		baseSHAForContext := config.BaseSHAFromContextDescription(desc)
-		if override.IsStickyOverride(desc) || baseSHAForContext != "" && baseSHAForContext == baseSHA {
+		if config.IsSkipRetest(desc) || baseSHAForContext != "" && baseSHAForContext == baseSHA {
 			passingCurrentContexts = append(passingCurrentContexts, string(headContext.Context))
 		}
 	}

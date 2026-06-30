@@ -44,9 +44,17 @@ const (
 	fakePR      = 33
 	fakeSHA     = "deadbeef"
 	fakeBaseRef = "fake-branch"
-	fakeBaseSHA = "fffffff"
+	fakeBaseSHA = "fffffffffffffffffffffffffffffffffffffff0"
 	adminUser   = "admin-user"
 )
+
+func statusDescription(user string) string {
+	return config.ContextDescriptionWithBaseSha(description(user), fakeBaseSHA)
+}
+
+func stickyStatusDescription(user string) string {
+	return config.ContextDescriptionWithBaseSha(stickyDescription(user), fakeBaseSHA)
+}
 
 type fakeRepoownersClient struct {
 	foc *fakeOwnersClient
@@ -387,7 +395,7 @@ func TestHandle(t *testing.T) {
 			expected: []github.Status{
 				{
 					Context:     "broken-test",
-					Description: description(adminUser),
+					Description: statusDescription(adminUser),
 					State:       github.StatusSuccess,
 				},
 			},
@@ -459,12 +467,12 @@ func TestHandle(t *testing.T) {
 			expected: []github.Status{
 				{
 					Context:     "broken-test",
-					Description: description(adminUser),
+					Description: statusDescription(adminUser),
 					State:       github.StatusSuccess,
 				},
 				{
 					Context:     "hung-test",
-					Description: description(adminUser),
+					Description: statusDescription(adminUser),
 					State:       github.StatusSuccess,
 				},
 			},
@@ -550,7 +558,7 @@ func TestHandle(t *testing.T) {
 			expected: []github.Status{
 				{
 					Context:     "hung-test",
-					Description: description(adminUser),
+					Description: statusDescription(adminUser),
 					State:       github.StatusSuccess,
 				},
 			},
@@ -638,12 +646,12 @@ func TestHandle(t *testing.T) {
 			expected: []github.Status{
 				{
 					Context:     "broken-test",
-					Description: description(adminUser),
+					Description: statusDescription(adminUser),
 					State:       github.StatusSuccess,
 				},
 				{
 					Context:     "hung-test",
-					Description: description(adminUser),
+					Description: statusDescription(adminUser),
 					State:       github.StatusSuccess,
 				},
 			},
@@ -665,12 +673,12 @@ func TestHandle(t *testing.T) {
 			expected: []github.Status{
 				{
 					Context:     "broken-test",
-					Description: description(adminUser),
+					Description: statusDescription(adminUser),
 					State:       github.StatusSuccess,
 				},
 				{
 					Context:     "hung-test",
-					Description: description(adminUser),
+					Description: statusDescription(adminUser),
 					State:       github.StatusSuccess,
 				},
 			},
@@ -689,7 +697,7 @@ func TestHandle(t *testing.T) {
 			expected: []github.Status{
 				{
 					Context:     "broken-test",
-					Description: description(adminUser),
+					Description: statusDescription(adminUser),
 					State:       github.StatusSuccess,
 				},
 			},
@@ -860,7 +868,7 @@ func TestHandle(t *testing.T) {
 				{
 					Context:     "prow-job",
 					State:       github.StatusSuccess,
-					Description: description(adminUser),
+					Description: statusDescription(adminUser),
 				},
 			},
 		},
@@ -889,7 +897,7 @@ func TestHandle(t *testing.T) {
 				{
 					Context:     "ci/prow/pkg-job",
 					State:       github.StatusSuccess,
-					Description: description(adminUser),
+					Description: statusDescription(adminUser),
 				},
 			},
 		},
@@ -923,12 +931,12 @@ func TestHandle(t *testing.T) {
 				{
 					Context:     "ci/prow/context",
 					State:       github.StatusSuccess,
-					Description: description(adminUser),
+					Description: statusDescription(adminUser),
 				},
 				{
 					Context:     "ci/prow/pkg-job",
 					State:       github.StatusSuccess,
-					Description: description(adminUser),
+					Description: statusDescription(adminUser),
 				},
 			},
 		},
@@ -957,7 +965,7 @@ func TestHandle(t *testing.T) {
 				{
 					Context:     "ci/prow/pkg-job",
 					State:       github.StatusSuccess,
-					Description: description(adminUser),
+					Description: statusDescription(adminUser),
 				},
 			},
 		},
@@ -974,7 +982,7 @@ func TestHandle(t *testing.T) {
 			expected: []github.Status{
 				{
 					Context:     "job",
-					Description: description(adminUser),
+					Description: statusDescription(adminUser),
 					State:       github.StatusSuccess,
 				},
 			},
@@ -995,7 +1003,7 @@ func TestHandle(t *testing.T) {
 			expected: []github.Status{
 				{
 					Context:     "job",
-					Description: description("code_owner"),
+					Description: statusDescription("code_owner"),
 					State:       github.StatusSuccess,
 				},
 			},
@@ -1016,7 +1024,7 @@ func TestHandle(t *testing.T) {
 			expected: []github.Status{
 				{
 					Context:     "job",
-					Description: description("Code_owner"),
+					Description: statusDescription("Code_owner"),
 					State:       github.StatusSuccess,
 				},
 			},
@@ -1060,7 +1068,7 @@ func TestHandle(t *testing.T) {
 			expected: []github.Status{
 				{
 					Context:     "job",
-					Description: description("user1"),
+					Description: statusDescription("user1"),
 					State:       github.StatusSuccess,
 				},
 			},
@@ -1084,7 +1092,7 @@ func TestHandle(t *testing.T) {
 			expected: []github.Status{
 				{
 					Context:     "job",
-					Description: description("user1"),
+					Description: statusDescription("user1"),
 					State:       github.StatusSuccess,
 				},
 			},
@@ -1112,7 +1120,7 @@ func TestHandle(t *testing.T) {
 			expected: []github.Status{
 				{
 					Context:     "job",
-					Description: description(adminUser),
+					Description: statusDescription(adminUser),
 					State:       github.StatusSuccess,
 				},
 			},
@@ -1133,7 +1141,7 @@ func TestHandle(t *testing.T) {
 			expected: []github.Status{
 				{
 					Context:     "job",
-					Description: description(adminUser),
+					Description: statusDescription(adminUser),
 					State:       github.StatusSuccess,
 				},
 			},
@@ -1170,7 +1178,7 @@ func TestHandle(t *testing.T) {
 			expected: []github.Status{
 				{
 					Context:     "problematic-test",
-					Description: description(adminUser),
+					Description: statusDescription(adminUser),
 					State:       github.StatusSuccess,
 				},
 				{
@@ -1431,21 +1439,22 @@ func TestValidateGitHubTeamSlugs(t *testing.T) {
 	}
 }
 
-func TestIsStickyOverride(t *testing.T) {
+func TestIsSkipRetest(t *testing.T) {
 	cases := []struct {
 		description string
 		expected    bool
 	}{
-		{"Overridden by admin-user [prow:sticky]", true},
-		{"Overridden by bot [prow:sticky]", true},
-		{"something [prow:sticky] else", true},
+		{"Overridden by admin-user [prow:skip-retest]", true},
+		{"Overridden by bot [prow:skip-retest]", true},
+		{"something [prow:skip-retest] else", true},
+		{stickyStatusDescription("admin-user"), true},
 		{"Overridden by admin-user", false},
 		{"Build succeeded", false},
 		{"", false},
 	}
 	for _, tc := range cases {
-		if got := IsStickyOverride(tc.description); got != tc.expected {
-			t.Errorf("IsStickyOverride(%q) = %v, want %v", tc.description, got, tc.expected)
+		if got := config.IsSkipRetest(tc.description); got != tc.expected {
+			t.Errorf("IsSkipRetest(%q) = %v, want %v", tc.description, got, tc.expected)
 		}
 	}
 }
@@ -1466,7 +1475,7 @@ func TestHandleStickyOverride(t *testing.T) {
 				{Context: "job-a", State: github.StatusFailure, Description: "Build failed"},
 			},
 			expected: []github.Status{
-				{Context: "job-a", State: github.StatusSuccess, Description: "Overridden by admin-user [prow:sticky]"},
+				{Context: "job-a", State: github.StatusSuccess, Description: stickyStatusDescription(adminUser)},
 			},
 		},
 		{
@@ -1476,7 +1485,7 @@ func TestHandleStickyOverride(t *testing.T) {
 				{Context: "job-a", State: github.StatusFailure, Description: "Build failed"},
 			},
 			expected: []github.Status{
-				{Context: "job-a", State: github.StatusSuccess, Description: "Overridden by admin-user"},
+				{Context: "job-a", State: github.StatusSuccess, Description: statusDescription(adminUser)},
 			},
 		},
 	}
@@ -1522,12 +1531,12 @@ func TestHandleStickyCancel(t *testing.T) {
 			name: "cancel specific sticky override",
 			body: "/override-cancel job-a",
 			statuses: []github.Status{
-				{Context: "job-a", State: github.StatusSuccess, Description: "Overridden by admin-user [prow:sticky]"},
-				{Context: "job-b", State: github.StatusSuccess, Description: "Overridden by admin-user [prow:sticky]"},
+				{Context: "job-a", State: github.StatusSuccess, Description: "Overridden by admin-user [prow:skip-retest]"},
+				{Context: "job-b", State: github.StatusSuccess, Description: "Overridden by admin-user [prow:skip-retest]"},
 			},
 			expectedStatuses: []github.Status{
 				{Context: "job-a", State: github.StatusFailure, Description: "Override cancelled by admin-user"},
-				{Context: "job-b", State: github.StatusSuccess, Description: "Overridden by admin-user [prow:sticky]"},
+				{Context: "job-b", State: github.StatusSuccess, Description: "Overridden by admin-user [prow:skip-retest]"},
 			},
 			expectedComment: "Cancelled sticky overrides",
 		},
@@ -1535,8 +1544,8 @@ func TestHandleStickyCancel(t *testing.T) {
 			name: "cancel all sticky overrides",
 			body: "/override-cancel",
 			statuses: []github.Status{
-				{Context: "job-a", State: github.StatusSuccess, Description: "Overridden by admin-user [prow:sticky]"},
-				{Context: "job-b", State: github.StatusSuccess, Description: "Overridden by admin-user [prow:sticky]"},
+				{Context: "job-a", State: github.StatusSuccess, Description: "Overridden by admin-user [prow:skip-retest]"},
+				{Context: "job-b", State: github.StatusSuccess, Description: "Overridden by admin-user [prow:skip-retest]"},
 			},
 			expectedStatuses: []github.Status{
 				{Context: "job-a", State: github.StatusFailure, Description: "Override cancelled by admin-user"},

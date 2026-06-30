@@ -40,12 +40,6 @@ import (
 
 const pluginName = "override"
 
-const StickyOverrideSentinel = "[prow:sticky]"
-
-func IsStickyOverride(description string) bool {
-	return strings.Contains(description, StickyOverrideSentinel)
-}
-
 var (
 	overrideRe       = regexp.MustCompile(`(?mi)^/override( ([^\r\n]+))?[\r\n]?$`)
 	overrideCancelRe = regexp.MustCompile(`(?mi)^/override-cancel( ([^\r\n]+))?[\r\n]?$`)
@@ -314,7 +308,7 @@ func description(user string) string {
 }
 
 func stickyDescription(user string) string {
-	return fmt.Sprintf("Overridden by %s %s", user, StickyOverrideSentinel)
+	return fmt.Sprintf("Overridden by %s %s", user, config.SkipRetestSentinel)
 }
 
 func formatList(list []string) string {
@@ -505,6 +499,13 @@ If you are trying to override a checkrun that has a space in it, you must put a 
 		return oc.CreateComment(org, repo, number, plugins.FormatResponseRaw(e.Body, e.HTMLURL, user, resp))
 	}
 
+	baseSHA, err := baseSHAGetter()
+	if err != nil {
+		resp := "Cannot get base ref of PR"
+		log.WithError(err).Warn(resp)
+		return oc.CreateComment(org, repo, number, plugins.FormatResponseRaw(e.Body, e.HTMLURL, user, resp))
+	}
+
 	done := sets.Set[string]{}
 	contextsWithCreatedJobs := sets.Set[string]{}
 
@@ -525,13 +526,6 @@ If you are trying to override a checkrun that has a space in it, you must put a 
 
 		// Create the overridden prow result if necessary
 		if pre != nil {
-			baseSHA, err := baseSHAGetter()
-			if err != nil {
-				resp := "Cannot get base ref of PR"
-				log.WithError(err).Warn(resp)
-				return oc.CreateComment(org, repo, number, plugins.FormatResponseRaw(e.Body, e.HTMLURL, user, resp))
-			}
-
 			pj := pjutil.NewPresubmit(*pr, baseSHA, *pre, e.GUID, nil)
 			now := metav1.Now()
 			pj.Status = prowapi.ProwJobStatus{
@@ -551,7 +545,7 @@ If you are trying to override a checkrun that has a space in it, you must put a 
 			contextsWithCreatedJobs.Insert(status.Context)
 		}
 		status.State = github.StatusSuccess
-		status.Description = descFn(user)
+		status.Description = config.ContextDescriptionWithBaseSha(descFn(user), baseSHA)
 		if err := oc.CreateStatus(org, repo, sha, status); err != nil {
 			resp := fmt.Sprintf("Cannot update PR status for context %s", status.Context)
 			log.WithError(err).Warn(resp)
@@ -651,7 +645,7 @@ func handleOverrideCancel(oc overrideClient, log *logrus.Entry, e *github.Generi
 	cancelDesc := fmt.Sprintf("Override cancelled by %s", user)
 
 	for _, status := range statuses {
-		if !IsStickyOverride(status.Description) {
+		if !config.IsSkipRetest(status.Description) {
 			continue
 		}
 		if !cancelAll && !cancelContexts.Has(status.Context) {
