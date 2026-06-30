@@ -1318,8 +1318,8 @@ func TestHelpProvider(t *testing.T) {
 		switch {
 		case help == nil:
 			t.Errorf("%s: expected a valid plugin help object, got nil", tc.name)
-		case len(help.Commands) != 2:
-			t.Errorf("%s: expected 2 commands from plugin help, got %d: %v", tc.name, len(help.Commands), help.Commands)
+		case len(help.Commands) != 3:
+			t.Errorf("%s: expected 3 commands from plugin help, got %d: %v", tc.name, len(help.Commands), help.Commands)
 		default:
 			for _, cmd := range help.Commands {
 				if cmd.WhoCanUse != tc.expectedWho {
@@ -1464,12 +1464,14 @@ func TestHandleStickyOverride(t *testing.T) {
 
 	cases := []struct {
 		name     string
+		body     string
 		sticky   bool
 		statuses []github.Status
 		expected []github.Status
 	}{
 		{
-			name:   "StickyForHEAD enabled sets sticky description",
+			name:   "/override-sticky sets sticky description",
+			body:   "/override-sticky job-a",
 			sticky: true,
 			statuses: []github.Status{
 				{Context: "job-a", State: github.StatusFailure, Description: "Build failed"},
@@ -1479,7 +1481,8 @@ func TestHandleStickyOverride(t *testing.T) {
 			},
 		},
 		{
-			name:   "StickyForHEAD disabled sets regular description",
+			name:   "/override sets regular description",
+			body:   "/override job-a",
 			sticky: false,
 			statuses: []github.Status{
 				{Context: "job-a", State: github.StatusFailure, Description: "Build failed"},
@@ -1500,7 +1503,7 @@ func TestHandleStickyOverride(t *testing.T) {
 				IsPR:       true,
 				IssueState: "open",
 				Action:     github.GenericCommentActionCreated,
-				Body:       "/override job-a",
+				Body:       tc.body,
 				Number:     fakePR,
 				User:       github.User{Login: adminUser},
 				Repo:       github.Repo{Owner: github.User{Login: fakeOrg}, Name: fakeRepo},

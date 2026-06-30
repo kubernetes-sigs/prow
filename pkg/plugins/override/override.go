@@ -41,8 +41,9 @@ import (
 const pluginName = "override"
 
 var (
-	overrideRe       = regexp.MustCompile(`(?mi)^/override( ([^\r\n]+))?[\r\n]?$`)
+	overrideStickyRe = regexp.MustCompile(`(?mi)^/override-sticky( ([^\r\n]+))?[\r\n]?$`)
 	overrideCancelRe = regexp.MustCompile(`(?mi)^/override-cancel( ([^\r\n]+))?[\r\n]?$`)
+	overrideRe       = regexp.MustCompile(`(?mi)^/override( ([^\r\n]+))?[\r\n]?$`)
 )
 
 type Context struct {
@@ -182,17 +183,23 @@ func helpProvider(config *plugins.Configuration, _ []config.OrgRepo) (*pluginhel
 	if config != nil {
 		overrideConfig = config.Override
 	}
-	overrideDesc := "Forces github status contexts to green (multiple can be given). If the desired context has spaces, it must be quoted. When sticky_for_head is enabled, overrides persist across retests on the same PR HEAD SHA. Pushing a new commit clears them."
 	pluginHelp.AddCommand(pluginhelp.Command{
 		Usage:       "/override [context1] [context2]",
-		Description: overrideDesc,
+		Description: "Forces github status contexts to green (multiple can be given). If the desired context has spaces, it must be quoted. Overrides expire when the base branch moves.",
 		Featured:    false,
 		WhoCanUse:   whoCanUse(overrideConfig, "", ""),
 		Examples:    []string{"/override pull-repo-whatever", "/override \"test / Unit Tests\"", "/override ci/circleci", "/override deleted-job other-job"},
 	})
 	pluginHelp.AddCommand(pluginhelp.Command{
+		Usage:       "/override-sticky [context1] [context2]",
+		Description: "Like /override, but the override persists across retests on the current HEAD SHA even when the base branch moves. Pushing a new commit clears them. Use /override-cancel to remove.",
+		Featured:    false,
+		WhoCanUse:   whoCanUse(overrideConfig, "", ""),
+		Examples:    []string{"/override-sticky pull-repo-whatever", "/override-sticky \"test / Unit Tests\""},
+	})
+	pluginHelp.AddCommand(pluginhelp.Command{
 		Usage:       "/override-cancel [context]",
-		Description: "Cancels sticky overrides (requires sticky_for_head). If a context is given, only that override is cancelled. If no context is given, all sticky overrides on the PR are cancelled.",
+		Description: "Cancels sticky overrides. If a context is given, only that override is cancelled. If no context is given, all sticky overrides on the PR are cancelled.",
 		Featured:    false,
 		WhoCanUse:   whoCanUse(overrideConfig, "", ""),
 		Examples:    []string{"/override-cancel pull-repo-whatever", "/override-cancel"},
@@ -235,11 +242,13 @@ func handleGenericComment(pc plugins.Agent, e github.GenericCommentEvent) error 
 
 	options := pc.PluginConfig.Override
 
-	if options.StickyForHEAD && overrideCancelRe.MatchString(e.Body) {
+	if overrideCancelRe.MatchString(e.Body) {
 		return handleOverrideCancel(c, pc.Logger, &e, options)
 	}
-
-	return handle(c, pc.Logger, &e, options, options.StickyForHEAD)
+	if overrideStickyRe.MatchString(e.Body) {
+		return handle(c, pc.Logger, &e, options, true)
+	}
+	return handle(c, pc.Logger, &e, options, false)
 }
 
 func authorizedUser(gc githubClient, log *logrus.Entry, org, repo, user string) bool {
@@ -349,12 +358,14 @@ func handle(oc overrideClient, log *logrus.Entry, e *github.GenericCommentEvent,
 
 	descFn := description
 	successMsg := "Overrode contexts on behalf of %s: %s"
+	re := overrideRe
 	if sticky {
 		descFn = stickyDescription
-		successMsg = "Overrode contexts on behalf of %s: %s\n\nThese overrides will persist across retests on the current HEAD SHA. Pushing a new commit will clear them."
+		successMsg = "Overrode contexts on behalf of %s: %s\n\nThese overrides will persist across retests on the current HEAD SHA. Pushing a new commit will clear them. Use `/override-cancel` to remove them."
+		re = overrideStickyRe
 	}
 
-	mat := overrideRe.FindAllStringSubmatch(e.Body, -1)
+	mat := re.FindAllStringSubmatch(e.Body, -1)
 	if len(mat) == 0 {
 		return nil
 	}

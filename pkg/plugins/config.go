@@ -2251,10 +2251,6 @@ type Override struct {
 	// AllowedGitHubTeams is a map of orgs and/or repositories (eg "org" or "org/repo") to list of GitHub team slugs,
 	// members of which are allowed to override contexts
 	AllowedGitHubTeams map[string][]string `json:"allowed_github_teams,omitempty"`
-	// StickyForHEAD makes /override persist across retests on the same PR HEAD SHA.
-	// When enabled, Tide will not re-trigger overridden jobs. Pushing a new commit clears overrides.
-	// Also enables the /override-cancel command to remove sticky overrides.
-	StickyForHEAD bool `json:"sticky_for_head,omitempty"`
 }
 
 func (c *Configuration) mergeFrom(other *Configuration) error {
