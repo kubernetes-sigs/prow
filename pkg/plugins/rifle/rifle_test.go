@@ -14,19 +14,189 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package review_assignment
+package rifle
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	"reflect"
+	"slices"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
+	githubql "github.com/shurcooL/githubv4"
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"sigs.k8s.io/prow/pkg/github"
 	"sigs.k8s.io/prow/pkg/layeredsets"
+	"sigs.k8s.io/prow/pkg/plugins/ownersconfig"
+	"sigs.k8s.io/prow/pkg/repoowners"
+	"sigs.k8s.io/prow/pkg/reviewer"
 )
+
+type fakeGitHubClient struct {
+	pr        *github.PullRequest
+	changes   []github.PullRequestChange
+	requested []string
+}
+
+func newFakeGitHubClient(pr *github.PullRequest, filesChanged []string) *fakeGitHubClient {
+	changes := make([]github.PullRequestChange, 0, len(filesChanged))
+	for idx, name := range filesChanged {
+		sha := pr.Head.SHA
+		if idx > 0 || sha == "" {
+			sha = fmt.Sprintf("%s%0X", sha, idx)
+		}
+		changes = append(changes, github.PullRequestChange{Filename: name, SHA: sha})
+	}
+	return &fakeGitHubClient{pr: pr, changes: changes}
+}
+
+func (c *fakeGitHubClient) RequestReview(org, repo string, number int, logins []string) error {
+	if org != "org" {
+		return errors.New("org should be 'org'")
+	}
+	if repo != "repo" {
+		return errors.New("repo should be 'repo'")
+	}
+	if number != 5 {
+		return errors.New("number should be 5")
+	}
+	c.requested = append(c.requested, logins...)
+	return nil
+}
+
+func (c *fakeGitHubClient) GetPullRequestChanges(org, repo string, num int) ([]github.PullRequestChange, error) {
+	if org != "org" {
+		return nil, errors.New("org should be 'org'")
+	}
+	if repo != "repo" {
+		return nil, errors.New("repo should be 'repo'")
+	}
+	if num != 5 {
+		return nil, errors.New("number should be 5")
+	}
+	return c.changes, nil
+}
+
+func (c *fakeGitHubClient) GetPullRequest(org, repo string, num int) (*github.PullRequest, error) {
+	return c.pr, nil
+}
+
+func (c *fakeGitHubClient) Query(ctx context.Context, q any, vars map[string]any) error {
+	sq, ok := q.(*reviewer.GithubAvailabilityQuery)
+	if !ok {
+		return errors.New("unexpected query type")
+	}
+	sq.User.Login = vars["user"].(githubql.String)
+	if sq.User.Login == githubql.String("busy-user") {
+		sq.User.Status.IndicatesLimitedAvailability = githubql.Boolean(true)
+	}
+	return nil
+}
+
+func (c *fakeGitHubClient) FindIssuesWithOrg(org string, query string, sort string, asc bool) ([]github.Issue, error) {
+	if strings.HasPrefix(query, c.pr.Head.SHA) || slices.ContainsFunc(c.changes, func(change github.PullRequestChange) bool {
+		return strings.HasPrefix(query, change.SHA)
+	}) {
+		prStruct := struct{}{}
+		return []github.Issue{{
+			ID:          c.pr.Number,
+			NodeID:      c.pr.NodeID,
+			User:        c.pr.User,
+			Number:      c.pr.Number,
+			Title:       c.pr.Title,
+			State:       c.pr.State,
+			HTMLURL:     c.pr.HTMLURL,
+			Labels:      c.pr.Labels,
+			Assignees:   c.pr.Assignees,
+			Body:        c.pr.Body,
+			CreatedAt:   c.pr.CreatedAt,
+			UpdatedAt:   c.pr.UpdatedAt,
+			PullRequest: &prStruct,
+		}}, nil
+	}
+
+	return []github.Issue{}, nil
+}
+
+type fakeRepoownersClient struct {
+	foc *fakeOwnersClient
+}
+
+func (froc fakeRepoownersClient) LoadRepoOwners(org, repo, base string) (repoowners.RepoOwner, error) {
+	return froc.foc, nil
+}
+
+type fakeOwnersClient struct {
+	owners        map[string]string
+	approvers     map[string]layeredsets.String
+	leafApprovers map[string]sets.Set[string]
+	reviewers     map[string]layeredsets.String
+	leafReviewers map[string]sets.Set[string]
+	allOwners     sets.Set[string]
+}
+
+func (foc *fakeOwnersClient) AllApprovers() sets.Set[string]    { return sets.Set[string]{} }
+func (foc *fakeOwnersClient) AllReviewers() sets.Set[string]    { return sets.Set[string]{} }
+func (foc *fakeOwnersClient) TopLevelApprovers() sets.Set[string] { return sets.Set[string]{} }
+
+func (foc *fakeOwnersClient) AllOwners() sets.Set[string] {
+	if foc.allOwners != nil {
+		return foc.allOwners
+	}
+	return sets.Set[string]{}
+}
+
+func (foc *fakeOwnersClient) Approvers(path string) layeredsets.String {
+	return foc.approvers[path]
+}
+
+func (foc *fakeOwnersClient) LeafApprovers(path string) sets.Set[string] {
+	return foc.leafApprovers[path]
+}
+
+func (foc *fakeOwnersClient) FindApproverOwnersForFile(path string) string {
+	return foc.owners[path]
+}
+
+func (foc *fakeOwnersClient) Reviewers(path string) layeredsets.String {
+	return foc.reviewers[path]
+}
+
+func (foc *fakeOwnersClient) RequiredReviewers(path string) sets.Set[string] {
+	return sets.Set[string]{}
+}
+
+func (foc *fakeOwnersClient) LeafReviewers(path string) sets.Set[string] {
+	return foc.leafReviewers[path]
+}
+
+func (foc *fakeOwnersClient) FindReviewersOwnersForFile(path string) string {
+	return foc.owners[path]
+}
+
+func (foc *fakeOwnersClient) FindLabelsForFile(path string) sets.Set[string] {
+	return sets.Set[string]{}
+}
+
+func (foc *fakeOwnersClient) IsNoParentOwners(path string) bool              { return false }
+func (foc *fakeOwnersClient) IsAutoApproveUnownedSubfolders(path string) bool { return false }
+
+func (foc *fakeOwnersClient) ParseSimpleConfig(path string) (repoowners.SimpleConfig, error) {
+	return repoowners.SimpleConfig{}, nil
+}
+
+func (foc *fakeOwnersClient) ParseFullConfig(path string) (repoowners.FullConfig, error) {
+	return repoowners.FullConfig{}, nil
+}
+
+func (foc *fakeOwnersClient) Filenames() ownersconfig.Filenames {
+	return ownersconfig.FakeFilenames
+}
 
 type fakeRifleClient struct {
 	*fakeGitHubClient
@@ -305,8 +475,8 @@ func TestHandleRifleWithBlameScoring(t *testing.T) {
 				blames: tc.blames,
 			}
 
-			if err := handleRifle(
-				fghc, froc, logrus.WithField("plugin", RiflePluginName),
+			if err := handle(
+				fghc, froc, logrus.WithField("plugin", PluginName),
 				&tc.reviewerCount, 0, true, false, &repo, &pr,
 			); err != nil {
 				t.Fatalf("unexpected error: %v", err)

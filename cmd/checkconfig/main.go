@@ -56,7 +56,8 @@ import (
 	"sigs.k8s.io/prow/pkg/plugins"
 	"sigs.k8s.io/prow/pkg/plugins/approve"
 	"sigs.k8s.io/prow/pkg/plugins/blockade"
-	"sigs.k8s.io/prow/pkg/plugins/review_assignment"
+	"sigs.k8s.io/prow/pkg/plugins/blunderbuss"
+	"sigs.k8s.io/prow/pkg/plugins/rifle"
 	"sigs.k8s.io/prow/pkg/plugins/bugzilla"
 	"sigs.k8s.io/prow/pkg/plugins/cherrypickunapproved"
 	"sigs.k8s.io/prow/pkg/plugins/hold"
@@ -1017,7 +1018,7 @@ func validateManagedWebhooks(cfg *config.Config) error {
 }
 
 func pluginsWithOwnersFile() string {
-	return strings.Join([]string{approve.PluginName, review_assignment.BlunderbussPluginName, review_assignment.RiflePluginName, ownerslabel.PluginName}, ", ")
+	return strings.Join([]string{approve.PluginName, blunderbuss.PluginName, rifle.PluginName, ownerslabel.PluginName}, ", ")
 }
 
 func orgReposUsingOwnersFile(cfg *plugins.Configuration) *orgRepoConfig {
@@ -1026,8 +1027,8 @@ func orgReposUsingOwnersFile(cfg *plugins.Configuration) *orgRepoConfig {
 	// the `approve', `blunderbuss', `rifle', and `owners-label' plugins
 	// are enabled
 	approveConfig := enabledOrgReposForPlugin(cfg, approve.PluginName, false)
-	blunderbussConfig := enabledOrgReposForPlugin(cfg, review_assignment.BlunderbussPluginName, false)
-	rifleConfig := enabledOrgReposForPlugin(cfg, review_assignment.RiflePluginName, false)
+	blunderbussConfig := enabledOrgReposForPlugin(cfg, blunderbuss.PluginName, false)
+	rifleConfig := enabledOrgReposForPlugin(cfg, rifle.PluginName, false)
 	ownersLabelConfig := enabledOrgReposForPlugin(cfg, ownerslabel.PluginName, false)
 	return approveConfig.union(blunderbussConfig).union(rifleConfig).union(ownersLabelConfig)
 }

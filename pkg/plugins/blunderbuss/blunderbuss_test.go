@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package review_assignment
+package blunderbuss
 
 import (
 	"context"
@@ -40,6 +40,7 @@ import (
 	"sigs.k8s.io/prow/pkg/plugins"
 	"sigs.k8s.io/prow/pkg/plugins/ownersconfig"
 	"sigs.k8s.io/prow/pkg/repoowners"
+	"sigs.k8s.io/prow/pkg/reviewer"
 )
 
 type fakeGitHubClient struct {
@@ -92,7 +93,7 @@ func (c *fakeGitHubClient) GetPullRequest(org, repo string, num int) (*github.Pu
 }
 
 func (c *fakeGitHubClient) Query(ctx context.Context, q any, vars map[string]any) error {
-	sq, ok := q.(*githubAvailabilityQuery)
+	sq, ok := q.(*reviewer.GithubAvailabilityQuery)
 	if !ok {
 		return errors.New("unexpected query type")
 	}
@@ -386,7 +387,7 @@ func TestHandleWithExcludeApproversOnlyReviewers(t *testing.T) {
 		fghc := newFakeGitHubClient(&pr, tc.filesChanged)
 
 		if err := handle(
-			fghc, froc, logrus.WithField("plugin", BlunderbussPluginName),
+			fghc, froc, logrus.WithField("plugin", PluginName),
 			&tc.reviewerCount, tc.maxReviewerCount, true, false, &repo, &pr,
 		); err != nil {
 			t.Errorf("[%s] unexpected error from handle: %v", tc.name, err)
@@ -424,7 +425,7 @@ func TestHandleWithoutExcludeApproversNoReviewers(t *testing.T) {
 		fghc := newFakeGitHubClient(&pr, tc.filesChanged)
 
 		if err := handle(
-			fghc, froc, logrus.WithField("plugin", BlunderbussPluginName),
+			fghc, froc, logrus.WithField("plugin", PluginName),
 			&tc.reviewerCount, tc.maxReviewerCount, false, false, &repo, &pr,
 		); err != nil {
 			t.Errorf("[%s] unexpected error from handle: %v", tc.name, err)
@@ -569,7 +570,7 @@ func TestHandleWithoutExcludeApproversMixed(t *testing.T) {
 		repo := github.Repo{Owner: github.User{Login: "org"}, Name: "repo"}
 		fghc := newFakeGitHubClient(&pr, tc.filesChanged)
 		if err := handle(
-			fghc, froc, logrus.WithField("plugin", BlunderbussPluginName),
+			fghc, froc, logrus.WithField("plugin", PluginName),
 			&tc.reviewerCount, tc.maxReviewerCount, false, false, &repo, &pr,
 		); err != nil {
 			t.Errorf("[%s] unexpected error from handle: %v", tc.name, err)
@@ -690,7 +691,7 @@ func TestHandlePullRequest(t *testing.T) {
 			}
 
 			if err := handlePullRequest(
-				fghc, froc, logrus.WithField("plugin", BlunderbussPluginName),
+				fghc, froc, logrus.WithField("plugin", PluginName),
 				c, tc.action, &pr, &repo,
 			); err != nil {
 				t.Fatalf("unexpected error from handle: %v", err)
@@ -785,7 +786,7 @@ func TestHandleGenericComment(t *testing.T) {
 			}
 
 			if err := handleGenericComment(
-				fghc, froc, logrus.WithField("plugin", BlunderbussPluginName), config,
+				fghc, froc, logrus.WithField("plugin", PluginName), config,
 				tc.action, tc.isPR, pr.Number, tc.issueState, &repo, tc.body,
 			); err != nil {
 				t.Fatalf("unexpected error from handle: %v", err)
@@ -959,7 +960,7 @@ func TestHandleStatus(t *testing.T) {
 			}
 
 			if err := handleStatus(
-				fghc, froc, logrus.WithField("plugin", BlunderbussPluginName), config,
+				fghc, froc, logrus.WithField("plugin", PluginName), config,
 				tc.sha, tc.context, tc.state, tc.description, &repo,
 			); err != nil {
 				t.Fatalf("unexpected error from handle: %v", err)
@@ -1014,7 +1015,7 @@ func TestHelpProvider(t *testing.T) {
 			name:               "Empty config",
 			config:             &plugins.Configuration{},
 			enabledRepos:       enabledRepos,
-			configInfoIncludes: []string{configString(BlunderbussPluginName, 0)},
+			configInfoIncludes: []string{reviewer.ConfigString(PluginName, 0)},
 		},
 		{
 			name: "ReviewerCount specified",
@@ -1024,7 +1025,7 @@ func TestHelpProvider(t *testing.T) {
 				},
 			},
 			enabledRepos:       enabledRepos,
-			configInfoIncludes: []string{configString(BlunderbussPluginName, 2)},
+			configInfoIncludes: []string{reviewer.ConfigString(PluginName, 2)},
 		},
 	}
 	for _, c := range cases {
@@ -1094,7 +1095,7 @@ func TestPopActiveReviewer(t *testing.T) {
 		repo := github.Repo{Owner: github.User{Login: "org"}, Name: "repo"}
 		fghc := newFakeGitHubClient(&pr, tc.filesChanged)
 		if err := handle(
-			fghc, froc, logrus.WithField("plugin", BlunderbussPluginName),
+			fghc, froc, logrus.WithField("plugin", PluginName),
 			&tc.reviewerCount, tc.maxReviewerCount, false, true, &repo, &pr,
 		); err != nil {
 			t.Errorf("[%s] unexpected error from handle: %v", tc.name, err)

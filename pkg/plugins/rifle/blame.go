@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package review_assignment
+package rifle
 
 import (
 	"regexp"
@@ -51,7 +51,6 @@ func parseDiffHunks(patch string) []lineRange {
 			count, _ = strconv.Atoi(matches[2])
 		}
 		if count == 0 {
-			// Pure addition — examine context around insertion point
 			contextStart := max(start-5, 1)
 			ranges = append(ranges, lineRange{Start: contextStart, End: start})
 		} else {
@@ -90,8 +89,6 @@ type authorStats struct {
 	MostRecentDate time.Time
 }
 
-// diverseFileSelection picks up to limit files, round-robin across parent
-// directories so that blame scoring samples broadly across the PR.
 func diverseFileSelection(files []github.PullRequestChange, limit int) []github.PullRequestChange {
 	var eligible []github.PullRequestChange
 	for _, f := range files {
@@ -204,4 +201,3 @@ func (rs *reviewerScorer) scoreReviewers(
 
 	return scores, nil
 }
-

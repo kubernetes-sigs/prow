@@ -1686,6 +1686,12 @@ func compileRegexpsAndDurations(pc *Configuration) error {
 			return fmt.Errorf("failed to compile blunderbuss wait for context description regular expression: %q, error: %w", pc.Blunderbuss.WaitForStatus.Description, err)
 		}
 	}
+	if pc.Rifle.WaitForStatus != nil {
+		pc.Rifle.WaitForStatus.DescriptionRe, err = regexp.Compile(pc.Rifle.WaitForStatus.Description)
+		if err != nil {
+			return fmt.Errorf("failed to compile rifle wait for context description regular expression: %q, error: %w", pc.Rifle.WaitForStatus.Description, err)
+		}
+	}
 	return nil
 }
 

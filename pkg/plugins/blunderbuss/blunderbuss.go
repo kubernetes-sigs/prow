@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package review_assignment
+package blunderbuss
 
 import (
 	"fmt"
@@ -29,17 +29,17 @@ import (
 	"sigs.k8s.io/prow/pkg/pluginhelp"
 	"sigs.k8s.io/prow/pkg/plugins"
 	"sigs.k8s.io/prow/pkg/plugins/assign"
+	"sigs.k8s.io/prow/pkg/reviewer"
 )
 
 const (
-	// BlunderbussPluginName defines the blunderbuss plugin's registered name.
-	BlunderbussPluginName = "blunderbuss"
+	PluginName = "blunderbuss"
 )
 
 func init() {
-	plugins.RegisterPullRequestHandler(BlunderbussPluginName, handlePullRequestEvent, helpProvider)
-	plugins.RegisterGenericCommentHandler(BlunderbussPluginName, handleGenericCommentEvent, helpProvider)
-	plugins.RegisterStatusEventHandler(BlunderbussPluginName, handleStatusEvent, helpProvider)
+	plugins.RegisterPullRequestHandler(PluginName, handlePullRequestEvent, helpProvider)
+	plugins.RegisterGenericCommentHandler(PluginName, handleGenericCommentEvent, helpProvider)
+	plugins.RegisterStatusEventHandler(PluginName, handleStatusEvent, helpProvider)
 }
 
 func helpProvider(config *plugins.Configuration, _ []config.OrgRepo) (*pluginhelp.PluginHelp, error) {
@@ -58,12 +58,12 @@ func helpProvider(config *plugins.Configuration, _ []config.OrgRepo) (*pluginhel
 		},
 	})
 	if err != nil {
-		logrus.WithError(err).Warnf("cannot generate comments for %s plugin", BlunderbussPluginName)
+		logrus.WithError(err).Warnf("cannot generate comments for %s plugin", PluginName)
 	}
 	pluginHelp := &pluginhelp.PluginHelp{
 		Description: "The blunderbuss plugin automatically requests reviews from reviewers when a new PR is created. The reviewers are selected randomly from the OWNERS files that apply to the files modified by the PR.",
 		Config: map[string]string{
-			"": configString(BlunderbussPluginName, reviewCount),
+			"": reviewer.ConfigString(PluginName, reviewCount),
 		},
 		Snippet: yamlSnippet,
 	}
@@ -89,7 +89,7 @@ func handlePullRequestEvent(pc plugins.Agent, pre github.PullRequestEvent) error
 	)
 }
 
-func handlePullRequest(ghc githubClient, roc repoownersClient, log *logrus.Entry, config plugins.Blunderbuss, action github.PullRequestEventAction, pr *github.PullRequest, repo *github.Repo) error {
+func handlePullRequest(ghc reviewer.GitHubClient, roc reviewer.RepoOwnersClient, log *logrus.Entry, config plugins.Blunderbuss, action github.PullRequestEventAction, pr *github.PullRequest, repo *github.Repo) error {
 	if !(action == github.PullRequestActionOpened || action == github.PullRequestActionReadyForReview) || assign.CCRegexp.MatchString(pr.Body) || config.WaitForStatus != nil {
 		return nil
 	}
@@ -127,12 +127,12 @@ func handleGenericCommentEvent(pc plugins.Agent, ce github.GenericCommentEvent) 
 	)
 }
 
-func handleGenericComment(ghc githubClient, roc repoownersClient, log *logrus.Entry, config plugins.Blunderbuss, action github.GenericCommentEventAction, isPR bool, prNumber int, issueState string, repo *github.Repo, body string) error {
+func handleGenericComment(ghc reviewer.GitHubClient, roc reviewer.RepoOwnersClient, log *logrus.Entry, config plugins.Blunderbuss, action github.GenericCommentEventAction, isPR bool, prNumber int, issueState string, repo *github.Repo, body string) error {
 	if action != github.GenericCommentActionCreated || !isPR || issueState == "closed" {
 		return nil
 	}
 
-	if !match.MatchString(body) {
+	if !reviewer.AutoCCMatch.MatchString(body) {
 		return nil
 	}
 
@@ -172,7 +172,7 @@ func handleStatusEvent(pc plugins.Agent, se github.StatusEvent) error {
 	)
 }
 
-func handleStatus(ghc githubClient, roc repoownersClient, log *logrus.Entry, config plugins.Blunderbuss, sha string, context string, state string, description string, repo *github.Repo) error {
+func handleStatus(ghc reviewer.GitHubClient, roc reviewer.RepoOwnersClient, log *logrus.Entry, config plugins.Blunderbuss, sha string, context string, state string, description string, repo *github.Repo) error {
 	wfs := config.WaitForStatus
 	if wfs == nil {
 		return nil
@@ -244,7 +244,7 @@ func handleStatus(ghc githubClient, roc repoownersClient, log *logrus.Entry, con
 	return err
 }
 
-func handle(ghc githubClient, roc repoownersClient, log *logrus.Entry, reviewerCount *int, maxReviewers int, excludeApprovers bool, useStatusAvailability bool, repo *github.Repo, pr *github.PullRequest) error {
+func handle(ghc reviewer.GitHubClient, roc reviewer.RepoOwnersClient, log *logrus.Entry, reviewerCount *int, maxReviewers int, excludeApprovers bool, useStatusAvailability bool, repo *github.Repo, pr *github.PullRequest) error {
 	oc, err := roc.LoadRepoOwners(repo.Owner.Login, repo.Name, pr.Base.Ref)
 	if err != nil {
 		return fmt.Errorf("error loading RepoOwners: %w", err)
@@ -257,24 +257,20 @@ func handle(ghc githubClient, roc repoownersClient, log *logrus.Entry, reviewerC
 
 	busyReviewers := sets.New[string]()
 	selector := func(candidates *layeredsets.String) string {
-		return findReviewer(ghc, log, useStatusAvailability, &busyReviewers, candidates)
+		return reviewer.FindReviewer(ghc, log, useStatusAvailability, &busyReviewers, candidates)
 	}
 
 	var reviewers []string
 	var requiredReviewers []string
 	if reviewerCount != nil {
-		reviewers, requiredReviewers, err = getReviewers(oc, selector, log, pr.User.Login, changes, *reviewerCount)
+		reviewers, requiredReviewers, err = reviewer.GetReviewers(oc, selector, log, pr.User.Login, changes, *reviewerCount)
 		if err != nil {
 			return err
 		}
 		if missing := *reviewerCount - len(reviewers); missing > 0 {
 			if !excludeApprovers {
-				// Attempt to use approvers as additional reviewers. This must use
-				// reviewerCount instead of missing because owners can be both reviewers
-				// and approvers and the search might stop too early if it finds
-				// duplicates.
-				frc := fallbackReviewersClient{ownersClient: oc}
-				approvers, _, err := getReviewers(frc, selector, log, pr.User.Login, changes, *reviewerCount)
+				frc := reviewer.FallbackReviewersClient{OwnersClient: oc}
+				approvers, _, err := reviewer.GetReviewers(frc, selector, log, pr.User.Login, changes, *reviewerCount)
 				if err != nil {
 					return err
 				}

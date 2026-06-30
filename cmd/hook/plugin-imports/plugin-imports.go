@@ -22,7 +22,8 @@ import (
 	_ "sigs.k8s.io/prow/pkg/plugins/approve" // Import all enabled plugins.
 	_ "sigs.k8s.io/prow/pkg/plugins/assign"
 	_ "sigs.k8s.io/prow/pkg/plugins/blockade"
-	_ "sigs.k8s.io/prow/pkg/plugins/review_assignment"
+	_ "sigs.k8s.io/prow/pkg/plugins/blunderbuss"
+	_ "sigs.k8s.io/prow/pkg/plugins/rifle"
 	_ "sigs.k8s.io/prow/pkg/plugins/branchcleaner"
 	_ "sigs.k8s.io/prow/pkg/plugins/bugzilla"
 	_ "sigs.k8s.io/prow/pkg/plugins/buildifier"

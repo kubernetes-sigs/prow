@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package review_assignment
+package rifle
 
 import (
 	"fmt"
@@ -33,24 +33,25 @@ import (
 	"sigs.k8s.io/prow/pkg/pluginhelp"
 	"sigs.k8s.io/prow/pkg/plugins"
 	"sigs.k8s.io/prow/pkg/plugins/assign"
+	"sigs.k8s.io/prow/pkg/reviewer"
 )
 
 const (
-	RiflePluginName = "rifle"
+	PluginName = "rifle"
 )
 
 func init() {
-	plugins.RegisterPullRequestHandler(RiflePluginName, handleRiflePullRequestEvent, rifleHelpProvider)
-	plugins.RegisterGenericCommentHandler(RiflePluginName, handleRifleGenericCommentEvent, rifleHelpProvider)
-	plugins.RegisterStatusEventHandler(RiflePluginName, handleRifleStatusEvent, rifleHelpProvider)
+	plugins.RegisterPullRequestHandler(PluginName, handlePullRequestEvent, helpProvider)
+	plugins.RegisterGenericCommentHandler(PluginName, handleGenericCommentEvent, helpProvider)
+	plugins.RegisterStatusEventHandler(PluginName, handleStatusEvent, helpProvider)
 }
 
 type rifleGitHubClient interface {
-	githubClient
+	reviewer.GitHubClient
 	GetBlame(org, repo, ref, path string) ([]github.BlameRange, error)
 }
 
-func rifleHelpProvider(config *plugins.Configuration, _ []config.OrgRepo) (*pluginhelp.PluginHelp, error) {
+func helpProvider(config *plugins.Configuration, _ []config.OrgRepo) (*pluginhelp.PluginHelp, error) {
 	var reviewCount int
 	if config.Rifle.ReviewerCount != nil {
 		reviewCount = *config.Rifle.ReviewerCount
@@ -66,12 +67,12 @@ func rifleHelpProvider(config *plugins.Configuration, _ []config.OrgRepo) (*plug
 		},
 	})
 	if err != nil {
-		logrus.WithError(err).Warnf("cannot generate comments for %s plugin", RiflePluginName)
+		logrus.WithError(err).Warnf("cannot generate comments for %s plugin", PluginName)
 	}
 	pluginHelp := &pluginhelp.PluginHelp{
 		Description: "The rifle plugin automatically requests reviews from reviewers when a new PR is created. Unlike blunderbuss (which selects randomly), rifle uses git blame data to identify reviewers most familiar with the changed code.",
 		Config: map[string]string{
-			"": configString(RiflePluginName, reviewCount),
+			"": reviewer.ConfigString(PluginName, reviewCount),
 		},
 		Snippet: yamlSnippet,
 	}
@@ -85,8 +86,8 @@ func rifleHelpProvider(config *plugins.Configuration, _ []config.OrgRepo) (*plug
 	return pluginHelp, nil
 }
 
-func handleRiflePullRequestEvent(pc plugins.Agent, pre github.PullRequestEvent) error {
-	return handleRiflePullRequest(
+func handlePullRequestEvent(pc plugins.Agent, pre github.PullRequestEvent) error {
+	return handlePullRequest(
 		pc.GitHubClient,
 		pc.OwnersClient,
 		pc.Logger,
@@ -97,7 +98,7 @@ func handleRiflePullRequestEvent(pc plugins.Agent, pre github.PullRequestEvent) 
 	)
 }
 
-func handleRiflePullRequest(ghc rifleGitHubClient, roc repoownersClient, log *logrus.Entry, cfg plugins.Rifle, action github.PullRequestEventAction, pr *github.PullRequest, repo *github.Repo) error {
+func handlePullRequest(ghc rifleGitHubClient, roc reviewer.RepoOwnersClient, log *logrus.Entry, cfg plugins.Rifle, action github.PullRequestEventAction, pr *github.PullRequest, repo *github.Repo) error {
 	if !(action == github.PullRequestActionOpened || action == github.PullRequestActionReadyForReview) || assign.CCRegexp.MatchString(pr.Body) || cfg.WaitForStatus != nil {
 		return nil
 	}
@@ -107,7 +108,7 @@ func handleRiflePullRequest(ghc rifleGitHubClient, roc repoownersClient, log *lo
 	if slices.Contains(cfg.IgnoreAuthors, pr.User.Login) {
 		return nil
 	}
-	return handleRifle(
+	return handle(
 		ghc,
 		roc,
 		log,
@@ -120,8 +121,8 @@ func handleRiflePullRequest(ghc rifleGitHubClient, roc repoownersClient, log *lo
 	)
 }
 
-func handleRifleGenericCommentEvent(pc plugins.Agent, ce github.GenericCommentEvent) error {
-	return handleRifleGenericComment(
+func handleGenericCommentEvent(pc plugins.Agent, ce github.GenericCommentEvent) error {
+	return handleGenericComment(
 		pc.GitHubClient,
 		pc.OwnersClient,
 		pc.Logger,
@@ -135,12 +136,12 @@ func handleRifleGenericCommentEvent(pc plugins.Agent, ce github.GenericCommentEv
 	)
 }
 
-func handleRifleGenericComment(ghc rifleGitHubClient, roc repoownersClient, log *logrus.Entry, cfg plugins.Rifle, action github.GenericCommentEventAction, isPR bool, prNumber int, issueState string, repo *github.Repo, body string) error {
+func handleGenericComment(ghc rifleGitHubClient, roc reviewer.RepoOwnersClient, log *logrus.Entry, cfg plugins.Rifle, action github.GenericCommentEventAction, isPR bool, prNumber int, issueState string, repo *github.Repo, body string) error {
 	if action != github.GenericCommentActionCreated || !isPR || issueState == "closed" {
 		return nil
 	}
 
-	if !match.MatchString(body) {
+	if !reviewer.AutoCCMatch.MatchString(body) {
 		return nil
 	}
 
@@ -149,7 +150,7 @@ func handleRifleGenericComment(ghc rifleGitHubClient, roc repoownersClient, log 
 		return fmt.Errorf("error loading PullRequest: %w", err)
 	}
 
-	return handleRifle(
+	return handle(
 		ghc,
 		roc,
 		log,
@@ -162,12 +163,12 @@ func handleRifleGenericComment(ghc rifleGitHubClient, roc repoownersClient, log 
 	)
 }
 
-func handleRifleStatusEvent(pc plugins.Agent, se github.StatusEvent) error {
+func handleStatusEvent(pc plugins.Agent, se github.StatusEvent) error {
 	if se.State == "" || se.Context == "" || se.Description == "" {
 		return fmt.Errorf("invalid status event delivered with empty state/context/description")
 	}
 
-	return handleRifleStatus(
+	return handleStatus(
 		pc.GitHubClient,
 		pc.OwnersClient,
 		pc.Logger,
@@ -180,7 +181,7 @@ func handleRifleStatusEvent(pc plugins.Agent, se github.StatusEvent) error {
 	)
 }
 
-func handleRifleStatus(ghc rifleGitHubClient, roc repoownersClient, log *logrus.Entry, cfg plugins.Rifle, sha string, context string, state string, description string, repo *github.Repo) error {
+func handleStatus(ghc rifleGitHubClient, roc reviewer.RepoOwnersClient, log *logrus.Entry, cfg plugins.Rifle, sha string, context string, state string, description string, repo *github.Repo) error {
 	wfs := cfg.WaitForStatus
 	if wfs == nil {
 		return nil
@@ -234,7 +235,7 @@ func handleRifleStatus(ghc rifleGitHubClient, roc repoownersClient, log *logrus.
 			return nil
 		}
 
-		err = handleRifle(
+		err = handle(
 			ghc,
 			roc,
 			l,
@@ -252,7 +253,7 @@ func handleRifleStatus(ghc rifleGitHubClient, roc repoownersClient, log *logrus.
 	return err
 }
 
-func handleRifle(ghc rifleGitHubClient, roc repoownersClient, log *logrus.Entry, reviewerCount *int, maxReviewers int, excludeApprovers bool, useStatusAvailability bool, repo *github.Repo, pr *github.PullRequest) error {
+func handle(ghc rifleGitHubClient, roc reviewer.RepoOwnersClient, log *logrus.Entry, reviewerCount *int, maxReviewers int, excludeApprovers bool, useStatusAvailability bool, repo *github.Repo, pr *github.PullRequest) error {
 	oc, err := roc.LoadRepoOwners(repo.Owner.Login, repo.Name, pr.Base.Ref)
 	if err != nil {
 		return fmt.Errorf("error loading RepoOwners: %w", err)
@@ -293,20 +294,20 @@ func handleRifle(ghc rifleGitHubClient, roc repoownersClient, log *logrus.Entry,
 		if hasBlameScores(blameScores) {
 			return selectBestReviewer(blameScores, candidates, &busyReviewers, ghc, log, useStatusAvailability)
 		}
-		return findReviewer(ghc, log, useStatusAvailability, &busyReviewers, candidates)
+		return reviewer.FindReviewer(ghc, log, useStatusAvailability, &busyReviewers, candidates)
 	}
 
 	var reviewers []string
 	var requiredReviewers []string
 	if reviewerCount != nil {
-		reviewers, requiredReviewers, err = getReviewers(oc, selector, log, pr.User.Login, changes, *reviewerCount)
+		reviewers, requiredReviewers, err = reviewer.GetReviewers(oc, selector, log, pr.User.Login, changes, *reviewerCount)
 		if err != nil {
 			return err
 		}
 		if missing := *reviewerCount - len(reviewers); missing > 0 {
 			if !excludeApprovers {
-				frc := fallbackReviewersClient{ownersClient: oc}
-				approvers, _, err := getReviewers(frc, selector, log, pr.User.Login, changes, *reviewerCount)
+				frc := reviewer.FallbackReviewersClient{OwnersClient: oc}
+				approvers, _, err := reviewer.GetReviewers(frc, selector, log, pr.User.Login, changes, *reviewerCount)
 				if err != nil {
 					return err
 				}
@@ -355,7 +356,7 @@ func selectBestReviewer(
 	scores map[string]float64,
 	candidates *layeredsets.String,
 	busyReviewers *sets.Set[string],
-	ghc githubClient,
+	ghc reviewer.GitHubClient,
 	log *logrus.Entry,
 	useStatusAvailability bool,
 ) string {
@@ -384,7 +385,7 @@ func selectBestReviewer(
 
 	for _, c := range ranked {
 		if useStatusAvailability {
-			busy, err := isUserBusy(ghc, c.login)
+			busy, err := reviewer.IsUserBusy(ghc, c.login)
 			if err != nil {
 				log.WithError(err).WithField("user", c.login).Warn("Failed to check user availability")
 			} else if busy {
@@ -409,7 +410,7 @@ func hasBlameScores(scores map[string]float64) bool {
 
 func findFallbackReviewers(
 	blameScores map[string]float64,
-	oc ownersClient,
+	oc reviewer.OwnersClient,
 	exclude sets.Set[string],
 	needed int,
 ) []string {

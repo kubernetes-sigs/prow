@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package review_assignment
+package reviewer
 
 import (
 	"context"
@@ -30,40 +30,44 @@ import (
 	"sigs.k8s.io/prow/pkg/repoowners"
 )
 
-var match = regexp.MustCompile(`(?mi)^/auto-cc\s*$`)
+var AutoCCMatch = regexp.MustCompile(`(?mi)^/auto-cc\s*$`)
 
-type reviewersClient interface {
+type ReviewersClient interface {
 	FindReviewersOwnersForFile(path string) string
 	Reviewers(path string) layeredsets.String
 	RequiredReviewers(path string) sets.Set[string]
 	LeafReviewers(path string) sets.Set[string]
 }
 
-type ownersClient interface {
-	reviewersClient
+type OwnersClient interface {
+	ReviewersClient
 	FindApproverOwnersForFile(path string) string
 	Approvers(path string) layeredsets.String
 	LeafApprovers(path string) sets.Set[string]
 	AllOwners() sets.Set[string]
 }
 
-type fallbackReviewersClient struct {
-	ownersClient
+type FallbackReviewersClient struct {
+	OwnersClient OwnersClient
 }
 
-func (foc fallbackReviewersClient) FindReviewersOwnersForFile(path string) string {
-	return foc.ownersClient.FindApproverOwnersForFile(path)
+func (foc FallbackReviewersClient) FindReviewersOwnersForFile(path string) string {
+	return foc.OwnersClient.FindApproverOwnersForFile(path)
 }
 
-func (foc fallbackReviewersClient) Reviewers(path string) layeredsets.String {
-	return foc.ownersClient.Approvers(path)
+func (foc FallbackReviewersClient) Reviewers(path string) layeredsets.String {
+	return foc.OwnersClient.Approvers(path)
 }
 
-func (foc fallbackReviewersClient) LeafReviewers(path string) sets.Set[string] {
-	return foc.ownersClient.LeafApprovers(path)
+func (foc FallbackReviewersClient) LeafReviewers(path string) sets.Set[string] {
+	return foc.OwnersClient.LeafApprovers(path)
 }
 
-type githubClient interface {
+func (foc FallbackReviewersClient) RequiredReviewers(path string) sets.Set[string] {
+	return foc.OwnersClient.RequiredReviewers(path)
+}
+
+type GitHubClient interface {
 	RequestReview(org string, repo string, number int, logins []string) error
 	FindIssuesWithOrg(org string, query string, sort string, asc bool) ([]github.Issue, error)
 	GetPullRequestChanges(org string, repo string, number int) ([]github.PullRequestChange, error)
@@ -71,13 +75,13 @@ type githubClient interface {
 	Query(context.Context, any, map[string]any) error
 }
 
-type repoownersClient interface {
+type RepoOwnersClient interface {
 	LoadRepoOwners(org, repo, base string) (repoowners.RepoOwner, error)
 }
 
-type reviewerSelector func(candidates *layeredsets.String) string
+type ReviewerSelector func(candidates *layeredsets.String) string
 
-func configString(pluginName string, reviewCount int) string {
+func ConfigString(pluginName string, reviewCount int) string {
 	var pluralSuffix string
 	if reviewCount > 1 {
 		pluralSuffix = "s"
@@ -85,7 +89,7 @@ func configString(pluginName string, reviewCount int) string {
 	return fmt.Sprintf("%s is currently configured to request reviews from %d reviewer%s.", pluginName, reviewCount, pluralSuffix)
 }
 
-func getReviewers(rc reviewersClient, selector reviewerSelector, log *logrus.Entry, author string, files []github.PullRequestChange, minReviewers int) ([]string, []string, error) {
+func GetReviewers(rc ReviewersClient, selector ReviewerSelector, log *logrus.Entry, author string, files []github.PullRequestChange, minReviewers int) ([]string, []string, error) {
 	authorSet := sets.New[string](github.NormLogin(author))
 	reviewers := layeredsets.NewString()
 	requiredReviewers := sets.New[string]()
@@ -95,7 +99,6 @@ func getReviewers(rc reviewersClient, selector reviewerSelector, log *logrus.Ent
 		return reviewers.List(), sets.List(requiredReviewers), nil
 	}
 
-	// First build 'reviewers' by taking a unique reviewer from each OWNERS file.
 	for _, file := range files {
 		ownersFile := rc.FindReviewersOwnersForFile(file.Filename)
 		if ownersSeen.Has(ownersFile) {
@@ -114,7 +117,6 @@ func getReviewers(rc reviewersClient, selector reviewerSelector, log *logrus.Ent
 			reviewers.Insert(0, r)
 		}
 	}
-	// Ensure that we request review from at least minReviewers reviewers. Favor leaf reviewers.
 	unusedLeaves := leafReviewers.Difference(reviewers.Set())
 	for reviewers.Len() < minReviewers && unusedLeaves.Len() > 0 {
 		if r := selector(&unusedLeaves); r != "" {
@@ -135,7 +137,7 @@ func getReviewers(rc reviewersClient, selector reviewerSelector, log *logrus.Ent
 	return reviewers.List(), sets.List(requiredReviewers), nil
 }
 
-func findReviewer(ghc githubClient, log *logrus.Entry, useStatusAvailability bool, busyReviewers *sets.Set[string], targetSet *layeredsets.String) string {
+func FindReviewer(ghc GitHubClient, log *logrus.Entry, useStatusAvailability bool, busyReviewers *sets.Set[string], targetSet *layeredsets.String) string {
 	if !useStatusAvailability {
 		return targetSet.PopRandom()
 	}
@@ -145,7 +147,7 @@ func findReviewer(ghc githubClient, log *logrus.Entry, useStatusAvailability boo
 		if busyReviewers.Has(candidate) {
 			continue
 		}
-		busy, err := isUserBusy(ghc, candidate)
+		busy, err := IsUserBusy(ghc, candidate)
 		if err != nil {
 			log.WithField("user", candidate).WithError(err).Error("Error checking user availability")
 		}
@@ -158,7 +160,7 @@ func findReviewer(ghc githubClient, log *logrus.Entry, useStatusAvailability boo
 	return ""
 }
 
-type githubAvailabilityQuery struct {
+type GithubAvailabilityQuery struct {
 	User struct {
 		Login  githubql.String
 		Status struct {
@@ -167,8 +169,8 @@ type githubAvailabilityQuery struct {
 	} `graphql:"user(login: $user)"`
 }
 
-func isUserBusy(ghc githubClient, user string) (bool, error) {
-	var query githubAvailabilityQuery
+func IsUserBusy(ghc GitHubClient, user string) (bool, error) {
+	var query GithubAvailabilityQuery
 	vars := map[string]any{
 		"user": githubql.String(user),
 	}
