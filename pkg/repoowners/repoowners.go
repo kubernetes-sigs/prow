@@ -901,6 +901,8 @@ func (o *RepoOwners) entriesForFile(path string, people map[string]map[*regexp.R
 // pkg/util/OWNERS has user2 this will only return user2 for the path
 // pkg/util/sets/file.go
 func (o *RepoOwners) LeafApprovers(path string) sets.Set[string] {
+	// Advisory approvers are included in o.approvers so Approvers() recognizes
+	// their /approve authority, but must be excluded here to prevent auto-assignment.
 	all := o.entriesForFile(path, o.approvers, true).Set()
 	advisory := o.entriesForFile(path, o.advisoryApprovers, true).Set()
 	return all.Difference(advisory)
