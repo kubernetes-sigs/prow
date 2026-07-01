@@ -87,7 +87,7 @@ func (c *fakeGitHubClient) GetPullRequest(org, repo string, num int) (*github.Pu
 }
 
 func (c *fakeGitHubClient) Query(ctx context.Context, q any, vars map[string]any) error {
-	sq, ok := q.(*reviewer.GithubAvailabilityQuery)
+	sq, ok := q.(*reviewer.GitHubAvailabilityQuery)
 	if !ok {
 		return errors.New("unexpected query type")
 	}

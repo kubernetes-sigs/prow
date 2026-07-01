@@ -160,7 +160,7 @@ func FindReviewer(ghc GitHubClient, log *logrus.Entry, useStatusAvailability boo
 	return ""
 }
 
-type GithubAvailabilityQuery struct {
+type GitHubAvailabilityQuery struct {
 	User struct {
 		Login  githubql.String
 		Status struct {
@@ -170,7 +170,7 @@ type GithubAvailabilityQuery struct {
 }
 
 func IsUserBusy(ghc GitHubClient, user string) (bool, error) {
-	var query GithubAvailabilityQuery
+	var query GitHubAvailabilityQuery
 	vars := map[string]any{
 		"user": githubql.String(user),
 	}
