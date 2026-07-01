@@ -125,6 +125,9 @@ type ClientFactoryOpts struct {
 	CookieFilePath string
 	// If set, cacheDir persist. Otherwise temp dir will be used for CacheDir
 	Persist *bool
+	// SigningKeyPath is the path to an SSH private key for signing commits.
+	// When set, cloned repos are configured with gpg.format=ssh and commit.gpgsign=true.
+	SigningKeyPath string
 }
 
 // These options are scoped to the repo, not the ClientFactory level. The reason
@@ -185,6 +188,9 @@ func (cfo *ClientFactoryOpts) Apply(target *ClientFactoryOpts) {
 	}
 	if cfo.Persist != nil {
 		target.Persist = cfo.Persist
+	}
+	if cfo.SigningKeyPath != "" {
+		target.SigningKeyPath = cfo.SigningKeyPath
 	}
 }
 
@@ -270,6 +276,13 @@ func WithPersist(persist bool) ClientFactoryOpt {
 	}
 }
 
+// WithSigningKeyPath sets the SigningKeyPath option.
+func WithSigningKeyPath(path string) ClientFactoryOpt {
+	return func(o *ClientFactoryOpts) {
+		o.SigningKeyPath = path
+	}
+}
+
 func defaultClientFactoryOpts(cfo *ClientFactoryOpts) {
 	if cfo.Host == "" {
 		cfo.Host = "github.com"
@@ -337,24 +350,30 @@ func NewClientFactory(opts ...ClientFactoryOpt) (ClientFactory, error) {
 		repoLocks:      map[string]*sync.Mutex{},
 		logger:         logrus.WithField("client", "git"),
 		cookieFilePath: o.CookieFilePath,
+		signingKeyPath: o.SigningKeyPath,
 	}, nil
 }
 
 // NewLocalClientFactory allows for the creation of repository clients
 // based on a local filepath remote for testing
-func NewLocalClientFactory(baseDir string, gitUser GitUserGetter, censor Censor) (ClientFactory, error) {
+func NewLocalClientFactory(baseDir string, gitUser GitUserGetter, censor Censor, opts ...ClientFactoryOpt) (ClientFactory, error) {
+	o := ClientFactoryOpts{}
+	for _, opt := range opts {
+		opt(&o)
+	}
 	cacheDir, err := os.MkdirTemp("", "gitcache")
 	if err != nil {
 		return nil, err
 	}
 	return &clientFactory{
-		cacheDir:   cacheDir,
-		remote:     &pathResolverFactory{baseDir: baseDir},
-		gitUser:    gitUser,
-		censor:     censor,
-		masterLock: &sync.Mutex{},
-		repoLocks:  map[string]*sync.Mutex{},
-		logger:     logrus.WithField("client", "git"),
+		cacheDir:       cacheDir,
+		remote:         &pathResolverFactory{baseDir: baseDir},
+		gitUser:        gitUser,
+		censor:         censor,
+		signingKeyPath: o.SigningKeyPath,
+		masterLock:     &sync.Mutex{},
+		repoLocks:      map[string]*sync.Mutex{},
+		logger:         logrus.WithField("client", "git"),
 	}, nil
 }
 
@@ -364,6 +383,7 @@ type clientFactory struct {
 	censor         Censor
 	logger         *logrus.Entry
 	cookieFilePath string
+	signingKeyPath string
 
 	// cacheDir is the root under which cached clones of repos are created
 	cacheDir string
@@ -473,6 +493,18 @@ func (c *clientFactory) ClientForWithRepoOpts(org, repo string, repoOpts RepoOpt
 		return nil, err
 	}
 	gitMetrics.secondaryCloneDuration.WithLabelValues(org, repo).Observe(time.Since(timeBeforeSecondaryClone).Seconds())
+
+	if c.signingKeyPath != "" {
+		for _, args := range [][]string{
+			{"gpg.format", "ssh"},
+			{"user.signingkey", c.signingKeyPath},
+			{"commit.gpgsign", "true"},
+		} {
+			if err := repoClient.Config(args...); err != nil {
+				return nil, fmt.Errorf("failed to configure commit signing: %w", err)
+			}
+		}
+	}
 
 	return repoClient, nil
 }
