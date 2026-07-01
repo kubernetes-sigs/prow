@@ -1684,6 +1684,35 @@ func TestValidateTideContextPolicy(t *testing.T) {
 			}),
 		},
 		{
+			name: "bp required context collides with conditionally-triggered job via from-branch-protection",
+			cfg: cfg(func(c *config.Config) {
+				c.PresubmitsStatic["a/b"] = []config.Presubmit{
+					{
+						Reporter:           config.Reporter{Context: "ci/prow/test"},
+						Brancher:           config.Brancher{Branches: []string{`^master$`}},
+						RegexpChangeMatcher: config.RegexpChangeMatcher{SkipIfOnlyChanged: `\.md$`},
+					},
+				}
+				yes := true
+				c.Tide.ContextOptions.FromBranchProtection = &yes
+				c.BranchProtection = config.BranchProtection{
+					Orgs: map[string]config.Org{
+						"a": {Repos: map[string]config.Repo{
+							"b": {Branches: map[string]config.Branch{
+								"master": {Policy: config.Policy{
+									Protect: &yes,
+									RequiredStatusChecks: &config.ContextPolicy{
+										Contexts: []string{"ci/prow/test"},
+									},
+								}},
+							}},
+						}},
+					},
+				}
+			}),
+			expectedError: "context policy for master branch in a/b is invalid: contexts ci/prow/test are defined as required and required if present",
+		},
+		{
 			name: "repo key is not in org/repo format, no error",
 			cfg: cfg(func(c *config.Config) {
 				c.PresubmitsStatic["https://kunit-review.googlesource.com/linux"] = []config.Presubmit{
