@@ -1455,14 +1455,30 @@ func validateRifle(r *Rifle) error {
 }
 
 func validateMutuallyExclusivePlugins(plugins Plugins) error {
-	for repo, cfg := range plugins {
+	var errs []error
+	for entry, cfg := range plugins {
 		hasBlunderbuss := slices.Contains(cfg.Plugins, "blunderbuss")
 		hasRifle := slices.Contains(cfg.Plugins, "rifle")
 		if hasBlunderbuss && hasRifle {
-			return fmt.Errorf("%s: blunderbuss and rifle plugins are mutually exclusive", repo)
+			errs = append(errs, fmt.Errorf("%s: blunderbuss and rifle plugins are mutually exclusive", entry))
+			continue
+		}
+		if !strings.Contains(entry, "/") {
+			continue
+		}
+		split := strings.Split(entry, "/")
+		org, repo := split[0], split[1]
+		orgConfig := plugins[org]
+		if slices.Contains(orgConfig.ExcludedRepos, repo) {
+			continue
+		}
+		orgHasBlunderbuss := slices.Contains(orgConfig.Plugins, "blunderbuss")
+		orgHasRifle := slices.Contains(orgConfig.Plugins, "rifle")
+		if (hasBlunderbuss && orgHasRifle) || (hasRifle && orgHasBlunderbuss) {
+			errs = append(errs, fmt.Errorf("%s: blunderbuss and rifle plugins are mutually exclusive (conflict between %s and %s config)", entry, org, entry))
 		}
 	}
-	return nil
+	return utilerrors.NewAggregate(errs)
 }
 
 // ConfigMapID is a name/namespace/cluster combination that identifies a config map

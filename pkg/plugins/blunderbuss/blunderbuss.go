@@ -21,6 +21,7 @@ import (
 	"slices"
 
 	"github.com/sirupsen/logrus"
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"sigs.k8s.io/prow/pkg/layeredsets"
 
@@ -199,6 +200,7 @@ func handleStatus(ghc reviewer.GitHubClient, roc reviewer.RepoOwnersClient, log 
 	}
 	log.Infof("Found %d PRs matching commit.", len(issues))
 
+	var errs []error
 	for _, issue := range issues {
 		l := log.WithField("pr", issue.Number)
 
@@ -215,18 +217,18 @@ func handleStatus(ghc reviewer.GitHubClient, roc reviewer.RepoOwnersClient, log 
 		}
 
 		if pr.Draft && config.IgnoreDrafts {
-			return nil
+			continue
 		}
 
 		if slices.Contains(config.IgnoreAuthors, pr.User.Login) {
-			return nil
+			continue
 		}
 
 		if len(pr.RequestedReviewers) > 0 {
-			return nil
+			continue
 		}
 
-		err = handle(
+		if err := handle(
 			ghc,
 			roc,
 			l,
@@ -235,13 +237,12 @@ func handleStatus(ghc reviewer.GitHubClient, roc reviewer.RepoOwnersClient, log 
 			config.ExcludeApprovers,
 			config.UseStatusAvailability,
 			repo,
-			pr)
-
-		if err != nil {
+			pr); err != nil {
 			l.WithError(err).Warning("Error processing event from commit status update")
+			errs = append(errs, err)
 		}
 	}
-	return err
+	return utilerrors.NewAggregate(errs)
 }
 
 func handle(ghc reviewer.GitHubClient, roc reviewer.RepoOwnersClient, log *logrus.Entry, reviewerCount *int, maxReviewers int, excludeApprovers bool, useStatusAvailability bool, repo *github.Repo, pr *github.PullRequest) error {
