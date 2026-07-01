@@ -1531,7 +1531,7 @@ func TestHandleStickyCancel(t *testing.T) {
 		expectedComment  string
 	}{
 		{
-			name: "cancel specific sticky override",
+			name: "cancel specific override",
 			body: "/override-cancel job-a",
 			statuses: []github.Status{
 				{Context: "job-a", State: github.StatusSuccess, Description: "Overridden by admin-user [prow:skip-retest]"},
@@ -1541,10 +1541,10 @@ func TestHandleStickyCancel(t *testing.T) {
 				{Context: "job-a", State: github.StatusFailure, Description: "Override cancelled by admin-user"},
 				{Context: "job-b", State: github.StatusSuccess, Description: "Overridden by admin-user [prow:skip-retest]"},
 			},
-			expectedComment: "Cancelled sticky overrides",
+			expectedComment: "Cancelled overrides",
 		},
 		{
-			name: "cancel all sticky overrides",
+			name: "cancel all overrides",
 			body: "/override-cancel",
 			statuses: []github.Status{
 				{Context: "job-a", State: github.StatusSuccess, Description: "Overridden by admin-user [prow:skip-retest]"},
@@ -1554,18 +1554,29 @@ func TestHandleStickyCancel(t *testing.T) {
 				{Context: "job-a", State: github.StatusFailure, Description: "Override cancelled by admin-user"},
 				{Context: "job-b", State: github.StatusFailure, Description: "Override cancelled by admin-user"},
 			},
-			expectedComment: "Cancelled sticky overrides",
+			expectedComment: "Cancelled overrides",
 		},
 		{
-			name: "cancel does not affect regular overrides",
+			name: "cancel also affects regular overrides",
 			body: "/override-cancel",
 			statuses: []github.Status{
 				{Context: "job-a", State: github.StatusSuccess, Description: "Overridden by admin-user"},
 			},
 			expectedStatuses: []github.Status{
-				{Context: "job-a", State: github.StatusSuccess, Description: "Overridden by admin-user"},
+				{Context: "job-a", State: github.StatusFailure, Description: "Override cancelled by admin-user"},
 			},
-			expectedComment: "No sticky overrides found to cancel",
+			expectedComment: "Cancelled overrides",
+		},
+		{
+			name: "cancel does not affect non-override statuses",
+			body: "/override-cancel",
+			statuses: []github.Status{
+				{Context: "job-a", State: github.StatusSuccess, Description: "Build succeeded"},
+			},
+			expectedStatuses: []github.Status{
+				{Context: "job-a", State: github.StatusSuccess, Description: "Build succeeded"},
+			},
+			expectedComment: "No overrides found to cancel",
 		},
 	}
 
@@ -1599,5 +1610,17 @@ func TestHandleStickyCancel(t *testing.T) {
 				t.Errorf("expected comment containing %q, got %q", tc.expectedComment, fc.comments[len(fc.comments)-1])
 			}
 		})
+	}
+}
+
+func TestStickyDescriptionFitsGitHubLimit(t *testing.T) {
+	maxUsername := strings.Repeat("x", 39)
+	desc := stickyDescription(maxUsername)
+	full := config.ContextDescriptionWithBaseSha(desc, strings.Repeat("f", 40))
+	if len(full) > 140 {
+		t.Errorf("sticky description with max-length username exceeds 140 chars: got %d (%q)", len(full), full)
+	}
+	if !strings.Contains(full, config.SkipRetestSentinel) {
+		t.Errorf("sticky description lost sentinel after ContextDescriptionWithBaseSha: %q", full)
 	}
 }

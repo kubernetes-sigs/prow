@@ -199,7 +199,7 @@ func helpProvider(config *plugins.Configuration, _ []config.OrgRepo) (*pluginhel
 	})
 	pluginHelp.AddCommand(pluginhelp.Command{
 		Usage:       "/override-cancel [context]",
-		Description: "Cancels sticky overrides. If a context is given, only that override is cancelled. If no context is given, all sticky overrides on the PR are cancelled.",
+		Description: "Removes overrides by setting the status back to failure. Works on both regular and sticky overrides. If a context is given, only that override is removed. If no context is given, all overrides on the PR are removed.",
 		Featured:    false,
 		WhoCanUse:   whoCanUse(overrideConfig, "", ""),
 		Examples:    []string{"/override-cancel pull-repo-whatever", "/override-cancel"},
@@ -242,13 +242,24 @@ func handleGenericComment(pc plugins.Agent, e github.GenericCommentEvent) error 
 
 	options := pc.PluginConfig.Override
 
-	if overrideCancelRe.MatchString(e.Body) {
-		return handleOverrideCancel(c, pc.Logger, &e, options)
+	// process all three handlers, we can have cancellations, overrides, and sticky overrides in the same comment
+	if err := handleOverrideCancel(c, pc.Logger, &e, options); err != nil {
+		return err
 	}
-	if overrideStickyRe.MatchString(e.Body) {
-		return handle(c, pc.Logger, &e, options, true)
+	if err := handle(c, pc.Logger, &e, options, true); err != nil {
+		return err
 	}
 	return handle(c, pc.Logger, &e, options, false)
+}
+
+func isAuthorized(oc overrideClient, log *logrus.Entry, org, repo, user string, options plugins.Override, pr *github.PullRequest) bool {
+	if authorizedUser(oc, log, org, repo, user) {
+		return true
+	}
+	if len(options.AllowedGitHubTeams) > 0 && authorizedGitHubTeamMember(oc, log, options.AllowedGitHubTeams, org, repo, user) {
+		return true
+	}
+	return authorizedTopLevelOwner(oc, options.AllowTopLevelOwners, log, org, repo, user, pr)
 }
 
 func authorizedUser(gc githubClient, log *logrus.Entry, org, repo, user string) bool {
@@ -356,10 +367,12 @@ func handle(oc overrideClient, log *logrus.Entry, e *github.GenericCommentEvent,
 		return nil
 	}
 
+	cmdName := "/override"
 	descFn := description
 	successMsg := "Overrode contexts on behalf of %s: %s"
 	re := overrideRe
 	if sticky {
+		cmdName = "/override-sticky"
 		descFn = stickyDescription
 		successMsg = "Overrode contexts on behalf of %s: %s\n\nThese overrides will persist across retests on the current HEAD SHA. Pushing a new commit will clear them. Use `/override-cancel` to remove them."
 		re = overrideStickyRe
@@ -378,21 +391,11 @@ func handle(oc overrideClient, log *logrus.Entry, e *github.GenericCommentEvent,
 	overrides := sets.New[string]()
 	for _, m := range mat {
 		if m[1] == "" {
-			resp := "/override requires failed status contexts to operate on, but none was given"
+			resp := fmt.Sprintf("%s requires failed status contexts to operate on, but none was given", cmdName)
 			log.Debug(resp)
 			return oc.CreateComment(org, repo, number, plugins.FormatResponseRaw(e.Body, e.HTMLURL, user, resp))
 		}
 		overrides.Insert(parseOverrideInput(m[2])...)
-	}
-
-	authorized := authorizedUser(oc, log, org, repo, user)
-	if !authorized && len(options.AllowedGitHubTeams) > 0 {
-		authorized = authorizedGitHubTeamMember(oc, log, options.AllowedGitHubTeams, org, repo, user)
-	}
-	if !authorized && !options.AllowTopLevelOwners {
-		resp := fmt.Sprintf("%s unauthorized: /override is restricted to %s", user, whoCanUse(options, org, repo))
-		log.Debug(resp)
-		return oc.CreateComment(org, repo, number, plugins.FormatResponseRaw(e.Body, e.HTMLURL, user, resp))
 	}
 
 	pr, err := oc.GetPullRequest(org, repo, number)
@@ -402,8 +405,8 @@ func handle(oc overrideClient, log *logrus.Entry, e *github.GenericCommentEvent,
 		return oc.CreateComment(org, repo, number, plugins.FormatResponseRaw(e.Body, e.HTMLURL, user, resp))
 	}
 
-	if !authorized && !authorizedTopLevelOwner(oc, options.AllowTopLevelOwners, log, org, repo, user, pr) {
-		resp := fmt.Sprintf("%s unauthorized: /override is restricted to %s", user, whoCanUse(options, org, repo))
+	if !isAuthorized(oc, log, org, repo, user, options, pr) {
+		resp := fmt.Sprintf("%s unauthorized: %s is restricted to %s", user, cmdName, whoCanUse(options, org, repo))
 		log.Debug(resp)
 		return oc.CreateComment(org, repo, number, plugins.FormatResponseRaw(e.Body, e.HTMLURL, user, resp))
 	}
@@ -497,7 +500,7 @@ func handle(oc overrideClient, log *logrus.Entry, e *github.GenericCommentEvent,
 	}
 
 	if unknown := overrides.Difference(contexts); unknown.Len() > 0 {
-		resp := fmt.Sprintf(`/override requires failed status contexts, check run or a prowjob name to operate on.
+		resp := fmt.Sprintf(`%s requires failed status contexts, check run or a prowjob name to operate on.
 The following unknown contexts/checkruns were given:
 %s
 
@@ -505,7 +508,7 @@ Only the following failed contexts/checkruns were expected:
 %s
 
 If you are trying to override a checkrun that has a space in it, you must put a double quote on the context.
-`, formatList(sets.List(unknown)), formatList(sets.List(contexts)))
+`, cmdName, formatList(sets.List(unknown)), formatList(sets.List(contexts)))
 		log.Debug(resp)
 		return oc.CreateComment(org, repo, number, plugins.FormatResponseRaw(e.Body, e.HTMLURL, user, resp))
 	}
@@ -609,16 +612,6 @@ func handleOverrideCancel(oc overrideClient, log *logrus.Entry, e *github.Generi
 	number := e.Number
 	user := e.User.Login
 
-	authorized := authorizedUser(oc, log, org, repo, user)
-	if !authorized && len(options.AllowedGitHubTeams) > 0 {
-		authorized = authorizedGitHubTeamMember(oc, log, options.AllowedGitHubTeams, org, repo, user)
-	}
-	if !authorized && !options.AllowTopLevelOwners {
-		resp := fmt.Sprintf("%s unauthorized: override cancel is restricted to %s", user, whoCanUse(options, org, repo))
-		log.Debug(resp)
-		return oc.CreateComment(org, repo, number, plugins.FormatResponseRaw(e.Body, e.HTMLURL, user, resp))
-	}
-
 	pr, err := oc.GetPullRequest(org, repo, number)
 	if err != nil {
 		resp := fmt.Sprintf("Cannot get PR #%d in %s/%s", number, org, repo)
@@ -626,8 +619,8 @@ func handleOverrideCancel(oc overrideClient, log *logrus.Entry, e *github.Generi
 		return oc.CreateComment(org, repo, number, plugins.FormatResponseRaw(e.Body, e.HTMLURL, user, resp))
 	}
 
-	if !authorized && !authorizedTopLevelOwner(oc, options.AllowTopLevelOwners, log, org, repo, user, pr) {
-		resp := fmt.Sprintf("%s unauthorized: override cancel is restricted to %s", user, whoCanUse(options, org, repo))
+	if !isAuthorized(oc, log, org, repo, user, options, pr) {
+		resp := fmt.Sprintf("%s unauthorized: /override-cancel is restricted to %s", user, whoCanUse(options, org, repo))
 		log.Debug(resp)
 		return oc.CreateComment(org, repo, number, plugins.FormatResponseRaw(e.Body, e.HTMLURL, user, resp))
 	}
@@ -656,7 +649,7 @@ func handleOverrideCancel(oc overrideClient, log *logrus.Entry, e *github.Generi
 	cancelDesc := fmt.Sprintf("Override cancelled by %s", user)
 
 	for _, status := range statuses {
-		if !config.IsSkipRetest(status.Description) {
+		if !strings.Contains(status.Description, "Overridden by") {
 			continue
 		}
 		if !cancelAll && !cancelContexts.Has(status.Context) {
@@ -673,12 +666,12 @@ func handleOverrideCancel(oc overrideClient, log *logrus.Entry, e *github.Generi
 	}
 
 	if cancelled.Len() == 0 {
-		resp := "No sticky overrides found to cancel"
+		resp := "No overrides found to cancel"
 		log.Debug(resp)
 		return oc.CreateComment(org, repo, number, plugins.FormatResponseRaw(e.Body, e.HTMLURL, user, resp))
 	}
 
-	msg := fmt.Sprintf("Cancelled sticky overrides on behalf of %s: %s", user, strings.Join(sets.List(cancelled), ", "))
+	msg := fmt.Sprintf("Cancelled overrides on behalf of %s: %s", user, strings.Join(sets.List(cancelled), ", "))
 	log.Info(msg)
 	return oc.CreateComment(org, repo, number, plugins.FormatResponseRaw(e.Body, e.HTMLURL, user, msg))
 }
