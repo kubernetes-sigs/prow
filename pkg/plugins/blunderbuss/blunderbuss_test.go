@@ -40,6 +40,7 @@ import (
 	"sigs.k8s.io/prow/pkg/plugins"
 	"sigs.k8s.io/prow/pkg/plugins/ownersconfig"
 	"sigs.k8s.io/prow/pkg/repoowners"
+	"sigs.k8s.io/prow/pkg/reviewer"
 )
 
 type fakeGitHubClient struct {
@@ -92,7 +93,7 @@ func (c *fakeGitHubClient) GetPullRequest(org, repo string, num int) (*github.Pu
 }
 
 func (c *fakeGitHubClient) Query(ctx context.Context, q any, vars map[string]any) error {
-	sq, ok := q.(*githubAvailabilityQuery)
+	sq, ok := q.(*reviewer.GitHubAvailabilityQuery)
 	if !ok {
 		return errors.New("unexpected query type")
 	}
@@ -104,7 +105,6 @@ func (c *fakeGitHubClient) Query(ctx context.Context, q any, vars map[string]any
 }
 
 func (c *fakeGitHubClient) FindIssuesWithOrg(org string, query string, sort string, asc bool) ([]github.Issue, error) {
-	// Query should match the head commit of the pull request
 	if strings.HasPrefix(query, c.pr.Head.SHA) || slices.ContainsFunc(c.changes, func(change github.PullRequestChange) bool {
 		return strings.HasPrefix(query, change.SHA)
 	}) {
@@ -126,7 +126,6 @@ func (c *fakeGitHubClient) FindIssuesWithOrg(org string, query string, sort stri
 		}}, nil
 	}
 
-	// No match
 	return []github.Issue{}, nil
 }
 
@@ -146,6 +145,7 @@ type fakeOwnersClient struct {
 	requiredReviewers map[string]sets.Set[string]
 	leafReviewers     map[string]sets.Set[string]
 	dirDenylist       []*regexp.Regexp
+	allOwners         sets.Set[string]
 }
 
 func (foc *fakeOwnersClient) AllApprovers() sets.Set[string] {
@@ -153,6 +153,9 @@ func (foc *fakeOwnersClient) AllApprovers() sets.Set[string] {
 }
 
 func (foc *fakeOwnersClient) AllOwners() sets.Set[string] {
+	if foc.allOwners != nil {
+		return foc.allOwners
+	}
 	return sets.Set[string]{}
 }
 
@@ -255,7 +258,7 @@ var (
 	reviewers = map[string]layeredsets.String{
 		"a.go": layeredsets.NewString("al"),
 		"b.go": layeredsets.NewString("al"),
-		"c.go": layeredsets.NewStringFromSlices([]string{"charles"}, []string{"ben"}), // ben is top level, charles is lower
+		"c.go": layeredsets.NewStringFromSlices([]string{"charles"}, []string{"ben"}),
 
 		"e.go":  layeredsets.NewString("erick", "evan"),
 		"ee.go": layeredsets.NewString("erick", "evan"),
@@ -300,7 +303,7 @@ var (
 			name:              "one file, 3 leaf reviewers, 1 parent reviewer, 1 top level reviewer, request 5",
 			filesChanged:      []string{"c.go"},
 			reviewerCount:     5,
-			expectedRequested: []string{"cole", "carl", "chad", "charles", "ben"}, // last resort we take the top level reviewer
+			expectedRequested: []string{"cole", "carl", "chad", "charles", "ben"},
 		},
 		{
 			name:              "two files, 2 leaf reviewers, 1 common parent, request 2",
@@ -368,9 +371,6 @@ var (
 	}
 )
 
-// TestHandleWithExcludeApprovers tests that the handle function requests
-// reviews from the correct number of unique users when ExcludeApprovers is
-// true.
 func TestHandleWithExcludeApproversOnlyReviewers(t *testing.T) {
 	froc := &fakeRepoownersClient{
 		foc: &fakeOwnersClient{
@@ -409,10 +409,6 @@ func TestHandleWithExcludeApproversOnlyReviewers(t *testing.T) {
 	}
 }
 
-// TestHandleWithoutExcludeApprovers verifies that behavior is the same
-// when ExcludeApprovers is false and only approvers exist in the OWNERS files.
-// The owners fixture and test cases should always be the same as the ones in
-// TestHandleWithExcludeApprovers.
 func TestHandleWithoutExcludeApproversNoReviewers(t *testing.T) {
 	froc := &fakeRepoownersClient{
 		foc: &fakeOwnersClient{
@@ -1019,7 +1015,7 @@ func TestHelpProvider(t *testing.T) {
 			name:               "Empty config",
 			config:             &plugins.Configuration{},
 			enabledRepos:       enabledRepos,
-			configInfoIncludes: []string{configString(0)},
+			configInfoIncludes: []string{reviewer.ConfigString(PluginName, 0)},
 		},
 		{
 			name: "ReviewerCount specified",
@@ -1029,7 +1025,7 @@ func TestHelpProvider(t *testing.T) {
 				},
 			},
 			enabledRepos:       enabledRepos,
-			configInfoIncludes: []string{configString(2)},
+			configInfoIncludes: []string{reviewer.ConfigString(PluginName, 2)},
 		},
 	}
 	for _, c := range cases {
@@ -1047,8 +1043,6 @@ func TestHelpProvider(t *testing.T) {
 	}
 }
 
-// TestPopActiveReviewer checks to ensure that no matter how hard we try, we
-// never assign a user that has their availability marked as busy.
 func TestPopActiveReviewer(t *testing.T) {
 	froc := &fakeRepoownersClient{
 		foc: &fakeOwnersClient{
