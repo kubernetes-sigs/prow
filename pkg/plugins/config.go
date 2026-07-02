@@ -252,6 +252,10 @@ type Owners struct {
 	// Filenames allows configuring repos to use a separate set of filenames for
 	// any plugin that interacts with these files. Keys are in "org" or "org/repo" format.
 	Filenames map[string]ownersconfig.Filenames `json:"filenames,omitempty"`
+
+	// IgnoreMergeCommits causes the owners-label plugin to skip labeling
+	// on any pull request push that contains merge commits.
+	IgnoreMergeCommits bool `json:"ignore_merge_commits,omitempty"`
 }
 
 // OwnersFilenames determines which filenames to use for OWNERS and OWNERS_ALIASES for a repo.

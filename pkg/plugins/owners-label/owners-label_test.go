@@ -197,7 +197,7 @@ func TestHandle(t *testing.T) {
 			Repo:        basicPR.Base.Repo,
 		}
 
-		err := handle(fghc, foc, logrus.WithField("plugin", PluginName), pre)
+		err := handle(fghc, foc, logrus.WithField("plugin", PluginName), pre, false)
 		if err != nil {
 			t.Errorf("[%s] unexpected error from handle: %v", tc.name, err)
 			continue
@@ -214,5 +214,78 @@ func TestHandle(t *testing.T) {
 			t.Errorf("expected the labels %q to be added, but %q were added.", expectLabels, fghc.IssueLabelsAdded)
 		}
 
+	}
+}
+
+func TestHandleIgnoreMergeCommits(t *testing.T) {
+	foc := &fakeOwnersClient{
+		labels: map[string]sets.Set[string]{
+			"a.go": sets.New[string](labels.LGTM, labels.Approved),
+		},
+	}
+
+	basicPR := github.PullRequest{
+		Number: 1,
+		Base: github.PullRequestBranch{
+			Repo: github.Repo{
+				Owner: github.User{Login: "org"},
+				Name:  "repo",
+			},
+		},
+		User: github.User{Login: "user"},
+	}
+	pre := &github.PullRequestEvent{
+		Action:      github.PullRequestActionSynchronize,
+		Number:      basicPR.Number,
+		PullRequest: basicPR,
+		Repo:        basicPR.Base.Repo,
+	}
+
+	testcases := []struct {
+		name              string
+		commits           []github.RepositoryCommit
+		expectedNewLabels []string
+	}{
+		{
+			name: "no merge commits, labels added",
+			commits: []github.RepositoryCommit{
+				{SHA: "abc", Parents: []github.GitCommit{{SHA: "parent1"}}},
+			},
+			expectedNewLabels: formatLabels(labels.LGTM, labels.Approved),
+		},
+		{
+			name: "merge commit present, labels skipped",
+			commits: []github.RepositoryCommit{
+				{SHA: "abc", Parents: []github.GitCommit{{SHA: "parent1"}}},
+				{SHA: "def", Parents: []github.GitCommit{{SHA: "parent1"}, {SHA: "parent2"}}},
+			},
+			expectedNewLabels: []string{},
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			fghc := fakegithub.NewFakeClient()
+			fghc.PullRequests = map[int]*github.PullRequest{basicPR.Number: &basicPR}
+			fghc.PullRequestChanges = map[int][]github.PullRequestChange{
+				basicPR.Number: {{Filename: "a.go"}},
+			}
+			fghc.RepoLabelsExisting = []string{labels.LGTM, labels.Approved}
+			fghc.IssueLabelsAdded = []string{}
+			fghc.CommitMap = map[string][]github.RepositoryCommit{
+				fmt.Sprintf("%s/%s#%d", "org", "repo", basicPR.Number): tc.commits,
+			}
+
+			err := handle(fghc, foc, logrus.WithField("plugin", PluginName), pre, true)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			sort.Strings(tc.expectedNewLabels)
+			sort.Strings(fghc.IssueLabelsAdded)
+			if !reflect.DeepEqual(tc.expectedNewLabels, fghc.IssueLabelsAdded) {
+				t.Errorf("expected labels %q, got %q", tc.expectedNewLabels, fghc.IssueLabelsAdded)
+			}
+		})
 	}
 }
