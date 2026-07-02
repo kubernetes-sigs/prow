@@ -2069,3 +2069,166 @@ func TestInteractor_ShowRef(t *testing.T) {
 		})
 	}
 }
+
+func TestInteractor_MergeCommitSHAsBetween(t *testing.T) {
+	var testCases = []struct {
+		name          string
+		target, head  string
+		responses     map[string]execResponse
+		expectedCalls [][]string
+		expectedOut   []string
+		expectedErr   bool
+	}{
+		{
+			name:   "no merge commits",
+			target: "target",
+			head:   "head",
+			responses: map[string]execResponse{
+				"log target..head --format=%H --merges": {
+					out: []byte(``),
+				},
+			},
+			expectedCalls: [][]string{
+				{"log", "target..head", "--format=%H", "--merges"},
+			},
+			expectedOut: nil,
+			expectedErr: false,
+		},
+		{
+			name:   "one merge commit",
+			target: "target",
+			head:   "head",
+			responses: map[string]execResponse{
+				"log target..head --format=%H --merges": {
+					out: []byte("abc123\n"),
+				},
+			},
+			expectedCalls: [][]string{
+				{"log", "target..head", "--format=%H", "--merges"},
+			},
+			expectedOut: []string{"abc123"},
+			expectedErr: false,
+		},
+		{
+			name:   "multiple merge commits",
+			target: "target",
+			head:   "head",
+			responses: map[string]execResponse{
+				"log target..head --format=%H --merges": {
+					out: []byte("abc123\ndef456\n"),
+				},
+			},
+			expectedCalls: [][]string{
+				{"log", "target..head", "--format=%H", "--merges"},
+			},
+			expectedOut: []string{"abc123", "def456"},
+			expectedErr: false,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			e := fakeExecutor{
+				records:   [][]string{},
+				responses: testCase.responses,
+			}
+			i := interactor{
+				executor: &e,
+				logger:   logrus.WithField("test", testCase.name),
+			}
+			actualOut, actualErr := i.MergeCommitSHAsBetween(testCase.target, testCase.head)
+			if testCase.expectedErr && actualErr == nil {
+				t.Errorf("%s: expected an error but got none", testCase.name)
+			}
+			if !testCase.expectedErr && actualErr != nil {
+				t.Errorf("%s: expected no error but got one: %v", testCase.name, actualErr)
+			}
+			if !testCase.expectedErr && !reflect.DeepEqual(actualOut, testCase.expectedOut) {
+				t.Errorf("%s: got incorrect output: %v", testCase.name, diff.ObjectReflectDiff(actualOut, testCase.expectedOut))
+			}
+			if actual, expected := e.records, testCase.expectedCalls; !reflect.DeepEqual(actual, expected) {
+				t.Errorf("%s: got incorrect git calls: %v", testCase.name, diff.ObjectReflectDiff(actual, expected))
+			}
+		})
+	}
+}
+
+func TestInteractor_CommitChangedFiles(t *testing.T) {
+	var testCases = []struct {
+		name          string
+		sha           string
+		responses     map[string]execResponse
+		expectedCalls [][]string
+		expectedOut   []string
+		expectedErr   bool
+	}{
+		{
+			name: "commit with files",
+			sha:  "abc123",
+			responses: map[string]execResponse{
+				"diff-tree -m --no-commit-id --name-only -r abc123": {
+					out: []byte("vendor/lib/a.go\nvendor/lib/b.go\n"),
+				},
+			},
+			expectedCalls: [][]string{
+				{"diff-tree", "-m", "--no-commit-id", "--name-only", "-r", "abc123"},
+			},
+			expectedOut: []string{"vendor/lib/a.go", "vendor/lib/b.go"},
+			expectedErr: false,
+		},
+		{
+			name: "commit with no files",
+			sha:  "abc123",
+			responses: map[string]execResponse{
+				"diff-tree -m --no-commit-id --name-only -r abc123": {
+					out: []byte(``),
+				},
+			},
+			expectedCalls: [][]string{
+				{"diff-tree", "-m", "--no-commit-id", "--name-only", "-r", "abc123"},
+			},
+			expectedOut: nil,
+			expectedErr: false,
+		},
+		{
+			name: "diff-tree command fails",
+			sha:  "abc123",
+			responses: map[string]execResponse{
+				"diff-tree -m --no-commit-id --name-only -r abc123": {
+					err: errors.New("oops"),
+				},
+			},
+			expectedCalls: [][]string{
+				{"diff-tree", "-m", "--no-commit-id", "--name-only", "-r", "abc123"},
+			},
+			expectedOut: nil,
+			expectedErr: true,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			e := fakeExecutor{
+				records:   [][]string{},
+				responses: testCase.responses,
+			}
+			i := interactor{
+				executor: &e,
+				logger:   logrus.WithField("test", testCase.name),
+			}
+			actualOut, actualErr := i.CommitChangedFiles(testCase.sha)
+			if testCase.expectedErr && actualErr == nil {
+				t.Errorf("%s: expected an error but got none", testCase.name)
+			}
+			if !testCase.expectedErr && actualErr != nil {
+				t.Errorf("%s: expected no error but got one: %v", testCase.name, actualErr)
+			}
+			if !testCase.expectedErr && !reflect.DeepEqual(actualOut, testCase.expectedOut) {
+				t.Errorf("%s: got incorrect output: %v", testCase.name, diff.ObjectReflectDiff(actualOut, testCase.expectedOut))
+			}
+			if actual, expected := e.records, testCase.expectedCalls; !reflect.DeepEqual(actual, expected) {
+				t.Errorf("%s: got incorrect git calls: %v", testCase.name, diff.ObjectReflectDiff(actual, expected))
+			}
+		})
+	}
+}
