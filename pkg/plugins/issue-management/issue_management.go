@@ -39,6 +39,7 @@ var (
 	unlinkIssueRegex = regexp.MustCompile(`(?mi)^/unlink-issue\s+(.+)$`)
 	pinRegex         = regexp.MustCompile(`(?mi)^/pin-issue\s*$`)
 	unpinRegex       = regexp.MustCompile(`(?mi)^/unpin-issue\s*$`)
+	transferRegex    = regexp.MustCompile(`(?mi)^/transfer(?:-issue)?(?: +(.*))?$`)
 )
 
 type githubClient interface {
@@ -83,6 +84,13 @@ func helpProvider(_ *plugins.Configuration, _ []config.OrgRepo) (*pluginhelp.Plu
 		WhoCanUse:   "Approvers from the top-level OWNERS file",
 		Examples:    []string{"/unpin-issue"},
 	})
+	pluginHelp.AddCommand(pluginhelp.Command{
+		Usage:       "/transfer[-issue] <destination repo in same org>",
+		Description: "Transfers an issue to a different repo in the same org.",
+		Featured:    true,
+		WhoCanUse:   "Org members.",
+		Examples:    []string{"/transfer-issue kubectl", "/transfer test-infra"},
+	})
 	return pluginHelp, nil
 }
 
@@ -113,7 +121,39 @@ func handleIssues(gc githubClient, oc ownersClient, log *logrus.Entry, e github.
 		return handlePinOrUnpinIssue(gc, oc, log, e, false)
 	}
 
+	if destRepo, err := parseTransferCommand(gc, e); err != nil {
+		return err
+	} else if destRepo != "" {
+		return handleTransferIssue(gc, log, e, destRepo)
+	}
+
 	return nil
+}
+
+func parseTransferCommand(gc githubClient, e github.GenericCommentEvent) (string, error) {
+	matches := transferRegex.FindAllStringSubmatch(e.Body, -1)
+	if len(matches) == 0 {
+		return "", nil
+	}
+
+	if e.IsPR {
+		return "", gc.CreateComment(
+			e.Repo.Owner.Login, e.Repo.Name, e.Number,
+			plugins.FormatResponseRaw(e.Body, e.HTMLURL, e.User.Login, "The `/transfer-issue` command is only supported on issues, not pull requests."),
+		)
+	}
+
+	if e.Action != github.GenericCommentActionCreated {
+		return "", nil
+	}
+
+	if len(matches) != 1 || len(matches[0]) != 2 || len(matches[0][1]) == 0 {
+		return "", gc.CreateComment(
+			e.Repo.Owner.Login, e.Repo.Name, e.Number,
+			plugins.FormatResponseRaw(e.Body, e.HTMLURL, e.User.Login, "`/transfer-issue` must only be used once and with a single destination repo."),
+		)
+	}
+	return strings.TrimSpace(matches[0][1]), nil
 }
 
 func parseCommentForLinkCommands(commentBody string) ([]string, []string) {
