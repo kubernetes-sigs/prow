@@ -4782,7 +4782,7 @@ func TestPickSmallestPassingNumber(t *testing.T) {
 	}
 }
 
-func TestQueryShardsByOrgWhenAppsAuthIsEnabledOnly(t *testing.T) {
+func TestQueryAlwaysShardsByOrg(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -4801,13 +4801,13 @@ func TestQueryShardsByOrgWhenAppsAuthIsEnabledOnly(t *testing.T) {
 			expectedNumberOfApiCalls: 2,
 		},
 		{
-			name:               "Apps auth is unused, one call for all orgs",
+			name:               "Apps auth is unused, still one call per org",
 			usesGitHubAppsAuth: false,
-			prs: map[string][]PullRequest{"": {
-				*testPR("org", "repo", "A", 5, githubql.MergeableStateMergeable),
-				*testPR("other-org", "repo", "A", 5, githubql.MergeableStateMergeable),
-			}},
-			expectedNumberOfApiCalls: 1,
+			prs: map[string][]PullRequest{
+				"org":       {*testPR("org", "repo", "A", 5, githubql.MergeableStateMergeable)},
+				"other-org": {*testPR("other-org", "repo", "A", 5, githubql.MergeableStateMergeable)},
+			},
+			expectedNumberOfApiCalls: 2,
 		},
 	}
 
