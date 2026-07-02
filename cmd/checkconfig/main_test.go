@@ -1713,6 +1713,27 @@ func TestValidateTideContextPolicy(t *testing.T) {
 			expectedError: "context policy for master branch in a/b is invalid: contexts ci/prow/test are defined as required and required if present",
 		},
 		{
+			name: "tide context_options required-if-present collides with optional job",
+			cfg: cfg(func(c *config.Config) {
+				c.PresubmitsStatic["a/b"] = []config.Presubmit{
+					{
+						Optional:            true,
+						Reporter:            config.Reporter{Context: "ci/prow/coverage"},
+						Brancher:            config.Brancher{Branches: []string{`^master$`}},
+						RegexpChangeMatcher: config.RegexpChangeMatcher{SkipIfOnlyChanged: `\.md$`},
+					},
+				}
+				c.Tide.ContextOptions.Orgs = map[string]config.TideOrgContextPolicy{
+					"a": {Repos: map[string]config.TideRepoContextPolicy{
+						"b": {Branches: map[string]config.TideContextPolicy{
+							"master": {RequiredIfPresentContexts: []string{"ci/prow/coverage"}},
+						}},
+					}},
+				}
+			}),
+			expectedError: "context policy for master branch in a/b is invalid: contexts ci/prow/coverage are defined as optional and required if present",
+		},
+		{
 			name: "repo key is not in org/repo format, no error",
 			cfg: cfg(func(c *config.Config) {
 				c.PresubmitsStatic["https://kunit-review.googlesource.com/linux"] = []config.Presubmit{
