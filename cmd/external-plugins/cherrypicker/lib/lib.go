@@ -18,11 +18,12 @@ package cherrypicker
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 )
 
 // CreateCherrypickBody creates the body of a cherrypick PR
-func CreateCherrypickBody(num int, requestor, note string, chainBranches []string) string {
+func CreateCherrypickBody(num int, requestor, note string, chainBranches []string, kindLabels []string) string {
 	cherryPickBody := fmt.Sprintf("This is an automated cherry-pick of #%d", num)
 	if len(requestor) != 0 {
 		cherryPickBody = fmt.Sprintf("%s\n\n/assign %s", cherryPickBody, requestor)
@@ -32,6 +33,17 @@ func CreateCherrypickBody(num int, requestor, note string, chainBranches []strin
 	}
 	if len(chainBranches) != 0 {
 		cherryPickBody = fmt.Sprintf("%s\n\n/cherrypick %s", cherryPickBody, strings.Join(chainBranches, " "))
+	}
+	if len(kindLabels) > 0 {
+		// Sort for deterministic output
+		sorted := make([]string, len(kindLabels))
+		copy(sorted, kindLabels)
+		sort.Strings(sorted)
+		var kindLines []string
+		for _, name := range sorted {
+			kindLines = append(kindLines, fmt.Sprintf("/kind %s", name))
+		}
+		cherryPickBody = fmt.Sprintf("%s\n\n%s", cherryPickBody, strings.Join(kindLines, "\n"))
 	}
 	return cherryPickBody
 }

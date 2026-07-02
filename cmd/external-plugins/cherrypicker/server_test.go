@@ -319,6 +319,10 @@ func testCherryPickIC(clients localgit.Clients, t *testing.T) {
 				Title:  "This is a fix for X",
 				Body:   body,
 			},
+			prLabels: []github.Label{
+				{Name: "kind/cleanup"},
+				{Name: "kind/bug"},
+			},
 			isMember: true,
 			patch:    patch,
 		}
@@ -345,7 +349,7 @@ func testCherryPickIC(clients localgit.Clients, t *testing.T) {
 			},
 		}
 		expectedTitle := "[stage] This is a fix for X"
-		expectedBody := fmt.Sprintf("This is an automated cherry-pick of #%d\n\n/assign wiseguy\n\n```release-note\nUpdate the magic number from 42 to 49\n```", iNumber)
+		expectedBody := fmt.Sprintf("This is an automated cherry-pick of #%d\n\n/assign wiseguy\n\n```release-note\nUpdate the magic number from 42 to 49\n```\n\n/kind bug\n/kind cleanup", iNumber)
 		expectedBase := "stage"
 		expectedHead := fmt.Sprintf(botUser.Login+":"+cherryPickBranchFmt, iNumber, expectedBase)
 		expectedLabels := []string{}
