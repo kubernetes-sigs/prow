@@ -72,6 +72,10 @@ func (foc *fakeOwnersClient) AllReviewers() sets.Set[string] {
 	return sets.Set[string]{}
 }
 
+func (foc *fakeOwnersClient) AdvisoryApprovers(path string) sets.Set[string] {
+	return sets.Set[string]{}
+}
+
 func (foc *fakeOwnersClient) Filenames() ownersconfig.Filenames {
 	return ownersconfig.FakeFilenames
 }
