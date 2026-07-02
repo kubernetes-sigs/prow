@@ -134,7 +134,7 @@ type searchQuery struct {
 		Nodes []struct {
 			PullRequest PullRequest `graphql:"... on PullRequest"`
 		}
-	} `graphql:"search(type: ISSUE, first: 100, after: $searchCursor, query: $query)"`
+	} `graphql:"search(type: ISSUE_ADVANCED, first: 100, after: $searchCursor, query: $query)"`
 }
 
 // NewDashboardAgent creates a new user dashboard agent .
@@ -377,8 +377,12 @@ func (da *DashboardAgent) getHeadContexts(ghc githubStatusFetcher, pr PullReques
 // Tide.
 func (da *DashboardAgent) ConstructSearchQuery(login string) string {
 	tokens := []string{"is:pr", "state:open", "author:" + login}
-	for i := range da.repos {
-		tokens = append(tokens, fmt.Sprintf("repo:\"%s\"", da.repos[i]))
+	if len(da.repos) > 0 {
+		repoTokens := make([]string, 0, len(da.repos))
+		for i := range da.repos {
+			repoTokens = append(repoTokens, fmt.Sprintf("repo:\"%s\"", da.repos[i]))
+		}
+		tokens = append(tokens, strings.Join(repoTokens, " OR "))
 	}
 	return strings.Join(tokens, " ")
 }
