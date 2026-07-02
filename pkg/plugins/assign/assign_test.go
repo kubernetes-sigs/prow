@@ -17,12 +17,14 @@ limitations under the License.
 package assign
 
 import (
+	"errors"
 	"sort"
 	"testing"
 
 	"github.com/sirupsen/logrus"
 
 	"sigs.k8s.io/prow/pkg/github"
+	"sigs.k8s.io/prow/pkg/plugins"
 )
 
 type fakeClient struct {
@@ -32,8 +34,12 @@ type fakeClient struct {
 	requested    map[string]int
 	unrequested  map[string]int
 	contributors map[string]bool
+	members      map[string]bool
+	labels       []github.Label
 
-	commented bool
+	commented      bool
+	memberCheckErr error
+	labelCheckErr  error
 }
 
 func (c *fakeClient) UnassignIssue(owner, repo string, number int, assignees []string) error {
@@ -95,9 +101,24 @@ func (c *fakeClient) CreateComment(owner, repo string, number int, comment strin
 	return nil
 }
 
+func (c *fakeClient) GetIssueLabels(org, repo string, number int) ([]github.Label, error) {
+	if c.labelCheckErr != nil {
+		return nil, c.labelCheckErr
+	}
+	return c.labels, nil
+}
+
+func (c *fakeClient) IsMember(org, user string) (bool, error) {
+	if c.memberCheckErr != nil {
+		return false, c.memberCheckErr
+	}
+	return c.members[user], nil
+}
+
 func newFakeClient(contribs []string) *fakeClient {
 	c := &fakeClient{
 		contributors: make(map[string]bool),
+		members:      make(map[string]bool),
 		requested:    make(map[string]int),
 		unrequested:  make(map[string]int),
 		assigned:     make(map[string]int),
@@ -395,7 +416,7 @@ func TestAssignAndReview(t *testing.T) {
 			Repo:   github.Repo{Name: "repo", Owner: github.User{Login: "org"}},
 			Number: 5,
 		}
-		if err := handle(newAssignHandler(e, fc, logrus.WithField("plugin", pluginName))); err != nil {
+		if err := handle(newAssignHandler(e, fc, logrus.WithField("plugin", pluginName), &plugins.Assign{})); err != nil {
 			t.Errorf("For case %s, didn't expect error from handle: %v", tc.name, err)
 			continue
 		}
@@ -449,5 +470,128 @@ func TestAssignAndReview(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+func TestAssignOnlyOrgMembers(t *testing.T) {
+	testcases := []struct {
+		name           string
+		body           string
+		commenter      string
+		cfg            *plugins.Assign
+		members        []string
+		labels         []github.Label
+		memberCheckErr error
+		labelCheckErr  error
+		assigned       []string
+		commented      bool
+		expectErr      bool
+	}{
+		{
+			name:      "block: non-member rejected",
+			body:      "/assign",
+			commenter: "outsider",
+			cfg:       &plugins.Assign{OnlyOrgMembers: true, Action: plugins.AssignActionBlock},
+			members:   []string{"member1"},
+			commented: true,
+		},
+		{
+			name:      "block: member allowed",
+			body:      "/assign",
+			commenter: "member1",
+			cfg:       &plugins.Assign{OnlyOrgMembers: true, Action: plugins.AssignActionBlock},
+			members:   []string{"member1"},
+			assigned:  []string{"member1"},
+		},
+		{
+			name:      "block: mixed",
+			body:      "/assign @member1 @outsider",
+			commenter: "someone",
+			cfg:       &plugins.Assign{OnlyOrgMembers: true, Action: plugins.AssignActionBlock},
+			members:   []string{"member1"},
+			assigned:  []string{"member1"},
+			commented: true,
+		},
+		{
+			name:      "exempt label bypasses restriction",
+			body:      "/assign",
+			commenter: "outsider",
+			cfg:       &plugins.Assign{OnlyOrgMembers: true, Action: plugins.AssignActionBlock, ExemptLabels: []string{"good first issue"}},
+			members:   []string{"member1"},
+			labels:    []github.Label{{Name: "good first issue"}},
+			assigned:  []string{"outsider"},
+		},
+		{
+			name:      "warn: non-member assigned with comment",
+			body:      "/assign",
+			commenter: "outsider",
+			cfg:       &plugins.Assign{OnlyOrgMembers: true},
+			members:   []string{"member1"},
+			assigned:  []string{"outsider"},
+			commented: true,
+		},
+		{
+			name:      "warn: member, no comment",
+			body:      "/assign",
+			commenter: "member1",
+			cfg:       &plugins.Assign{OnlyOrgMembers: true},
+			members:   []string{"member1"},
+			assigned:  []string{"member1"},
+		},
+		{
+			name:           "IsMember error propagates",
+			body:           "/assign",
+			commenter:      "someone",
+			cfg:            &plugins.Assign{OnlyOrgMembers: true},
+			memberCheckErr: errors.New("api rate limit"),
+			expectErr:      true,
+		},
+		{
+			name:          "GetIssueLabels error propagates",
+			body:          "/assign",
+			commenter:     "someone",
+			cfg:           &plugins.Assign{OnlyOrgMembers: true, ExemptLabels: []string{"good first issue"}},
+			labelCheckErr: errors.New("api error"),
+			expectErr:     true,
+		},
+	}
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			fc := newFakeClient(nil)
+			for _, m := range tc.members {
+				fc.members[m] = true
+			}
+			fc.labels = tc.labels
+			fc.memberCheckErr = tc.memberCheckErr
+			fc.labelCheckErr = tc.labelCheckErr
+			e := github.GenericCommentEvent{
+				Body:   tc.body,
+				User:   github.User{Login: tc.commenter},
+				Repo:   github.Repo{Name: "repo", Owner: github.User{Login: "org"}},
+				Number: 5,
+			}
+			err := handle(newAssignHandler(e, fc, logrus.WithField("plugin", pluginName), tc.cfg))
+			if tc.expectErr {
+				if err == nil {
+					t.Fatal("expected error but got none")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if tc.commented != fc.commented {
+				t.Errorf("commented: got %v, want %v", fc.commented, tc.commented)
+			}
+			if len(fc.assigned) != len(tc.assigned) {
+				t.Fatalf("assigned: got %v, want %v", fc.assigned, tc.assigned)
+			}
+			for _, who := range tc.assigned {
+				if n, ok := fc.assigned[who]; !ok || n < 1 {
+					t.Errorf("assigned: got %v, want %v", fc.assigned, tc.assigned)
+					break
+				}
+			}
+		})
 	}
 }
