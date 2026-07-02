@@ -70,6 +70,8 @@ func TestPruneRepoDefaults(t *testing.T) {
 	no := false
 	master := "master"
 	notMaster := "not-master"
+	pub := RepoVisibilityPublic
+	priv := RepoVisibilityPrivate
 	testCases := []struct {
 		description string
 		repo        Repo
@@ -80,7 +82,7 @@ func TestPruneRepoDefaults(t *testing.T) {
 			repo: Repo{
 				Description:      &empty,
 				HomePage:         &empty,
-				Private:          &no,
+				Visibility:       &pub,
 				HasIssues:        &yes,
 				HasProjects:      &yes,
 				HasWiki:          &yes,
@@ -97,7 +99,7 @@ func TestPruneRepoDefaults(t *testing.T) {
 			repo: Repo{
 				Description:      &nonEmpty,
 				HomePage:         &nonEmpty,
-				Private:          &yes,
+				Visibility:       &priv,
 				HasIssues:        &no,
 				HasProjects:      &no,
 				HasWiki:          &no,
@@ -109,7 +111,7 @@ func TestPruneRepoDefaults(t *testing.T) {
 			},
 			expected: Repo{Description: &nonEmpty,
 				HomePage:         &nonEmpty,
-				Private:          &yes,
+				Visibility:       &priv,
 				HasIssues:        &no,
 				HasProjects:      &no,
 				HasWiki:          &no,
@@ -131,3 +133,87 @@ func TestPruneRepoDefaults(t *testing.T) {
 		})
 	}
 }
+
+func TestRepoUnmarshalJSON(t *testing.T) {
+	priv := RepoVisibilityPrivate
+	pub := RepoVisibilityPublic
+	internal := RepoVisibilityInternal
+	testCases := []struct {
+		name        string
+		json        string
+		expected    Repo
+		expectError bool
+	}{
+		{
+			name:     "private true translates to visibility private",
+			json:     `{"private": true}`,
+			expected: Repo{Visibility: &priv},
+		},
+		{
+			name:     "private false translates to visibility public",
+			json:     `{"private": false}`,
+			expected: Repo{Visibility: &pub},
+		},
+		{
+			name:     "visibility internal is accepted directly",
+			json:     `{"visibility": "internal"}`,
+			expected: Repo{Visibility: &internal},
+		},
+		{
+			name:     "visibility private is accepted directly",
+			json:     `{"visibility": "private"}`,
+			expected: Repo{Visibility: &priv},
+		},
+		{
+			name:        "both private and visibility set produces error",
+			json:        `{"private": true, "visibility": "private"}`,
+			expectError: true,
+		},
+		{
+			name:     "neither private nor visibility set leaves visibility nil",
+			json:     `{"description": "test"}`,
+			expected: Repo{Description: strPtr("test")},
+		},
+		{
+			name:        "unknown visibility value produces error",
+			json:        `{"visibility": "interal"}`,
+			expectError: true,
+		},
+		{
+			name:     "private null leaves visibility nil",
+			json:     `{"private": null}`,
+			expected: Repo{},
+		},
+		{
+			name:     "visibility null leaves visibility nil",
+			json:     `{"visibility": null}`,
+			expected: Repo{},
+		},
+		{
+			name:     "private null with visibility set does not conflict",
+			json:     `{"private": null, "visibility": "internal"}`,
+			expected: Repo{Visibility: &internal},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var actual Repo
+			err := json.Unmarshal([]byte(tc.json), &actual)
+			if tc.expectError {
+				if err == nil {
+					t.Fatal("expected error but got none")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !reflect.DeepEqual(tc.expected, actual) {
+				t.Errorf("result differs from expected:\n%s", diff.ObjectReflectDiff(tc.expected, actual))
+			}
+		})
+	}
+}
+
+func strPtr(s string) *string { return &s }

@@ -17,9 +17,12 @@ limitations under the License.
 package org
 
 import (
+	"encoding/json"
 	"fmt"
+	"time"
 
 	"sigs.k8s.io/prow/pkg/github"
+	"sigs.k8s.io/prow/pkg/logrusutil"
 )
 
 // FullConfig stores the full configuration to be used by the tool, mapping
@@ -52,21 +55,46 @@ type RepoCreateOptions struct {
 	LicenseTemplate   *string `json:"license_template,omitempty"`
 }
 
+// RepoVisibility describes the visibility level of a repository.
+type RepoVisibility string
+
+const (
+	RepoVisibilityPublic   RepoVisibility = "public"
+	RepoVisibilityPrivate  RepoVisibility = "private"
+	RepoVisibilityInternal RepoVisibility = "internal"
+)
+
+var repoVisibilitySettings = map[RepoVisibility]bool{
+	RepoVisibilityPublic:   true,
+	RepoVisibilityPrivate:  true,
+	RepoVisibilityInternal: true,
+}
+
+// UnmarshalText validates the visibility value during unmarshaling.
+func (v *RepoVisibility) UnmarshalText(text []byte) error {
+	val := RepoVisibility(text)
+	if _, ok := repoVisibilitySettings[val]; !ok {
+		return fmt.Errorf("bad visibility setting: %q", val)
+	}
+	*v = val
+	return nil
+}
+
 // Repo declares metadata about the GitHub repository
 //
 // See https://developer.github.com/v3/repos/#edit
 type Repo struct {
-	Description              *string `json:"description,omitempty"`
-	HomePage                 *string `json:"homepage,omitempty"`
-	Private                  *bool   `json:"private,omitempty"`
-	HasIssues                *bool   `json:"has_issues,omitempty"`
-	HasProjects              *bool   `json:"has_projects,omitempty"`
-	HasWiki                  *bool   `json:"has_wiki,omitempty"`
-	AllowSquashMerge         *bool   `json:"allow_squash_merge,omitempty"`
-	AllowMergeCommit         *bool   `json:"allow_merge_commit,omitempty"`
-	AllowRebaseMerge         *bool   `json:"allow_rebase_merge,omitempty"`
-	SquashMergeCommitTitle   *string `json:"squash_merge_commit_title,omitempty"`
-	SquashMergeCommitMessage *string `json:"squash_merge_commit_message,omitempty"`
+	Description              *string         `json:"description,omitempty"`
+	HomePage                 *string         `json:"homepage,omitempty"`
+	Visibility               *RepoVisibility `json:"visibility,omitempty"`
+	HasIssues                *bool           `json:"has_issues,omitempty"`
+	HasProjects              *bool           `json:"has_projects,omitempty"`
+	HasWiki                  *bool           `json:"has_wiki,omitempty"`
+	AllowSquashMerge         *bool           `json:"allow_squash_merge,omitempty"`
+	AllowMergeCommit         *bool           `json:"allow_merge_commit,omitempty"`
+	AllowRebaseMerge         *bool           `json:"allow_rebase_merge,omitempty"`
+	SquashMergeCommitTitle   *string         `json:"squash_merge_commit_title,omitempty"`
+	SquashMergeCommitMessage *string         `json:"squash_merge_commit_message,omitempty"`
 
 	DefaultBranch *string `json:"default_branch,omitempty"`
 	Archived      *bool   `json:"archived,omitempty"`
@@ -77,6 +105,56 @@ type Repo struct {
 	Collaborators map[string]github.RepoPermissionLevel `json:"collaborators,omitempty"`
 
 	OnCreate *RepoCreateOptions `json:"on_create,omitempty"`
+}
+
+var privateFieldDeprecationWarningLast time.Time
+
+// UnmarshalJSON supports both the old "private" bool field and the new
+// "visibility" string field. If "private" is present and "visibility" is not,
+// it is translated to the equivalent visibility value with a deprecation
+// warning. Specifying both is an error.
+func (r *Repo) UnmarshalJSON(data []byte) error {
+	type RepoAlias Repo
+	var alias RepoAlias
+	if err := json.Unmarshal(data, &alias); err != nil {
+		return err
+	}
+
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+
+	rawPrivate, hasPrivate := raw["private"]
+	if hasPrivate && string(rawPrivate) == "null" {
+		hasPrivate = false
+	}
+	rawVisibility, hasVisibility := raw["visibility"]
+	if hasVisibility && string(rawVisibility) == "null" {
+		hasVisibility = false
+		alias.Visibility = nil
+	}
+
+	if hasPrivate && hasVisibility {
+		return fmt.Errorf("repo config may not specify both 'private' and 'visibility'")
+	}
+
+	if hasPrivate {
+		var private bool
+		if err := json.Unmarshal(raw["private"], &private); err != nil {
+			return fmt.Errorf("failed to parse 'private' field: %w", err)
+		}
+		logrusutil.ThrottledWarnf(&privateFieldDeprecationWarningLast, 5*time.Minute,
+			"the 'private' field in repo config is deprecated; use 'visibility: public/private/internal' instead")
+		v := RepoVisibilityPublic
+		if private {
+			v = RepoVisibilityPrivate
+		}
+		alias.Visibility = &v
+	}
+
+	*r = Repo(alias)
+	return nil
 }
 
 // Config declares org metadata as well as its people and teams.
@@ -160,11 +238,16 @@ func PruneRepoDefaults(repo Repo) Repo {
 			*p = nil
 		}
 	}
+	pruneVisibility := func(p **RepoVisibility, def RepoVisibility) {
+		if *p != nil && **p == def {
+			*p = nil
+		}
+	}
 
 	pruneString(&repo.Description, "")
 	pruneString(&repo.HomePage, "")
 
-	pruneBool(&repo.Private, false)
+	pruneVisibility(&repo.Visibility, RepoVisibilityPublic)
 	pruneBool(&repo.HasIssues, true)
 	// Projects' defaults depend on org setting, do not prune
 	pruneBool(&repo.HasWiki, true)
