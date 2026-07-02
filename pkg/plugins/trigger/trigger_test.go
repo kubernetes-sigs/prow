@@ -82,7 +82,7 @@ func TestHelpProvider(t *testing.T) {
 }
 
 func TestRunRequested(t *testing.T) {
-	var testCases = []struct {
+	testCases := []struct {
 		name string
 
 		pr *github.PullRequest
@@ -242,7 +242,7 @@ func TestRunRequested(t *testing.T) {
 				Logger:        logrus.WithField("testcase", testCase.name),
 			}
 
-			err := runRequested(client, testCase.pr, fakegithub.TestRef, testCase.requestedJobs, "event-guid", nil, time.Nanosecond)
+			err := runRequested(client, testCase.pr, fakegithub.TestRef, testCase.requestedJobs, "event-guid", nil, nil, time.Nanosecond)
 			if err == nil && testCase.expectedErr {
 				t.Error("failed to receive an error")
 			}
@@ -271,7 +271,7 @@ func TestRunRequested(t *testing.T) {
 }
 
 func TestValidateContextOverlap(t *testing.T) {
-	var testCases = []struct {
+	testCases := []struct {
 		name          string
 		toRun, toSkip []config.Presubmit
 		expectedErr   bool
@@ -323,7 +323,7 @@ func TestValidateContextOverlap(t *testing.T) {
 }
 
 func TestTrustedUser(t *testing.T) {
-	var testcases = []struct {
+	testcases := []struct {
 		name string
 
 		onlyOrgMembers bool
@@ -633,7 +633,6 @@ func TestCreateWithRetry(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-
 			fakeProwJobClient := fake.NewSimpleClientset()
 			fakeProwJobClient.PrependReactor("*", "*", func(action clienttesting.Action) (handled bool, ret runtime.Object, err error) {
 				if _, ok := action.(clienttesting.CreateActionImpl); ok && tc.numFailedCreate > 0 {
