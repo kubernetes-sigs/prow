@@ -1539,6 +1539,39 @@ func (c *syncController) nonFailedBatchForJobAndRefsExists(jobName string, refs 
 	return len(pjs.Items) > 0
 }
 
+func (c *syncController) abortSupersededBatchJobs(sp subpool) error {
+	pjs := &prowapi.ProwJobList{}
+	labels := map[string]string{
+		kube.CreatedByTideLabel: "true",
+		kube.ProwJobTypeLabel:   string(prowapi.BatchJob),
+		kube.OrgLabel:           sp.org,
+		kube.RepoLabel:          sp.repo,
+		kube.BaseRefLabel:       sp.branch,
+	}
+	if err := c.prowJobClient.List(
+		c.ctx,
+		pjs,
+		ctrlruntimeclient.InNamespace(c.config().ProwJobNamespace),
+		ctrlruntimeclient.MatchingLabels(labels),
+	); err != nil {
+		return fmt.Errorf("failed listing existing tide batch jobs: %w", err)
+	}
+	const supersededDescriptionPrefix = "Aborted as superseded by batch for base SHA "
+	var errs []error
+	for _, pj := range pjs.Items {
+		if pj.Spec.Refs == nil || pj.Spec.Refs.BaseSHA == sp.sha || pj.Complete() {
+			continue
+		}
+		prev := pj.DeepCopy()
+		pj.Status.State = prowapi.AbortedState
+		pj.Status.Description = supersededDescriptionPrefix + sp.sha
+		if err := c.prowJobClient.Patch(c.ctx, &pj, ctrlruntimeclient.MergeFrom(prev)); err != nil {
+			errs = append(errs, fmt.Errorf("failed to abort superseded batch prowjob %s: %w", pj.Name, err))
+		}
+	}
+	return utilerrors.NewAggregate(errs)
+}
+
 func (c *syncController) takeAction(sp subpool, batchPending, successes, pendings, missings, batchMerges []CodeReviewCommon, missingSerialTests map[int][]config.Presubmit) (Action, []CodeReviewCommon, error) {
 	var merged []CodeReviewCommon
 	var err error
@@ -1567,6 +1600,11 @@ func (c *syncController) takeAction(sp subpool, batchPending, successes, pending
 	}
 	// If we have no batch, trigger one.
 	if len(sp.prs) > 1 && len(batchPending) == 0 {
+		if c.config().Tide.AbortSupersededBatchJobs(config.OrgRepo{Org: sp.org, Repo: sp.repo}) {
+			if err := c.abortSupersededBatchJobs(sp); err != nil {
+				sp.log.WithError(err).Error("Failed aborting superseded batch jobs.")
+			}
+		}
 		batch, presubmits, err := c.pickBatch(sp, sp.cc, c.pickNewBatch)
 		if err != nil {
 			return Wait, nil, err
