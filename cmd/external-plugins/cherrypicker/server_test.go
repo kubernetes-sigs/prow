@@ -19,6 +19,9 @@ package main
 import (
 	"errors"
 	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"sync"
@@ -27,6 +30,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	"sigs.k8s.io/prow/pkg/git/localgit"
@@ -1458,4 +1462,234 @@ func (p *prNumberGenerator) GetPRNumber() int {
 	defer p.Unlock()
 	p.prNumber = p.prNumber + 10
 	return p.prNumber
+}
+
+func TestExtractOriginalSHAs(t *testing.T) {
+	tests := []struct {
+		name        string
+		patch       string
+		expected    []string
+		expectError bool
+	}{
+		{
+			name: "single commit",
+			patch: `From 1111111111111111111111111111111111111111 Mon Sep 17 00:00:00 2001
+diff --git a/file b/file`,
+			expected: []string{
+				"1111111111111111111111111111111111111111",
+			},
+		},
+		{
+			name: "multiple commits",
+			patch: `From 1111111111111111111111111111111111111111 Mon Sep 17 00:00:00 2001
+diff --git a/file1 b/file1
+From 2222222222222222222222222222222222222222 Mon Sep 17 00:00:00 2001
+diff --git a/file2 b/file2`,
+			expected: []string{
+				"1111111111111111111111111111111111111111",
+				"2222222222222222222222222222222222222222",
+			},
+		},
+		{
+			name: "ignore invalid From lines",
+			patch: `From invalid-sha
+From 3333333333333333333333333333333333333333 Mon Sep 17 00:00:00 2001`,
+			expected: []string{
+				"3333333333333333333333333333333333333333",
+			},
+		},
+		{
+			name:        "no commits",
+			patch:       `random content`,
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmp, err := os.CreateTemp("", "patch-*.patch")
+			require.NoError(t, err)
+			defer os.Remove(tmp.Name())
+
+			_, err = tmp.WriteString(tt.patch)
+			require.NoError(t, err)
+
+			require.NoError(t, tmp.Close())
+
+			shas, err := extractOriginalSHAs(tmp.Name())
+
+			if tt.expectError {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), "no original SHAs found")
+				return
+			}
+
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, shas)
+		})
+	}
+}
+
+func TestAppendCherryPickMessages_Empty(t *testing.T) {
+	t.Parallel()
+
+	err := appendCherryPickMessages(t.TempDir(), []string{})
+	require.NoError(t, err)
+}
+
+func TestAppendCherryPickMessages_NoGitRepo(t *testing.T) {
+	t.Parallel()
+
+	err := appendCherryPickMessages(t.TempDir(), []string{
+		"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+	})
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "failed to resolve base SHA")
+}
+
+func TestAppendCherryPickMessages_SingleCommit(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+
+	run := func(args ...string) {
+		t.Helper()
+
+		cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+		cmd.Env = append(os.Environ(),
+			"GIT_SEQUENCE_EDITOR=true",
+			"GIT_EDITOR=true",
+		)
+
+		out, err := cmd.CombinedOutput()
+		require.NoError(t, err, string(out))
+	}
+
+	run("init")
+	run("config", "user.email", "test@test.com")
+	run("config", "user.name", "test")
+
+	require.NoError(t,
+		os.WriteFile(filepath.Join(dir, "file.txt"), []byte("base"), 0644),
+	)
+
+	run("add", ".")
+	run("commit", "-m", "base")
+
+	require.NoError(t,
+		os.WriteFile(filepath.Join(dir, "file.txt"), []byte("change-1"), 0644),
+	)
+
+	run("add", ".")
+	run("commit", "-m", "commit1")
+
+	err := appendCherryPickMessages(dir, []string{
+		"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+	})
+	require.NoError(t, err)
+
+	cmd := exec.Command("git", "-C", dir, "log", "-1", "--pretty=%B")
+
+	out, err := cmd.Output()
+	require.NoError(t, err)
+
+	require.Contains(
+		t,
+		string(out),
+		"(cherry picked from commit aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa)",
+	)
+}
+
+func TestAppendCherryPickMessages_MultiCommit(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+
+	run := func(args ...string) {
+		t.Helper()
+
+		cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+		cmd.Env = append(os.Environ(),
+			"GIT_SEQUENCE_EDITOR=true",
+			"GIT_EDITOR=true",
+		)
+
+		out, err := cmd.CombinedOutput()
+		require.NoError(t, err, string(out))
+	}
+
+	run("init")
+	run("config", "user.email", "test@test.com")
+	run("config", "user.name", "test")
+
+	require.NoError(t,
+		os.WriteFile(filepath.Join(dir, "file.txt"), []byte("base"), 0644),
+	)
+
+	run("add", ".")
+	run("commit", "-m", "base")
+
+	require.NoError(t,
+		os.WriteFile(filepath.Join(dir, "file.txt"), []byte("one"), 0644),
+	)
+
+	run("add", ".")
+	run("commit", "-m", "commit1")
+
+	require.NoError(t,
+		os.WriteFile(filepath.Join(dir, "file.txt"), []byte("two"), 0644),
+	)
+
+	run("add", ".")
+	run("commit", "-m", "commit2")
+
+	err := appendCherryPickMessages(dir, []string{
+		"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+	})
+	require.NoError(t, err)
+
+	cmd := exec.Command(
+		"git",
+		"-C",
+		dir,
+		"log",
+		"-2",
+		"--format=%B%x00",
+	)
+
+	out, err := cmd.Output()
+	require.NoError(t, err)
+
+	messages := strings.Split(string(out), "\x00")
+
+	var got []string
+	for _, msg := range messages {
+		msg = strings.TrimSpace(msg)
+		if msg != "" {
+			got = append(got, msg)
+		}
+	}
+
+	require.Len(t, got, 2)
+
+	require.Contains(
+		t,
+		got[0],
+		"(cherry picked from commit bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb)",
+	)
+
+	require.Contains(
+		t,
+		got[1],
+		"(cherry picked from commit aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa)",
+	)
+
+	// Ensure original messages are preserved
+	require.Contains(t, got[0], "commit2")
+	require.Contains(t, got[1], "commit1")
 }
