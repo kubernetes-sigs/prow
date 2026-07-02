@@ -133,6 +133,26 @@ labels:
 	"referencesToBeAddedAlias": []byte(`approvers:
 - not-yet-existing-alias
 `),
+	"validWithAdvisoryApprovers": []byte(`approvers:
+- jdoe
+reviewers:
+- alice
+advisory_approvers:
+- carol
+labels:
+- label1
+`),
+	"validFiltersWithAdvisoryApprovers": []byte(`filters:
+  ".*":
+    approvers:
+    - jdoe
+    reviewers:
+    - alice
+    advisory_approvers:
+    - carol
+    labels:
+    - label1
+`),
 }
 
 var patches = map[string]string{
@@ -686,6 +706,87 @@ func testParseOwnersFile(clients localgit.Clients, t *testing.T) {
 				}
 			} else if test.errLine != 0 {
 				t.Errorf("%s: expected an error, got none", test.name)
+			}
+		})
+	}
+}
+
+func TestParseOwnersFileIncludesAdvisoryApproversV2(t *testing.T) {
+	testParseOwnersFileIncludesAdvisoryApprovers(localgit.NewV2, t)
+}
+
+func testParseOwnersFileIncludesAdvisoryApprovers(clients localgit.Clients, t *testing.T) {
+	tests := []struct {
+		name           string
+		document       []byte
+		expectedOwners []string
+	}{
+		{
+			name:           "simple config with advisory_approvers",
+			document:       ownerFiles["validWithAdvisoryApprovers"],
+			expectedOwners: []string{"alice", "jdoe", "carol"},
+		},
+		{
+			name:           "filters config with advisory_approvers",
+			document:       ownerFiles["validFiltersWithAdvisoryApprovers"],
+			expectedOwners: []string{"alice", "jdoe", "carol"},
+		},
+	}
+
+	for i, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			pr := i + 100
+			lg, c, err := clients()
+			if err != nil {
+				t.Fatalf("Making localgit: %v", err)
+			}
+			defer func() {
+				if err := lg.Clean(); err != nil {
+					t.Errorf("Cleaning up localgit: %v", err)
+				}
+				if err := c.Clean(); err != nil {
+					t.Errorf("Cleaning up client: %v", err)
+				}
+			}()
+			if err := lg.MakeFakeRepo("org", "repo"); err != nil {
+				t.Fatalf("Making fake repo: %v", err)
+			}
+			if err := lg.Checkout("org", "repo", defaultBranch); err != nil {
+				t.Fatalf("Switching to master branch: %v", err)
+			}
+			if err := lg.CheckoutNewBranch("org", "repo", fmt.Sprintf("pull/%d/head", pr)); err != nil {
+				t.Fatalf("Checking out pull branch: %v", err)
+			}
+			pullFiles := map[string][]byte{}
+			pullFiles["OWNERS"] = test.document
+			if err := lg.AddCommit("org", "repo", pullFiles); err != nil {
+				t.Fatalf("Adding PR commit: %v", err)
+			}
+
+			change := github.PullRequestChange{
+				Filename: "OWNERS",
+				Patch:    makePatch(test.document),
+			}
+
+			r, err := c.ClientFor("org", "repo")
+			if err != nil {
+				t.Fatalf("error cloning the repo: %v", err)
+			}
+			defer func() {
+				if err := r.Clean(); err != nil {
+					t.Fatalf("error cleaning up repo: %v", err)
+				}
+			}()
+
+			path := filepath.Join(r.Directory(), "OWNERS")
+			message, owners := parseOwnersFile(&fakeOwnersClient{}, path, change, &logrus.Entry{}, []string{}, ownersconfig.FakeFilenames)
+			if message != nil {
+				t.Fatalf("unexpected error: %s", message.message)
+			}
+			expected := sets.New[string](test.expectedOwners...)
+			got := sets.New[string](owners...)
+			if !expected.Equal(got) {
+				t.Errorf("expected owners %v, got %v", sets.List(expected), sets.List(got))
 			}
 		})
 	}
