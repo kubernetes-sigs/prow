@@ -26,6 +26,7 @@ import (
 
 	pipelinev1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	prowjobsv1 "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 )
 
@@ -207,6 +208,26 @@ func (in *Preset) DeepCopyInto(out *Preset) {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
+	if in.TektonParams != nil {
+		in, out := &in.TektonParams, &out.TektonParams
+		*out = make([]pipelinev1.Param, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
+	}
+	if in.TektonWorkspaces != nil {
+		in, out := &in.TektonWorkspaces, &out.TektonWorkspaces
+		*out = make([]pipelinev1.WorkspaceBinding, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
+	}
+	if in.TektonTimeout != nil {
+		in, out := &in.TektonTimeout, &out.TektonTimeout
+		*out = new(metav1.Duration)
+		**out = **in
+	}
+	in.TektonTaskRunTemplate.DeepCopyInto(&out.TektonTaskRunTemplate)
 	return
 }
 
