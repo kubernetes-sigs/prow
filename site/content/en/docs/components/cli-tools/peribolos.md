@@ -2,7 +2,6 @@
 title: "Peribolos"
 weight: 10
 description: >
-  
 ---
 
 Peribolos allows the org settings, teams and memberships to be declared in a yaml file. GitHub is then updated to match the declared configuration.
@@ -65,19 +64,19 @@ orgs:
 
 This config will:
 
-* Ensure the org settings match the following:
-  * Set the company, email, name and descriptions fields for the org to foo
-  * Allow projects to be created at the org and repo levels
-  * Give everyone read access to repos by default
-  * Disallow members from creating repositories
-* Ensure the following memberships exist:
-  * anne and bob are members, carl is an admin
-* Configure the node and another-team in the following manner:
-  * Set node's description and privacy setting.
-  * Rename the backend team to node
-  * Add anne as a member and jane as a maintainer to node
-  * Similar things for another-team (details elided)
-* Ensure that the team has admin rights to `some-repo`, read access to `other-repo` and no other privileges
+- Ensure the org settings match the following:
+  - Set the company, email, name and descriptions fields for the org to foo
+  - Allow projects to be created at the org and repo levels
+  - Give everyone read access to repos by default
+  - Disallow members from creating repositories
+- Ensure the following memberships exist:
+  - anne and bob are members, carl is an admin
+- Configure the node and another-team in the following manner:
+  - Set node's description and privacy setting.
+  - Rename the backend team to node
+  - Add anne as a member and jane as a maintainer to node
+  - Similar things for another-team (details elided)
+- Ensure that the team has admin rights to `some-repo`, read access to `other-repo` and no other privileges
 
 Note that any fields missing from the config will not be managed by peribolos. So if description is missing from the org setting, the current value will remain.
 
@@ -96,8 +95,8 @@ INFO: Build completed successfully, 1 total action
 {"client":"github","component":"peribolos","level":"info","msg":"ListOrgMembers(kubernetes-sigs, admin)","time":"2018-09-28T13:17:42-07:00"}
 {"client":"github","component":"peribolos","level":"info","msg":"ListOrgMembers(kubernetes-sigs, member)","time":"2018-09-28T13:17:43-07:00"}
 {"client":"github","component":"peribolos","level":"info","msg":"ListTeams(kubernetes-sigs)","time":"2018-09-28T13:17:45-07:00"}
-{"client":"github","component":"peribolos","level":"info","msg":"ListTeamMembers(2671356, maintainer)","time":"2018-09-28T13:17:46-07:00"}
-{"client":"github","component":"peribolos","level":"info","msg":"ListTeamMembers(2671356, member)","time":"2018-09-28T13:17:46-07:00"}
+{"client":"github","component":"peribolos","level":"info","msg":"ListTeamMembersByID(2671356, maintainer)","time":"2018-09-28T13:17:46-07:00"}
+{"client":"github","component":"peribolos","level":"info","msg":"ListTeamMembersByID(2671356, member)","time":"2018-09-28T13:17:46-07:00"}
 ...
 admins:
 - calebamiles
@@ -152,17 +151,17 @@ $ go run ./cmd/peribolos --config-path ~/current.yaml --github-token-path ~/gith
 
 In order to mitigate the chance of applying erroneous configs, the peribolos binary includes a few safety checks:
 
-* `--required-admins=` - a list of people who must be configured as admins in order to accept the config (defaults to empty list)
-* `--min-admins=5` - the config must specify at least this many admins
-* `--require-self=true` - require the bot applying the config to be an admin.
+- `--required-admins=` - a list of people who must be configured as admins in order to accept the config (defaults to empty list)
+- `--min-admins=5` - the config must specify at least this many admins
+- `--require-self=true` - require the bot applying the config to be an admin.
 
 These flags are designed to ensure that any problems can be corrected by rerunning the tool with a fixed config and/or binary.
 
-* `--maximum-removal-delta=0.25` - reject a config that deletes more than 25% of the current memberships.
+- `--maximum-removal-delta=0.25` - reject a config that deletes more than 25% of the current memberships.
 
 This flag is designed to protect against typos in the configuration which might cause massive, unwanted deletions. Raising this value to 1.0 will allow deleting everyone, and reducing it to 0.0 will prevent any deletions.
 
-* `--confirm=false` - no github mutations will be made until this flag is true. It is safe to run the binary without this flag. It will print what it would do, without actually making any changes.
+- `--confirm=false` - no github mutations will be made until this flag is true. It is safe to run the binary without this flag. It will print what it would do, without actually making any changes.
 
 See `go run ./cmd/peribolos --help` for the full and current list of settings that can be configured with flags.
 
