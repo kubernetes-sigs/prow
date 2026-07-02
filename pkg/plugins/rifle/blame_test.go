@@ -142,6 +142,12 @@ func TestIntersectBlameWithChanges(t *testing.T) {
 	if stats["bob"].LineCount != 5 {
 		t.Errorf("bob: expected 5 lines (11-15), got %d", stats["bob"].LineCount)
 	}
+	if !stats["alice"].MostRecentDate.Equal(yesterday) {
+		t.Errorf("alice: expected MostRecentDate=%v (yesterday), got %v", yesterday, stats["alice"].MostRecentDate)
+	}
+	if !stats["bob"].MostRecentDate.Equal(lastWeek) {
+		t.Errorf("bob: expected MostRecentDate=%v (lastWeek), got %v", lastWeek, stats["bob"].MostRecentDate)
+	}
 	if _, ok := stats[""]; ok {
 		t.Error("empty login should be filtered out")
 	}
@@ -167,6 +173,15 @@ func TestReviewerScorer(t *testing.T) {
 	oldDate := now.Add(-365 * 24 * time.Hour)
 
 	scorer := &reviewerScorer{
+		ghc: &fakeBlameGetter{
+			data: map[string][]github.BlameRange{
+				"main.go": {
+					{StartingLine: 1, EndingLine: 50, AuthorLogin: "alice", Date: recentDate},
+					{StartingLine: 51, EndingLine: 150, AuthorLogin: "bob", Date: oldDate},
+					{StartingLine: 151, EndingLine: 160, AuthorLogin: "charlie", Date: recentDate},
+				},
+			},
+		},
 		org:       "org",
 		repo:      "repo",
 		ref:       "main",
@@ -176,31 +191,13 @@ func TestReviewerScorer(t *testing.T) {
 		log:       logrusEntry(),
 	}
 
-	_ = scorer
-
-	candidates := sets.New[string]("alice", "bob", "charlie")
-
-	fileStats := map[string]authorStats{
-		"alice":   {LineCount: 50, MostRecentDate: recentDate},
-		"bob":     {LineCount: 100, MostRecentDate: oldDate},
-		"charlie": {LineCount: 10, MostRecentDate: recentDate},
+	files := []github.PullRequestChange{
+		{Filename: "main.go", Status: "modified", Patch: "@@ -1,160 +1,165 @@ package main"},
 	}
 
-	scores := make(map[string]float64)
-	for author, stats := range fileStats {
-		if !candidates.Has(author) {
-			continue
-		}
-		daysSince := now.Sub(stats.MostRecentDate).Hours() / 24
-		recencyScore := 1.0 / (1.0 + daysSince)
-		scores[author] += float64(stats.LineCount)*lineCountWeight + recencyScore*recencyWeight
-	}
-	for author := range scores {
-		if scorer.approvers.Has(author) {
-			scores[author] += approverBonus
-		} else if scorer.reviewers.Has(author) {
-			scores[author] += reviewerBonus
-		}
+	scores, err := scorer.scoreReviewers(files)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
 
 	if scores["alice"] <= scores["charlie"] {

@@ -62,6 +62,7 @@ type FakeClient struct {
 	CreatedStatuses            map[string][]github.Status
 	IssueEvents                map[int][]github.ListedIssueEvent
 	Commits                    map[string]github.RepositoryCommit
+	BlameData                  map[string][]github.BlameRange
 
 	// All Labels That Exist In The Repo
 	RepoLabelsExisting []string
@@ -539,11 +540,15 @@ func (f *FakeClient) DeleteRef(owner, repo, ref string) error {
 	return nil
 }
 
-// GetSingleCommit returns a single commit.
+// GetBlame returns blame data for a file. Returns BlameData[path] if configured, nil otherwise.
 func (f *FakeClient) GetBlame(org, repo, ref, path string) ([]github.BlameRange, error) {
+	if f.BlameData != nil {
+		return f.BlameData[path], nil
+	}
 	return nil, nil
 }
 
+// GetSingleCommit returns a single commit.
 func (f *FakeClient) GetSingleCommit(org, repo, SHA string) (github.RepositoryCommit, error) {
 	f.lock.RLock()
 	defer f.lock.RUnlock()

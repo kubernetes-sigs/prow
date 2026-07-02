@@ -46,6 +46,7 @@ import (
 
 const (
 	defaultBlunderbussReviewerCount = 2
+	defaultRifleReviewerCount       = 2
 )
 
 // Configuration is the top-level serialization target for plugin Configuration.
@@ -1294,7 +1295,7 @@ func (c *Configuration) setDefaults() {
 	}
 	if c.Rifle.ReviewerCount == nil {
 		c.Rifle.ReviewerCount = new(int)
-		*c.Rifle.ReviewerCount = defaultBlunderbussReviewerCount
+		*c.Rifle.ReviewerCount = defaultRifleReviewerCount
 	}
 	if c.Rifle.WaitForStatus != nil {
 		if c.Rifle.WaitForStatus.Context == "" {
