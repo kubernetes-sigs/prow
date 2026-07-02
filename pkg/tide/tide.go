@@ -1037,7 +1037,8 @@ func (c *syncController) accumulateBatch(sp subpool) (successBatch []CodeReviewC
 	return successBatch, pendingBatch
 }
 
-// prowJobsFromContexts constructs ProwJob objects from all successful presubmit contexts that include a baseSHA.
+// prowJobsFromContexts constructs ProwJob objects from successful presubmit contexts that either
+// include a matching baseSHA in their description or carry the skip-retest sentinel.
 // This is needed because otherwise we would always need retesting for results that are older than sinkers
 // max_prowjob_age.
 func (c *syncController) prowJobsFromContexts(pr *CodeReviewCommon, baseSHA string) ([]prowapi.ProwJob, error) {
@@ -1050,8 +1051,10 @@ func (c *syncController) prowJobsFromContexts(pr *CodeReviewCommon, baseSHA stri
 		if headContext.State != githubql.StatusStateSuccess {
 			continue
 		}
-		if baseSHAForContext := config.BaseSHAFromContextDescription(string(headContext.Description)); baseSHAForContext != "" && baseSHAForContext == baseSHA {
-			passingCurrentContexts = append(passingCurrentContexts, string((headContext.Context)))
+		desc := string(headContext.Description)
+		baseSHAForContext := config.BaseSHAFromContextDescription(desc)
+		if config.IsSkipRetest(desc) || baseSHAForContext != "" && baseSHAForContext == baseSHA {
+			passingCurrentContexts = append(passingCurrentContexts, string(headContext.Context))
 		}
 	}
 
