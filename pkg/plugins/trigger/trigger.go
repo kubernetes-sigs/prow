@@ -277,9 +277,9 @@ func TrustedUser(ghc trustedUserClient, onlyOrgMembers bool, trustedApps []strin
 	// Determine if user is on trusted_apps list.
 	// This allows automatic tests execution for GitHub automations that cannot be added as collaborators.
 	for _, trustedApp := range trustedApps {
-		if tUser := strings.TrimSuffix(user, "[bot]"); tUser == trustedApp {
-			return okResponse, nil
-		}
+		if strings.HasSuffix(user, "[bot]") && strings.TrimSuffix(user, "[bot]") == trustedApp {
+        	return okResponse, nil
+    	}
 	}
 
 	// Determine if there is a second org to check. If there is no secondary org or they are the same, the result
