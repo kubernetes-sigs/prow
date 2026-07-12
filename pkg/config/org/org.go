@@ -72,6 +72,26 @@ type RepoMetadata struct {
 	Archived                 *bool   `json:"archived,omitempty"`
 }
 
+// ForkConfig declares that a repository should be created as a fork of an upstream.
+//
+// Metadata behavior for forks:
+//   - Forks initially inherit metadata (description, has_issues, etc.) from the upstream.
+//   - If a RepoMetadata field is set in config, it overrides the inherited/current value.
+//   - If a RepoMetadata field is not set (nil), the fork keeps its current value.
+//   - Some metadata changes may be restricted by GitHub (e.g., public forks cannot be
+//     made private on GitHub.com). Such restrictions vary by GitHub edition (Enterprise
+//     may allow more). Restricted changes will result in an API error.
+//
+// See https://docs.github.com/en/rest/repos/forks
+type ForkConfig struct {
+	// From specifies the upstream repository in "owner/repo" format.
+	// The config key name will be used as the fork's name (via GitHub's fork API name parameter).
+	From string `json:"from"`
+
+	// DefaultBranchOnly forks only the default branch when true.
+	DefaultBranchOnly bool `json:"default_branch_only,omitempty"`
+}
+
 // Repo declares a repository and its configuration.
 type Repo struct {
 	// RepoMetadata contains fields that map directly to the GitHub Repos API.
@@ -90,34 +110,12 @@ type Repo struct {
 	// See https://docs.github.com/en/rest/repos/repos#create-an-organization-repository
 	OnCreate *RepoCreateOptions `json:"on_create,omitempty"`
 
-	//
-	// GitHub Forks API fields
+	// Fork configures this repository as a fork of an upstream repository.
 	// See https://docs.github.com/en/rest/repos/forks
-	//
-
-	// ForkFrom specifies an upstream repository to fork from, in the format "owner/repo".
-	// When set, Peribolos will create this repository as a fork of the upstream.
-	// The config key name will be used as the fork's name (via GitHub's fork API name parameter).
-	//
-	// Metadata behavior for forks:
-	//   - Forks initially inherit metadata (description, has_issues, etc.) from the upstream.
-	//   - If a RepoMetadata field is set in config, it overrides the inherited/current value.
-	//   - If a RepoMetadata field is not set (nil), the fork keeps its current value.
-	//   - Some metadata changes may be restricted by GitHub (e.g., public forks cannot be
-	//     made private on GitHub.com). Such restrictions vary by GitHub edition (Enterprise
-	//     may allow more). Restricted changes will result in an API error.
-	ForkFrom *string `json:"fork_from,omitempty"`
-
-	// DefaultBranchOnly specifies whether to fork only the default branch.
-	// Only applicable when ForkFrom is set.
-	DefaultBranchOnly *bool `json:"default_branch_only,omitempty"`
-
-	//
-	// GitHub Collaborators API fields
-	// See https://docs.github.com/en/rest/collaborators/collaborators
-	//
+	Fork *ForkConfig `json:"fork,omitempty"`
 
 	// Collaborators is a map of username to their permission level for this repository.
+	// See https://docs.github.com/en/rest/collaborators/collaborators
 	Collaborators map[string]github.RepoPermissionLevel `json:"collaborators,omitempty"`
 }
 

@@ -401,9 +401,8 @@ func dumpOrgConfig(client dumpClient, orgName string, ignoreSecretTeams bool, ig
 
 		// If repo is a fork, record the upstream
 		if full.Fork && full.Parent.FullName != "" {
-			forkFrom := full.Parent.FullName
-			repoConfig.ForkFrom = &forkFrom
-			logrus.WithFields(logrus.Fields{"repo": full.FullName, "upstream": forkFrom}).Debug("Recording fork upstream.")
+			repoConfig.Fork = &org.ForkConfig{From: full.Parent.FullName}
+			logrus.WithFields(logrus.Fields{"repo": full.FullName, "upstream": full.Parent.FullName}).Debug("Recording fork upstream.")
 		}
 
 		// Get direct collaborators (explicitly added) via GraphQL
@@ -1229,7 +1228,7 @@ func configureRepos(opt options, client repoClient, orgName string, orgConfig or
 		}
 
 		// Check if this is a fork repo
-		isFork := wantRepo.ForkFrom != nil && *wantRepo.ForkFrom != ""
+		isFork := wantRepo.Fork != nil
 
 		if existing == nil {
 			// Skip repos that should be created as forks - they're handled by configureForks
@@ -1347,12 +1346,12 @@ func configureForks(client forkClient, orgName string, orgConfig org.Config) (ma
 	// would silently collapse into the same repo with non-deterministic metadata.
 	upstreamToConfig := make(map[string]string)
 	for repoName, repoCfg := range orgConfig.Repos {
-		if repoCfg.ForkFrom == nil || *repoCfg.ForkFrom == "" {
+		if repoCfg.Fork == nil {
 			continue
 		}
-		upstream := strings.ToLower(*repoCfg.ForkFrom)
+		upstream := strings.ToLower(repoCfg.Fork.From)
 		if existing, ok := upstreamToConfig[upstream]; ok {
-			return nil, fmt.Errorf("multiple config entries (%s, %s) fork from the same upstream %s — only one fork per upstream is allowed per org", existing, repoName, *repoCfg.ForkFrom)
+			return nil, fmt.Errorf("multiple config entries (%s, %s) fork from the same upstream %s, only one fork per upstream is allowed per org", existing, repoName, repoCfg.Fork.From)
 		}
 		upstreamToConfig[upstream] = repoName
 	}
@@ -1360,20 +1359,19 @@ func configureForks(client forkClient, orgName string, orgConfig org.Config) (ma
 	var allErrors []error
 
 	for repoName, repoCfg := range orgConfig.Repos {
-		// Skip repos that don't have ForkFrom configured
-		if repoCfg.ForkFrom == nil || *repoCfg.ForkFrom == "" {
+		if repoCfg.Fork == nil {
 			continue
 		}
 
 		repoLogger := logrus.WithFields(logrus.Fields{
 			"repo":     repoName,
-			"upstream": *repoCfg.ForkFrom,
+			"upstream": repoCfg.Fork.From,
 		})
 
 		// Parse upstream owner/repo
-		parts := strings.SplitN(*repoCfg.ForkFrom, "/", 2)
+		parts := strings.SplitN(repoCfg.Fork.From, "/", 2)
 		if len(parts) != 2 {
-			err := fmt.Errorf("invalid fork_from format %q, expected 'owner/repo'", *repoCfg.ForkFrom)
+			err := fmt.Errorf("invalid fork_from format %q, expected 'owner/repo'", repoCfg.Fork.From)
 			repoLogger.WithError(err).Error("invalid fork configuration")
 			allErrors = append(allErrors, err)
 			continue
@@ -1462,13 +1460,8 @@ func configureForks(client forkClient, orgName string, orgConfig org.Config) (ma
 		}
 
 		// No fork of this upstream exists - create it
-		defaultBranchOnly := false
-		if repoCfg.DefaultBranchOnly != nil {
-			defaultBranchOnly = *repoCfg.DefaultBranchOnly
-		}
-
 		repoLogger.Info("creating fork from upstream")
-		createdName, err := client.CreateForkInOrg(parts[0], parts[1], orgName, defaultBranchOnly, repoName)
+		createdName, err := client.CreateForkInOrg(parts[0], parts[1], orgName, repoCfg.Fork.DefaultBranchOnly, repoName)
 		if err != nil {
 			repoLogger.WithError(err).Error("failed to create fork")
 			allErrors = append(allErrors, err)
