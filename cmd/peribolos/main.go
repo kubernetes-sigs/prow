@@ -1327,29 +1327,17 @@ func waitForFork(client forkClient, org, repo string, timeout, interval time.Dur
 // This function only creates forks - it does not delete existing forks that are not in the config.
 // Returns a mapping of config repo names to actual GitHub repo names (for forks that were renamed).
 func configureForks(client forkClient, orgName string, orgConfig org.Config) (map[string]string, error) {
-	// forkNames maps config repo name -> actual GitHub repo name
-	// This is needed because GitHub may rename forks to avoid conflicts
-	forkNames := make(map[string]string)
-
-	// Get existing repos in the org
-	repoList, err := client.GetRepos(orgName, false)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get repos: %w", err)
-	}
-	logrus.Debugf("Found %d repositories", len(repoList))
-
-	// Build maps for lookups
-	byName := make(map[string]github.Repo, len(repoList))
-	for _, repo := range repoList {
-		byName[strings.ToLower(repo.Name)] = repo
-	}
-
-	// Validate: no two config entries may fork from the same upstream.
-	// GitHub only allows one fork of a given repo per org, so duplicates
-	// would silently collapse into the same repo with non-deterministic metadata.
+	// Validate all fork configs before making any API calls.
+	// This catches format errors and duplicate upstreams cheaply.
 	upstreamToConfig := make(map[string]string)
+	var validationErrors []error
 	for repoName, repoCfg := range orgConfig.Repos {
 		if repoCfg.Fork == nil {
+			continue
+		}
+		parts := strings.SplitN(repoCfg.Fork.From, "/", 2)
+		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+			validationErrors = append(validationErrors, fmt.Errorf("invalid fork from format %q for repo %s, expected 'owner/repo'", repoCfg.Fork.From, repoName))
 			continue
 		}
 		upstream := strings.ToLower(repoCfg.Fork.From)
@@ -1358,7 +1346,28 @@ func configureForks(client forkClient, orgName string, orgConfig org.Config) (ma
 		}
 		upstreamToConfig[upstream] = repoName
 	}
+	if len(validationErrors) > 0 {
+		return nil, utilerrors.NewAggregate(validationErrors)
+	}
+	if len(upstreamToConfig) == 0 {
+		return nil, nil
+	}
 
+	// Get existing repos in the org (only when we have forks to manage)
+	repoList, err := client.GetRepos(orgName, false)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get repos: %w", err)
+	}
+	logrus.Debugf("Found %d repositories", len(repoList))
+
+	byName := make(map[string]github.Repo, len(repoList))
+	for _, repo := range repoList {
+		byName[strings.ToLower(repo.Name)] = repo
+	}
+
+	// forkNames maps config repo name -> actual GitHub repo name.
+	// This is needed because GitHub may rename forks to avoid conflicts.
+	forkNames := make(map[string]string)
 	var allErrors []error
 
 	for repoName, repoCfg := range orgConfig.Repos {
@@ -1371,14 +1380,7 @@ func configureForks(client forkClient, orgName string, orgConfig org.Config) (ma
 			"upstream": repoCfg.Fork.From,
 		})
 
-		// Parse upstream owner/repo
 		parts := strings.SplitN(repoCfg.Fork.From, "/", 2)
-		if len(parts) != 2 {
-			err := fmt.Errorf("invalid fork_from format %q, expected 'owner/repo'", repoCfg.Fork.From)
-			repoLogger.WithError(err).Error("invalid fork configuration")
-			allErrors = append(allErrors, err)
-			continue
-		}
 		expectedUpstream := fmt.Sprintf("%s/%s", parts[0], parts[1])
 		upstreamRepoName := parts[1]
 
