@@ -31,7 +31,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/utils/ptr"
 	"sigs.k8s.io/prow/pkg/config/org"
 	"sigs.k8s.io/prow/pkg/flagutil"
 	"sigs.k8s.io/prow/pkg/github"
@@ -4744,7 +4743,7 @@ func TestConfigureForks(t *testing.T) {
 			description: "no forks configured - does nothing",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
-					"regular-repo": {RepoMetadata: org.RepoMetadata{Description: ptr.To("a regular repo")}},
+					"regular-repo": {RepoMetadata: org.RepoMetadata{Description: new("a regular repo")}},
 				},
 			},
 			existingRepos: map[string]github.Repo{},
@@ -4883,7 +4882,7 @@ func TestConfigureForks(t *testing.T) {
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
 					"repo-with-empty-fork": {Fork: &org.ForkConfig{From: ""}},
-					"regular-repo":         {RepoMetadata: org.RepoMetadata{Description: ptr.To("normal")}},
+					"regular-repo":         {RepoMetadata: org.RepoMetadata{Description: new("normal")}},
 				},
 			},
 			existingRepos: map[string]github.Repo{},

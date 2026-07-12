@@ -1297,6 +1297,11 @@ type forkClient interface {
 	CreateForkInOrg(owner, repo, targetOrg string, defaultBranchOnly bool, name string) (string, error)
 }
 
+type parentResult struct {
+	fullName string
+	err      error
+}
+
 // waitForFork polls until the fork repository is available.
 // GitHub's fork API returns HTTP 202 (accepted) and creates the fork asynchronously.
 // This function polls GetRepo until the fork exists or the timeout is reached.
@@ -1321,6 +1326,26 @@ func waitForFork(client forkClient, org, repo string, timeout, interval time.Dur
 	}
 
 	return fmt.Errorf("timeout waiting for fork %s/%s to become available after %v", org, repo, timeout)
+}
+
+// checkExistingRepoConflict checks whether an existing repo conflicts with the desired fork.
+// Returns an error if the repo is not a fork or is a fork of a different upstream.
+// Returns nil when cachedResult indicates the error was already recorded.
+func checkExistingRepoConflict(client forkClient, orgName, repoName, expectedUpstream string, existingRepo github.Repo, cachedResult *parentResult) error {
+	if !existingRepo.Fork {
+		return fmt.Errorf("repo %s already exists but is not a fork", repoName)
+	}
+	if cachedResult != nil {
+		if cachedResult.err != nil {
+			return nil // error was already recorded in the candidate loop
+		}
+		return fmt.Errorf("repo %s exists as fork of %s, but config specifies %s", repoName, cachedResult.fullName, expectedUpstream)
+	}
+	fullRepo, err := client.GetRepo(orgName, existingRepo.Name)
+	if err != nil {
+		return fmt.Errorf("failed to get full repo info for %s: %w", repoName, err)
+	}
+	return fmt.Errorf("repo %s exists as fork of %s, but config specifies %s", repoName, fullRepo.Parent.FullName, expectedUpstream)
 }
 
 // configureForks creates repository forks from upstream repositories as specified in the config.
@@ -1381,24 +1406,25 @@ func configureForks(client forkClient, orgName string, orgConfig org.Config) (ma
 		})
 
 		parts := strings.SplitN(repoCfg.Fork.From, "/", 2)
-		expectedUpstream := fmt.Sprintf("%s/%s", parts[0], parts[1])
+		expectedUpstream := strings.ToLower(fmt.Sprintf("%s/%s", parts[0], parts[1]))
 		upstreamRepoName := parts[1]
+
+		// Normalize names once for case-insensitive lookups.
+		// GitHub treats repository names as case-insensitive.
+		repoNameLower := strings.ToLower(repoName)
+		upstreamRepoNameLower := strings.ToLower(upstreamRepoName)
 
 		// Check candidate repos that might already be a fork of this upstream.
 		// Instead of scanning all forks in the org (O(n) API calls), we only
 		// check repos whose names match the config key or the upstream repo name,
 		// since GitHub names forks after the upstream repo by default.
-		candidates := []string{strings.ToLower(repoName)}
-		if !strings.EqualFold(repoName, upstreamRepoName) {
-			candidates = append(candidates, strings.ToLower(upstreamRepoName))
+		candidates := []string{repoNameLower}
+		if repoNameLower != upstreamRepoNameLower {
+			candidates = append(candidates, upstreamRepoNameLower)
 		}
 
 		// Check candidates for an existing fork of this upstream.
 		// Track the result for the config-name repo to avoid a duplicate API call.
-		type parentResult struct {
-			fullName string
-			err      error
-		}
 		var configNameResult *parentResult
 		found := false
 		for _, candidate := range candidates {
@@ -1407,17 +1433,21 @@ func configureForks(client forkClient, orgName string, orgConfig org.Config) (ma
 				continue
 			}
 			fullRepo, err := client.GetRepo(orgName, repo.Name)
-			if candidate == strings.ToLower(repoName) {
-				configNameResult = &parentResult{fullName: fullRepo.Parent.FullName, err: err}
+			if candidate == repoNameLower {
+				pr := &parentResult{err: err}
+				if err == nil {
+					pr.fullName = fullRepo.Parent.FullName
+				}
+				configNameResult = pr
 			}
 			if err != nil {
 				repoLogger.WithError(err).WithField("candidate", repo.Name).Error("failed to get fork parent info")
 				allErrors = append(allErrors, fmt.Errorf("failed to get repo info for %s: %w", repo.Name, err))
 				continue
 			}
-			if strings.EqualFold(fullRepo.Parent.FullName, expectedUpstream) {
+			if strings.ToLower(fullRepo.Parent.FullName) == expectedUpstream {
 				forkNames[repoName] = repo.Name
-				if strings.EqualFold(repo.Name, repoName) {
+				if strings.ToLower(repo.Name) == repoNameLower {
 					repoLogger.Debug("fork already exists with correct upstream")
 				} else {
 					repoLogger.WithField("actual_name", repo.Name).Info("fork of upstream already exists with different name")
@@ -1431,34 +1461,8 @@ func configureForks(client forkClient, orgName string, orgConfig org.Config) (ma
 		}
 
 		// Check if a repo with the config name already exists but is not a fork of our upstream
-		existingRepo, exists := byName[strings.ToLower(repoName)]
-		if exists {
-			if existingRepo.Fork {
-				// It's a fork, but of a different upstream.
-				// Reuse the cached result if we already called GetRepo on this repo.
-				if configNameResult != nil {
-					if configNameResult.err != nil {
-						// Error was already appended above
-					} else {
-						err := fmt.Errorf("repo %s exists as fork of %s, but config specifies %s", repoName, configNameResult.fullName, expectedUpstream)
-						repoLogger.WithError(err).Error("fork upstream mismatch")
-						allErrors = append(allErrors, err)
-					}
-				} else {
-					fullRepo, err := client.GetRepo(orgName, existingRepo.Name)
-					if err != nil {
-						repoLogger.WithError(err).Error("failed to get full repo info")
-						allErrors = append(allErrors, err)
-					} else {
-						err := fmt.Errorf("repo %s exists as fork of %s, but config specifies %s", repoName, fullRepo.Parent.FullName, expectedUpstream)
-						repoLogger.WithError(err).Error("fork upstream mismatch")
-						allErrors = append(allErrors, err)
-					}
-				}
-			} else {
-				// It's not a fork at all
-				err := fmt.Errorf("repo %s already exists but is not a fork", repoName)
-				repoLogger.WithError(err).Error("cannot create fork - repo exists")
+		if _, exists := byName[repoNameLower]; exists {
+			if err := checkExistingRepoConflict(client, orgName, repoName, expectedUpstream, byName[repoNameLower], configNameResult); err != nil {
 				allErrors = append(allErrors, err)
 			}
 			continue
