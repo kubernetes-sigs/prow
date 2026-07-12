@@ -4819,7 +4819,7 @@ func TestConfigureForks(t *testing.T) {
 			expectedForkNames: map[string]string{"my-fork": "my-fork-1"},
 		},
 		{
-			description: "mixed success and failure - one fork succeeds, one fails",
+			description: "validation rejects invalid format before any API calls",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
 					"good-fork":    {Fork: &org.ForkConfig{From: "good-org/good-repo"}},
@@ -4827,8 +4827,8 @@ func TestConfigureForks(t *testing.T) {
 				},
 			},
 			existingRepos: map[string]github.Repo{},
-			expectError:   true,                                                                                          // Should error due to invalid fork
-			expectedForks: []forkCreation{{upstream: "good-org/good-repo", defaultBranchOnly: false, name: "good-fork"}}, // But good fork should still be created
+			expectError:   true,
+			expectedForks: nil, // No forks created because validation fails before API calls
 		},
 		{
 			description: "errors when multiple config entries fork from the same upstream",
@@ -4983,9 +4983,7 @@ func TestConfigureForks(t *testing.T) {
 				if err != nil {
 					t.Errorf("unexpected error: %v", err)
 				}
-				if forkNames == nil {
-					t.Error("forkNames should not be nil on success")
-				}
+				// forkNames may be nil when there are no forks to configure
 			}
 
 			if tc.expectedForkNames != nil {
