@@ -991,20 +991,17 @@ func configureOrg(opt options, client github.Client, orgName string, orgConfig o
 		return fmt.Errorf("failed to configure %s members: %w", orgName, err)
 	}
 
-	// Create repository forks from upstream (must run before configureRepos so forkNames is available)
-	// forkNames maps config repo name -> actual GitHub repo name (for renamed forks)
+	// Create repository forks from upstream (must run before configureRepos so forkNames is available).
+	// forkNames maps config repo name -> actual GitHub repo name (for renamed forks).
+	// Fork errors are deferred: we continue with other subsystems but propagate before returning.
 	var forkNames map[string]string
+	var forkErr error
 	if !opt.fixForks {
 		logrus.Info("Skipping repository forks configuration")
-		forkNames = make(map[string]string)
 	} else {
-		var err error
-		forkNames, err = configureForks(client, orgName, orgConfig)
-		if err != nil {
-			logrus.WithError(err).Error("errors configuring some forks, continuing with partial results")
-		}
-		if forkNames == nil {
-			forkNames = make(map[string]string)
+		forkNames, forkErr = configureForks(client, orgName, orgConfig)
+		if forkErr != nil {
+			logrus.WithError(forkErr).Error("errors configuring some forks, continuing with partial results")
 		}
 	}
 
@@ -1028,6 +1025,9 @@ func configureOrg(opt options, client github.Client, orgName string, orgConfig o
 
 	if !opt.fixTeams {
 		logrus.Infof("Skipping team and team member configuration")
+		if forkErr != nil {
+			return fmt.Errorf("failed to configure %s forks: %w", orgName, forkErr)
+		}
 		return nil
 	}
 
@@ -1050,6 +1050,9 @@ func configureOrg(opt options, client github.Client, orgName string, orgConfig o
 		if err := configureTeamRepos(client, githubTeams, name, orgName, team); err != nil {
 			return fmt.Errorf("failed to configure %s team %s repos: %w", orgName, name, err)
 		}
+	}
+	if forkErr != nil {
+		return fmt.Errorf("failed to configure %s forks: %w", orgName, forkErr)
 	}
 	return nil
 }
