@@ -215,6 +215,7 @@ func main() {
 	server := &http.Server{Addr: ":" + strconv.Itoa(o.port), Handler: proxy}
 
 	health := pjutil.NewHealthOnPort(o.instrumentationOptions.HealthPort)
+	health.ServeLive()
 	health.ServeReady()
 
 	interrupts.ListenAndServe(server, time.Duration(o.timeout)*time.Second)

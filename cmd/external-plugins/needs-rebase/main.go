@@ -135,6 +135,7 @@ func main() {
 	}, o.updatePeriod)
 
 	health := pjutil.NewHealthOnPort(o.instrumentationOptions.HealthPort)
+	health.ServeLive()
 	health.ServeReady()
 
 	mux := http.NewServeMux()
