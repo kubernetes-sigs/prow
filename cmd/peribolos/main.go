@@ -409,9 +409,6 @@ func dumpOrgConfig(client dumpClient, orgName string, ignoreSecretTeams bool, ig
 		return nil, fmt.Errorf("failed to list organization roles: %w", err)
 	}
 	logrus.Debugf("Found %d organization roles", len(roles))
-	if len(roles) > 0 {
-		out.Roles = make(map[string]org.Role, len(roles))
-	}
 	for _, role := range roles {
 		logrus.WithField("role", role.Name).Debug("Recording organization role.")
 
@@ -447,9 +444,14 @@ func dumpOrgConfig(client dumpClient, orgName string, ignoreSecretTeams bool, ig
 			userLogins = append(userLogins, user.Login)
 		}
 
-		out.Roles[role.Name] = org.Role{
-			Teams: teamNames,
-			Users: userLogins,
+		if len(teamNames) > 0 || len(userLogins) > 0 {
+			if out.Roles == nil {
+				out.Roles = make(map[string]org.Role)
+			}
+			out.Roles[role.Name] = org.Role{
+				Teams: teamNames,
+				Users: userLogins,
+			}
 		}
 	}
 
