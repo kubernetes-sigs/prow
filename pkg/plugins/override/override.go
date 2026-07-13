@@ -323,12 +323,14 @@ func authorizedGitHubTeamMember(gc githubClient, log *logrus.Entry, teamSlugs ma
 	return false
 }
 
+const overrideDescriptionPrefix = "Overridden by"
+
 func description(user string) string {
-	return fmt.Sprintf("Overridden by %s", user)
+	return fmt.Sprintf("%s %s", overrideDescriptionPrefix, user)
 }
 
 func stickyDescription(user string) string {
-	return fmt.Sprintf("Overridden by %s %s", user, config.SkipRetestSentinel)
+	return fmt.Sprintf("%s %s %s", overrideDescriptionPrefix, user, config.SkipRetestSentinel)
 }
 
 func formatList(list []string) string {
@@ -649,7 +651,7 @@ func handleOverrideCancel(oc overrideClient, log *logrus.Entry, e *github.Generi
 	cancelDesc := fmt.Sprintf("Override cancelled by %s", user)
 
 	for _, status := range statuses {
-		if !strings.Contains(status.Description, "Overridden by") {
+		if !strings.Contains(status.Description, overrideDescriptionPrefix) {
 			continue
 		}
 		if !cancelAll && !cancelContexts.Has(status.Context) {

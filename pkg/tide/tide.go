@@ -1053,7 +1053,7 @@ func (c *syncController) prowJobsFromContexts(pr *CodeReviewCommon, baseSHA stri
 		}
 		desc := string(headContext.Description)
 		baseSHAForContext := config.BaseSHAFromContextDescription(desc)
-		if config.IsSkipRetest(desc) || baseSHAForContext != "" && baseSHAForContext == baseSHA {
+		if config.IsSkipRetest(desc) || (baseSHAForContext != "" && baseSHAForContext == baseSHA) {
 			passingCurrentContexts = append(passingCurrentContexts, string(headContext.Context))
 		}
 	}
