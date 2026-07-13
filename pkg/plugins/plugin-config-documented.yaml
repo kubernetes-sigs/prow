@@ -54,6 +54,9 @@ blunderbuss:
     # IgnoreDrafts instructs the plugin to ignore assigning reviewers
     # to the PR that is in Draft state. Default it's false.
     ignore_drafts: true
+    # MaxReviewerCount is the maximum number of reviewers to request
+    # reviews from. Defaults to 0 meaning no limit.
+    max_request_count: 1
     # ReviewerCount is the minimum number of reviewers to request
     # reviews from. Defaults to requesting reviews from 2 reviewers
     request_count: 0
@@ -541,6 +544,8 @@ project_config:
             # to the default column if column name is not provided in the command
             org_default_column_map:
                 "": ""
+            # ID of the github project maintainer team for a give project or org
+            org_maintainers_team_id: 1
             # Repo level configs for github projects; key is repo name
             project_repo_configs:
                 "":
@@ -548,6 +553,8 @@ project_config:
                     # to the default column if column name is not provided in the command
                     repo_default_column_map:
                         "": ""
+                    # ID of the github project maintainer team for a give project or org
+                    repo_maintainers_team_id: 1
 project_manager:
     orgsRepos:
         "":
@@ -571,6 +578,12 @@ release_note:
 repo_milestone:
     "":
         maintainers_friendly_name: ' '
+        # ID of the github team for the milestone maintainers (used for setting status labels)
+        # You can curl the following endpoint in order to determine the github ID of your team
+        # responsible for maintaining the milestones:
+        # curl -H "Authorization: token <token>" https://api.github.com/orgs/<org-name>/teams
+        # Deprecated: use MaintainersTeam instead
+        maintainers_id: 1
         maintainers_team: ' '
 require_matching_label:
     - # Branch is the branch ref of PRs that this config applies to.
