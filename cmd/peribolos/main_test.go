@@ -2356,6 +2356,47 @@ func TestDumpOrgConfig(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "dump excludes roles with no assignments",
+			meta: github.Organization{
+				Name:                        "Hello",
+				DefaultRepositoryPermission: "write",
+			},
+			members: []string{"user1"},
+			admins:  []string{"admin"},
+			roles: []github.OrganizationRole{
+				{ID: 1, Name: "security-manager"},
+				{ID: 2, Name: "billing-manager"},
+				{ID: 3, Name: "all_repo_read"},
+			},
+			teamsWithRole: map[int][]github.OrganizationRoleAssignment{
+				1: {{ID: 1, Slug: "security-team"}},
+			},
+			usersWithRole: map[int][]github.OrganizationRoleAssignment{},
+			expected: org.Config{
+				Metadata: org.Metadata{
+					Name:                         &hello,
+					BillingEmail:                 &empty,
+					Company:                      &empty,
+					Email:                        &empty,
+					Description:                  &empty,
+					Location:                     &empty,
+					HasOrganizationProjects:      &no,
+					HasRepositoryProjects:        &no,
+					DefaultRepositoryPermission:  &perm,
+					MembersCanCreateRepositories: &no,
+				},
+				Members: []string{"user1"},
+				Admins:  []string{"admin"},
+				Teams:   map[string]org.Team{},
+				Repos:   map[string]org.Repo{},
+				Roles: map[string]org.Role{
+					"security-manager": {
+						Teams: []string{"security-team"},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tc := range cases {
