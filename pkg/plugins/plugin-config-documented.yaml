@@ -52,25 +52,105 @@ blunderbuss:
     ignore_authors:
         - ""
     # IgnoreDrafts instructs the plugin to ignore assigning reviewers
-    # to the PR that is in Draft state. Default it's false.
+    # to the PR that is in Draft state. Defaults to false.
     ignore_drafts: true
+    # MaxReviewerCount is the maximum number of reviewers to request
+    # reviews from. Defaults to 0 meaning no limit.
+    max_request_count: 1
+    # Orgs allows sharding for organization-specific Blunderbuss settings, provided under keys with
+    # the name of the organization. For repository-specific settings, provide
+    # organization/repository keys under orgs[].repos.
+    orgs:
+        "":
+            # ExcludeApprovers controls whether approvers are considered to be
+            # reviewers. By default, approvers are considered as reviewers if
+            # insufficient reviewers are available. If ExcludeApprovers is true,
+            # approvers will never be considered as reviewers.
+            exclude_approvers: true
+            # IgnoreAuthors skips requesting reviewers for specified users.
+            # This is useful when a bot user or admin opens a PR that will be
+            # merged regardless of approvals.
+            ignore_authors:
+                - ""
+            # IgnoreDrafts instructs the plugin to ignore assigning reviewers
+            # to the PR that is in Draft state. Defaults to false.
+            ignore_drafts: true
+            # MaxReviewerCount is the maximum number of reviewers to request
+            # reviews from. Defaults to 0 meaning no limit.
+            max_request_count: 1
+            # Repos allows sharding for repository-specific Blunderbuss settings, provided under keys using
+            # the format organization/repository.
+            repos:
+                "":
+                    # ExcludeApprovers controls whether approvers are considered to be
+                    # reviewers. By default, approvers are considered as reviewers if
+                    # insufficient reviewers are available. If ExcludeApprovers is true,
+                    # approvers will never be considered as reviewers.
+                    exclude_approvers: true
+                    # IgnoreAuthors skips requesting reviewers for specified users.
+                    # This is useful when a bot user or admin opens a PR that will be
+                    # merged regardless of approvals.
+                    ignore_authors:
+                        - ""
+                    # IgnoreDrafts instructs the plugin to ignore assigning reviewers
+                    # to the PR that is in Draft state. Defaults to false.
+                    ignore_drafts: true
+                    # MaxReviewerCount is the maximum number of reviewers to request
+                    # reviews from. Defaults to 0 meaning no limit.
+                    max_request_count: 1
+                    # ReviewerCount is the minimum number of reviewers to request
+                    # reviews from. Defaults to requesting reviews from 2 reviewers.
+                    request_count: 0
+                    # UseStatusAvailability controls whether blunderbuss will consider GitHub's
+                    # status availability when requesting reviews for users. This will use at one
+                    # additional token per successful reviewer (and potentially more depending on
+                    # how many busy reviewers it had to pass over).
+                    use_status_availability: true
+                    # WaitForStatus specifies whether to wait to request reviews until a status
+                    # check matches the given criteria.
+                    wait_for_status:
+                        # Context name of the context to match on. Defaults to "tide".
+                        context: ' '
+                        # Description regular expression to match the context description. Defaults to
+                        # "Not mergeable. (PullRequest is missing sufficient approving GitHub review\(s\)|Needs (lgtm|approved) label)"
+                        description: ' '
+                        # State is the state we want the context to be in before requesting reviews. Defaults to "pending".
+                        state: ' '
+            # ReviewerCount is the minimum number of reviewers to request
+            # reviews from. Defaults to requesting reviews from 2 reviewers.
+            request_count: 0
+            # UseStatusAvailability controls whether blunderbuss will consider GitHub's
+            # status availability when requesting reviews for users. This will use at one
+            # additional token per successful reviewer (and potentially more depending on
+            # how many busy reviewers it had to pass over).
+            use_status_availability: true
+            # WaitForStatus specifies whether to wait to request reviews until a status
+            # check matches the given criteria.
+            wait_for_status:
+                # Context name of the context to match on. Defaults to "tide".
+                context: ' '
+                # Description regular expression to match the context description. Defaults to
+                # "Not mergeable. (PullRequest is missing sufficient approving GitHub review\(s\)|Needs (lgtm|approved) label)"
+                description: ' '
+                # State is the state we want the context to be in before requesting reviews. Defaults to "pending".
+                state: ' '
     # ReviewerCount is the minimum number of reviewers to request
-    # reviews from. Defaults to requesting reviews from 2 reviewers
+    # reviews from. Defaults to requesting reviews from 2 reviewers.
     request_count: 0
     # UseStatusAvailability controls whether blunderbuss will consider GitHub's
     # status availability when requesting reviews for users. This will use at one
     # additional token per successful reviewer (and potentially more depending on
     # how many busy reviewers it had to pass over).
     use_status_availability: true
-    # WaitForStatus specifies whether to request reviews if the tide status indicates that
-    # the tests have passed but there are insufficient pull request reviews.
+    # WaitForStatus specifies whether to wait to request reviews until a status
+    # check matches the given criteria.
     wait_for_status:
-        # Context name of the context to match on, defaults to "tide"
+        # Context name of the context to match on. Defaults to "tide".
         context: ' '
-        # Description regular expression to match the context description, defaults to
+        # Description regular expression to match the context description. Defaults to
         # "Not mergeable. (PullRequest is missing sufficient approving GitHub review\(s\)|Needs (lgtm|approved) label)"
         description: ' '
-        # State is the state we want the context to be in before requesting reviews, e.g. "pending"
+        # State is the state we want the context to be in before requesting reviews. Defaults to "pending".
         state: ' '
 branch_cleaner:
     # PreservedBranches is a map of org/repo branches
@@ -443,6 +523,17 @@ help:
     # HelpGuidelinesURL is the URL of the help page, which provides guidance on how and when to use the help wanted and good first issue labels.
     # The default value is "https://git.k8s.io/community/contributors/guide/help-wanted.md".
     help_guidelines_url: ' '
+invalid_commit_msg:
+    - # Checks is a list of check configurations.
+      # Each check can be individually enabled or disabled.
+      checks:
+        - # Disabled indicates whether this check should be skipped.
+          disabled: true
+          # Name is the name of the check (e.g., "fixupPrefix", "issueClosingKeywords").
+          name: ' '
+      # Repos is either of the form org/repos or just org.
+      repos:
+        - ""
 jira:
     # DisabledJiraProjects are projects for which we will never try to create a link,
     # for example including `enterprise` here would disable linking for all issues
@@ -530,6 +621,8 @@ project_config:
             # to the default column if column name is not provided in the command
             org_default_column_map:
                 "": ""
+            # ID of the github project maintainer team for a give project or org
+            org_maintainers_team_id: 1
             # Repo level configs for github projects; key is repo name
             project_repo_configs:
                 "":
@@ -537,6 +630,8 @@ project_config:
                     # to the default column if column name is not provided in the command
                     repo_default_column_map:
                         "": ""
+                    # ID of the github project maintainer team for a give project or org
+                    repo_maintainers_team_id: 1
 project_manager:
     orgsRepos:
         "":
@@ -560,6 +655,12 @@ release_note:
 repo_milestone:
     "":
         maintainers_friendly_name: ' '
+        # ID of the github team for the milestone maintainers (used for setting status labels)
+        # You can curl the following endpoint in order to determine the github ID of your team
+        # responsible for maintaining the milestones:
+        # curl -H "Authorization: token <token>" https://api.github.com/orgs/<org-name>/teams
+        # Deprecated: use MaintainersTeam instead
+        maintainers_id: 1
         maintainers_team: ' '
 require_matching_label:
     - # Branch is the branch ref of PRs that this config applies to.

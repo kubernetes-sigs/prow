@@ -59,25 +59,47 @@ func configString(reviewCount int) string {
 }
 
 func helpProvider(config *plugins.Configuration, _ []config.OrgRepo) (*pluginhelp.PluginHelp, error) {
-	var reviewCount int
+	reviewCount := 2
 	if config.Blunderbuss.ReviewerCount != nil {
 		reviewCount = *config.Blunderbuss.ReviewerCount
 	}
-	two := 2
 	yamlSnippet, err := plugins.CommentMap.GenYaml(&plugins.Configuration{
 		Blunderbuss: plugins.Blunderbuss{
-			ReviewerCount:         &two,
-			MaxReviewerCount:      3,
-			ExcludeApprovers:      true,
-			UseStatusAvailability: true,
-			IgnoreAuthors:         []string{},
+			BlunderbussConfig: &plugins.BlunderbussConfig{
+				ReviewerCount:         &reviewCount,
+				MaxReviewerCount:      3,
+				ExcludeApprovers:      true,
+				UseStatusAvailability: true,
+				IgnoreAuthors:         []string{},
+			},
+			Orgs: map[string]plugins.BlunderbussOrgConfig{
+				"": {
+					BlunderbussConfig: &plugins.BlunderbussConfig{
+						ReviewerCount:         &reviewCount,
+						MaxReviewerCount:      3,
+						ExcludeApprovers:      true,
+						UseStatusAvailability: true,
+						IgnoreAuthors:         []string{},
+					},
+					Repos: map[string]plugins.BlunderbussConfig{
+						"": {
+							ReviewerCount:         &reviewCount,
+							MaxReviewerCount:      3,
+							ExcludeApprovers:      true,
+							UseStatusAvailability: true,
+							IgnoreAuthors:         []string{},
+						},
+					},
+				},
+			},
 		},
 	})
 	if err != nil {
 		logrus.WithError(err).Warnf("cannot generate comments for %s plugin", PluginName)
 	}
 	pluginHelp := &pluginhelp.PluginHelp{
-		Description: "The blunderbuss plugin automatically requests reviews from reviewers when a new PR is created. The reviewers are selected based on the reviewers specified in the OWNERS files that apply to the files modified by the PR.",
+		Description: "The blunderbuss plugin automatically requests reviews from reviewers when a new PR is created. " +
+			"The reviewers are selected based on the reviewers specified in the OWNERS files that apply to the files modified by the PR.",
 		Config: map[string]string{
 			"": configString(reviewCount),
 		},
@@ -140,14 +162,14 @@ func handlePullRequestEvent(pc plugins.Agent, pre github.PullRequestEvent) error
 		pc.GitHubClient,
 		pc.OwnersClient,
 		pc.Logger,
-		pc.PluginConfig.Blunderbuss,
+		pc.PluginConfig.BlunderbussFor(pre.Repo.Owner.Login, pre.Repo.Name),
 		pre.Action,
 		&pre.PullRequest,
 		&pre.Repo,
 	)
 }
 
-func handlePullRequest(ghc githubClient, roc repoownersClient, log *logrus.Entry, config plugins.Blunderbuss, action github.PullRequestEventAction, pr *github.PullRequest, repo *github.Repo) error {
+func handlePullRequest(ghc githubClient, roc repoownersClient, log *logrus.Entry, config plugins.BlunderbussConfig, action github.PullRequestEventAction, pr *github.PullRequest, repo *github.Repo) error {
 	// Ignore pull request event if:
 	// - not an opened or ready for review event
 	// - if they have a /cc command in the description (will be handled elsewhere)
@@ -181,7 +203,7 @@ func handleGenericCommentEvent(pc plugins.Agent, ce github.GenericCommentEvent) 
 		pc.GitHubClient,
 		pc.OwnersClient,
 		pc.Logger,
-		pc.PluginConfig.Blunderbuss,
+		pc.PluginConfig.BlunderbussFor(ce.Repo.Owner.Login, ce.Repo.Name),
 		ce.Action,
 		ce.IsPR,
 		ce.Number,
@@ -191,7 +213,7 @@ func handleGenericCommentEvent(pc plugins.Agent, ce github.GenericCommentEvent) 
 	)
 }
 
-func handleGenericComment(ghc githubClient, roc repoownersClient, log *logrus.Entry, config plugins.Blunderbuss, action github.GenericCommentEventAction, isPR bool, prNumber int, issueState string, repo *github.Repo, body string) error {
+func handleGenericComment(ghc githubClient, roc repoownersClient, log *logrus.Entry, config plugins.BlunderbussConfig, action github.GenericCommentEventAction, isPR bool, prNumber int, issueState string, repo *github.Repo, body string) error {
 	if action != github.GenericCommentActionCreated || !isPR || issueState == "closed" {
 		return nil
 	}
@@ -227,7 +249,7 @@ func handleStatusEvent(pc plugins.Agent, se github.StatusEvent) error {
 		pc.GitHubClient,
 		pc.OwnersClient,
 		pc.Logger,
-		pc.PluginConfig.Blunderbuss,
+		pc.PluginConfig.BlunderbussFor(se.Repo.Owner.Login, se.Repo.Name),
 		se.SHA,
 		se.Context,
 		se.State,
@@ -237,7 +259,7 @@ func handleStatusEvent(pc plugins.Agent, se github.StatusEvent) error {
 
 }
 
-func handleStatus(ghc githubClient, roc repoownersClient, log *logrus.Entry, config plugins.Blunderbuss, sha string, context string, state string, description string, repo *github.Repo) error {
+func handleStatus(ghc githubClient, roc repoownersClient, log *logrus.Entry, config plugins.BlunderbussConfig, sha string, context string, state string, description string, repo *github.Repo) error {
 	wfs := config.WaitForStatus
 	if wfs == nil {
 		return nil
@@ -329,37 +351,40 @@ func handle(ghc githubClient, roc repoownersClient, log *logrus.Entry, reviewerC
 
 	var reviewers []string
 	var requiredReviewers []string
-	if reviewerCount != nil {
-		reviewers, requiredReviewers, err = getReviewers(oc, ghc, log, pr.User.Login, changes, *reviewerCount, useStatusAvailability)
-		if err != nil {
-			return err
-		}
-		if missing := *reviewerCount - len(reviewers); missing > 0 {
-			if !excludeApprovers {
-				// Attempt to use approvers as additional reviewers. This must use
-				// reviewerCount instead of missing because owners can be both reviewers
-				// and approvers and the search might stop too early if it finds
-				// duplicates.
-				frc := fallbackReviewersClient{ownersClient: oc}
-				approvers, _, err := getReviewers(frc, ghc, log, pr.User.Login, changes, *reviewerCount, useStatusAvailability)
-				if err != nil {
-					return err
-				}
-				var added int
-				combinedReviewers := sets.New[string](reviewers...)
-				for _, approver := range approvers {
-					if !combinedReviewers.Has(approver) {
-						reviewers = append(reviewers, approver)
-						combinedReviewers.Insert(approver)
-						added++
-					}
-				}
-				log.Infof("Added %d approvers as reviewers. %d/%d reviewers found.", added, combinedReviewers.Len(), *reviewerCount)
+
+	if reviewerCount == nil {
+		return fmt.Errorf("unexpected error: reviewer count is nil")
+	}
+
+	reviewers, requiredReviewers, err = getReviewers(oc, ghc, log, pr.User.Login, changes, *reviewerCount, useStatusAvailability)
+	if err != nil {
+		return err
+	}
+	if missing := *reviewerCount - len(reviewers); missing > 0 {
+		if !excludeApprovers {
+			// Attempt to use approvers as additional reviewers. This must use
+			// reviewerCount instead of missing because owners can be both reviewers
+			// and approvers and the search might stop too early if it finds
+			// duplicates.
+			frc := fallbackReviewersClient{ownersClient: oc}
+			approvers, _, err := getReviewers(frc, ghc, log, pr.User.Login, changes, *reviewerCount, useStatusAvailability)
+			if err != nil {
+				return err
 			}
+			var added int
+			combinedReviewers := sets.New[string](reviewers...)
+			for _, approver := range approvers {
+				if !combinedReviewers.Has(approver) {
+					reviewers = append(reviewers, approver)
+					combinedReviewers.Insert(approver)
+					added++
+				}
+			}
+			log.Infof("Added %d approvers as reviewers. %d/%d reviewers found.", added, combinedReviewers.Len(), *reviewerCount)
 		}
-		if missing := *reviewerCount - len(reviewers); missing > 0 {
-			log.Debugf("Not enough reviewers found in OWNERS files for files touched by this PR. %d/%d reviewers found.", len(reviewers), *reviewerCount)
-		}
+	}
+	if missing := *reviewerCount - len(reviewers); missing > 0 {
+		log.Debugf("Not enough reviewers found in OWNERS files for files touched by this PR. %d/%d reviewers found.", len(reviewers), *reviewerCount)
 	}
 
 	if maxReviewers > 0 && len(reviewers) > maxReviewers {
