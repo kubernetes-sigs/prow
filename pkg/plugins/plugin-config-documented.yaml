@@ -409,6 +409,19 @@ dco:
         # TrustedOrg is the org whose members' commits will not be checked for DCO signoff
         # if the skip DCO option is enabled. The default is the PR's org.
         trusted_org: ' '
+delete_spam_issue:
+    # AllowTopLevelApprovers allows approvers from the top-level OWNERS file
+    # of the repository to delete spam issues with the /delete-spam-issue command.
+    # Defaults to true.
+    allow_top_level_approvers: false
+    # AllowedTeams is a list of GitHub team slugs whose members are authorized
+    # to delete spam issues with the /delete-spam-issue command.
+    allowed_teams:
+        - ""
+    # AllowedUsers is a list of GitHub logins that are authorized to
+    # delete spam issues with the /delete-spam-issue command.
+    allowed_users:
+        - ""
 # ExternalPlugins is a map of repositories (eg "k/k") to lists of
 # external plugins.
 external_plugins:
@@ -443,6 +456,17 @@ help:
     # HelpGuidelinesURL is the URL of the help page, which provides guidance on how and when to use the help wanted and good first issue labels.
     # The default value is "https://git.k8s.io/community/contributors/guide/help-wanted.md".
     help_guidelines_url: ' '
+invalid_commit_msg:
+    - # Checks is a list of check configurations.
+      # Each check can be individually enabled or disabled.
+      checks:
+        - # Disabled indicates whether this check should be skipped.
+          disabled: true
+          # Name is the name of the check (e.g., "fixupPrefix", "issueClosingKeywords").
+          name: ' '
+      # Repos is either of the form org/repos or just org.
+      repos:
+        - ""
 jira:
     # DisabledJiraProjects are projects for which we will never try to create a link,
     # for example including `enterprise` here would disable linking for all issues
