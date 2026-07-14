@@ -332,6 +332,7 @@ type Repo struct {
 	DefaultBranch string `json:"default_branch"`
 	Archived      bool   `json:"archived"`
 	Private       bool   `json:"private"`
+	Visibility    string `json:"visibility"`
 	Description   string `json:"description"`
 	Homepage      string `json:"homepage"`
 	HasIssues     bool   `json:"has_issues"`
@@ -381,7 +382,7 @@ type RepoRequest struct {
 	Name                     *string `json:"name,omitempty"`
 	Description              *string `json:"description,omitempty"`
 	Homepage                 *string `json:"homepage,omitempty"`
-	Private                  *bool   `json:"private,omitempty"`
+	Visibility               *string `json:"visibility,omitempty"`
 	HasIssues                *bool   `json:"has_issues,omitempty"`
 	HasProjects              *bool   `json:"has_projects,omitempty"`
 	HasWiki                  *bool   `json:"has_wiki,omitempty"`
@@ -423,7 +424,7 @@ func (r RepoRequest) ToRepo() *FullRepo {
 	setString(&repo.Name, r.Name)
 	setString(&repo.Description, r.Description)
 	setString(&repo.Homepage, r.Homepage)
-	setBool(&repo.Private, r.Private)
+	setString(&repo.Visibility, r.Visibility)
 	setBool(&repo.HasIssues, r.HasIssues)
 	setBool(&repo.HasProjects, r.HasProjects)
 	setBool(&repo.HasWiki, r.HasWiki)
@@ -438,7 +439,7 @@ func (r RepoRequest) ToRepo() *FullRepo {
 
 // Defined returns true if at least one of the pointer fields are not nil
 func (r RepoRequest) Defined() bool {
-	return r.Name != nil || r.Description != nil || r.Homepage != nil || r.Private != nil ||
+	return r.Name != nil || r.Description != nil || r.Homepage != nil || r.Visibility != nil ||
 		r.HasIssues != nil || r.HasProjects != nil || r.HasWiki != nil || r.AllowSquashMerge != nil ||
 		r.AllowMergeCommit != nil || r.AllowRebaseMerge != nil
 }
