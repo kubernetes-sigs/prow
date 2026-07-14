@@ -128,10 +128,16 @@ const (
 // +kubebuilder:printcolumn:name="CompletionTime",type=date,JSONPath=`.status.completionTime`,description="When the job finished running."
 // +kubebuilder:printcolumn:name="State",type=string,JSONPath=`.status.state`,description="The state of the job."
 type ProwJob struct {
-	metav1.TypeMeta   `json:",inline"`
+	metav1.TypeMeta `json:",inline"`
+	// metadata is the standard object metadata
+	// +optional
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   ProwJobSpec   `json:"spec,omitempty"`
+	// spec is the ProwJob spec
+	// +optional
+	Spec ProwJobSpec `json:"spec,omitempty"`
+	// status is the ProwJob status
+	// +optional
 	Status ProwJobStatus `json:"status,omitempty"`
 }
 
@@ -140,99 +146,119 @@ type ProwJob struct {
 // Details include the podspec, code to clone, the cluster it runs
 // any child jobs, concurrency limitations, etc.
 type ProwJobSpec struct {
-	// Type is the type of job and informs how
+	// type is the type of job and informs how
 	// the jobs is triggered
 	// +kubebuilder:validation:Enum=presubmit;postsubmit;periodic;batch
-	// +kubebuilder:validation:Required
+	// +required
 	Type ProwJobType `json:"type,omitempty"`
-	// Agent determines which controller fulfills
+	// agent determines which controller fulfills
 	// this specific ProwJobSpec and runs the job
+	// +optional
 	Agent ProwJobAgent `json:"agent,omitempty"`
-	// Cluster is which Kubernetes cluster is used
+	// cluster is which Kubernetes cluster is used
 	// to run the job, only applicable for that
 	// specific agent
+	// +optional
 	Cluster string `json:"cluster,omitempty"`
-	// Namespace defines where to create pods/resources.
+	// namespace defines where to create pods/resources.
+	// +optional
 	Namespace string `json:"namespace,omitempty"`
-	// Job is the name of the job
-	// +kubebuilder:validation:Required
+	// job is the name of the job
+	// +required
 	Job string `json:"job,omitempty"`
-	// Refs is the code under test, determined at
+	// refs is the code under test, determined at
 	// runtime by Prow itself
+	// +optional
 	Refs *Refs `json:"refs,omitempty"`
-	// ExtraRefs are auxiliary repositories that
+	// extra_refs are auxiliary repositories that
 	// need to be cloned, determined from config
+	// +optional
 	ExtraRefs []Refs `json:"extra_refs,omitempty"`
-	// Report determines if the result of this job should
+	// report determines if the result of this job should
 	// be reported (e.g. status on GitHub, message in Slack, etc.)
+	// +optional
 	Report bool `json:"report,omitempty"`
-	// Context is the name of the status context used to
+	// context is the name of the status context used to
 	// report back to GitHub
+	// +optional
 	Context string `json:"context,omitempty"`
-	// RerunCommand is the command a user would write to
+	// rerun_command is the command a user would write to
 	// trigger this job on their pull request
+	// +optional
 	RerunCommand string `json:"rerun_command,omitempty"`
-	// MaxConcurrency restricts the total number of instances
+	// max_concurrency restricts the total number of instances
 	// of this job that can run in parallel at once. This is
 	// a separate mechanism to JobQueueName and the lowest max
 	// concurrency is selected from these two.
 	// +kubebuilder:validation:Minimum=0
+	// +optional
 	MaxConcurrency int `json:"max_concurrency,omitempty"`
-	// ErrorOnEviction indicates that the ProwJob should be completed and given
+	// error_on_eviction indicates that the ProwJob should be completed and given
 	// the ErrorState status if the pod that is executing the job is evicted.
 	// If this field is unspecified or false, a new pod will be created to replace
 	// the evicted one.
+	// +optional
 	ErrorOnEviction bool `json:"error_on_eviction,omitempty"`
 
-	// PodSpec provides the basis for running the test under
+	// pod_spec provides the basis for running the test under
 	// a Kubernetes agent
+	// +optional
 	PodSpec *corev1.PodSpec `json:"pod_spec,omitempty"`
 
-	// JenkinsSpec holds configuration specific to Jenkins jobs
+	// jenkins_spec holds configuration specific to Jenkins jobs
+	// +optional
 	JenkinsSpec *JenkinsSpec `json:"jenkins_spec,omitempty"`
 
-	// PipelineRunSpec provides the basis for running the test as
+	// pipeline_run_spec provides the basis for running the test as
 	// a pipeline-crd resource
 	// https://github.com/tektoncd/pipeline
 	// +kubebuilder:validation:Type=object
 	// +kubebuilder:validation:XPreserveUnknownFields
 	// +kubebuilder:pruning:PreserveUnknownFields
 	// +kubebuilder:validation:Schemaless
+	// +optional
 	PipelineRunSpec *pipelinev1.PipelineRunSpec `json:"pipeline_run_spec,omitempty"`
 
-	// TektonPipelineRunSpec provides the basis for running the test as
+	// tekton_pipeline_run_spec provides the basis for running the test as
 	// a pipeline-crd resource
 	// https://github.com/tektoncd/pipeline
+	// +optional
 	TektonPipelineRunSpec *TektonPipelineRunSpec `json:"tekton_pipeline_run_spec,omitempty"`
 
-	// DecorationConfig holds configuration options for
+	// decoration_config holds configuration options for
 	// decorating PodSpecs that users provide
+	// +optional
 	DecorationConfig *DecorationConfig `json:"decoration_config,omitempty"`
 
-	// ReporterConfig holds reporter-specific configuration
+	// reporter_config holds reporter-specific configuration
+	// +optional
 	ReporterConfig *ReporterConfig `json:"reporter_config,omitempty"`
 
-	// RerunAuthConfig holds information about which users can rerun the job
+	// rerun_auth_config holds information about which users can rerun the job
+	// +optional
 	RerunAuthConfig *RerunAuthConfig `json:"rerun_auth_config,omitempty"`
 
-	// Hidden specifies if the Job is considered hidden.
+	// hidden specifies if the Job is considered hidden.
 	// Hidden jobs are only shown by deck instances that have the
 	// `--hiddenOnly=true` or `--show-hidden=true` flag set.
 	// Presubmits and Postsubmits can also be set to hidden by
 	// adding their repository in Decks `hidden_repo` setting.
+	// +optional
 	Hidden bool `json:"hidden,omitempty"`
 
-	// ProwJobDefault holds configuration options provided as defaults
+	// prowjob_defaults holds configuration options provided as defaults
 	// in the Prow config
+	// +optional
 	ProwJobDefault *ProwJobDefault `json:"prowjob_defaults,omitempty"`
 
-	// JobQueueName is an optional field with name of a queue defining
+	// job_queue_name is an optional field with name of a queue defining
 	// max concurrency. When several jobs from the same queue try to run
 	// at the same time, the number of them that is actually started is
 	// limited by JobQueueCapacities (part of Plank's config). If
 	// this field is left undefined infinite concurrency is assumed.
 	// This behaviour may be superseded by MaxConcurrency field, if it
 	// is set to a constraining value.
+	// +optional
 	JobQueueName string `json:"job_queue_name,omitempty"`
 }
 
@@ -261,25 +287,34 @@ func (pjs ProwJobSpec) GetPipelineRunSpec() (*pipelinev1.PipelineRunSpec, error)
 }
 
 type GitHubTeamSlug struct {
+	// slug is the team slug
+	// +required
 	Slug string `json:"slug"`
-	Org  string `json:"org"`
+	// org is the GitHub organization
+	// +required
+	Org string `json:"org"`
 }
 
 type RerunAuthConfig struct {
-	// If AllowAnyone is set to true, any user can rerun the job
+	// allow_anyone if set to true, any user can rerun the job
+	// +optional
 	AllowAnyone bool `json:"allow_anyone,omitempty"`
-	// GitHubTeams contains IDs of GitHub teams of users who can rerun the job
+	// github_team_ids contains IDs of GitHub teams of users who can rerun the job
 	// If you know the name of a team and the org it belongs to,
 	// you can look up its ID using this command, where the team slug is the hyphenated name:
 	// curl -H "Authorization: token <token>" "https://api.github.com/orgs/<org-name>/teams/<team slug>"
 	// or, to list all teams in a given org, use
 	// curl -H "Authorization: token <token>" "https://api.github.com/orgs/<org-name>/teams"
+	// +optional
 	GitHubTeamIDs []int `json:"github_team_ids,omitempty"`
-	// GitHubTeamSlugs contains slugs and orgs of teams of users who can rerun the job
+	// github_team_slugs contains slugs and orgs of teams of users who can rerun the job
+	// +optional
 	GitHubTeamSlugs []GitHubTeamSlug `json:"github_team_slugs,omitempty"`
-	// GitHubUsers contains names of individual users who can rerun the job
+	// github_users contains names of individual users who can rerun the job
+	// +optional
 	GitHubUsers []string `json:"github_users,omitempty"`
-	// GitHubOrgs contains names of GitHub organizations whose members can rerun the job
+	// github_orgs contains names of GitHub organizations whose members can rerun the job
+	// +optional
 	GitHubOrgs []string `json:"github_orgs,omitempty"`
 }
 
@@ -357,15 +392,25 @@ func (rac *RerunAuthConfig) IsAllowAnyone() bool {
 }
 
 type ReporterConfig struct {
+	// slack is the Slack reporter configuration
+	// +optional
 	Slack *SlackReporterConfig `json:"slack,omitempty"`
 }
 
 type SlackReporterConfig struct {
-	Host              string         `json:"host,omitempty"`
-	Channel           string         `json:"channel,omitempty"`
+	// host is the Slack host
+	// +optional
+	Host string `json:"host,omitempty"`
+	// channel is the Slack channel
+	// +optional
+	Channel string `json:"channel,omitempty"`
+	// job_states_to_report lists the job states to report
+	// +optional
 	JobStatesToReport []ProwJobState `json:"job_states_to_report,omitempty"`
-	ReportTemplate    string         `json:"report_template,omitempty"`
-	// Report is derived from JobStatesToReport, it's used for differentiating
+	// report_template is the template for the report
+	// +optional
+	ReportTemplate string `json:"report_template,omitempty"`
+	// report is derived from JobStatesToReport, it's used for differentiating
 	// nil from empty slice, as yaml roundtrip by design can't tell the
 	// difference when omitempty is supplied.
 	// See https://github.com/kubernetes/test-infra/pull/24168 for details
@@ -374,6 +419,7 @@ type SlackReporterConfig struct {
 	// - `JobStatesToReport: <anything including empty slice>` in job config
 	// - `report: true/false`` in global config
 	// - `JobStatesToReport:` in global config
+	// +optional
 	Report *bool `json:"report,omitempty"`
 }
 
@@ -416,6 +462,7 @@ func (src *SlackReporterConfig) ApplyDefault(def *SlackReporterConfig) *SlackRep
 // to 'duration string' format.
 // +kubebuilder:validation:Type=string
 type Duration struct {
+	// +optional
 	time.Duration
 }
 
@@ -447,18 +494,23 @@ func (d *Duration) MarshalJSON() ([]byte, error) {
 // ProwJobDefault is used for Prowjob fields we want to set as defaults
 // in Prow config
 type ProwJobDefault struct {
+	// resultstore_config specifies parameters for ResultStore
+	// +optional
 	ResultStoreConfig *ResultStoreConfig `json:"resultstore_config,omitempty"`
-	TenantID          string             `json:"tenant_id,omitempty"`
+	// tenant_id is the tenant identifier
+	// +optional
+	TenantID string `json:"tenant_id,omitempty"`
 }
 
 // ResultStoreConfig specifies parameters for uploading results to
 // the ResultStore service.
 type ResultStoreConfig struct {
-	// ProjectID specifies the ResultStore InvocationAttributes.ProjectID, used
+	// project_id specifies the ResultStore InvocationAttributes.ProjectID, used
 	// for various quota and GUI access control purposes.
 	// In practice, it is generally the same as the Google Cloud Project ID or
 	// number of the job's GCS storage bucket.
 	// Required to upload results to ResultStore.
+	// +optional
 	ProjectID string `json:"project_id,omitempty"`
 }
 
@@ -467,120 +519,151 @@ type ResultStoreConfig struct {
 // This is primarily used to provide automatic integration with gubernator
 // and testgrid.
 type DecorationConfig struct {
-	// Timeout is how long the pod utilities will wait
+	// timeout is how long the pod utilities will wait
 	// before aborting a job with SIGINT.
+	// +optional
 	Timeout *Duration `json:"timeout,omitempty"`
-	// GracePeriod is how long the pod utilities will wait
+	// grace_period is how long the pod utilities will wait
 	// after sending SIGINT to send SIGKILL when aborting
 	// a job. Only applicable if decorating the PodSpec.
+	// +optional
 	GracePeriod *Duration `json:"grace_period,omitempty"`
 
-	// UtilityImages holds pull specs for utility container
+	// utility_images holds pull specs for utility container
 	// images used to decorate a PodSpec.
+	// +optional
 	UtilityImages *UtilityImages `json:"utility_images,omitempty"`
-	// Resources holds resource requests and limits for utility
+	// resources holds resource requests and limits for utility
 	// containers used to decorate a PodSpec.
+	// +optional
 	Resources *Resources `json:"resources,omitempty"`
-	// GCSConfiguration holds options for pushing logs and
+	// gcs_configuration holds options for pushing logs and
 	// artifacts to GCS from a job.
+	// +optional
 	GCSConfiguration *GCSConfiguration `json:"gcs_configuration,omitempty"`
-	// GCSCredentialsSecret is the name of the Kubernetes secret
+	// gcs_credentials_secret is the name of the Kubernetes secret
 	// that holds GCS push credentials.
+	// +optional
 	GCSCredentialsSecret *string `json:"gcs_credentials_secret,omitempty"`
-	// S3CredentialsSecret is the name of the Kubernetes secret
+	// s3_credentials_secret is the name of the Kubernetes secret
 	// that holds blob storage push credentials.
+	// +optional
 	S3CredentialsSecret *string `json:"s3_credentials_secret,omitempty"`
-	// DefaultServiceAccountName is the name of the Kubernetes service account
+	// default_service_account_name is the name of the Kubernetes service account
 	// that should be used by the pod if one is not specified in the podspec.
+	// +optional
 	DefaultServiceAccountName *string `json:"default_service_account_name,omitempty"`
-	// SSHKeySecrets are the names of Kubernetes secrets that contain
+	// ssh_key_secrets are the names of Kubernetes secrets that contain
 	// SSK keys which should be used during the cloning process.
+	// +optional
 	SSHKeySecrets []string `json:"ssh_key_secrets,omitempty"`
-	// SSHHostFingerprints are the fingerprints of known SSH hosts
+	// ssh_host_fingerprints are the fingerprints of known SSH hosts
 	// that the cloning process can trust.
 	// Create with ssh-keyscan [-t rsa] host
+	// +optional
 	SSHHostFingerprints []string `json:"ssh_host_fingerprints,omitempty"`
-	// BloblessFetch tells Prow to avoid fetching objects when cloning using
+	// blobless_fetch tells Prow to avoid fetching objects when cloning using
 	// the --filter=blob:none flag.
+	// +optional
 	BloblessFetch *bool `json:"blobless_fetch,omitempty"`
-	// SparseCheckoutFiles limits the working tree to only the listed paths.
+	// sparse_checkout_files limits the working tree to only the listed paths.
 	// Accepts the same patterns as git sparse-checkout set (file names,
 	// directory names, gitignore-style globs). When set, clonerefs performs a
 	// sparse checkout instead of a full clone. Applied to the primary ref for
 	// presubmit/postsubmit jobs. Not applied to extra refs.
+	// +optional
 	SparseCheckoutFiles []string `json:"sparse_checkout_files,omitempty"`
-	// SkipCloning determines if we should clone source code in the
+	// skip_cloning determines if we should clone source code in the
 	// initcontainers for jobs that specify refs
+	// +optional
 	SkipCloning *bool `json:"skip_cloning,omitempty"`
-	// CookieFileSecret is the name of a kubernetes secret that contains
+	// cookiefile_secret is the name of a kubernetes secret that contains
 	// a git http.cookiefile, which should be used during the cloning process.
+	// +optional
 	CookiefileSecret *string `json:"cookiefile_secret,omitempty"`
-	// OauthTokenSecret is a Kubernetes secret that contains the OAuth token,
+	// oauth_token_secret is a Kubernetes secret that contains the OAuth token,
 	// which is going to be used for fetching a private repository.
+	// +optional
 	OauthTokenSecret *OauthTokenSecret `json:"oauth_token_secret,omitempty"`
-	// GitHubAPIEndpoints are the endpoints of GitHub APIs.
+	// github_api_endpoints are the endpoints of GitHub APIs.
+	// +optional
 	GitHubAPIEndpoints []string `json:"github_api_endpoints,omitempty"`
-	// GitHubAppID is the ID of GitHub App, which is going to be used for fetching a private
+	// github_app_id is the ID of GitHub App, which is going to be used for fetching a private
 	// repository.
+	// +optional
 	GitHubAppID string `json:"github_app_id,omitempty"`
-	// GitHubAppPrivateKeySecret is a Kubernetes secret that contains the GitHub App private key,
+	// github_app_private_key_secret is a Kubernetes secret that contains the GitHub App private key,
 	// which is going to be used for fetching a private repository.
+	// +optional
 	GitHubAppPrivateKeySecret *GitHubAppPrivateKeySecret `json:"github_app_private_key_secret,omitempty"`
 
-	// CensorSecrets enables censoring output logs and artifacts.
+	// censor_secrets enables censoring output logs and artifacts.
+	// +optional
 	CensorSecrets *bool `json:"censor_secrets,omitempty"`
 
-	// CensoringOptions exposes options for censoring output logs and artifacts.
+	// censoring_options exposes options for censoring output logs and artifacts.
+	// +optional
 	CensoringOptions *CensoringOptions `json:"censoring_options,omitempty"`
 
-	// UploadIgnoresInterrupts causes sidecar to ignore interrupts for the upload process in
+	// upload_ignores_interrupts causes sidecar to ignore interrupts for the upload process in
 	// hope that the test process exits cleanly before starting an upload.
+	// +optional
 	UploadIgnoresInterrupts *bool `json:"upload_ignores_interrupts,omitempty"`
 
-	// SetLimitEqualsMemoryRequest sets memory limit equal to request.
+	// set_limit_equals_memory_request sets memory limit equal to request.
+	// +optional
 	SetLimitEqualsMemoryRequest *bool `json:"set_limit_equals_memory_request,omitempty"`
-	// DefaultMemoryRequest is the default requested memory on a test container.
+	// default_memory_request is the default requested memory on a test container.
 	// If SetLimitEqualsMemoryRequest is also true then the Limit will also be
 	// set the same as this request. Could be overridden by memory request
 	// defined explicitly on prowjob.
+	// +optional
 	DefaultMemoryRequest *resource.Quantity `json:"default_memory_request,omitempty"`
 
-	// SchedulingOptions define the configuration for fields required for pod scheduling.
+	// scheduling_options define the configuration for fields required for pod scheduling.
 	// These fields directly modify the way how pods can be scheduled giving the operator
 	// ability to run workloads on designated node.
 	// If these fields are already present in the pod definition, they will be ignored.
+	// +optional
 	SchedulingOptions *SchedulingOptions `json:"scheduling_options,omitempty"`
 
-	// PodPendingTimeout defines how long the controller will wait to perform garbage
+	// pod_pending_timeout defines how long the controller will wait to perform garbage
 	// collection on pending pods. Specific for OrgRepo or Cluster. If not set, it has a fallback inside plank field.
+	// +optional
 	PodPendingTimeout *metav1.Duration `json:"pod_pending_timeout,omitempty"`
-	// PodRunningTimeout defines how long the controller will wait to abort a prowjob pod
+	// pod_running_timeout defines how long the controller will wait to abort a prowjob pod
 	// stuck in running state. Specific for OrgRepo or Cluster. If not set, it has a fallback inside plank field.
+	// +optional
 	PodRunningTimeout *metav1.Duration `json:"pod_running_timeout,omitempty"`
-	// PodUnscheduledTimeout defines how long the controller will wait to abort a prowjob
+	// pod_unscheduled_timeout defines how long the controller will wait to abort a prowjob
 	// stuck in an unscheduled state. Specific for OrgRepo or Cluster. If not set, it has a fallback inside plank field.
+	// +optional
 	PodUnscheduledTimeout *metav1.Duration `json:"pod_unscheduled_timeout,omitempty"`
 
-	// RunAsUser defines UID for process in all containers running in a Pod.
+	// run_as_user defines UID for process in all containers running in a Pod.
 	// This field will not override the existing ProwJob's PodSecurityContext.
 	// Equivalent to PodSecurityContext's RunAsUser
+	// +optional
 	RunAsUser *int64 `json:"run_as_user,omitempty"`
-	// RunAsGroup defines GID of process in all containers running in a Pod.
+	// run_as_group defines GID of process in all containers running in a Pod.
 	// This field will not override the existing ProwJob's PodSecurityContext.
 	// Equivalent to PodSecurityContext's RunAsGroup
+	// +optional
 	RunAsGroup *int64 `json:"run_as_group,omitempty"`
-	// FsGroup defines special supplemental group ID used in all containers in a Pod.
+	// fs_group defines special supplemental group ID used in all containers in a Pod.
 	// This allows to change the ownership of particular volumes by kubelet.
 	// This field will not override the existing ProwJob's PodSecurityContext.
 	// Equivalent to PodSecurityContext's FsGroup
+	// +optional
 	FsGroup *int64 `json:"fs_group,omitempty"`
 }
 
 type CensoringOptions struct {
-	// CensoringConcurrency is the maximum number of goroutines that should be censoring
+	// censoring_concurrency is the maximum number of goroutines that should be censoring
 	// artifacts and logs at any time. If unset, defaults to 10.
+	// +optional
 	CensoringConcurrency *int64 `json:"censoring_concurrency,omitempty"`
-	// CensoringBufferSize is the size in bytes of the buffer allocated for every file
+	// censoring_buffer_size is the size in bytes of the buffer allocated for every file
 	// being censored. We want to keep as little of the file in memory as possible in
 	// order for censoring to be reasonably performant in space. However, to guarantee
 	// that we censor every instance of every secret, our buffer size must be at least
@@ -588,32 +671,38 @@ type CensoringOptions struct {
 	// is the smallest possible buffer we could use, if the secrets being censored are
 	// small, censoring will not be performant as the number of I/O actions per file
 	// would increase. If unset, defaults to 10MiB.
+	// +optional
 	CensoringBufferSize *int `json:"censoring_buffer_size,omitempty"`
 
-	// IncludeDirectories are directories which should have their content censored. If
+	// include_directories are directories which should have their content censored. If
 	// present, only content in these directories will be censored. Entries in this list
 	// are relative to $ARTIFACTS and are parsed with the go-zglob library, allowing for
 	// globbed matches.
+	// +optional
 	IncludeDirectories []string `json:"include_directories,omitempty"`
 
-	// ExcludeDirectories are directories which should not have their content censored. If
+	// exclude_directories are directories which should not have their content censored. If
 	// present, content in these directories will not be censored even if the directory also
 	// matches a glob in IncludeDirectories. Entries in this list are relative to $ARTIFACTS,
 	// and are parsed with the go-zglob library, allowing for globbed matches.
+	// +optional
 	ExcludeDirectories []string `json:"exclude_directories,omitempty"`
 
-	// MinimumSecretLength is the minimum length a secret must have to be censored.
+	// minimum_secret_length is the minimum length a secret must have to be censored.
 	// Secrets shorter than this length will not be censored. If unset, defaults to 0
 	// (all secrets are censored regardless of length).
+	// +optional
 	MinimumSecretLength *int `json:"minimum_secret_length,omitempty"`
 }
 
 type SchedulingOptions struct {
-	// Affinity is the Pod Affinity configuration applied to the ProwJob's pod.
+	// affinity is the Pod Affinity configuration applied to the ProwJob's pod.
 	// Equivalent to PodSpec's Affinity
+	// +optional
 	Affinity *corev1.Affinity `json:"affinity,omitempty"`
-	// Tolerations define list of tolerable taints applied to the ProwJob's pod.
+	// tolerations define list of tolerable taints applied to the ProwJob's pod.
 	// Equivalent to PodSpec's Tolerations
+	// +optional
 	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
 }
 
@@ -685,10 +774,18 @@ func (g *SchedulingOptions) ApplyDefault(def *SchedulingOptions) *SchedulingOpti
 // Resources holds resource requests and limits for
 // containers used to decorate a PodSpec
 type Resources struct {
-	CloneRefs       *corev1.ResourceRequirements `json:"clonerefs,omitempty"`
-	InitUpload      *corev1.ResourceRequirements `json:"initupload,omitempty"`
+	// clonerefs is the resource requirements for the clonerefs utility
+	// +optional
+	CloneRefs *corev1.ResourceRequirements `json:"clonerefs,omitempty"`
+	// initupload is the resource requirements for the initupload utility
+	// +optional
+	InitUpload *corev1.ResourceRequirements `json:"initupload,omitempty"`
+	// place_entrypoint is the resource requirements for the place_entrypoint utility
+	// +optional
 	PlaceEntrypoint *corev1.ResourceRequirements `json:"place_entrypoint,omitempty"`
-	Sidecar         *corev1.ResourceRequirements `json:"sidecar,omitempty"`
+	// sidecar is the resource requirements for the sidecar utility
+	// +optional
+	Sidecar *corev1.ResourceRequirements `json:"sidecar,omitempty"`
 }
 
 // ApplyDefault applies the defaults for the resource decorations. If a field has a zero value,
@@ -718,19 +815,23 @@ func (u *Resources) ApplyDefault(def *Resources) *Resources {
 
 // OauthTokenSecret holds the information of the oauth token's secret name and key.
 type OauthTokenSecret struct {
-	// Name is the name of a kubernetes secret.
+	// name is the name of a kubernetes secret.
+	// +optional
 	Name string `json:"name,omitempty"`
-	// Key is the key of the corresponding kubernetes secret that
+	// key is the key of the corresponding kubernetes secret that
 	// holds the value of the OAuth token.
+	// +optional
 	Key string `json:"key,omitempty"`
 }
 
 // GitHubAppPrivateKeySecret holds the information of the GitHub App private key's secret name and key.
 type GitHubAppPrivateKeySecret struct {
-	// Name is the name of a kubernetes secret.
+	// name is the name of a kubernetes secret.
+	// +optional
 	Name string `json:"name,omitempty"`
-	// Key is the key of the corresponding kubernetes secret that
+	// key is the key of the corresponding kubernetes secret that
 	// holds the value of the GitHub App private key.
+	// +optional
 	Key string `json:"key,omitempty"`
 }
 
@@ -917,13 +1018,17 @@ func (d *Duration) Get() time.Duration {
 // UtilityImages holds pull specs for the utility images
 // to be used for a job
 type UtilityImages struct {
-	// CloneRefs is the pull spec used for the clonerefs utility
+	// clonerefs is the pull spec used for the clonerefs utility
+	// +optional
 	CloneRefs string `json:"clonerefs,omitempty"`
-	// InitUpload is the pull spec used for the initupload utility
+	// initupload is the pull spec used for the initupload utility
+	// +optional
 	InitUpload string `json:"initupload,omitempty"`
-	// Entrypoint is the pull spec used for the entrypoint utility
+	// entrypoint is the pull spec used for the entrypoint utility
+	// +optional
 	Entrypoint string `json:"entrypoint,omitempty"`
 	// sidecar is the pull spec used for the sidecar utility
+	// +optional
 	Sidecar string `json:"sidecar,omitempty"`
 }
 
@@ -963,39 +1068,48 @@ const (
 // GCSConfiguration holds options for pushing logs and
 // artifacts to GCS from a job.
 type GCSConfiguration struct {
-	// Bucket is the bucket to upload to, it can be:
+	// bucket is the bucket to upload to, it can be:
 	// * a GCS bucket: with gs:// prefix
 	// * a S3 bucket: with s3:// prefix
 	// * a GCS bucket: without a prefix (deprecated, it's discouraged to use Bucket without prefix please add the gs:// prefix)
+	// +optional
 	Bucket string `json:"bucket,omitempty"`
-	// PathPrefix is an optional path that follows the
+	// path_prefix is an optional path that follows the
 	// bucket name and comes before any structure
+	// +optional
 	PathPrefix string `json:"path_prefix,omitempty"`
-	// PathStrategy dictates how the org and repo are used
+	// path_strategy dictates how the org and repo are used
 	// when calculating the full path to an artifact in GCS
+	// +optional
 	PathStrategy string `json:"path_strategy,omitempty"`
-	// DefaultOrg is omitted from GCS paths when using the
+	// default_org is omitted from GCS paths when using the
 	// legacy or simple strategy
+	// +optional
 	DefaultOrg string `json:"default_org,omitempty"`
-	// DefaultRepo is omitted from GCS paths when using the
+	// default_repo is omitted from GCS paths when using the
 	// legacy or simple strategy
+	// +optional
 	DefaultRepo string `json:"default_repo,omitempty"`
-	// MediaTypes holds additional extension media types to add to Go's
+	// mediaTypes holds additional extension media types to add to Go's
 	// builtin's and the local system's defaults.  This maps extensions
 	// to media types, for example: MediaTypes["log"] = "text/plain"
+	// +optional
 	MediaTypes map[string]string `json:"mediaTypes,omitempty"`
-	// JobURLPrefix holds the baseURL under which the jobs output can be viewed.
+	// job_url_prefix holds the baseURL under which the jobs output can be viewed.
 	// If unset, this will be derived based on org/repo from the job_url_prefix_config.
+	// +optional
 	JobURLPrefix string `json:"job_url_prefix,omitempty"`
 
-	// LocalOutputDir specifies a directory where files should be copied INSTEAD of uploading to blob storage.
+	// local_output_dir specifies a directory where files should be copied INSTEAD of uploading to blob storage.
 	// This option is useful for testing jobs that use the pod-utilities without actually uploading.
+	// +optional
 	LocalOutputDir string `json:"local_output_dir,omitempty"`
-	// CompressFileTypes specify file types that should be gzipped prior to upload.
+	// compress_file_types specify file types that should be gzipped prior to upload.
 	// Matching files will be compressed prior to upload, and the content-encoding on these files will be set to gzip.
 	// GCS will transcode these gzipped files transparently when viewing. See: https://cloud.google.com/storage/docs/transcoding
 	// Example: "txt", "json"
 	// Use "*" for all
+	// +optional
 	CompressFileTypes []string `json:"compress_file_types,omitempty"`
 }
 
@@ -1109,43 +1223,56 @@ func ParsePath(bucket string) (*ProwPath, error) {
 
 // ProwJobStatus provides runtime metadata, such as when it finished, whether it is running, etc.
 type ProwJobStatus struct {
-	// StartTime is equal to the creation time of the ProwJob
+	// startTime is equal to the creation time of the ProwJob
+	// +optional
 	StartTime metav1.Time `json:"startTime,omitempty"`
-	// PendingTime is the timestamp for when the job moved from triggered to pending
+	// pendingTime is the timestamp for when the job moved from triggered to pending
+	// +optional
 	PendingTime *metav1.Time `json:"pendingTime,omitempty"`
-	// CompletionTime is the timestamp for when the job goes to a final state
+	// completionTime is the timestamp for when the job goes to a final state
+	// +optional
 	CompletionTime *metav1.Time `json:"completionTime,omitempty"`
+	// state is the current state of the prow job
 	// +kubebuilder:validation:Enum=scheduling;triggered;pending;success;failure;aborted;error
-	// +kubebuilder:validation:Required
-	State       ProwJobState `json:"state,omitempty"`
-	Description string       `json:"description,omitempty"`
-	URL         string       `json:"url,omitempty"`
+	// +required
+	State ProwJobState `json:"state,omitempty"`
+	// description is a human-readable description of the job status
+	// +optional
+	Description string `json:"description,omitempty"`
+	// url is the URL where the job results can be viewed
+	// +optional
+	URL string `json:"url,omitempty"`
 
-	// PodRevivalCount applies only to ProwJobs fulfilled by
+	// pod_revival_count applies only to ProwJobs fulfilled by
 	// plank. This field shows the amount of times the
 	// Pod was recreated due to an unexpected stop.
+	// +optional
 	PodRevivalCount int `json:"pod_revival_count,omitempty"`
-	// PodName applies only to ProwJobs fulfilled by
+	// pod_name applies only to ProwJobs fulfilled by
 	// plank. This field should always be the same as
 	// the ProwJob.ObjectMeta.Name field.
+	// +optional
 	PodName string `json:"pod_name,omitempty"`
 
-	// BuildID is the build identifier vended either by tot
+	// build_id is the build identifier vended either by tot
 	// or the snowflake library for this job and used as an
 	// identifier for grouping artifacts in GCS for views in
 	// TestGrid and Gubernator. Idenitifiers vended by tot
 	// are monotonically increasing whereas identifiers vended
 	// by the snowflake library are not.
+	// +optional
 	BuildID string `json:"build_id,omitempty"`
 
-	// JenkinsBuildID applies only to ProwJobs fulfilled
+	// jenkins_build_id applies only to ProwJobs fulfilled
 	// by the jenkins-operator. This field is the build
 	// identifier that Jenkins gave to the build for this
 	// ProwJob.
+	// +optional
 	JenkinsBuildID string `json:"jenkins_build_id,omitempty"`
 
-	// PrevReportStates stores the previous reported prowjob state per reporter
+	// prev_report_states stores the previous reported prowjob state per reporter
 	// So crier won't make duplicated report attempt
+	// +optional
 	PrevReportStates map[string]ProwJobState `json:"prev_report_states,omitempty"`
 }
 
@@ -1173,56 +1300,81 @@ func (j *ProwJob) ClusterAlias() string {
 
 // Pull describes a pull request at a particular point in time.
 type Pull struct {
-	Number int    `json:"number"`
+	// number is the pull request number
+	// +required
+	Number int `json:"number"`
+	// author is the author of the pull request
+	// +required
 	Author string `json:"author"`
-	SHA    string `json:"sha"`
-	Title  string `json:"title,omitempty"`
+	// sha is the SHA of the pull request head
+	// +required
+	SHA string `json:"sha"`
+	// title is the title of the pull request
+	// +optional
+	Title string `json:"title,omitempty"`
 
-	// Ref is git ref can be checked out for a change
+	// ref is git ref can be checked out for a change
 	// for example,
 	// github: pull/123/head
 	// gerrit: refs/changes/00/123/1
+	// +optional
 	Ref string `json:"ref,omitempty"`
-	// HeadRef is the git ref (branch name) of the proposed change.  This can be more human-readable than just
+	// head_ref is the git ref (branch name) of the proposed change.  This can be more human-readable than just
 	// a PR #, and some tools want this metadata to help associate the work with a pull request (e.g. some code
 	// scanning services, or chromatic.com).
+	// +optional
 	HeadRef string `json:"head_ref,omitempty"`
-	// Link links to the pull request itself.
+	// link links to the pull request itself.
+	// +optional
 	Link string `json:"link,omitempty"`
-	// CommitLink links to the commit identified by the SHA.
+	// commit_link links to the commit identified by the SHA.
+	// +optional
 	CommitLink string `json:"commit_link,omitempty"`
-	// AuthorLink links to the author of the pull request.
+	// author_link links to the author of the pull request.
+	// +optional
 	AuthorLink string `json:"author_link,omitempty"`
 }
 
 // Refs describes how the repo was constructed.
 type Refs struct {
-	// Org is something like kubernetes or k8s.io
+	// org is something like kubernetes or k8s.io
+	// +required
 	Org string `json:"org"`
-	// Repo is something like test-infra
+	// repo is something like test-infra
+	// +required
 	Repo string `json:"repo"`
-	// RepoLink links to the source for Repo.
+	// repo_link links to the source for Repo.
+	// +optional
 	RepoLink string `json:"repo_link,omitempty"`
 
+	// base_ref is the base git ref of the pull request
+	// +optional
 	BaseRef string `json:"base_ref,omitempty"`
+	// base_sha is the base git SHA of the pull request
+	// +optional
 	BaseSHA string `json:"base_sha,omitempty"`
-	// BaseLink is a link to the commit identified by BaseSHA.
+	// base_link is a link to the commit identified by BaseSHA.
+	// +optional
 	BaseLink string `json:"base_link,omitempty"`
 
+	// pulls is the list of pull requests associated with the ref
+	// +optional
 	Pulls []Pull `json:"pulls,omitempty"`
 
-	// PathAlias is the location under <root-dir>/src
+	// path_alias is the location under <root-dir>/src
 	// where this repository is cloned. If this is not
 	// set, <root-dir>/src/github.com/org/repo will be
 	// used as the default.
+	// +optional
 	PathAlias string `json:"path_alias,omitempty"`
 
-	// WorkDir defines if the location of the cloned
+	// workdir defines if the location of the cloned
 	// repository will be used as the default working
 	// directory.
+	// +optional
 	WorkDir bool `json:"workdir,omitempty"`
 
-	// Auxiliary indicates that the repository really only provides
+	// auxiliary indicates that the repository really only provides
 	// auxiliary files for the job and is not the main repository that is
 	// being tested.
 	//
@@ -1233,27 +1385,33 @@ type Refs struct {
 	//
 	// In presubmit jobs the version always comes from the repository
 	// for which the job is defined.
+	// +optional
 	Auxiliary bool `json:"auxiliary,omitempty"`
 
-	// CloneURI is the URI that is used to clone the
+	// clone_uri is the URI that is used to clone the
 	// repository. If unset, will default to
 	// `https://github.com/org/repo.git`.
+	// +optional
 	CloneURI string `json:"clone_uri,omitempty"`
-	// SkipSubmodules determines if submodules should be
+	// skip_submodules determines if submodules should be
 	// cloned when the job is run. Defaults to false.
+	// +optional
 	SkipSubmodules bool `json:"skip_submodules,omitempty"`
-	// CloneDepth is the depth of the clone that will be used.
+	// clone_depth is the depth of the clone that will be used.
 	// A depth of zero will do a full clone.
+	// +optional
 	CloneDepth int `json:"clone_depth,omitempty"`
-	// SkipFetchHead tells prow to avoid a git fetch <remote> call.
+	// skip_fetch_head tells prow to avoid a git fetch <remote> call.
 	// Multiheaded repos may need to not make this call.
 	// The git fetch <remote> <BaseRef> call occurs regardless.
+	// +optional
 	SkipFetchHead bool `json:"skip_fetch_head,omitempty"`
-	// BloblessFetch tells prow to avoid fetching objects when cloning
+	// blobless_fetch tells prow to avoid fetching objects when cloning
 	// using the --filter=blob:none flag. If unspecified, defaults to
 	// DecorationConfig.BloblessFetch.
+	// +optional
 	BloblessFetch *bool `json:"blobless_fetch,omitempty"`
-	// SparseCheckoutFiles limits the working tree to only the listed paths.
+	// sparse_checkout_files limits the working tree to only the listed paths.
 	// Accepts the same patterns as git sparse-checkout set: file names,
 	// directory names, and gitignore-style globs (e.g. "Makefile",
 	// "pkg/operator", "config/**/*.yaml").
@@ -1264,6 +1422,7 @@ type Refs struct {
 	//   3. run git sparse-checkout set <paths> before checkout
 	//
 	// Only the blobs needed for the requested paths are downloaded.
+	// +optional
 	SparseCheckoutFiles []string `json:"sparse_checkout_files,omitempty"`
 }
 
@@ -1298,6 +1457,9 @@ func (r Refs) OrgRepoString() string {
 // Currently, the only parameter supported is for telling
 // jenkins-operator that the job is generated by the https://go.cloudbees.com/docs/plugins/github-branch-source/#github-branch-source plugin
 type JenkinsSpec struct {
+	// github_branch_source_job indicates if the job is generated by the
+	// https://go.cloudbees.com/docs/plugins/github-branch-source/#github-branch-source plugin
+	// +optional
 	GitHubBranchSourceJob bool `json:"github_branch_source_job,omitempty"`
 }
 
@@ -1307,6 +1469,7 @@ type TektonPipelineRunSpec struct {
 	// +kubebuilder:validation:XPreserveUnknownFields
 	// +kubebuilder:pruning:PreserveUnknownFields
 	// +kubebuilder:validation:Schemaless
+	// +optional
 	V1Beta1 *pipelinev1.PipelineRunSpec `json:"v1beta1,omitempty"`
 }
 
@@ -1314,8 +1477,11 @@ type TektonPipelineRunSpec struct {
 
 // ProwJobList is a list of ProwJob resources
 type ProwJobList struct {
+	// +optional
 	metav1.TypeMeta `json:",inline"`
+	// +required
 	metav1.ListMeta `json:"metadata"`
 
+	// +required
 	Items []ProwJob `json:"items"`
 }

@@ -61,6 +61,8 @@ dev-teardown:
 # standard cleanup target
 clean:
 	rm -rf "$(OUT_DIR)/"
+	rm -rf hack/tools/tmp/
+	rm -rf _bin/
 ################################################################################
 # ============================== Auto-Update ===================================
 # update generated code, gofmt, etc.
@@ -88,6 +90,9 @@ verify:
 .PHONY: go-lint
 go-lint:
 	hack/make-rules/verify/golangci-lint.sh
+.PHONY: lint-api
+lint-api:
+	hack/make-rules/verify/kube-api-lint.sh
 .PHONY: update-gofmt
 update-gofmt:
 	hack/make-rules/update/gofmt.sh
