@@ -3456,7 +3456,17 @@ const (
 	contextDescriptionBaseSHADelimiterDeprecated = " Basesha:"
 	contextDescriptionMaxLen                     = 140 // https://developer.github.com/v3/repos/deployments/#parameters-2
 	elide                                        = " ... "
+
+	// SkipRetestSentinel can be embedded in a GitHub status description to signal
+	// that Tide should treat the context as permanently passing for the current HEAD SHA
+	// and not retest it when the base branch moves.
+	SkipRetestSentinel = "[prow:skip-retest]"
 )
+
+// IsSkipRetest returns true if the description contains the SkipRetestSentinel.
+func IsSkipRetest(description string) bool {
+	return strings.Contains(description, SkipRetestSentinel)
+}
 
 // truncate converts "really long messages" into "really ... messages".
 func truncate(in string, maxLen int) string {
