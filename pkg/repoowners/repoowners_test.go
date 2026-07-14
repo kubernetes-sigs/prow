@@ -1067,6 +1067,98 @@ func TestGetApprovers(t *testing.T) {
 	}
 }
 
+func TestAdvisoryApprovers(t *testing.T) {
+	ro := &RepoOwners{
+		approvers: map[string]map[*regexp.Regexp]sets.Set[string]{
+			baseDir: regexpAll("alice", "bob", "anna"),
+			leafDir: regexpAll("carl", "dave", "dan"),
+		},
+		advisoryApprovers: map[string]map[*regexp.Regexp]sets.Set[string]{
+			baseDir: regexpAll("anna"),
+			leafDir: regexpAll("dan"),
+		},
+	}
+
+	tests := []struct {
+		name                     string
+		filePath                 string
+		expectedLeafApprovers    sets.Set[string]
+		expectedAllApprovers     sets.Set[string]
+		expectedAdvisoryForPath  sets.Set[string]
+	}{
+		{
+			name:                    "Base dir: leaf approvers exclude advisory",
+			filePath:                filepath.Join(baseDir, "testFile.go"),
+			expectedLeafApprovers:   sets.New[string]("alice", "bob"),
+			expectedAllApprovers:    sets.New[string]("alice", "bob", "anna"),
+			expectedAdvisoryForPath: sets.New[string]("anna"),
+		},
+		{
+			name:                    "Leaf dir: leaf approvers exclude advisory",
+			filePath:                filepath.Join(leafDir, "testFile.go"),
+			expectedLeafApprovers:   sets.New[string]("carl", "dave"),
+			expectedAllApprovers:    sets.New[string]("alice", "bob", "anna", "carl", "dave", "dan"),
+			expectedAdvisoryForPath: sets.New[string]("anna", "dan"),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			leafApprovers := ro.LeafApprovers(test.filePath)
+			if !leafApprovers.Equal(test.expectedLeafApprovers) {
+				t.Errorf("LeafApprovers: expected %v, got %v", test.expectedLeafApprovers, leafApprovers)
+			}
+
+			allApprovers := ro.Approvers(test.filePath).Set()
+			if !allApprovers.Equal(test.expectedAllApprovers) {
+				t.Errorf("Approvers: expected %v, got %v", test.expectedAllApprovers, allApprovers)
+			}
+
+			advisory := ro.AdvisoryApprovers(test.filePath)
+			if !advisory.Equal(test.expectedAdvisoryForPath) {
+				t.Errorf("AdvisoryApprovers: expected %v, got %v", test.expectedAdvisoryForPath, advisory)
+			}
+		})
+	}
+}
+
+func TestAdvisoryApproverAlsoReviewer(t *testing.T) {
+	ro := &RepoOwners{
+		approvers: map[string]map[*regexp.Regexp]sets.Set[string]{
+			baseDir: regexpAll("alice", "bob"),
+		},
+		advisoryApprovers: map[string]map[*regexp.Regexp]sets.Set[string]{
+			baseDir: regexpAll("bob"),
+		},
+		reviewers: map[string]map[*regexp.Regexp]sets.Set[string]{
+			baseDir: regexpAll("bob", "charlie"),
+		},
+	}
+
+	filePath := filepath.Join(baseDir, "testFile.go")
+
+	leafApprovers := ro.LeafApprovers(filePath)
+	if leafApprovers.Has("bob") {
+		t.Error("LeafApprovers should not include advisory approver")
+	}
+	if !leafApprovers.Has("alice") {
+		t.Error("LeafApprovers should include regular approver alice")
+	}
+
+	allApprovers := ro.Approvers(filePath).Set()
+	if !allApprovers.Has("bob") {
+		t.Error("Approvers should include advisory approver (for /approve recognition)")
+	}
+
+	reviewers := ro.LeafReviewers(filePath)
+	if !reviewers.Has("bob") {
+		t.Error("LeafReviewers should include bob when also listed as reviewer")
+	}
+	if !reviewers.Has("charlie") {
+		t.Error("LeafReviewers should include charlie")
+	}
+}
+
 func TestFindLabelsForPath(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -1328,6 +1420,54 @@ options: {}
 		if !reflect.DeepEqual(full, test.given) {
 			t.Errorf("unexpected error when loading simple config from: '%s'", diff.ObjectReflectDiff(full, test.given))
 		}
+	}
+}
+
+func TestApplyConfigWithAdvisoryApprovers(t *testing.T) {
+	o := &RepoOwners{
+		approvers:         make(map[string]map[*regexp.Regexp]sets.Set[string]),
+		reviewers:         make(map[string]map[*regexp.Regexp]sets.Set[string]),
+		requiredReviewers: make(map[string]map[*regexp.Regexp]sets.Set[string]),
+		advisoryApprovers: make(map[string]map[*regexp.Regexp]sets.Set[string]),
+		labels:            make(map[string]map[*regexp.Regexp]sets.Set[string]),
+	}
+
+	config := &Config{
+		Approvers:         []string{"alice", "bob"},
+		Reviewers:         []string{"charlie"},
+		AdvisoryApprovers: []string{"dan"},
+	}
+
+	o.applyConfigToPath(baseDir, nil, config)
+
+	approvers := o.approvers[baseDir][nil]
+	if !approvers.Has("alice") || !approvers.Has("bob") || !approvers.Has("dan") {
+		t.Errorf("approvers map should contain regular + advisory approvers, got %v", approvers)
+	}
+
+	advisory := o.advisoryApprovers[baseDir][nil]
+	if !advisory.Has("dan") {
+		t.Errorf("advisoryApprovers map should contain dan, got %v", advisory)
+	}
+	if advisory.Has("alice") || advisory.Has("bob") {
+		t.Errorf("advisoryApprovers should not contain regular approvers, got %v", advisory)
+	}
+
+	reviewers := o.reviewers[baseDir][nil]
+	if !reviewers.Has("charlie") {
+		t.Errorf("reviewers should contain charlie, got %v", reviewers)
+	}
+}
+
+func TestSimpleConfigEmptyWithAdvisoryApprovers(t *testing.T) {
+	s := SimpleConfig{}
+	if !s.Empty() {
+		t.Error("empty SimpleConfig should be empty")
+	}
+
+	s.AdvisoryApprovers = []string{"someone"}
+	if s.Empty() {
+		t.Error("SimpleConfig with advisory_approvers should not be empty")
 	}
 }
 

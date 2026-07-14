@@ -192,6 +192,10 @@ func (foc *fakeOwnersClient) FindReviewersOwnersForFile(path string) string {
 	return foc.owners[path]
 }
 
+func (foc *fakeOwnersClient) AdvisoryApprovers(path string) sets.Set[string] {
+	return sets.Set[string]{}
+}
+
 func (foc *fakeOwnersClient) FindLabelsForFile(path string) sets.Set[string] {
 	return sets.Set[string]{}
 }
