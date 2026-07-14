@@ -261,5 +261,5 @@ type searchQuery struct {
 		Nodes []struct {
 			Issue Issue `graphql:"... on Issue"`
 		}
-	} `graphql:"search(type: ISSUE, first: 100, after: $searchCursor, query: $query)"`
+	} `graphql:"search(type: ISSUE_ADVANCED, first: 100, after: $searchCursor, query: $query)"`
 }

@@ -475,7 +475,7 @@ func TestConstructSearchQuery(t *testing.T) {
 	}
 	mockAgent := createMockAgent(repos, mockConfig)
 	query := mockAgent.ConstructSearchQuery("random_username")
-	mockQuery := "is:pr state:open author:random_username repo:\"mock/repo\" repo:\"kubernetes/test-infra\" repo:\"foo/bar\""
+	mockQuery := "is:pr state:open author:random_username repo:\"mock/repo\" OR repo:\"kubernetes/test-infra\" OR repo:\"foo/bar\""
 	if query != mockQuery {
 		t.Errorf("Invalid query. Got: %v, expected %v", query, mockQuery)
 	}
