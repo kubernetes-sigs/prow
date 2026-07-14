@@ -141,7 +141,7 @@ func TestOptions_Run(t *testing.T) {
 CHILDREN=$(jobs -p)
 if test -n "${CHILDREN}"
 then
-kill ${CHILDREN} && wait
+kill ${CHILDREN} 2>/dev/null && wait
 fi
 exit 3
 }
@@ -160,7 +160,7 @@ wait`},
 CHILDREN=$(jobs -p)
 if test -n "${CHILDREN}"
 then
-kill ${CHILDREN} && wait
+kill ${CHILDREN} 2>/dev/null && wait
 fi
 exit 3
 }

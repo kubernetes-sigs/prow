@@ -49,6 +49,8 @@ func TestDeletePod(t *testing.T) {
 					Namespace: defaultNamespace,
 				},
 				Spec: prowjobv1.ProwJobSpec{
+					Job:       "running-pod-job",
+					Type:      prowjobv1.PresubmitJob,
 					Namespace: testpodNamespace,
 				},
 				Status: prowjobv1.ProwJobStatus{
@@ -89,6 +91,8 @@ func TestDeletePod(t *testing.T) {
 					Namespace: defaultNamespace,
 				},
 				Spec: prowjobv1.ProwJobSpec{
+					Job:       "orphaned-pod-job",
+					Type:      prowjobv1.PresubmitJob,
 					Namespace: testpodNamespace,
 				},
 				Status: prowjobv1.ProwJobStatus{
@@ -129,6 +133,8 @@ func TestDeletePod(t *testing.T) {
 					Namespace: defaultNamespace,
 				},
 				Spec: prowjobv1.ProwJobSpec{
+					Job:       "ttl-deleted-job",
+					Type:      prowjobv1.PresubmitJob,
 					Namespace: testpodNamespace,
 				},
 				Status: prowjobv1.ProwJobStatus{
@@ -171,6 +177,8 @@ func TestDeletePod(t *testing.T) {
 					Namespace: defaultNamespace,
 				},
 				Spec: prowjobv1.ProwJobSpec{
+					Job:       "max-prow-job-age-job",
+					Type:      prowjobv1.PresubmitJob,
 					Namespace: testpodNamespace,
 				},
 				Status: prowjobv1.ProwJobStatus{
