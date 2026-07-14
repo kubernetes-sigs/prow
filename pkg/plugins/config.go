@@ -83,6 +83,7 @@ type Configuration struct {
 	Label                Label                        `json:"label,omitempty"`
 	Lgtm                 []Lgtm                       `json:"lgtm,omitempty"`
 	Jira                 *Jira                        `json:"jira,omitempty"`
+	MergeCommitBlocker   []MergeCommitBlocker         `json:"merge_commit_blocker,omitempty"`
 	MilestoneApplier     map[string]BranchToMilestone `json:"milestone_applier,omitempty"`
 	ReleaseNote          ReleaseNote                  `json:"release_note,omitempty"`
 	RepoMilestone        map[string]Milestone         `json:"repo_milestone,omitempty"`
@@ -421,6 +422,20 @@ type Lgtm struct {
 	// StickyLgtmTeam specifies the GitHub team whose members are trusted with sticky LGTM,
 	// which eliminates the need to re-lgtm minor fixes/updates.
 	StickyLgtmTeam string `json:"trusted_team_for_sticky_lgtm,omitempty"`
+}
+
+// MergeCommitBlocker specifies a configuration for the mergecommitblocker plugin.
+// The configuration for the mergecommitblocker plugin is defined as a list of these structures.
+type MergeCommitBlocker struct {
+	// Repos is either of the form org/repos or just org.
+	Repos []string `json:"repos,omitempty"`
+	// ExcludedPaths is a list of regular expressions matching file paths that should be
+	// excluded from merge commit checks. Merge commits that only touch files matching
+	// these patterns will be allowed. This is useful for workflows like Git subtrees
+	// which inherently require merge commits.
+	ExcludedPaths []string `json:"excluded_paths,omitempty"`
+	// CompiledExcludedPaths is the compiled version of ExcludedPaths. It should not be specified in config.
+	CompiledExcludedPaths []*regexp.Regexp `json:"-"`
 }
 
 // Jira holds the config for the jira plugin.
@@ -1079,6 +1094,26 @@ func (c *Configuration) LgtmFor(org, repo string) *Lgtm {
 	return &Lgtm{}
 }
 
+// MergeCommitBlockerFor finds the MergeCommitBlocker for a repo, if one exists.
+// A configuration can be listed for the repo itself or for the owning organization.
+func (c *Configuration) MergeCommitBlockerFor(org, repo string) *MergeCommitBlocker {
+	fullName := fmt.Sprintf("%s/%s", org, repo)
+	for i := range c.MergeCommitBlocker {
+		if !sets.New(c.MergeCommitBlocker[i].Repos...).Has(fullName) {
+			continue
+		}
+		return &c.MergeCommitBlocker[i]
+	}
+	// If you don't find anything, loop again looking for an org config
+	for i := range c.MergeCommitBlocker {
+		if !sets.New(c.MergeCommitBlocker[i].Repos...).Has(org) {
+			continue
+		}
+		return &c.MergeCommitBlocker[i]
+	}
+	return nil
+}
+
 // TriggerFor finds the Trigger for a repo, if one exists
 // a trigger can be listed for the repo itself or for the
 // owning organization
@@ -1621,6 +1656,17 @@ func compileRegexpsAndDurations(pc *Configuration) error {
 			return fmt.Errorf("failed to compile blunderbuss wait for context description regular expression: %q, error: %w", pc.Blunderbuss.WaitForStatus.Description, err)
 		}
 	}
+
+	for i := range pc.MergeCommitBlocker {
+		for _, pattern := range pc.MergeCommitBlocker[i].ExcludedPaths {
+			re, err := regexp.Compile(pattern)
+			if err != nil {
+				return fmt.Errorf("failed to compile mergecommitblocker excluded_paths pattern: %q, error: %w", pattern, err)
+			}
+			pc.MergeCommitBlocker[i].CompiledExcludedPaths = append(pc.MergeCommitBlocker[i].CompiledExcludedPaths, re)
+		}
+	}
+
 	return nil
 }
 

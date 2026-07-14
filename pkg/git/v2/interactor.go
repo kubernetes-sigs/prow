@@ -74,6 +74,10 @@ type Interactor interface {
 	Diff(head, sha string) (changes []string, err error)
 	// MergeCommitsExistBetween determines if merge commits exist between target and HEAD
 	MergeCommitsExistBetween(target, head string) (bool, error)
+	// MergeCommitSHAsBetween returns the SHAs of all merge commits between target and HEAD.
+	MergeCommitSHAsBetween(target, head string) ([]string, error)
+	// CommitChangedFiles returns the list of files changed by a specific commit.
+	CommitChangedFiles(sha string) ([]string, error)
 	// ShowRef returns the commit for a commitlike. Unlike rev-parse it does not require a checkout.
 	ShowRef(commitlike string) (string, error)
 }
@@ -592,6 +596,41 @@ func (i *interactor) MergeCommitsExistBetween(target, head string) (bool, error)
 		return false, fmt.Errorf("error verifying if merge commits exist between %q and %q: %v %s", target, head, err, string(out))
 	}
 	return len(out) != 0, nil
+}
+
+// MergeCommitSHAsBetween returns the SHAs of all merge commits between target and head.
+func (i *interactor) MergeCommitSHAsBetween(target, head string) ([]string, error) {
+	i.logger.Infof("Getting merge commit SHAs between %q and %q", target, head)
+	out, err := i.executor.Run("log", fmt.Sprintf("%s..%s", target, head), "--format=%H", "--merges")
+	if err != nil {
+		return nil, fmt.Errorf("getting merge commits between %q and %q: %w", target, head, err)
+	}
+
+	var shas []string
+	scan := bufio.NewScanner(bytes.NewReader(out))
+	scan.Split(bufio.ScanLines)
+	for scan.Scan() {
+		sha := strings.TrimSpace(scan.Text())
+		if sha != "" {
+			shas = append(shas, sha)
+		}
+	}
+	return shas, nil
+}
+
+// CommitChangedFiles returns the list of files changed by a specific commit.
+func (i *interactor) CommitChangedFiles(sha string) ([]string, error) {
+	i.logger.Infof("Getting files changed by commit %s", sha)
+	out, err := i.executor.Run("diff-tree", "-m", "--no-commit-id", "--name-only", "-r", sha)
+	if err != nil {
+		return nil, fmt.Errorf("getting files changed by commit %s: %w", sha, err)
+	}
+
+	trimmed := strings.TrimSpace(string(out))
+	if trimmed == "" {
+		return nil, nil
+	}
+	return strings.Split(trimmed, "\n"), nil
 }
 
 func (i *interactor) ShowRef(commitlike string) (string, error) {
