@@ -457,6 +457,54 @@ tide:
 	}
 }
 
+func TestAbortSupersededBatchJobs(t *testing.T) {
+	testcases := []struct {
+		name     string
+		config   map[string]bool
+		repo     OrgRepo
+		expected bool
+	}{
+		{
+			name:     "defaults to true when unset",
+			config:   nil,
+			repo:     OrgRepo{Org: "org", Repo: "repo"},
+			expected: true,
+		},
+		{
+			name:     "global wildcard enables",
+			config:   map[string]bool{"*": true},
+			repo:     OrgRepo{Org: "org", Repo: "repo"},
+			expected: true,
+		},
+		{
+			name:     "org-level override",
+			config:   map[string]bool{"*": false, "myorg": true},
+			repo:     OrgRepo{Org: "myorg", Repo: "repo"},
+			expected: true,
+		},
+		{
+			name:     "repo-level override",
+			config:   map[string]bool{"*": true, "myorg": true, "myorg/myrepo": false},
+			repo:     OrgRepo{Org: "myorg", Repo: "myrepo"},
+			expected: false,
+		},
+		{
+			name:     "unmatched org falls through to global",
+			config:   map[string]bool{"*": true, "other": false},
+			repo:     OrgRepo{Org: "myorg", Repo: "repo"},
+			expected: true,
+		},
+	}
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			tide := &Tide{AbortSupersededBatchJobsMap: tc.config}
+			if got := tide.AbortSupersededBatchJobs(tc.repo); got != tc.expected {
+				t.Errorf("expected %v, got %v", tc.expected, got)
+			}
+		})
+	}
+}
+
 func TestTideQuery(t *testing.T) {
 	q := " " + testQuery.Query() + " "
 	checkTok := checkTok(t, q)
