@@ -222,12 +222,13 @@ func insertLinksIntoLine(line string, issueNames []string, jiraBaseURL string) s
 }
 
 // replaceStringIfNeeded replaces a string if it is not prefixed by:
-// * `[` which we use as heuristic for "Already replaced",
-// * `/` which we use as heuristic for "Part of a link in a previous replacement",
-// * ``` (backtick) which we use as heuristic for "Inline code",
-// * `-` (dash) to prevent replacing a substring that accidentally matches a JIRA issue,
-// * an alphanumeric character, to prevent replacing a shorter issue key that is a
-//   substring of a longer one (e.g. BC-1 inside ABC-123).
+//   - `[` which we use as heuristic for "Already replaced",
+//   - `/` which we use as heuristic for "Part of a link in a previous replacement",
+//   - ``` (backtick) which we use as heuristic for "Inline code",
+//   - `-` (dash) to prevent replacing a substring that accidentally matches a JIRA issue,
+//   - an alphanumeric character, to prevent replacing a shorter issue key that is a
+//     substring of a longer one (e.g. BC-1 inside ABC-123).
+//
 // Similarly, a match is skipped if it is immediately followed by an alphanumeric
 // character, to prevent partial replacements within longer issue numbers
 // (e.g. AC-1 inside AC-1234).

@@ -104,9 +104,9 @@ func (h *fakeArtifactHandle) NewRangeReader(ctx context.Context, offset, length 
 		}
 	}
 	return &ByteReadCloser{
-		Reader: bytes.NewReader(h.contents[offset : offset+toRead]),
+		Reader:         bytes.NewReader(h.contents[offset : offset+toRead]),
 		incompleteRead: h.incompleteRead,
-		returnEOF: h.returnEOF,
+		returnEOF:      h.returnEOF,
 	}, err
 }
 
@@ -127,9 +127,9 @@ func (h *fakeArtifactHandle) NewReader(ctx context.Context) (io.ReadCloser, erro
 		return nil, fmt.Errorf("cannot read unreadable contents")
 	}
 	return &ByteReadCloser{
-		Reader: bytes.NewReader(h.contents),
+		Reader:         bytes.NewReader(h.contents),
 		incompleteRead: false,
-		returnEOF: false,
+		returnEOF:      false,
 	}, nil
 }
 

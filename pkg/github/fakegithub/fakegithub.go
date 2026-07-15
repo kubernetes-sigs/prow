@@ -155,6 +155,12 @@ type FakeClient struct {
 	PendingApprovalRuns map[string][]github.WorkflowRun
 	// ApprovedWorkflowRuns tracks approvals as "org/repo/runID"
 	ApprovedWorkflowRuns []string
+	// ApproveWorkflowRunErrors maps "org/repo/runID" to an error to return from ApproveGitHubWorkflowRun
+	ApproveWorkflowRunErrors map[string]error
+	// ReranWorkflowRuns tracks reruns as "org/repo/runID"
+	ReranWorkflowRuns []string
+	// ReranWorkflowRunErrors maps "org/repo/runID" to an error to return from TriggerGitHubWorkflow
+	ReranWorkflowRunErrors map[string]error
 
 	// lock to be thread safe
 	lock sync.RWMutex
@@ -1362,6 +1368,16 @@ func (f *FakeClient) GetFailedActionRunsByHeadBranch(org, repo, branchName, head
 }
 
 func (f *FakeClient) TriggerGitHubWorkflow(org, repo string, id int) error {
+	f.lock.Lock()
+	defer f.lock.Unlock()
+
+	key := fmt.Sprintf("%s/%s/%d", org, repo, id)
+	if f.ReranWorkflowRunErrors != nil {
+		if err, ok := f.ReranWorkflowRunErrors[key]; ok {
+			return err
+		}
+	}
+	f.ReranWorkflowRuns = append(f.ReranWorkflowRuns, key)
 	return nil
 }
 
@@ -1385,6 +1401,11 @@ func (f *FakeClient) ApproveGitHubWorkflowRun(org, repo string, id int) error {
 	defer f.lock.Unlock()
 
 	key := fmt.Sprintf("%s/%s/%d", org, repo, id)
+	if f.ApproveWorkflowRunErrors != nil {
+		if err, ok := f.ApproveWorkflowRunErrors[key]; ok {
+			return err
+		}
+	}
 	f.ApprovedWorkflowRuns = append(f.ApprovedWorkflowRuns, key)
 	return nil
 }
