@@ -37,13 +37,14 @@ const (
 )
 
 var (
-	defaultLabels          = []string{"kind", "priority", "area"}
-	needsLabels            = []string{"kind", "priority", "sig", "triage"} // "needs-*"
-	commentRegex           = regexp.MustCompile(`(?s)<!--(.*?)-->`)
-	labelRegex             = regexp.MustCompile(`(?m)^/(area|committee|kind|language|priority|sig|triage|wg)\s*(.*?)\s*$`)
-	removeLabelRegex       = regexp.MustCompile(`(?m)^/remove-(area|committee|kind|language|priority|sig|triage|wg)\s*(.*?)\s*$`)
-	customLabelRegex       = regexp.MustCompile(`(?m)^/label\s*(.*?)\s*$`)
-	customRemoveLabelRegex = regexp.MustCompile(`(?m)^/remove-label\s*(.*?)\s*$`)
+	defaultLabels                 = []string{"kind", "priority", "area"}
+	defaultExclusiveLabelPrefixes = []string{"priority/", "lifecycle/", "tracked/"}
+	needsLabels                   = []string{"kind", "priority", "sig", "triage"} // "needs-*"
+	commentRegex                  = regexp.MustCompile(`(?s)<!--(.*?)-->`)
+	labelRegex                    = regexp.MustCompile(`(?m)^/(area|committee|kind|language|priority|sig|triage|wg)\s*(.*?)\s*$`)
+	removeLabelRegex              = regexp.MustCompile(`(?m)^/remove-(area|committee|kind|language|priority|sig|triage|wg)\s*(.*?)\s*$`)
+	customLabelRegex              = regexp.MustCompile(`(?m)^/label\s*(.*?)\s*$`)
+	customRemoveLabelRegex        = regexp.MustCompile(`(?m)^/remove-label\s*(.*?)\s*$`)
 )
 
 func init() {
@@ -202,6 +203,7 @@ func handleComment(gc githubClient, log *logrus.Entry, config plugins.Label, e *
 	// Get labels to add and labels to remove from regexp matches
 	labelsToAdd = append(getLabelsFromREMatches(labelMatches), getLabelsFromGenericMatches(customLabelMatches, labelFilter, &nonexistent)...)
 	labelsToRemove = append(getLabelsFromREMatches(removeLabelMatches), getLabelsFromGenericMatches(customRemoveLabelMatches, labelFilter, &nonexistent)...)
+	exclusiveLabelPrefixes := uniqueExclusiveLabelPrefixes(append(defaultExclusiveLabelPrefixes, config.ExclusiveLabelPrefixes...))
 
 	for _, needsCategory := range needsLabels {
 		needsLabel := fmt.Sprintf("needs-%s", needsCategory)
@@ -255,7 +257,9 @@ func handleComment(gc githubClient, log *logrus.Entry, config plugins.Label, e *
 
 		if err := gc.AddLabel(org, repo, e.Number, labelToAdd); err != nil {
 			log.WithError(err).WithField("label", labelToAdd).Error("GitHub failed to add the label")
+			continue
 		}
+		labelsToRemove = append(labelsToRemove, conflictingExclusiveLabels(issueLabels, labelToAdd, exclusiveLabelPrefixes)...)
 	}
 
 	// Remove labels
@@ -369,6 +373,60 @@ func handleLabelAdd(gc githubClient, log *logrus.Entry, config plugins.Label, e 
 		}
 	}
 	return nil
+}
+
+func conflictingExclusiveLabels(issueLabels []string, labelToAdd string, exclusiveLabelPrefixes []string) []string {
+	var conflicting []string
+	if len(exclusiveLabelPrefixes) == 0 {
+		return conflicting
+	}
+	matchingPrefix := exclusiveLabelPrefix(labelToAdd, exclusiveLabelPrefixes)
+	if matchingPrefix == "" {
+		return conflicting
+	}
+	for _, existingLabel := range issueLabels {
+		if existingLabel == labelToAdd || !hasExclusiveLabelPrefix(existingLabel, []string{matchingPrefix}) {
+			continue
+		}
+		conflicting = append(conflicting, existingLabel)
+	}
+	return conflicting
+}
+
+func uniqueExclusiveLabelPrefixes(prefixes []string) []string {
+	seen := sets.New[string]()
+	var unique []string
+	for _, prefix := range prefixes {
+		prefix = strings.ToLower(strings.TrimSpace(prefix))
+		if prefix == "" || seen.Has(prefix) {
+			continue
+		}
+		seen.Insert(prefix)
+		unique = append(unique, prefix)
+	}
+	return unique
+}
+
+func exclusiveLabelPrefix(label string, prefixes []string) string {
+	label = strings.ToLower(strings.TrimSpace(label))
+	for _, prefix := range prefixes {
+		prefix = strings.ToLower(strings.TrimSpace(prefix))
+		if prefix != "" && strings.HasPrefix(label, prefix) {
+			return prefix
+		}
+	}
+	return ""
+}
+
+func hasExclusiveLabelPrefix(label string, prefixes []string) bool {
+	label = strings.ToLower(strings.TrimSpace(label))
+	for _, prefix := range prefixes {
+		prefix = strings.ToLower(strings.TrimSpace(prefix))
+		if prefix != "" && strings.HasPrefix(label, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 func labelsWithCategory(labels []string, category string) sets.Set[string] {

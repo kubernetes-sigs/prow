@@ -460,6 +460,11 @@ label:
     # or a repo in org/repo notation.
     restricted_labels:
         "": null
+    # ExclusiveLabelPrefixes is a list of label prefixes that should be treated
+    # as mutually exclusive. When a label matching one of these prefixes is added,
+    # any existing labels with the same prefix on the issue or PR are removed.
+    exclusive_label_prefixes:
+        - ""
 lgtm:
     - # Repos is either of the form org/repos or just org.
       repos:
