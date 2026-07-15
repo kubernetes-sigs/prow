@@ -29,12 +29,12 @@ import (
 func TestBody(t *testing.T) {
 	link1 := "http://link.to/README.md"
 	link2 := "http://link.to/build-log.txt"
-	
+
 	testCases := []struct {
-		name               string
-		artifacts          []api.Artifact
-		config             json.RawMessage
-		expectedSubstrings []string
+		name                 string
+		artifacts            []api.Artifact
+		config               json.RawMessage
+		expectedSubstrings   []string
 		unexpectedSubstrings []string
 	}{
 		{
@@ -93,7 +93,7 @@ func TestBody(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			lens := Lens{}
 			got := lens.Body(tc.artifacts, ".", "", tc.config, config.Spyglass{})
-			
+
 			for _, expected := range tc.expectedSubstrings {
 				if !strings.Contains(got, expected) {
 					t.Errorf("Expected substring %q not found in output: %s", expected, got)
