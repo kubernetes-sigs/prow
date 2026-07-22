@@ -121,6 +121,8 @@ func GetReviewers(rc ReviewersClient, selector ReviewerSelector, log *logrus.Ent
 	for reviewers.Len() < minReviewers && unusedLeaves.Len() > 0 {
 		if r := selector(&unusedLeaves); r != "" {
 			reviewers.Insert(1, r)
+		} else {
+			break
 		}
 	}
 	for _, file := range files {
@@ -131,6 +133,8 @@ func GetReviewers(rc ReviewersClient, selector ReviewerSelector, log *logrus.Ent
 		for reviewers.Len() < minReviewers && fileReviewers.Len() > 0 {
 			if r := selector(&fileReviewers); r != "" {
 				reviewers.Insert(2, r)
+			} else {
+				break
 			}
 		}
 	}
