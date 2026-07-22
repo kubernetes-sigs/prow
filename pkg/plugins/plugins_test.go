@@ -234,6 +234,7 @@ func TestLoad(t *testing.T) {
 		cfg := &Configuration{
 			Owners:      Owners{LabelsDenyList: []string{"approved", "lgtm"}},
 			Blunderbuss: Blunderbuss{ReviewerCount: func() *int { i := 2; return &i }()},
+			Rifle:       Rifle{ReviewerCount: func() *int { i := 2; return &i }()},
 			CherryPickUnapproved: CherryPickUnapproved{
 				BranchRegexp: "^release-.*$",
 				BranchRe:     regexp.MustCompile("^release-.*$"),
