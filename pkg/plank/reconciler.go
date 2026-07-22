@@ -671,16 +671,21 @@ func (r *reconciler) syncPendingJob(ctx context.Context, pj *prowv1.ProwJob) (*r
 type PodUnexpectedStopCause string
 
 const (
-	PodUnexpectedStopCauseNone        PodUnexpectedStopCause = ""
-	PodUnexpectedStopCauseUnknown     PodUnexpectedStopCause = "unknown"
-	PodUnexpectedStopCauseEvicted     PodUnexpectedStopCause = "evicted"
-	PodUnexpectedStopCauseOOMKilled   PodUnexpectedStopCause = "oomkilled"
-	PodUnexpectedStopCauseUnreachable PodUnexpectedStopCause = "unreachable"
+	PodUnexpectedStopCauseNone                 PodUnexpectedStopCause = ""
+	PodUnexpectedStopCauseUnknown              PodUnexpectedStopCause = "unknown"
+	PodUnexpectedStopCauseEvicted              PodUnexpectedStopCause = "evicted"
+	PodUnexpectedStopCauseOOMKilled            PodUnexpectedStopCause = "oomkilled"
+	PodUnexpectedStopCauseUnreachable          PodUnexpectedStopCause = "unreachable"
+	PodUnexpectedStopCauseTerminationByKubelet PodUnexpectedStopCause = "termination-by-kubelet"
 )
 
 func getPodUnexpectedStopCause(pod *corev1.Pod) PodUnexpectedStopCause {
 	if pod.Status.Reason == Evicted {
 		return PodUnexpectedStopCauseEvicted
+	}
+
+	if podWasTerminatedByKubelet(pod) {
+		return PodUnexpectedStopCauseTerminationByKubelet
 	}
 
 	if pod.Status.Reason == NodeUnreachablePodReason && pod.DeletionTimestamp != nil {
@@ -700,6 +705,22 @@ func getPodUnexpectedStopCause(pod *corev1.Pod) PodUnexpectedStopCause {
 	}
 
 	return PodUnexpectedStopCauseNone
+}
+
+func podWasTerminatedByKubelet(pod *corev1.Pod) bool {
+	if pod.Status.Reason != Terminated {
+		return false
+	}
+
+	for _, condition := range pod.Status.Conditions {
+		if condition.Type != corev1.DisruptionTarget {
+			continue
+		}
+
+		return condition.Status == corev1.ConditionTrue && condition.Reason == corev1.PodReasonTerminationByKubelet
+	}
+
+	return false
 }
 
 // syncTriggeredJob syncs jobs that do not yet have an associated test workload running
