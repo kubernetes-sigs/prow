@@ -685,6 +685,10 @@ func getPodUnexpectedStopCause(pod *corev1.Pod) PodUnexpectedStopCause {
 	}
 
 	if podWasTerminatedByKubelet(pod) {
+		// A kubelet-initiated termination indicates an infrastructure disruption,
+		// not a test failure. For example, this can happen when a spot node is
+		// reclaimed. Treat it as unexpected so Plank can revive the pod.
+		// See https://github.com/kubernetes-sigs/kueue/issues/12856.
 		return PodUnexpectedStopCauseTerminationByKubelet
 	}
 
