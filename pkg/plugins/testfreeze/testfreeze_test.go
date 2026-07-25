@@ -37,6 +37,7 @@ func TestHandle(t *testing.T) {
 		name              string
 		action            github.PullRequestEventAction
 		org, repo, branch string
+		labels            []string
 		prepare           func(*testfreezefakes.FakeVerifier)
 		assert            func(*testfreezefakes.FakeVerifier, error)
 	}{
@@ -65,6 +66,7 @@ func TestHandle(t *testing.T) {
 				assert.Contains(t, comment, "Technical review")
 				assert.Contains(t, comment, "Inclusion in release")
 				assert.Contains(t, comment, "#sig-release Slack channel")
+				assert.Contains(t, comment, "@kubernetes/sig-release-leads")
 				assert.Contains(t, comment, "Test Freeze")
 				assert.Contains(t, comment, "for the `release-1.23` branch")
 				assert.Contains(t, comment, "Fast forwards are scheduled to happen every 6 hours, whereas the most recent run was: Wed May  4 16:15:37 CEST 2022")
@@ -93,6 +95,32 @@ func TestHandle(t *testing.T) {
 				assert.Contains(t, comment, "Adding the milestone to this PR is strictly prohibited")
 				assert.NotContains(t, comment, "Test Freeze")
 				assert.NotContains(t, comment, "Fast forwards")
+			},
+		},
+		{
+			name:   "kind/bug in code freeze gets softer message",
+			action: github.PullRequestActionOpened,
+			org:    defaultKubernetesRepoAndOrg,
+			repo:   defaultKubernetesRepoAndOrg,
+			branch: defaultKubernetesBranch,
+			labels: []string{"kind/bug"},
+			prepare: func(mock *testfreezefakes.FakeVerifier) {
+				mock.CheckInTestFreezeReturns(&checker.Result{
+					InCodeFreeze:    true,
+					InTestFreeze:    false,
+					Tag:             "v1.23.0",
+					Branch:          "release-1.23",
+					LastFastForward: "",
+				}, nil)
+			},
+			assert: func(mock *testfreezefakes.FakeVerifier, err error) {
+				assert.Nil(t, err)
+				assert.Equal(t, 1, mock.CreateCommentCallCount())
+				_, _, _, _, comment := mock.CreateCommentArgsForCall(0)
+				assert.Contains(t, comment, "Code Freeze")
+				assert.Contains(t, comment, "kind/bug")
+				assert.Contains(t, comment, "@kubernetes/sig-release-leads")
+				assert.NotContains(t, comment, "strictly prohibited")
 			},
 		},
 		{
@@ -224,7 +252,7 @@ func TestHandle(t *testing.T) {
 			sut.verifier = mock
 
 			entry := logrus.NewEntry(logrus.StandardLogger())
-			err := sut.handle(entry, nil, tc.action, 0, tc.org, tc.repo, tc.branch)
+			err := sut.handle(entry, nil, tc.action, 0, tc.org, tc.repo, tc.branch, tc.labels)
 			tc.assert(mock, err)
 		})
 	}
