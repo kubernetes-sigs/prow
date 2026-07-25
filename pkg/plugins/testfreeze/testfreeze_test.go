@@ -66,7 +66,7 @@ func TestHandle(t *testing.T) {
 				assert.Contains(t, comment, "Technical review")
 				assert.Contains(t, comment, "Inclusion in release")
 				assert.Contains(t, comment, "#sig-release Slack channel")
-				assert.Contains(t, comment, "@kubernetes/sig-release-leads")
+				assert.Contains(t, comment, "@kubernetes/release-team-leads")
 				assert.Contains(t, comment, "Test Freeze")
 				assert.Contains(t, comment, "for the `release-1.23` branch")
 				assert.Contains(t, comment, "Fast forwards are scheduled to happen every 6 hours, whereas the most recent run was: Wed May  4 16:15:37 CEST 2022")
@@ -119,7 +119,7 @@ func TestHandle(t *testing.T) {
 				_, _, _, _, comment := mock.CreateCommentArgsForCall(0)
 				assert.Contains(t, comment, "Code Freeze")
 				assert.Contains(t, comment, "kind/bug")
-				assert.Contains(t, comment, "@kubernetes/sig-release-leads")
+				assert.Contains(t, comment, "@kubernetes/release-team-leads")
 				assert.NotContains(t, comment, "strictly prohibited")
 			},
 		},

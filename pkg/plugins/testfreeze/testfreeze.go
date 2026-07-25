@@ -41,10 +41,10 @@ const (
 
 {{ if .IsBugFix }}This PR is labeled ` + "`kind/bug`" + `, so it **may** be included in the {{ .Tag }} release as a bug fix. Please make sure to:
 1. Technical review: get the PR reviewed and approved as usual (` + "`/lgtm`" + ` and ` + "`/approve`" + `)
-2. Release team awareness: tag ` + "`@kubernetes/sig-release-leads`" + ` on this PR so the release team is aware of the fix going in. You can also ping the [#sig-release Slack channel](https://kubernetes.slack.com/archives/C2C40FMNF) for time-sensitive cases.
+2. Release team awareness: tag ` + "`@kubernetes/release-team-leads`" + ` on this PR so the release team is aware of the fix going in. You can also ping the [#sig-release Slack channel](https://kubernetes.slack.com/archives/C2C40FMNF) for time-sensitive cases.
 {{ else }}**Adding the milestone to this PR is strictly prohibited without proper approval.** If this PR needs to be included in the {{ .Tag }} release:
 1. Technical review: get the PR reviewed and approved as usual (` + "`/lgtm`" + ` and ` + "`/approve`" + `)
-2. Inclusion in release: tag ` + "`@kubernetes/sig-release-leads`" + ` on this PR and ping the [#sig-release Slack channel](https://kubernetes.slack.com/archives/C2C40FMNF) to request adding the ` + "`{{ .Tag }}`" + ` milestone
+2. Inclusion in release: tag ` + "`@kubernetes/release-team-leads`" + ` on this PR and ping the [#sig-release Slack channel](https://kubernetes.slack.com/archives/C2C40FMNF) to request adding the ` + "`{{ .Tag }}`" + ` milestone
 {{ end }}{{ end }}
 {{ if .InTestFreeze }}
 ---
