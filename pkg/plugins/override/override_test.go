@@ -142,9 +142,11 @@ type fakeClient struct {
 	branchProtection *github.BranchProtection
 	ps               []config.Presubmit
 	jobs             sets.Set[string]
+	createdJobs      []prowapi.ProwJob
 	owners           ownersClient
 	checkruns        *github.CheckRunList
 	usesAppsAuth     bool
+	getRefCalls      int
 }
 
 func (c *fakeClient) presubmits(_, _ string, _ config.RefGetter, _ string) ([]config.Presubmit, error) {
@@ -282,6 +284,7 @@ func (c *fakeClient) HasPermission(org, repo, user string, roles ...string) (boo
 }
 
 func (c *fakeClient) GetRef(org, repo, ref string) (string, error) {
+	c.getRefCalls++
 	if repo == "fail-ref" {
 		return "", errors.New("injected GetRef error")
 	}
@@ -319,6 +322,7 @@ func (c *fakeClient) Create(_ context.Context, pj *prowapi.ProwJob, _ metav1.Cre
 		return pj, errors.New("injected CreateProwJob error")
 	}
 	c.jobs.Insert(pj.Spec.Context)
+	c.createdJobs = append(c.createdJobs, *pj)
 	return pj, nil
 }
 
@@ -1517,6 +1521,103 @@ func TestHandleStickyOverride(t *testing.T) {
 				t.Errorf("statuses mismatch (-want +got):\n%s", diff)
 			}
 		})
+	}
+}
+
+func TestHandleUsesStatusBaseSHA(t *testing.T) {
+	log := logrus.WithField("plugin", pluginName)
+	originalBaseSHA := strings.Repeat("e", 40)
+	contextName := "ci/prow/pkg-job"
+
+	fc := &fakeClient{
+		statuses: []github.Status{
+			{
+				Context:     contextName,
+				State:       github.StatusFailure,
+				Description: config.ContextDescriptionWithBaseSha("failed", originalBaseSHA),
+			},
+		},
+		ps: []config.Presubmit{
+			presubmit("prow-job", contextName),
+		},
+		jobs: sets.Set[string]{},
+	}
+	event := overrideCommentEvent("/override prow-job")
+
+	if err := handle(fc, log, &event, plugins.Override{}, false); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	expectedDescription := config.ContextDescriptionWithBaseSha(description(adminUser), originalBaseSHA)
+	if got := fc.statuses[0].Description; got != expectedDescription {
+		t.Fatalf("status description = %q, want %q", got, expectedDescription)
+	}
+	if len(fc.createdJobs) != 1 {
+		t.Fatalf("created jobs = %d, want 1", len(fc.createdJobs))
+	}
+	if got := fc.createdJobs[0].Spec.Refs.BaseSHA; got != originalBaseSHA {
+		t.Fatalf("created job base SHA = %q, want %q", got, originalBaseSHA)
+	}
+}
+
+func TestHandleCachesFallbackBaseSHA(t *testing.T) {
+	log := logrus.WithField("plugin", pluginName)
+	fc := &fakeClient{
+		statuses: []github.Status{
+			{
+				Context:     "ci/prow/pkg-job",
+				State:       github.StatusFailure,
+				Description: "failed",
+			},
+			{
+				Context:     "ci/prow/other-job",
+				State:       github.StatusFailure,
+				Description: "failed",
+			},
+		},
+		ps: []config.Presubmit{
+			presubmit("prow-job", "ci/prow/pkg-job"),
+			presubmit("other-job", "ci/prow/other-job"),
+		},
+		jobs: sets.Set[string]{},
+	}
+	event := overrideCommentEvent("/override prow-job other-job")
+
+	if err := handle(fc, log, &event, plugins.Override{}, false); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got := fc.getRefCalls; got != 1 {
+		t.Fatalf("GetRef calls = %d, want 1", got)
+	}
+	if got := len(fc.createdJobs); got != 2 {
+		t.Fatalf("created jobs = %d, want 2", got)
+	}
+	for _, job := range fc.createdJobs {
+		if got := job.Spec.Refs.BaseSHA; got != fakeBaseSHA {
+			t.Fatalf("created job base SHA = %q, want %q", got, fakeBaseSHA)
+		}
+	}
+}
+
+func presubmit(name, context string) config.Presubmit {
+	return config.Presubmit{
+		JobBase: config.JobBase{
+			Name: name,
+		},
+		Reporter: config.Reporter{
+			Context: context,
+		},
+	}
+}
+
+func overrideCommentEvent(body string) github.GenericCommentEvent {
+	return github.GenericCommentEvent{
+		IsPR:       true,
+		IssueState: "open",
+		Action:     github.GenericCommentActionCreated,
+		Body:       body,
+		Number:     fakePR,
+		User:       github.User{Login: adminUser},
+		Repo:       github.Repo{Owner: github.User{Login: fakeOrg}, Name: fakeRepo},
 	}
 }
 

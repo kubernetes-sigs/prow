@@ -515,15 +515,9 @@ If you are trying to override a checkrun that has a space in it, you must put a 
 		return oc.CreateComment(org, repo, number, plugins.FormatResponseRaw(e.Body, e.HTMLURL, user, resp))
 	}
 
-	baseSHA, err := baseSHAGetter()
-	if err != nil {
-		resp := "Cannot get base ref of PR"
-		log.WithError(err).Warn(resp)
-		return oc.CreateComment(org, repo, number, plugins.FormatResponseRaw(e.Body, e.HTMLURL, user, resp))
-	}
-
 	done := sets.Set[string]{}
 	contextsWithCreatedJobs := sets.Set[string]{}
+	baseSHAGetter = cachedRefGetter(baseSHAGetter)
 
 	defer func() {
 		if len(done) == 0 {
@@ -538,6 +532,12 @@ If you are trying to override a checkrun that has a space in it, you must put a 
 		pre := presubmitForContext(presubmits, status.Context)
 		if status.State == github.StatusSuccess || !(overrides.Has(status.Context) || pre != nil && overrides.Has(pre.Name)) || contextsWithCreatedJobs.Has(status.Context) {
 			continue
+		}
+		baseSHA, err := baseSHAForStatus(status, baseSHAGetter)
+		if err != nil {
+			resp := "Cannot get base ref of PR"
+			log.WithError(err).Warn(resp)
+			return oc.CreateComment(org, repo, number, plugins.FormatResponseRaw(e.Body, e.HTMLURL, user, resp))
 		}
 
 		// Create the overridden prow result if necessary
@@ -597,6 +597,26 @@ If you are trying to override a checkrun that has a space in it, you must put a 
 	}
 
 	return nil
+}
+
+func baseSHAForStatus(status github.Status, fallback config.RefGetter) (string, error) {
+	if baseSHA := config.BaseSHAFromContextDescription(status.Description); baseSHA != "" {
+		return baseSHA, nil
+	}
+	return fallback()
+}
+
+func cachedRefGetter(getter config.RefGetter) config.RefGetter {
+	var baseSHA string
+	var err error
+	var called bool
+	return func() (string, error) {
+		if !called {
+			baseSHA, err = getter()
+			called = true
+		}
+		return baseSHA, err
+	}
 }
 
 func handleOverrideCancel(oc overrideClient, log *logrus.Entry, e *github.GenericCommentEvent, options plugins.Override) error {
