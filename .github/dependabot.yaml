@@ -1,0 +1,23 @@
+version: 2
+updates:
+  - package-ecosystem: "gomod"
+    directories:
+      - "/"
+      - "/hack/tools"
+      - "/site"
+    schedule:
+      interval: "weekly"
+    groups:
+      kubernetes:
+        patterns:
+          - "*k8s.io*"
+      prometheus:
+        patterns:
+          - "*github.com/prometheus*"
+      aws:
+        patterns:
+          - "*github.com/aws*"
+      golang-x:
+        patterns:
+          - "*golang.org/x*"
+
