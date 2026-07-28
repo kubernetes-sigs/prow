@@ -629,6 +629,9 @@ type BranchToMilestone map[string]string
 type Slack struct {
 	MentionChannels []string       `json:"mentionchannels,omitempty"`
 	MergeWarnings   []MergeWarning `json:"mergewarnings,omitempty"`
+	// CLAAlerts configures Slack notifications for merged PRs carrying
+	// the cncf-cla: no label.
+	CLAAlerts []CLAAlert `json:"claalerts,omitempty"`
 }
 
 // ConfigMapSpec contains configuration options for the configMap being updated
@@ -847,6 +850,15 @@ type MergeWarning struct {
 	ExemptUsers []string `json:"exempt_users,omitempty"`
 	// A slack event is published if the user is not on the exempt branches.
 	ExemptBranches map[string][]string `json:"exempt_branches,omitempty"`
+}
+
+// CLAAlert configures Slack notifications for merged PRs carrying
+// the cncf-cla: no label.
+type CLAAlert struct {
+	// Repos is either of the form org/repo or just org.
+	Repos []string `json:"repos,omitempty"`
+	// Channels is the list of Slack channels to notify.
+	Channels []string `json:"channels,omitempty"`
 }
 
 // Welcome is config for the welcome plugin.
