@@ -100,8 +100,8 @@ type syncController struct {
 	// UnmergablePRError (e.g. due to branch protection requiring more
 	// reviews). These PRs are temporarily skipped so Tide can advance
 	// to the next mergeable PR instead of retrying the same one.
-	// Key: "org/repo#number@sha", Value: time of failure.
-	mergeExclusions   map[string]time.Time
+	// Key: "org/repo#number@sha", Value: remaining sync cycles to skip.
+	mergeExclusions   map[string]int
 	mergeExclusionsMu sync.Mutex
 }
 
@@ -498,7 +498,7 @@ func newSyncController(
 		},
 		History:         hist,
 		statusUpdate:    statusUpdate,
-		mergeExclusions: make(map[string]time.Time),
+		mergeExclusions: make(map[string]int),
 	}, nil
 }
 
@@ -512,9 +512,11 @@ func setupSyncControllerIndexes(ctx context.Context, indexer ctrlruntimeclient.F
 	return nil
 }
 
-// mergeExclusionTTL is how long a PR stays excluded after a merge failure
-// before Tide retries it.
-const mergeExclusionTTL = 5 * time.Minute
+// mergeExclusionSyncs is how many additional sync cycles a PR stays
+// excluded after a merge failure, before Tide retries it. Counting sync
+// cycles rather than wall-clock time means the exclusion behaves the same
+// regardless of how frequently Tide is configured to sync.
+const mergeExclusionSyncs = 3
 
 // mergeExclusionKey returns a unique key for tracking merge exclusions.
 // The key includes the head SHA so that when an author pushes new commits,
@@ -543,7 +545,7 @@ func (c *syncController) excludeFromMerge(org, repo string, number int, sha stri
 			delete(c.mergeExclusions, key)
 		}
 	}
-	c.mergeExclusions[mergeExclusionKey(org, repo, number, sha)] = time.Now()
+	c.mergeExclusions[mergeExclusionKey(org, repo, number, sha)] = mergeExclusionSyncs
 }
 
 // isExcludedFromMerge returns true if a PR at its current head SHA is
@@ -553,15 +555,42 @@ func (c *syncController) isExcludedFromMerge(org, repo string, number int, sha s
 	c.mergeExclusionsMu.Lock()
 	defer c.mergeExclusionsMu.Unlock()
 	key := mergeExclusionKey(org, repo, number, sha)
-	failedAt, ok := c.mergeExclusions[key]
-	if !ok {
-		return false
+	remaining, ok := c.mergeExclusions[key]
+	return ok && remaining > 0
+}
+
+// ageMergeExclusions decrements the remaining sync count for every merge
+// exclusion by one and removes entries that have run out. It must be
+// called exactly once per Sync() cycle, before subpools are synced, so a
+// PR excluded after a merge failure is skipped for a bounded number of
+// subsequent syncs.
+func (c *syncController) ageMergeExclusions() {
+	c.mergeExclusionsMu.Lock()
+	defer c.mergeExclusionsMu.Unlock()
+	for key, remaining := range c.mergeExclusions {
+		remaining--
+		if remaining <= 0 {
+			delete(c.mergeExclusions, key)
+		} else {
+			c.mergeExclusions[key] = remaining
+		}
 	}
-	if time.Since(failedAt) >= mergeExclusionTTL {
-		delete(c.mergeExclusions, key)
-		return false
+}
+
+// filterExcludedFromMerge removes PRs that are temporarily excluded from
+// merging (e.g. due to a recent UnmergablePRError) so they are not
+// considered as merge candidates, whether for a direct merge or as part of
+// a new batch.
+func (c *syncController) filterExcludedFromMerge(log *logrus.Entry, org, repo string, prs []CodeReviewCommon) []CodeReviewCommon {
+	eligible := make([]CodeReviewCommon, 0, len(prs))
+	for _, pr := range prs {
+		if c.isExcludedFromMerge(org, repo, pr.Number, pr.HeadRefOID) {
+			log.WithFields(pr.logFields()).Debug("Skipping PR temporarily excluded from merging due to recent merge failure.")
+			continue
+		}
+		eligible = append(eligible, pr)
 	}
-	return true
+	return eligible
 }
 
 // isUnmergableError checks whether an error from mergePRs wraps an
@@ -583,6 +612,33 @@ func isUnmergableError(err error) bool {
 	// Check for the UnmergablePRError type, possibly wrapped by fmt.Errorf.
 	var unmergable github.UnmergablePRError
 	return errors.As(err, &unmergable)
+}
+
+// excludeUnmergablePRsFromBatch inspects a batch merge error and excludes
+// any individual PR that failed with an UnmergablePRError from future merge
+// attempts at its current head SHA. This keeps a single unmergeable PR in a
+// batch from blocking that PR's fellow PRs on every sync cycle, whether the
+// batch is retried whole or the PR resurfaces in a later batch.
+func (c *syncController) excludeUnmergablePRsFromBatch(sp subpool, batch []CodeReviewCommon, err error) {
+	mf, ok := err.(*mergeFailure)
+	if !ok {
+		return
+	}
+	shaByNumber := make(map[int]string, len(batch))
+	for _, pr := range batch {
+		shaByNumber[pr.Number] = pr.HeadRefOID
+	}
+	for _, me := range mf.errs {
+		if !isUnmergableError(me.err) {
+			continue
+		}
+		sha, ok := shaByNumber[me.pr]
+		if !ok {
+			continue
+		}
+		c.excludeFromMerge(sp.org, sp.repo, me.pr, sha)
+		sp.log.WithField("pr", me.pr).WithError(me.err).Warning("PR merge rejected by GitHub in batch, temporarily excluding from merge queue.")
+	}
 }
 
 func prKey(pr *CodeReviewCommon) string {
@@ -611,6 +667,7 @@ func contextsToStrings(contexts []Context) []string {
 
 // Sync runs one sync iteration.
 func (c *syncController) Sync() error {
+	c.ageMergeExclusions()
 	start := time.Now()
 	defer func() {
 		duration := time.Since(start)
@@ -1298,6 +1355,10 @@ func (c *syncController) pickBatch(sp subpool, cc map[int]contextChecker, newBat
 	}
 
 	log := sp.log.WithField("subpool_pr_count", len(sp.prs))
+	// Exclude PRs that recently failed to merge so a single unmergeable PR
+	// cannot keep re-entering (and blocking) a batch every sync cycle.
+	// See https://github.com/kubernetes-sigs/prow/issues/673
+	candidates = c.filterExcludedFromMerge(sp.log, sp.org, sp.repo, candidates)
 	if len(candidates) == 0 {
 		log.Debug("None of the prs in the subpool was passing tests, no batch will be created")
 		return nil, nil, nil
@@ -1633,6 +1694,9 @@ func (c *syncController) takeAction(sp subpool, batchPending, successes, pending
 	// Merge the batch!
 	if len(batchMerges) > 0 {
 		merged, err = c.provider.mergePRs(sp, batchMerges, c.statusUpdate.dontUpdateStatus)
+		if err != nil {
+			c.excludeUnmergablePRsFromBatch(sp, batchMerges, err)
+		}
 		return MergeBatch, batchMerges, err
 	}
 	// Do not merge PRs while waiting for a batch to complete. We don't want to
@@ -1643,14 +1707,7 @@ func (c *syncController) takeAction(sp subpool, batchPending, successes, pending
 		// stuck retrying the same unmergeable PR every sync cycle while
 		// other mergeable PRs wait behind it.
 		// See https://github.com/kubernetes-sigs/prow/issues/673
-		eligible := make([]CodeReviewCommon, 0, len(successes))
-		for _, pr := range successes {
-			if c.isExcludedFromMerge(sp.org, sp.repo, pr.Number, pr.HeadRefOID) {
-				sp.log.WithFields(pr.logFields()).Debug("Skipping PR temporarily excluded from merging due to recent merge failure.")
-				continue
-			}
-			eligible = append(eligible, pr)
-		}
+		eligible := c.filterExcludedFromMerge(sp.log, sp.org, sp.repo, successes)
 		if ok, pr := pickHighestPriorityPR(sp.log, eligible, sp.cc, c.isPassingTests, c.config().Tide.Priority); ok {
 			merged, err = c.provider.mergePRs(sp, []CodeReviewCommon{pr}, c.statusUpdate.dontUpdateStatus)
 			if err != nil {

@@ -2374,9 +2374,9 @@ func TestIsUnmergableError(t *testing.T) {
 	}
 }
 
-func TestMergeExclusionExpiry(t *testing.T) {
+func TestMergeExclusionAging(t *testing.T) {
 	c := &syncController{
-		mergeExclusions: make(map[string]time.Time),
+		mergeExclusions: make(map[string]int),
 	}
 
 	// Exclude PR #1 at sha "abc123"
@@ -2390,21 +2390,230 @@ func TestMergeExclusionExpiry(t *testing.T) {
 		t.Error("PR with a new head SHA should not be excluded")
 	}
 
-	// Manually set the exclusion time to the past (beyond TTL)
-	c.mergeExclusionsMu.Lock()
-	c.mergeExclusions[mergeExclusionKey("o", "r", 1, "abc123")] = time.Now().Add(-mergeExclusionTTL - time.Second)
-	c.mergeExclusionsMu.Unlock()
-
-	if c.isExcludedFromMerge("o", "r", 1, "abc123") {
-		t.Error("PR should no longer be excluded after TTL expires")
+	// The exclusion should survive all but the last of the sync cycles it
+	// was granted.
+	for i := range mergeExclusionSyncs - 1 {
+		c.ageMergeExclusions()
+		if !c.isExcludedFromMerge("o", "r", 1, "abc123") {
+			t.Fatalf("PR should still be excluded after %d of %d sync cycles", i+1, mergeExclusionSyncs)
+		}
 	}
 
-	// Verify the expired entry was cleaned up
+	// One more sync cycle should expire the exclusion.
+	c.ageMergeExclusions()
+	if c.isExcludedFromMerge("o", "r", 1, "abc123") {
+		t.Error("PR should no longer be excluded after mergeExclusionSyncs cycles")
+	}
+
+	// Verify the expired entry was cleaned up.
 	c.mergeExclusionsMu.Lock()
 	if _, ok := c.mergeExclusions[mergeExclusionKey("o", "r", 1, "abc123")]; ok {
 		t.Error("Expired exclusion entry should be cleaned up")
 	}
 	c.mergeExclusionsMu.Unlock()
+}
+
+func TestExcludeFromMergeReplacesPriorSHA(t *testing.T) {
+	c := &syncController{
+		mergeExclusions: make(map[string]int),
+	}
+
+	c.excludeFromMerge("o", "r", 1, "abc123")
+	c.ageMergeExclusions() // remaining goes from mergeExclusionSyncs to mergeExclusionSyncs-1
+
+	// A new push (new SHA) resets the exclusion.
+	c.excludeFromMerge("o", "r", 1, "def456")
+
+	c.mergeExclusionsMu.Lock()
+	if _, ok := c.mergeExclusions[mergeExclusionKey("o", "r", 1, "abc123")]; ok {
+		t.Error("stale entry for old SHA should have been removed")
+	}
+	if got := c.mergeExclusions[mergeExclusionKey("o", "r", 1, "def456")]; got != mergeExclusionSyncs {
+		t.Errorf("new SHA should start with a fresh count of %d, got %d", mergeExclusionSyncs, got)
+	}
+	c.mergeExclusionsMu.Unlock()
+}
+
+func TestTakeActionExcludesPRThatFailsInBatch(t *testing.T) {
+	// This test verifies that when an individual PR within a MERGE_BATCH
+	// fails to merge with UnmergablePRError, only that PR is excluded from
+	// future merge attempts -- its batch-mates, which merged fine, are not.
+	// See https://github.com/kubernetes-sigs/prow/pull/674#issuecomment-4187300292
+	sleep = func(time.Duration) {}
+	defer func() { sleep = time.Sleep }()
+
+	lg, gc, err := localgit.NewV2()
+	if err != nil {
+		t.Fatalf("Error making local git: %v", err)
+	}
+	defer gc.Clean()
+	defer lg.Clean()
+	if err := lg.MakeFakeRepo("o", "r"); err != nil {
+		t.Fatalf("Error making fake repo: %v", err)
+	}
+	if err := lg.AddCommit("o", "r", map[string][]byte{"foo": []byte("foo")}); err != nil {
+		t.Fatalf("Adding initial commit: %v", err)
+	}
+
+	sp := subpool{
+		log:    logrus.WithField("component", "tide"),
+		org:    "o",
+		repo:   "r",
+		branch: defaultBranch,
+		sha:    defaultBranch,
+	}
+	var batch []CodeReviewCommon
+	for _, number := range []int{1, 2, 3} {
+		if err := lg.CheckoutNewBranch("o", "r", fmt.Sprintf("pr-%d", number)); err != nil {
+			t.Fatalf("Error checking out new branch: %v", err)
+		}
+		if err := lg.AddCommit("o", "r", map[string][]byte{fmt.Sprintf("%d", number): []byte("WOW")}); err != nil {
+			t.Fatalf("Error adding commit: %v", err)
+		}
+		if err := lg.Checkout("o", "r", defaultBranch); err != nil {
+			t.Fatalf("Error checking out master: %v", err)
+		}
+		oid := githubql.String(fmt.Sprintf("origin/pr-%d", number))
+		var pr PullRequest
+		pr.Number = githubql.Int(number)
+		pr.HeadRefOID = oid
+		pr.Commits.Nodes = []struct {
+			Commit Commit
+		}{{Commit: Commit{OID: oid}}}
+		sp.prs = append(sp.prs, *CodeReviewCommonFromPullRequest(&pr))
+		batch = append(batch, *CodeReviewCommonFromPullRequest(&pr))
+	}
+
+	ca := &config.Agent{}
+	ca.Set(&config.Config{ProwConfig: config.ProwConfig{ProwJobNamespace: "pj-ns"}})
+	log := logrus.WithField("controller", "tide")
+	ctx := context.Background()
+	fgc := fgc{mergeErrs: map[int]error{2: github.UnmergablePRError("required review count not met")}}
+	ghProvider := newGitHubProvider(log, &fgc, gc, ca.Config, nil, false)
+	mgr := newFakeManager(t, ctx)
+	c, err := newSyncController(ctx, log, mgr, ghProvider, ca.Config, gc, nil, false, &statusUpdate{
+		dontUpdateStatus: &threadSafePRSet{},
+		newPoolPending:   make(chan bool),
+	})
+	if err != nil {
+		t.Fatalf("failed to construct sync controller: %v", err)
+	}
+	c.changedFiles = &changedFilesAgent{
+		provider:        ghProvider,
+		nextChangeCache: make(map[changeCacheKey][]string),
+	}
+
+	act, _, err := c.takeAction(sp, nil, nil, nil, nil, batch, nil)
+	if act != MergeBatch {
+		t.Fatalf("expected MergeBatch action, got %v", act)
+	}
+	if err == nil {
+		t.Fatal("expected an error from the batch merge (PR #2 unmergeable), got nil")
+	}
+
+	if c.isExcludedFromMerge("o", "r", 1, batch[0].HeadRefOID) {
+		t.Error("PR #1 merged fine and should not be excluded")
+	}
+	if !c.isExcludedFromMerge("o", "r", 2, batch[1].HeadRefOID) {
+		t.Error("PR #2 failed with UnmergablePRError and should be excluded")
+	}
+	if c.isExcludedFromMerge("o", "r", 3, batch[2].HeadRefOID) {
+		t.Error("PR #3 merged fine and should not be excluded")
+	}
+}
+
+func TestPickBatchExcludesMergeExcludedPR(t *testing.T) {
+	// This test verifies that a PR temporarily excluded from merging (e.g.
+	// after a recent UnmergablePRError) is not picked as a batch candidate,
+	// so it cannot keep re-entering (and blocking) a batch every sync cycle.
+	// See https://github.com/kubernetes-sigs/prow/issues/673
+	lg, gc, err := localgit.NewV2()
+	if err != nil {
+		t.Fatalf("Error making local git: %v", err)
+	}
+	defer gc.Clean()
+	defer lg.Clean()
+	if err := lg.MakeFakeRepo("o", "r"); err != nil {
+		t.Fatalf("Error making fake repo: %v", err)
+	}
+	if err := lg.AddCommit("o", "r", map[string][]byte{"foo": []byte("foo")}); err != nil {
+		t.Fatalf("Adding initial commit: %v", err)
+	}
+
+	sp := subpool{
+		log:    logrus.WithField("component", "tide"),
+		org:    "o",
+		repo:   "r",
+		branch: defaultBranch,
+		sha:    defaultBranch,
+	}
+	for _, number := range []int{1, 2} {
+		if err := lg.CheckoutNewBranch("o", "r", fmt.Sprintf("pr-%d", number)); err != nil {
+			t.Fatalf("Error checking out new branch: %v", err)
+		}
+		if err := lg.AddCommit("o", "r", map[string][]byte{fmt.Sprintf("%d", number): []byte("ok")}); err != nil {
+			t.Fatalf("Error adding commit: %v", err)
+		}
+		if err := lg.Checkout("o", "r", defaultBranch); err != nil {
+			t.Fatalf("Error checking out master: %v", err)
+		}
+		oid := githubql.String(fmt.Sprintf("origin/pr-%d", number))
+		var pr PullRequest
+		pr.Number = githubql.Int(number)
+		pr.HeadRefOID = oid
+		pr.Commits.Nodes = []struct {
+			Commit Commit
+		}{{Commit: Commit{OID: oid}}}
+		pr.Commits.Nodes[0].Commit.Status.Contexts = []Context{{State: githubql.StatusStateSuccess}}
+		sp.prs = append(sp.prs, *CodeReviewCommonFromPullRequest(&pr))
+	}
+
+	ca := &config.Agent{}
+	ca.Set(&config.Config{
+		ProwConfig: config.ProwConfig{
+			Tide: config.Tide{BatchSizeLimitMap: map[string]int{"*": 5}},
+		},
+		JobConfig: config.JobConfig{
+			PresubmitsStatic: map[string][]config.Presubmit{
+				"o/r": {{AlwaysRun: true, JobBase: config.JobBase{Name: "my-presubmit"}}},
+			},
+		},
+	})
+	logger := logrus.WithField("component", "tide")
+	ghProvider := &GitHubProvider{cfg: ca.Config, gc: gc, mergeChecker: newMergeChecker(ca.Config, &fgc{}), logger: logger}
+	c := &syncController{
+		logger:          logger,
+		provider:        ghProvider,
+		config:          ca.Config,
+		pickNewBatch:    pickNewBatch(gc, ca.Config, ghProvider),
+		mergeExclusions: make(map[string]int),
+	}
+
+	// PR #1 recently failed to merge; it should not re-enter a batch.
+	c.excludeFromMerge("o", "r", 1, sp.prs[0].HeadRefOID)
+
+	prs, _, err := c.pickBatch(sp, map[int]contextChecker{
+		1: &config.TideContextPolicy{},
+		2: &config.TideContextPolicy{},
+	}, c.pickNewBatch)
+	if err != nil {
+		t.Fatalf("Error from pickBatch: %v", err)
+	}
+	var found1, found2 bool
+	for _, pr := range prs {
+		if int(pr.Number) == 1 {
+			found1 = true
+		}
+		if int(pr.Number) == 2 {
+			found2 = true
+		}
+	}
+	if found1 {
+		t.Error("PR #1 is temporarily excluded from merging and should not be picked for a batch")
+	}
+	if !found2 {
+		t.Error("PR #2 should still be picked for a batch")
+	}
 }
 
 func TestServeHTTP(t *testing.T) {
