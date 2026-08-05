@@ -2714,6 +2714,9 @@ func parseProwConfig(c *Config) error {
 	if c.Tide.MaxGoroutines <= 0 {
 		return fmt.Errorf("tide has invalid max_goroutines (%d), it needs to be a positive number", c.Tide.MaxGoroutines)
 	}
+	if c.Tide.MaxQueryConcurrency < 0 {
+		return fmt.Errorf("tide has invalid max_query_concurrency (%d), it must be non-negative (0 = unlimited)", c.Tide.MaxQueryConcurrency)
+	}
 
 	if len(c.Tide.TargetURLs) > 0 && c.Tide.TargetURL != "" {
 		return fmt.Errorf("tide.target_url and tide.target_urls are mutually exclusive")

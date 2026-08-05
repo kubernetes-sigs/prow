@@ -28,6 +28,10 @@ The following configuration fields are available:
    a link that will be used for the tide status context. It is mutually exclusive with the `target_urls` field.
 * `max_goroutines`: The maximum number of goroutines spawned inside the component to
    handle org/repo:branch pools. Defaults to 20. Needs to be a positive number.
+* `max_query_concurrency`: The maximum number of GitHub PR search queries each Tide
+   controller (sync and status) runs in parallel. The limit applies per controller,
+   so up to twice this number of searches may run at once. Queries are split by org
+   only with GitHub Apps authentication. Defaults to 0, which means unlimited.
 * `blocker_label`: The label used to identify issues which block merges to repository branches.
 * `squash_label`: The label used to ask Tide to use the squash method when merging the labeled PR.
 * `rebase_label`: The label used to ask Tide to use the rebase method when merging the labeled PR.

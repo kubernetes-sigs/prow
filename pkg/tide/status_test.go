@@ -2332,35 +2332,51 @@ func TestNewBaseSHAGetter(t *testing.T) {
 
 func TestStatusControllerSearch(t *testing.T) {
 	t.Parallel()
-	testCases := []struct {
-		name         string
-		prs          map[string][]PullRequest
-		usesAppsAuth bool
+	orgAPR := testPR("org-a", "repo", "A", 1, githubql.MergeableStateMergeable)
+	orgBPR := testPR("org-b", "repo", "B", 2, githubql.MergeableStateMergeable)
+	orgCPR := testPR("org-c", "repo", "C", 3, githubql.MergeableStateMergeable)
+	expectedPRs := []CodeReviewCommon{
+		*CodeReviewCommonFromPullRequest(orgAPR),
+		*CodeReviewCommonFromPullRequest(orgBPR),
+		*CodeReviewCommonFromPullRequest(orgCPR),
+	}
 
-		expected []CodeReviewCommon
+	testCases := []struct {
+		name                    string
+		prs                     map[string][]PullRequest
+		usesAppsAuth            bool
+		maxQueryConcurrency     int
+		expectedPeakConcurrency int
 	}{
 		{
-			name: "Apps auth: Query gets split by org",
+			name: "Apps auth with MaxQueryConcurrency=0 runs all org queries concurrently",
 			prs: map[string][]PullRequest{
-				"org-a": {{Number: githubql.Int(1)}},
-				"org-b": {{Number: githubql.Int(2)}},
+				"org-a": {*orgAPR},
+				"org-b": {*orgBPR},
+				"org-c": {*orgCPR},
 			},
-			usesAppsAuth: true,
-			expected: []CodeReviewCommon{
-				*CodeReviewCommonFromPullRequest(&PullRequest{Number: 1}),
-				*CodeReviewCommonFromPullRequest(&PullRequest{Number: 2}),
+			usesAppsAuth:            true,
+			maxQueryConcurrency:     0,
+			expectedPeakConcurrency: 3,
+		},
+		{
+			name: "Apps auth with MaxQueryConcurrency=1 returns all PRs from three orgs",
+			prs: map[string][]PullRequest{
+				"org-a": {*orgAPR},
+				"org-b": {*orgBPR},
+				"org-c": {*orgCPR},
 			},
+			usesAppsAuth:            true,
+			maxQueryConcurrency:     1,
+			expectedPeakConcurrency: 1,
 		},
 		{
 			name: "No apps auth: Query remains unsplit",
 			prs: map[string][]PullRequest{
-				"": {{Number: githubql.Int(1)}, {Number: githubql.Int(2)}},
+				"": {*orgAPR, *orgBPR, *orgCPR},
 			},
-			usesAppsAuth: false,
-			expected: []CodeReviewCommon{
-				*CodeReviewCommonFromPullRequest(&PullRequest{Number: 1}),
-				*CodeReviewCommonFromPullRequest(&PullRequest{Number: 2}),
-			},
+			usesAppsAuth:            false,
+			expectedPeakConcurrency: 1,
 		},
 	}
 
@@ -2369,7 +2385,8 @@ func TestStatusControllerSearch(t *testing.T) {
 			ghc := &fgc{prs: tc.prs}
 			cfg := func() *config.Config {
 				return &config.Config{ProwConfig: config.ProwConfig{Tide: config.Tide{
-					TideGitHubConfig: config.TideGitHubConfig{Queries: config.TideQueries{{Orgs: []string{"org-a", "org-b"}}}}}}}
+					MaxQueryConcurrency: tc.maxQueryConcurrency,
+					TideGitHubConfig:    config.TideGitHubConfig{Queries: config.TideQueries{{Orgs: []string{"org-a", "org-b", "org-c"}}}}}}}
 			}
 			ctx := context.Background()
 			mgr := newFakeManager(t, ctx)
@@ -2393,9 +2410,15 @@ func TestStatusControllerSearch(t *testing.T) {
 				t.Fatalf("failed to construct status controller: %v", err)
 			}
 
-			result := sc.search()
-			if diff := cmp.Diff(result, tc.expected, cmpopts.SortSlices(func(a, b CodeReviewCommon) bool { return a.Number < b.Number })); diff != "" {
-				t.Errorf("result differs from expected: %s", diff)
+			var result []CodeReviewCommon
+			peak := testQueryConcurrency(t, ghc, func() {
+				result = sc.search()
+			})
+			if peak != tc.expectedPeakConcurrency {
+				t.Errorf("peak in-flight queries = %d, want %d", peak, tc.expectedPeakConcurrency)
+			}
+			if diff := cmp.Diff(expectedPRs, result, cmpopts.SortSlices(func(a, b CodeReviewCommon) bool { return a.Number < b.Number })); diff != "" {
+				t.Errorf("PRs differ (-want +got): %s", diff)
 			}
 		})
 	}
