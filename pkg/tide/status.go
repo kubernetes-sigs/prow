@@ -665,9 +665,11 @@ func (sc *statusController) search() []CodeReviewCommon {
 		sc.storedState = map[string]storedState{}
 	}
 
+	const controller = "status"
 	var prs []CodeReviewCommon
 	var errs []error
 	var lock sync.Mutex
+	var shardSuccess, shardPartial, shardError int
 
 	g := new(errgroup.Group)
 	if limit := sc.config().Tide.MaxQueryConcurrency; limit > 0 {
@@ -693,10 +695,39 @@ func (sc *statusController) search() []CodeReviewCommon {
 			sc.storedStateLock.Unlock()
 
 			result, err := sc.ghProvider.search(sc.ghc.QueryWithGitHubAppsSupport, sc.logger, query, latestPR.Time, now, org)
-			log.WithField("duration", time.Since(now).String()).WithField("result_count", len(result)).Debug("Searched for open PRs.")
+			duration := time.Since(now)
+			log.WithField("duration", duration.String()).WithField("result_count", len(result)).Debug("Searched for open PRs.")
+
+			var resultLabel string
+			switch {
+			case err != nil && len(result) == 0:
+				resultLabel = "error"
+			case err != nil:
+				resultLabel = "partial"
+			default:
+				resultLabel = "success"
+			}
+
+			tideMetrics.queryDuration.WithLabelValues(controller, resultLabel).Observe(duration.Seconds())
+			tideMetrics.queryPRsReturned.WithLabelValues(controller).Observe(float64(len(result)))
+			if err != nil {
+				tideMetrics.queryErrors.WithLabelValues(controller, "", org, classifyQueryError(err)).Inc()
+			}
+			if resultLabel == "partial" {
+				tideMetrics.queryPartialResults.WithLabelValues(controller, "", org).Inc()
+			}
 
 			lock.Lock()
 			defer lock.Unlock()
+
+			switch resultLabel {
+			case "error":
+				shardError++
+			case "partial":
+				shardPartial++
+			default:
+				shardSuccess++
+			}
 
 			if len(result) > 0 {
 				latest := result[len(result)-1].UpdatedAt
@@ -714,6 +745,14 @@ func (sc *statusController) search() []CodeReviewCommon {
 
 	}
 	g.Wait()
+
+	total := shardSuccess + shardPartial + shardError
+	tideMetrics.syncQueryShards.WithLabelValues(controller, "success").Set(float64(shardSuccess))
+	tideMetrics.syncQueryShards.WithLabelValues(controller, "partial").Set(float64(shardPartial))
+	tideMetrics.syncQueryShards.WithLabelValues(controller, "error").Set(float64(shardError))
+	if total > 0 {
+		tideMetrics.poolCompletenessRatio.WithLabelValues(controller).Set(float64(shardSuccess) / float64(total))
+	}
 
 	// Advance latestPR per org to the minimum across all its shards.
 	sc.storedStateLock.Lock()
