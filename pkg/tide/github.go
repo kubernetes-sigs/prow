@@ -26,6 +26,7 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/sync/errgroup"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/utils/ptr"
 
@@ -100,10 +101,15 @@ func (gi *GitHubProvider) blockers() (blockers.Blockers, error) {
 
 // Query gets all open PRs based on tide configuration.
 func (gi *GitHubProvider) Query() (map[string]CodeReviewCommon, error) {
-	lock := sync.Mutex{}
-	wg := sync.WaitGroup{}
+	var lock sync.Mutex
 	prs := make(map[string]CodeReviewCommon)
 	var errs []error
+
+	g := new(errgroup.Group)
+	if limit := gi.cfg().Tide.MaxQueryConcurrency; limit > 0 {
+		g.SetLimit(limit)
+	}
+
 	for i, query := range gi.cfg().Tide.Queries {
 
 		// Use org-sharded queries only when GitHub apps auth is in use
@@ -116,9 +122,7 @@ func (gi *GitHubProvider) Query() (map[string]CodeReviewCommon, error) {
 
 		for org, q := range queries {
 			org, q, i := org, q, i
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			g.Go(func() error {
 				results, err := gi.search(gi.ghc.QueryWithGitHubAppsSupport, gi.logger, q, time.Time{}, time.Now(), org)
 
 				resultString := "success"
@@ -130,22 +134,23 @@ func (gi *GitHubProvider) Query() (map[string]CodeReviewCommon, error) {
 				lock.Lock()
 				defer lock.Unlock()
 				if err != nil && len(results) == 0 {
-					gi.logger.WithField("query", q).WithError(err).Warn("Failed to execute query.")
+					gi.logger.WithField("query", q).WithField("org", org).WithError(err).Warn("Failed to execute query.")
 					errs = append(errs, fmt.Errorf("query %d, err: %w", i, err))
-					return
+					return nil
 				}
 				if err != nil {
-					gi.logger.WithError(err).WithField("query", q).Warning("found partial results")
+					gi.logger.WithError(err).WithField("query", q).WithField("org", org).Warning("found partial results")
 				}
 
 				for _, pr := range results {
 					crc := CodeReviewCommonFromPullRequest(&pr)
 					prs[prKey(crc)] = *crc
 				}
-			}()
+				return nil
+			})
 		}
 	}
-	wg.Wait()
+	g.Wait()
 
 	return prs, utilerrors.NewAggregate(errs)
 }

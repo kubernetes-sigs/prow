@@ -543,7 +543,7 @@ func (c *syncController) Sync() error {
 	var queryErrors []error
 	prs, err := c.provider.Query()
 	if err != nil {
-		c.logger.WithError(err).Debug("failed to query GitHub for some prs")
+		c.logger.WithError(err).Error("failed to query GitHub for some prs")
 		queryErrors = append(queryErrors, err)
 	}
 	c.logger.WithFields(logrus.Fields{
