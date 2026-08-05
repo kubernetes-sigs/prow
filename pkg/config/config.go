@@ -2714,8 +2714,11 @@ func parseProwConfig(c *Config) error {
 	if c.Tide.MaxGoroutines <= 0 {
 		return fmt.Errorf("tide has invalid max_goroutines (%d), it needs to be a positive number", c.Tide.MaxGoroutines)
 	}
+	if c.Tide.MaxQueryConcurrency == 0 {
+		c.Tide.MaxQueryConcurrency = 25
+	}
 	if c.Tide.MaxQueryConcurrency < 0 {
-		return fmt.Errorf("tide has invalid max_query_concurrency (%d), it must be non-negative (0 = unlimited)", c.Tide.MaxQueryConcurrency)
+		return fmt.Errorf("tide has invalid max_query_concurrency (%d), it must be non-negative", c.Tide.MaxQueryConcurrency)
 	}
 
 	if len(c.Tide.TargetURLs) > 0 && c.Tide.TargetURL != "" {
