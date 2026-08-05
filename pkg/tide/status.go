@@ -30,6 +30,7 @@ import (
 
 	githubql "github.com/shurcooL/githubv4"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -666,11 +667,15 @@ func (sc *statusController) search() []CodeReviewCommon {
 	var prs []CodeReviewCommon
 	var errs []error
 	var lock sync.Mutex
-	var wg sync.WaitGroup
+
+	g := new(errgroup.Group)
+	if limit := sc.config().Tide.MaxQueryConcurrency; limit > 0 {
+		g.SetLimit(limit)
+	}
 
 	for org, query := range queries {
 
-		wg.Go(func() {
+		g.Go(func() error {
 			now := time.Now()
 			log := sc.logger.WithField("query", query)
 
@@ -714,10 +719,11 @@ func (sc *statusController) search() []CodeReviewCommon {
 				prs = append(prs, *CodeReviewCommonFromPullRequest(&pr))
 			}
 			errs = append(errs, err)
+			return nil
 		})
 
 	}
-	wg.Wait()
+	g.Wait()
 
 	err := utilerrors.NewAggregate(errs)
 	if err != nil {
