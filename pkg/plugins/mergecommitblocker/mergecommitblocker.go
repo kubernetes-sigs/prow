@@ -18,6 +18,8 @@ package mergecommitblocker
 
 import (
 	"fmt"
+	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -46,10 +48,22 @@ func init() {
 
 // helpProvider provides information on the plugin
 func helpProvider(config *plugins.Configuration, _ []config.OrgRepo) (*pluginhelp.PluginHelp, error) {
-	// Only the Description field is specified because this plugin is not triggered with commands and is not configurable.
-	return &pluginhelp.PluginHelp{
-		Description: fmt.Sprintf("The merge commit blocker plugin adds the %s label to pull requests that contain merge commits", labels.MergeCommits),
-	}, nil
+	pluginHelp := &pluginhelp.PluginHelp{
+		Description: fmt.Sprintf("The merge commit blocker plugin adds the %s label to pull requests that contain merge commits. "+
+			"Merge commits may be excluded from this check if they only modify files matching configured path patterns, "+
+			"which is useful for workflows like Git subtrees.", labels.MergeCommits),
+		Config: map[string]string{},
+	}
+	for _, mcb := range config.MergeCommitBlocker {
+		for _, repo := range mcb.Repos {
+			if len(mcb.ExcludedPaths) > 0 {
+				pluginHelp.Config[repo] = fmt.Sprintf("Excluded paths: %v", mcb.ExcludedPaths)
+			} else {
+				pluginHelp.Config[repo] = "No excluded paths configured."
+			}
+		}
+	}
+	return pluginHelp, nil
 }
 
 type githubClient interface {
@@ -73,10 +87,13 @@ func handlePullRequest(pc plugins.Agent, pre github.PullRequestEvent) error {
 	if err != nil {
 		return err
 	}
-	return handle(pc.GitHubClient, pc.GitClient, cp, pc.Logger, &pre)
+	org := pre.PullRequest.Base.Repo.Owner.Login
+	repo := pre.PullRequest.Base.Repo.Name
+	cfg := pc.PluginConfig.MergeCommitBlockerFor(org, repo)
+	return handle(pc.GitHubClient, pc.GitClient, cp, pc.Logger, &pre, cfg)
 }
 
-func handle(ghc githubClient, gc git.ClientFactory, cp pruneClient, log *logrus.Entry, pre *github.PullRequestEvent) error {
+func handle(ghc githubClient, gc git.ClientFactory, cp pruneClient, log *logrus.Entry, pre *github.PullRequestEvent, cfg *plugins.MergeCommitBlocker) error {
 	var (
 		org  = pre.PullRequest.Base.Repo.Owner.Login
 		repo = pre.PullRequest.Base.Repo.Name
@@ -98,16 +115,19 @@ func handle(ghc githubClient, gc git.ClientFactory, cp pruneClient, log *logrus.
 	}
 	// We are guaranteed to have both Base.SHA and Head.SHA
 	target, head := pre.PullRequest.Base.SHA, pre.PullRequest.Head.SHA
-	existMergeCommits, err := r.MergeCommitsExistBetween(target, head)
+
+	// Determine if there are any disallowed merge commits
+	hasDisallowedMergeCommits, err := hasDisallowedMergeCommits(r, log, target, head, cfg)
 	if err != nil {
 		return err
 	}
+
 	issueLabels, err := ghc.GetIssueLabels(org, repo, num)
 	if err != nil {
 		return err
 	}
 	hasLabel := github.HasLabel(labels.MergeCommits, issueLabels)
-	if hasLabel && !existMergeCommits {
+	if hasLabel && !hasDisallowedMergeCommits {
 		log.Infof("Removing %q Label for %s/%s#%d", labels.MergeCommits, org, repo, num)
 		if err := ghc.RemoveLabel(org, repo, num, labels.MergeCommits); err != nil {
 			return err
@@ -115,7 +135,7 @@ func handle(ghc githubClient, gc git.ClientFactory, cp pruneClient, log *logrus.
 		cp.PruneComments(func(ic github.IssueComment) bool {
 			return strings.Contains(ic.Body, commentBody)
 		})
-	} else if !hasLabel && existMergeCommits {
+	} else if !hasLabel && hasDisallowedMergeCommits {
 		log.Infof("Adding %q Label for %s/%s#%d", labels.MergeCommits, org, repo, num)
 		if err := ghc.AddLabel(org, repo, num, labels.MergeCommits); err != nil {
 			return err
@@ -124,4 +144,51 @@ func handle(ghc githubClient, gc git.ClientFactory, cp pruneClient, log *logrus.
 		return ghc.CreateComment(org, repo, num, msg)
 	}
 	return nil
+}
+
+// hasDisallowedMergeCommits checks if there are any merge commits in the PR that are not allowed
+func hasDisallowedMergeCommits(r git.RepoClient, log *logrus.Entry, target, head string, cfg *plugins.MergeCommitBlocker) (bool, error) {
+	if cfg == nil || len(cfg.CompiledExcludedPaths) == 0 {
+		return r.MergeCommitsExistBetween(target, head)
+	}
+
+	shas, err := r.MergeCommitSHAsBetween(target, head)
+	if err != nil {
+		return false, err
+	}
+
+	if len(shas) == 0 {
+		return false, nil
+	}
+
+	for _, sha := range shas {
+		files, err := r.CommitChangedFiles(sha)
+		if err != nil {
+			return false, err
+		}
+
+		if !isMergeCommitAllowed(files, cfg.CompiledExcludedPaths) {
+			log.Infof("Merge commit %s is not allowed because it modifies files outside excluded paths", sha)
+			return true, nil
+		}
+		log.Debugf("Merge commit %s is allowed because changed files match excluded patterns", sha)
+	}
+
+	return false, nil
+}
+
+// isMergeCommitAllowed returns true if all files changed by the merge commit match at least one excluded pattern.
+func isMergeCommitAllowed(files []string, excludedPatterns []*regexp.Regexp) bool {
+	if len(files) == 0 {
+		return true
+	}
+
+	for _, file := range files {
+		if !slices.ContainsFunc(excludedPatterns, func(p *regexp.Regexp) bool {
+			return p.MatchString(file)
+		}) {
+			return false
+		}
+	}
+	return true
 }
