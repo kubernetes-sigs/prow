@@ -23,6 +23,21 @@ approve:
       # RequireSelfApproval disables automatic approval from PR authors with approval rights.
       # Otherwise the plugin assumes the author of the PR with approval rights approves the changes in the PR.
       require_self_approval: false
+assign:
+    "":
+        # Action controls what happens when a non-org-member tries to use
+        # /assign on an issue without an exempt label.
+        # Valid values: "warn" (default), "block".
+        action: ' '
+        # ExemptLabels is a list of labels that exempt an issue from the
+        # OnlyOrgMembers restriction, allowing anyone to self-assign.
+        # For example, setting this to ["good first issue"] lets non-members
+        # assign themselves to issues labeled "good first issue" while still
+        # blocking drive-by assigns on other issues.
+        exempt_labels:
+            - ""
+        # OnlyOrgMembers restricts issue/PR assignment to only org members.
+        only_org_members: true
 blockades:
     - # BlockRegexps are regular expressions matching the file paths to block.
       blockregexps:
@@ -443,6 +458,17 @@ help:
     # HelpGuidelinesURL is the URL of the help page, which provides guidance on how and when to use the help wanted and good first issue labels.
     # The default value is "https://git.k8s.io/community/contributors/guide/help-wanted.md".
     help_guidelines_url: ' '
+invalid_commit_msg:
+    - # Checks is a list of check configurations.
+      # Each check can be individually enabled or disabled.
+      checks:
+        - # Disabled indicates whether this check should be skipped.
+          disabled: true
+          # Name is the name of the check (e.g., "fixupPrefix", "issueClosingKeywords").
+          name: ' '
+      # Repos is either of the form org/repos or just org.
+      repos:
+        - ""
 jira:
     # DisabledJiraProjects are projects for which we will never try to create a link,
     # for example including `enterprise` here would disable linking for all issues
