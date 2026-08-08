@@ -685,7 +685,7 @@ func TestHandlePullRequest(t *testing.T) {
 			pr := github.PullRequest{Number: 5, User: github.User{Login: "author"}, Body: tc.body, Draft: tc.draft}
 			repo := github.Repo{Owner: github.User{Login: "org"}, Name: "repo"}
 			fghc := newFakeGitHubClient(&pr, tc.filesChanged)
-			c := plugins.Blunderbuss{
+			c := plugins.BlunderbussConfig{
 				ReviewerCount:    &tc.reviewerCount,
 				MaxReviewerCount: 0,
 				ExcludeApprovers: false,
@@ -705,6 +705,105 @@ func TestHandlePullRequest(t *testing.T) {
 			sort.Strings(tc.expectedRequested)
 			if !reflect.DeepEqual(fghc.requested, tc.expectedRequested) {
 				t.Fatalf("expected the requested reviewers to be %q, but got %q.", tc.expectedRequested, fghc.requested)
+			}
+		})
+	}
+}
+
+func TestHandlePullRequestShardedConfig(t *testing.T) {
+	froc := &fakeRepoownersClient{
+		foc: &fakeOwnersClient{
+			owners: map[string]string{
+				"a.go": "1",
+				"b.go": "2",
+			},
+			leafReviewers: map[string]sets.Set[string]{
+				"a.go": sets.New("al"),
+				"b.go": sets.New("bob"),
+				"c.go": sets.New("sarah"),
+				"d.go": sets.New("busy-user"),
+			},
+		},
+	}
+
+	overrideOrgReviewerCount := 2
+	overrideRepoReviewerCount := 3
+	var testcases = []struct {
+		name              string
+		orgConfig         map[string]plugins.BlunderbussOrgConfig
+		expectedRequested int
+	}{
+		{
+			name: "overrides default config with org config",
+			orgConfig: map[string]plugins.BlunderbussOrgConfig{
+				"org": {
+					BlunderbussConfig: &plugins.BlunderbussConfig{
+						ReviewerCount:    &overrideOrgReviewerCount,
+						MaxReviewerCount: overrideOrgReviewerCount,
+					}},
+			},
+			expectedRequested: 2,
+		},
+		{
+			name: "overrides default and org config with repo config",
+			orgConfig: map[string]plugins.BlunderbussOrgConfig{
+				"org": {
+					BlunderbussConfig: &plugins.BlunderbussConfig{
+						ReviewerCount:    &overrideOrgReviewerCount,
+						MaxReviewerCount: overrideOrgReviewerCount,
+					},
+					Repos: map[string]plugins.BlunderbussConfig{
+						"org/repo": {
+							ReviewerCount:    &overrideRepoReviewerCount,
+							MaxReviewerCount: overrideRepoReviewerCount,
+						}},
+				},
+			},
+			expectedRequested: 3,
+		},
+		{
+			name: "uses org config with invalid repo config key",
+			orgConfig: map[string]plugins.BlunderbussOrgConfig{
+				"org": {
+					BlunderbussConfig: &plugins.BlunderbussConfig{
+						ReviewerCount:    &overrideOrgReviewerCount,
+						MaxReviewerCount: overrideOrgReviewerCount,
+					},
+					Repos: map[string]plugins.BlunderbussConfig{
+						"repo": {
+							ReviewerCount:    &overrideRepoReviewerCount,
+							MaxReviewerCount: overrideRepoReviewerCount,
+						}}},
+			},
+			expectedRequested: 2,
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			pr := github.PullRequest{Number: 5, User: github.User{Login: "author"}}
+			fghc := newFakeGitHubClient(&pr, []string{"a.go", "b.go", "c.go", "d.go"})
+			repo := github.Repo{Owner: github.User{Login: "org"}, Name: "repo"}
+			reviewerCount := 1
+
+			config := &plugins.Configuration{
+				Blunderbuss: plugins.Blunderbuss{
+					BlunderbussConfig: &plugins.BlunderbussConfig{
+						ReviewerCount: &reviewerCount,
+					},
+					Orgs: tc.orgConfig,
+				}}
+			bc := config.BlunderbussFor(repo.Owner.Login, repo.Name)
+
+			if err := handlePullRequest(
+				fghc, froc, logrus.WithField("plugin", PluginName),
+				bc, github.PullRequestActionOpened, &pr, &repo,
+			); err != nil {
+				t.Fatalf("unexpected error from handle: %v", err)
+			}
+
+			if tc.expectedRequested != len(fghc.requested) {
+				t.Fatalf("expected the requested reviewers to be %d, but got %d.", tc.expectedRequested, len(fghc.requested))
 			}
 		})
 	}
@@ -783,7 +882,7 @@ func TestHandleGenericComment(t *testing.T) {
 			pr := github.PullRequest{Number: 5, User: github.User{Login: "author"}}
 			fghc := newFakeGitHubClient(&pr, tc.filesChanged)
 			repo := github.Repo{Owner: github.User{Login: "org"}, Name: "repo"}
-			config := plugins.Blunderbuss{
+			config := plugins.BlunderbussConfig{
 				ReviewerCount:    &tc.reviewerCount,
 				MaxReviewerCount: 0,
 				ExcludeApprovers: false,
@@ -800,6 +899,106 @@ func TestHandleGenericComment(t *testing.T) {
 			sort.Strings(tc.expectedRequested)
 			if !reflect.DeepEqual(fghc.requested, tc.expectedRequested) {
 				t.Fatalf("expected the requested reviewers to be %q, but got %q.", tc.expectedRequested, fghc.requested)
+			}
+		})
+	}
+}
+
+func TestHandleGenericCommentShardedConfig(t *testing.T) {
+	froc := &fakeRepoownersClient{
+		foc: &fakeOwnersClient{
+			owners: map[string]string{
+				"a.go": "1",
+				"b.go": "2",
+			},
+			leafReviewers: map[string]sets.Set[string]{
+				"a.go": sets.New("al"),
+				"b.go": sets.New("bob"),
+				"c.go": sets.New("sarah"),
+				"d.go": sets.New("busy-user"),
+			},
+		},
+	}
+
+	overrideOrgReviewerCount := 2
+	overrideRepoReviewerCount := 3
+	var testcases = []struct {
+		name              string
+		orgConfig         map[string]plugins.BlunderbussOrgConfig
+		expectedRequested int
+	}{
+		{
+			name: "overrides default config with org config",
+			orgConfig: map[string]plugins.BlunderbussOrgConfig{
+				"org": {
+					BlunderbussConfig: &plugins.BlunderbussConfig{
+						ReviewerCount:    &overrideOrgReviewerCount,
+						MaxReviewerCount: overrideOrgReviewerCount,
+					}},
+			},
+			expectedRequested: 2,
+		},
+		{
+			name: "overrides default and org config with repo config",
+			orgConfig: map[string]plugins.BlunderbussOrgConfig{
+				"org": {
+					BlunderbussConfig: &plugins.BlunderbussConfig{
+						ReviewerCount:    &overrideOrgReviewerCount,
+						MaxReviewerCount: overrideOrgReviewerCount,
+					},
+					Repos: map[string]plugins.BlunderbussConfig{
+						"org/repo": {
+							ReviewerCount:    &overrideRepoReviewerCount,
+							MaxReviewerCount: overrideRepoReviewerCount,
+						}}},
+			},
+			expectedRequested: 3,
+		},
+		{
+			name: "Uses org config with invalid repo config key",
+			orgConfig: map[string]plugins.BlunderbussOrgConfig{
+				"org": {
+					BlunderbussConfig: &plugins.BlunderbussConfig{
+						ReviewerCount:    &overrideOrgReviewerCount,
+						MaxReviewerCount: overrideOrgReviewerCount,
+					},
+					Repos: map[string]plugins.BlunderbussConfig{
+						"repo": {
+							ReviewerCount:    &overrideRepoReviewerCount,
+							MaxReviewerCount: overrideRepoReviewerCount,
+						}}},
+			},
+			expectedRequested: 2,
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			pr := github.PullRequest{Number: 5, User: github.User{Login: "author"}}
+			fghc := newFakeGitHubClient(&pr, []string{"a.go", "b.go", "c.go", "d.go"})
+			repo := github.Repo{Owner: github.User{Login: "org"}, Name: "repo"}
+			reviewerCount := 1
+
+			config := &plugins.Configuration{
+				Blunderbuss: plugins.Blunderbuss{
+					BlunderbussConfig: &plugins.BlunderbussConfig{
+						IgnoreAuthors:         []string{"bob"},
+						ReviewerCount:         &reviewerCount,
+						UseStatusAvailability: false,
+					},
+					Orgs: tc.orgConfig,
+				}}
+			bc := config.BlunderbussFor(repo.Owner.Login, repo.Name)
+
+			if err := handleGenericComment(
+				fghc, froc, logrus.WithField("plugin", PluginName), bc,
+				github.GenericCommentActionCreated, true, pr.Number, "open", &repo, "/auto-cc",
+			); err != nil {
+				t.Fatalf("unexpected error from handle: %v", err)
+			}
+
+			if tc.expectedRequested != len(fghc.requested) {
+				t.Fatalf("expected the requested reviewers to be %d, but got %d.", tc.expectedRequested, len(fghc.requested))
 			}
 		})
 	}
@@ -950,7 +1149,7 @@ func TestHandleStatus(t *testing.T) {
 			fghc := newFakeGitHubClient(&pr, tc.filesChanged)
 			repo := github.Repo{Owner: github.User{Login: "org"}, Name: "repo"}
 			descriptionPattern := "Not mergeable. (PullRequest is missing sufficient approving GitHub review\\(s\\)|Needs (lgtm|approved|approved, lgtm) labels?)\\.?"
-			config := plugins.Blunderbuss{
+			config := plugins.BlunderbussConfig{
 				ReviewerCount:    &tc.reviewerCount,
 				MaxReviewerCount: 0,
 				ExcludeApprovers: false,
@@ -979,9 +1178,127 @@ func TestHandleStatus(t *testing.T) {
 	}
 }
 
+func TestHandleStatusShardedConfig(t *testing.T) {
+	froc := &fakeRepoownersClient{
+		foc: &fakeOwnersClient{
+			owners: map[string]string{
+				"a.go": "1",
+			},
+			leafReviewers: map[string]sets.Set[string]{
+				"a.go": sets.New[string]("al"),
+			},
+		},
+	}
+
+	descriptionPattern := "Not mergeable. (PullRequest is missing sufficient approving GitHub review\\(s\\)|Needs (lgtm|approved|approved, lgtm) labels?)\\.?"
+	waitForStatus := &plugins.ContextMatch{
+		Context:       "tide",
+		Description:   descriptionPattern,
+		DescriptionRe: regexp.MustCompile(descriptionPattern),
+		State:         "pending",
+	}
+	otherWaitForStatus := &plugins.ContextMatch{
+		Context:       "other",
+		Description:   descriptionPattern,
+		DescriptionRe: regexp.MustCompile(descriptionPattern),
+		State:         "pending",
+	}
+	reviewerCount := 1
+
+	var testcases = []struct {
+		name              string
+		orgConfig         map[string]plugins.BlunderbussOrgConfig
+		expectedRequested []string
+	}{
+		{
+			name: "overrides default config with org config",
+			orgConfig: map[string]plugins.BlunderbussOrgConfig{
+				"org": {
+					BlunderbussConfig: &plugins.BlunderbussConfig{
+						ReviewerCount: &reviewerCount,
+						WaitForStatus: waitForStatus,
+					}},
+			},
+			expectedRequested: []string{"al"},
+		},
+		{
+			name: "overrides default and org config with repo config",
+			orgConfig: map[string]plugins.BlunderbussOrgConfig{
+				"org": {
+					BlunderbussConfig: &plugins.BlunderbussConfig{
+						ReviewerCount: &reviewerCount,
+						WaitForStatus: otherWaitForStatus,
+					},
+					Repos: map[string]plugins.BlunderbussConfig{
+						"org/repo": {
+							ReviewerCount: &reviewerCount,
+							WaitForStatus: waitForStatus,
+						}},
+				},
+			},
+			expectedRequested: []string{"al"},
+		},
+		{
+			name: "uses org config with invalid repo config key",
+			orgConfig: map[string]plugins.BlunderbussOrgConfig{
+				"org": {
+					BlunderbussConfig: &plugins.BlunderbussConfig{
+						ReviewerCount: &reviewerCount,
+						WaitForStatus: waitForStatus,
+					},
+					Repos: map[string]plugins.BlunderbussConfig{
+						"repo": {
+							ReviewerCount: &reviewerCount,
+							WaitForStatus: otherWaitForStatus,
+						}},
+				},
+			},
+			expectedRequested: []string{"al"},
+		},
+	}
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			pr := github.PullRequest{
+				Number: 5,
+				User:   github.User{Login: "author"},
+				Head:   github.PullRequestBranch{Ref: "test", SHA: "0001"},
+			}
+			fghc := newFakeGitHubClient(&pr, []string{"a.go"})
+			repo := github.Repo{Owner: github.User{Login: "org"}, Name: "repo"}
+
+			config := &plugins.Configuration{
+				Blunderbuss: plugins.Blunderbuss{
+					BlunderbussConfig: &plugins.BlunderbussConfig{
+						ReviewerCount: &reviewerCount,
+					},
+					Orgs: tc.orgConfig,
+				}}
+			bc := config.BlunderbussFor(repo.Owner.Login, repo.Name)
+
+			if err := handleStatus(
+				fghc, froc, logrus.WithField("plugin", PluginName), bc,
+				"0001", "tide", "pending",
+				"Not mergeable. PullRequest is missing sufficient approving GitHub review(s)",
+				&repo,
+			); err != nil {
+				t.Fatalf("unexpected error from handle: %v", err)
+			}
+
+			sort.Strings(fghc.requested)
+			sort.Strings(tc.expectedRequested)
+			if !reflect.DeepEqual(fghc.requested, tc.expectedRequested) {
+				t.Fatalf("expected the requested reviewers to be %q, but got %q.", tc.expectedRequested, fghc.requested)
+			}
+		})
+	}
+}
+
 func TestHandleGenericCommentEvent(t *testing.T) {
 	pc := plugins.Agent{
-		PluginConfig: &plugins.Configuration{},
+		PluginConfig: &plugins.Configuration{
+			Blunderbuss: plugins.Blunderbuss{
+				BlunderbussConfig: &plugins.BlunderbussConfig{},
+			}},
 	}
 	ce := github.GenericCommentEvent{}
 	handleGenericCommentEvent(pc, ce)
@@ -989,7 +1306,10 @@ func TestHandleGenericCommentEvent(t *testing.T) {
 
 func TestHandlePullRequestEvent(t *testing.T) {
 	pc := plugins.Agent{
-		PluginConfig: &plugins.Configuration{},
+		PluginConfig: &plugins.Configuration{
+			Blunderbuss: plugins.Blunderbuss{
+				BlunderbussConfig: &plugins.BlunderbussConfig{},
+			}},
 	}
 	pre := github.PullRequestEvent{}
 	handlePullRequestEvent(pc, pre)
@@ -1008,6 +1328,7 @@ func TestHelpProvider(t *testing.T) {
 		{Org: "org1", Repo: "repo"},
 		{Org: "org2", Repo: "repo"},
 	}
+	reviewerCount := 1
 	cases := []struct {
 		name               string
 		config             *plugins.Configuration
@@ -1016,20 +1337,24 @@ func TestHelpProvider(t *testing.T) {
 		configInfoIncludes []string
 	}{
 		{
-			name:               "Empty config",
-			config:             &plugins.Configuration{},
+			name: "Empty config",
+			config: &plugins.Configuration{
+				Blunderbuss: plugins.Blunderbuss{
+					BlunderbussConfig: &plugins.BlunderbussConfig{},
+				}},
 			enabledRepos:       enabledRepos,
-			configInfoIncludes: []string{configString(0)},
+			configInfoIncludes: []string{configString(2)},
 		},
 		{
 			name: "ReviewerCount specified",
 			config: &plugins.Configuration{
 				Blunderbuss: plugins.Blunderbuss{
-					ReviewerCount: &[]int{2}[0],
-				},
+					BlunderbussConfig: &plugins.BlunderbussConfig{
+						ReviewerCount: &reviewerCount,
+					}},
 			},
 			enabledRepos:       enabledRepos,
-			configInfoIncludes: []string{configString(2)},
+			configInfoIncludes: []string{configString(1)},
 		},
 	}
 	for _, c := range cases {
