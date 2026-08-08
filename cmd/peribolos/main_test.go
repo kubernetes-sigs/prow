@@ -34,6 +34,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 )
 
+func visibilityPtr(v org.RepoVisibility) *org.RepoVisibility { return &v }
+
 func TestOptions(t *testing.T) {
 	cases := []struct {
 		name     string
@@ -2053,7 +2055,7 @@ func TestDumpOrgConfig(t *testing.T) {
 						Name:          repoName,
 						Description:   repoDescription,
 						Homepage:      repoHomepage,
-						Private:       false,
+						Visibility:    "public",
 						HasIssues:     true,
 						HasProjects:   true,
 						HasWiki:       true,
@@ -2981,7 +2983,7 @@ func (f fakeRepoClient) UpdateRepo(owner, name string, want github.RepoUpdateReq
 	updateString(&have.Homepage, want.Homepage)
 	updateString(&have.Description, want.Description)
 	updateBool(&have.Archived, want.Archived)
-	updateBool(&have.Private, want.Private)
+	updateString(&have.Visibility, want.Visibility)
 	updateBool(&have.HasIssues, want.HasIssues)
 	updateBool(&have.HasProjects, want.HasProjects)
 	updateBool(&have.HasWiki, want.HasWiki)
@@ -3195,28 +3197,59 @@ func TestConfigureRepos(t *testing.T) {
 			expectedRepos: []github.Repo{{Name: oldName, Archived: true}},
 		},
 		{
-			description: "request to publish a private repo fails when not allowed, but updates other fields",
+			description: "request to make a private repo public fails when not allowed, but updates other fields",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
-					oldName: {Private: &no, Description: &updated},
+					oldName: {Visibility: visibilityPtr(org.RepoVisibilityPublic), Description: &updated},
 				},
 			},
-			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Private: true, Description: "OLD"}}},
+			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Visibility: "private", Description: "OLD"}}},
 			expectError:   true,
-			expectedRepos: []github.Repo{{Name: oldName, Private: true, Description: updated}},
+			expectedRepos: []github.Repo{{Name: oldName, Visibility: "private", Description: updated}},
 		},
 		{
-			description: "request to publish a private repo succeeds when allowed",
+			description: "request to make a private repo public succeeds when allowed",
 			opts: options{
 				allowRepoPublish: true,
 			},
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
-					oldName: {Private: &no},
+					oldName: {Visibility: visibilityPtr(org.RepoVisibilityPublic)},
 				},
 			},
-			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Private: true}}},
-			expectedRepos: []github.Repo{{Name: oldName, Private: false}},
+			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Visibility: "private"}}},
+			expectedRepos: []github.Repo{{Name: oldName, Visibility: "public"}},
+		},
+		{
+			description: "request to make an internal repo public fails when not allowed",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					oldName: {Visibility: visibilityPtr(org.RepoVisibilityPublic)},
+				},
+			},
+			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Visibility: "internal"}}},
+			expectError:   true,
+			expectedRepos: []github.Repo{{Name: oldName, Visibility: "internal"}},
+		},
+		{
+			description: "transitioning private to internal is allowed without flag",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					oldName: {Visibility: visibilityPtr(org.RepoVisibilityInternal)},
+				},
+			},
+			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Visibility: "private"}}},
+			expectedRepos: []github.Repo{{Name: oldName, Visibility: "internal"}},
+		},
+		{
+			description: "transitioning internal to private is allowed without flag",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					oldName: {Visibility: visibilityPtr(org.RepoVisibilityPrivate)},
+				},
+			},
+			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Visibility: "internal"}}},
+			expectedRepos: []github.Repo{{Name: oldName, Visibility: "private"}},
 		},
 		{
 			description: "renaming a repo is successful",
@@ -3498,6 +3531,64 @@ func TestNewRepoUpdateRequest(t *testing.T) {
 			},
 		},
 	}
+
+	visibilityPublic := org.RepoVisibilityPublic
+	visibilityPrivate := org.RepoVisibilityPrivate
+	privateStr := string(visibilityPrivate)
+
+	visibilityTestCases := []struct {
+		description string
+		current     github.FullRepo
+		name        string
+		newState    org.Repo
+
+		expected github.RepoUpdateRequest
+	}{
+		{
+			description: "visibility change produces a delta",
+			current: github.FullRepo{
+				Repo: github.Repo{
+					Name:       repoName,
+					Visibility: "public",
+				},
+			},
+			name: repoName,
+			newState: org.Repo{
+				Visibility: &visibilityPrivate,
+			},
+			expected: github.RepoUpdateRequest{
+				RepoRequest: github.RepoRequest{
+					Visibility: &privateStr,
+				},
+			},
+		},
+		{
+			description: "same visibility produces no delta",
+			current: github.FullRepo{
+				Repo: github.Repo{
+					Name:       repoName,
+					Visibility: "public",
+				},
+			},
+			name: repoName,
+			newState: org.Repo{
+				Visibility: &visibilityPublic,
+			},
+		},
+		{
+			description: "nil visibility produces no delta",
+			current: github.FullRepo{
+				Repo: github.Repo{
+					Name:       repoName,
+					Visibility: "public",
+				},
+			},
+			name:     repoName,
+			newState: org.Repo{},
+		},
+	}
+
+	testCases = append(testCases, visibilityTestCases...)
 
 	for _, tc := range testCases {
 		t.Run(tc.description, func(t *testing.T) {
