@@ -252,6 +252,11 @@ type Owners struct {
 	// Filenames allows configuring repos to use a separate set of filenames for
 	// any plugin that interacts with these files. Keys are in "org" or "org/repo" format.
 	Filenames map[string]ownersconfig.Filenames `json:"filenames,omitempty"`
+
+	// IgnoreMergeCommits is a list of org and org/repo strings specifying
+	// repos where the owners-label plugin should skip labeling on any
+	// pull request push that contains merge commits.
+	IgnoreMergeCommits []string `json:"ignore_merge_commits,omitempty"`
 }
 
 // OwnersFilenames determines which filenames to use for OWNERS and OWNERS_ALIASES for a repo.
@@ -290,6 +295,18 @@ func (c *Configuration) MDYAMLEnabled(org, repo string) bool {
 func (c *Configuration) SkipCollaborators(org, repo string) bool {
 	full := fmt.Sprintf("%s/%s", org, repo)
 	for _, elem := range c.Owners.SkipCollaborators {
+		if elem == org || elem == full {
+			return true
+		}
+	}
+	return false
+}
+
+// IgnoreMergeCommitsFor returns a boolean denoting if the owners-label plugin should skip
+// labeling on pull request pushes that contain merge commits for the passed repo.
+func (c *Configuration) IgnoreMergeCommitsFor(org, repo string) bool {
+	full := fmt.Sprintf("%s/%s", org, repo)
+	for _, elem := range c.Owners.IgnoreMergeCommits {
 		if elem == org || elem == full {
 			return true
 		}
