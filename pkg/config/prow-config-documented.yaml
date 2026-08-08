@@ -1479,6 +1479,12 @@ slack_reporter_configs:
 # is: https://github.com/kubernetes/test-infra/issues.
 status_error_link: ' '
 tide:
+    # AbortSupersededBatchJobsMap configures on org or org/repo level whether Tide
+    # should abort older in-flight batch ProwJobs for the same branch when a new
+    # base SHA requires triggering a new batch.
+    # Use '*' as key to set this globally. Defaults to true.
+    abort_superseded_batch_jobs:
+        "": true
     # BatchSizeLimitMap is a key/value pair of an org or org/repo as the key and
     # integer batch size limit as the value. Use "*" as key to set a global default.
     # Special values:
