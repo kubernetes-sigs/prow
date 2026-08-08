@@ -2197,7 +2197,7 @@ func TestHasConfigFor(t *testing.T) {
 			name: "Any config with label.restricted_labels is considered to be for the org and repos references there",
 			resultGenerator: func(fuzzedConfig *Configuration) (toCheck *Configuration, expectGlobal bool, expectOrgs sets.Set[string], expectRepos sets.Set[string]) {
 				fuzzedConfig = &Configuration{Label: fuzzedConfig.Label}
-				if len(fuzzedConfig.Label.AdditionalLabels) > 0 {
+				if len(fuzzedConfig.Label.AdditionalLabels) > 0 || len(fuzzedConfig.Label.ExclusiveLabelPrefixes) > 0 {
 					expectGlobal = true
 				}
 
