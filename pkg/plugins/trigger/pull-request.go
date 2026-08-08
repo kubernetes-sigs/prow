@@ -29,6 +29,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	klabels "k8s.io/apimachinery/pkg/labels"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	prowapi "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 	"sigs.k8s.io/prow/pkg/config"
@@ -389,11 +390,43 @@ func buildAllButDrafts(c Client, pr *github.PullRequest, eventGUID string, baseS
 	return buildAll(c, pr, eventGUID, baseSHA, presubmits)
 }
 
-// buildAll ensures that all builds that should run and will be required are built
+// buildAll ensures that all builds that should run and will be required are built.
+// It skips presubmits whose context already has a successful GitHub status or
+// check run to avoid redundantly re-running jobs that have already passed.
 func buildAll(c Client, pr *github.PullRequest, eventGUID string, baseSHA string, presubmits []config.Presubmit) error {
 	org, repo, number, branch := pr.Base.Repo.Owner.Login, pr.Base.Repo.Name, pr.Number, pr.Base.Ref
 	changes := config.NewGitHubDeferredChangedFilesProvider(c.GitHubClient, org, repo, number)
-	toTest, err := pjutil.FilterPresubmits(pjutil.NewTestAllFilter(), changes, branch, presubmits, c.Logger)
+
+	successContexts := sets.New[string]()
+	combinedStatus, err := c.GitHubClient.GetCombinedStatus(org, repo, pr.Head.SHA)
+	if err != nil {
+		c.Logger.WithError(err).Warn("Failed to get combined status; running all presubmits")
+	} else if combinedStatus != nil {
+		for _, status := range combinedStatus.Statuses {
+			if status.State == github.StatusSuccess {
+				successContexts.Insert(status.Context)
+			}
+		}
+	}
+	checkRunList, err := c.GitHubClient.ListCheckRuns(org, repo, pr.Head.SHA)
+	if err != nil {
+		c.Logger.WithError(err).Warn("Failed to list check runs; some passing checks may be re-triggered")
+	} else if checkRunList != nil {
+		for _, cr := range checkRunList.CheckRuns {
+			if strings.EqualFold(cr.Conclusion, "success") || strings.EqualFold(cr.Conclusion, "neutral") {
+				successContexts.Insert(cr.Name)
+			}
+		}
+	}
+
+	var filter pjutil.Filter
+	if successContexts.Len() > 0 {
+		filter = pjutil.NewTestAllWithExistingStatusFilter(successContexts)
+	} else {
+		filter = pjutil.NewTestAllFilter()
+	}
+
+	toTest, err := pjutil.FilterPresubmits(filter, changes, branch, presubmits, c.Logger)
 	if err != nil {
 		return err
 	}
