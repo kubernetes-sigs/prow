@@ -2416,6 +2416,101 @@ func TestValidatePluginsDupes(t *testing.T) {
 	}
 }
 
+func TestValidateMutuallyExclusivePlugins(t *testing.T) {
+	testCases := []struct {
+		name        string
+		plugins     Plugins
+		expectError bool
+		errContains string
+	}{
+		{
+			name: "no conflict",
+			plugins: Plugins{
+				"org": OrgPlugins{
+					Plugins: []string{"approve", "blunderbuss"},
+				},
+				"org/repo": OrgPlugins{
+					Plugins: []string{"lgtm"},
+				},
+			},
+		},
+		{
+			name: "both in same entry",
+			plugins: Plugins{
+				"org": OrgPlugins{
+					Plugins: []string{"blunderbuss", "rifle"},
+				},
+			},
+			expectError: true,
+			errContains: "mutually exclusive",
+		},
+		{
+			name: "org has blunderbuss, repo has rifle",
+			plugins: Plugins{
+				"org": OrgPlugins{
+					Plugins: []string{"blunderbuss"},
+				},
+				"org/repo": OrgPlugins{
+					Plugins: []string{"rifle"},
+				},
+			},
+			expectError: true,
+			errContains: "mutually exclusive",
+		},
+		{
+			name: "org has rifle, repo has blunderbuss",
+			plugins: Plugins{
+				"org": OrgPlugins{
+					Plugins: []string{"rifle"},
+				},
+				"org/repo": OrgPlugins{
+					Plugins: []string{"blunderbuss"},
+				},
+			},
+			expectError: true,
+			errContains: "mutually exclusive",
+		},
+		{
+			name: "no conflict when repo is excluded",
+			plugins: Plugins{
+				"org": OrgPlugins{
+					Plugins:       []string{"blunderbuss"},
+					ExcludedRepos: []string{"repo"},
+				},
+				"org/repo": OrgPlugins{
+					Plugins: []string{"rifle"},
+				},
+			},
+		},
+		{
+			name: "separate orgs no conflict",
+			plugins: Plugins{
+				"org-a": OrgPlugins{
+					Plugins: []string{"blunderbuss"},
+				},
+				"org-b": OrgPlugins{
+					Plugins: []string{"rifle"},
+				},
+			},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateMutuallyExclusivePlugins(tc.plugins)
+			if tc.expectError {
+				if err == nil {
+					t.Fatal("expected error but got nil")
+				}
+				if !strings.Contains(err.Error(), tc.errContains) {
+					t.Errorf("expected error containing %q, got: %v", tc.errContains, err)
+				}
+			} else if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
 func TestRestrictedLabelsFor(t *testing.T) {
 	tests := []struct {
 		name     string

@@ -1764,3 +1764,11 @@ type Layers struct {
 	MediaType string `json:"media_type"`
 	Size      int    `json:"size"`
 }
+
+// BlameRange represents a range of lines in a file attributed to a single author via git blame.
+type BlameRange struct {
+	StartingLine int
+	EndingLine   int
+	AuthorLogin  string
+	Date         time.Time
+}

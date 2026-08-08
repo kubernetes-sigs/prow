@@ -167,6 +167,7 @@ type CommitClient interface {
 	ListFileCommits(org, repo, path string) ([]RepositoryCommit, error)
 	CreateCheckRun(org, repo string, checkRun CheckRun) (int64, error)
 	UpdateCheckRun(org, repo string, checkRunId int64, checkRun CheckRun) error
+	GetBlame(org, repo, ref, path string) ([]BlameRange, error)
 }
 
 // RepositoryClient interface for repository related API actions
@@ -4424,6 +4425,65 @@ func (c *client) ListDirectCollaboratorsWithPermissions(org, repo string) (map[s
 	}
 
 	return result, nil
+}
+
+type blameQuery struct {
+	Repository struct {
+		Object struct {
+			Commit struct {
+				Blame struct {
+					Ranges []struct {
+						StartingLine githubql.Int
+						EndingLine   githubql.Int
+						Commit       struct {
+							Author struct {
+								User *struct {
+									Login githubql.String
+								}
+								Date githubql.DateTime
+							}
+						}
+					}
+				} `graphql:"blame(path: $path)"`
+			} `graphql:"... on Commit"`
+		} `graphql:"object(expression: $ref)"`
+	} `graphql:"repository(owner: $owner, name: $name)"`
+}
+
+// GetBlame returns git blame data for a file at a given ref using the GraphQL API.
+func (c *client) GetBlame(org, repo, ref, path string) ([]BlameRange, error) {
+	durationLogger := c.log("GetBlame", org, repo, ref, path)
+	defer durationLogger()
+
+	if c.fake {
+		return nil, nil
+	}
+
+	var query blameQuery
+	vars := map[string]interface{}{
+		"owner": githubql.String(org),
+		"name":  githubql.String(repo),
+		"ref":   githubql.String(ref),
+		"path":  githubql.String(path),
+	}
+	if err := c.QueryWithGitHubAppsSupport(context.Background(), &query, vars, org); err != nil {
+		return nil, fmt.Errorf("graphql blame query for %s: %w", path, err)
+	}
+
+	var ranges []BlameRange
+	for _, r := range query.Repository.Object.Commit.Blame.Ranges {
+		login := ""
+		if r.Commit.Author.User != nil {
+			login = strings.ToLower(string(r.Commit.Author.User.Login))
+		}
+		ranges = append(ranges, BlameRange{
+			StartingLine: int(r.StartingLine),
+			EndingLine:   int(r.EndingLine),
+			AuthorLogin:  login,
+			Date:         r.Commit.Author.Date.Time,
+		})
+	}
+	return ranges, nil
 }
 
 // AddCollaborator adds a user as a collaborator to a repository with the specified permission level.

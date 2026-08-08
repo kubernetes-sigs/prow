@@ -58,6 +58,7 @@ import (
 	"sigs.k8s.io/prow/pkg/plugins/blockade"
 	"sigs.k8s.io/prow/pkg/plugins/blunderbuss"
 	"sigs.k8s.io/prow/pkg/plugins/bugzilla"
+	"sigs.k8s.io/prow/pkg/plugins/rifle"
 	"sigs.k8s.io/prow/pkg/plugins/cherrypickunapproved"
 	"sigs.k8s.io/prow/pkg/plugins/hold"
 	labelplugin "sigs.k8s.io/prow/pkg/plugins/label"
@@ -1017,18 +1018,19 @@ func validateManagedWebhooks(cfg *config.Config) error {
 }
 
 func pluginsWithOwnersFile() string {
-	return strings.Join([]string{approve.PluginName, blunderbuss.PluginName, ownerslabel.PluginName}, ", ")
+	return strings.Join([]string{approve.PluginName, blunderbuss.PluginName, rifle.PluginName, ownerslabel.PluginName}, ", ")
 }
 
 func orgReposUsingOwnersFile(cfg *plugins.Configuration) *orgRepoConfig {
 	// we do not know the set of repos that use OWNERS, but we
 	// can get a reasonable proxy for this by looking at where
-	// the `approve', `blunderbuss' and `owners-label' plugins
+	// the `approve', `blunderbuss', `rifle', and `owners-label' plugins
 	// are enabled
 	approveConfig := enabledOrgReposForPlugin(cfg, approve.PluginName, false)
 	blunderbussConfig := enabledOrgReposForPlugin(cfg, blunderbuss.PluginName, false)
+	rifleConfig := enabledOrgReposForPlugin(cfg, rifle.PluginName, false)
 	ownersLabelConfig := enabledOrgReposForPlugin(cfg, ownerslabel.PluginName, false)
-	return approveConfig.union(blunderbussConfig).union(ownersLabelConfig)
+	return approveConfig.union(blunderbussConfig).union(rifleConfig).union(ownersLabelConfig)
 }
 
 type FileInRepoExistsChecker interface {

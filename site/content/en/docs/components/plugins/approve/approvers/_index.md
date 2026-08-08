@@ -41,7 +41,9 @@ approvers:
 
 Note that items in the OWNERS files can be GitHub usernames, or aliases defined in OWNERS_ALIASES files. An OWNERS_ALIASES file is another co-existed file that delivers a mechanism for defining groups. However, GitHub Team names are not supported. We do not use them because there is no audit log for changes to the GitHub Teams. This way we have an audit log.
 
-## Blunderbuss And Reviewers
+## Reviewer Selection Plugins
+
+Prow provides two mutually exclusive plugins for automatic reviewer selection: **blunderbuss** and **rifle**. Only one should be enabled per repository — they both respond to the same events and serve the same purpose, but use different algorithms to choose reviewers.
 
 ### lgtm Label
 
@@ -63,6 +65,26 @@ Algorithm for selecting reviewers is as follows:
 
 4. randomly select 2 reviewers based on their weightage
 
+### Rifle Selection Mechanism
+
+Rifle is an alternative to blunderbuss that uses `git blame` data to select reviewers who have recently authored the lines being changed, rather than selecting randomly from OWNERS files. This targets review requests at the people most familiar with the specific code being modified.
+
+Algorithm for selecting reviewers is as follows:
+
+1. collect the set of changed files in the PR (sampling up to 20 diverse files for large PRs)
+
+2. for each file, fetch `git blame` data and intersect it with the changed line ranges from the diff
+
+3. score each potential reviewer based on two factors: the number of lines they authored that are being changed (line count weight) and how recently they authored those lines (recency weight)
+
+4. rank candidates by score and select the highest-scoring reviewer that is available
+
+If blame data is unavailable (e.g. for new files), rifle falls back to the same random OWNERS-based selection that blunderbuss uses.
+
+Note that rifle uses more GitHub API quota than blunderbuss. It makes one additional `GetBlame` REST API call per file sampled (up to 20 per PR) to fetch blame data. Keep this in mind if your Prow instance is close to its GitHub API rate limit.
+
+Both plugins share support for optional GitHub user status availability checking (`use_status_availability`), which skips users who have marked themselves as busy on GitHub.
+
 ## Approval Handler and the Approved Label
 
 ### approved Label
@@ -75,7 +97,7 @@ First, it is important to understand that ALL approvers in an OWNERS file can ap
 
 1. Provide a subset of approvers that can approve all files in the PR
 
-2. Provide a small subset of approvers and suggest the same reviewers as blunderbuss if possible (people can be both reviewers and approvers)
+2. Provide a small subset of approvers and suggest the same reviewers as the reviewer selection plugin (blunderbuss or rifle) if possible (people can be both reviewers and approvers)
 
 3. Do not always suggest the same set of people to approve and do not consistently suggest people from the root OWNERS file
 
@@ -229,6 +251,9 @@ If an approval is cancelled, the bot will delete the status added to the PR and 
 
 Blunderbuss: 
 [prow/plugins/blunderbuss/blunderbuss.go](https://github.com/kubernetes-sigs/prow/blob/main/pkg/plugins/blunderbuss/blunderbuss.go)
+
+Rifle:
+[prow/plugins/rifle/rifle.go](https://github.com/kubernetes-sigs/prow/blob/main/pkg/plugins/rifle/rifle.go)
 
 LGTM:
 [prow/plugins/lgtm/lgtm.go](https://github.com/kubernetes-sigs/prow/blob/main/pkg/plugins/lgtm/lgtm.go)

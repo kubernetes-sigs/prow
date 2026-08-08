@@ -46,6 +46,7 @@ import (
 
 const (
 	defaultBlunderbussReviewerCount = 2
+	defaultRifleReviewerCount       = 2
 )
 
 // Configuration is the top-level serialization target for plugin Configuration.
@@ -70,6 +71,7 @@ type Configuration struct {
 	Approve              []Approve                    `json:"approve,omitempty"`
 	Blockades            []Blockade                   `json:"blockades,omitempty"`
 	Blunderbuss          Blunderbuss                  `json:"blunderbuss,omitempty"`
+	Rifle                Rifle                        `json:"rifle,omitempty"`
 	Bugzilla             Bugzilla                     `json:"bugzilla,omitempty"`
 	BranchCleaner        BranchCleaner                `json:"branch_cleaner,omitempty"`
 	Cat                  Cat                          `json:"cat,omitempty"`
@@ -206,6 +208,37 @@ type Blunderbuss struct {
 	// approvers will never be considered as reviewers.
 	ExcludeApprovers bool `json:"exclude_approvers,omitempty"`
 	// UseStatusAvailability controls whether blunderbuss will consider GitHub's
+	// status availability when requesting reviews for users. This will use at one
+	// additional token per successful reviewer (and potentially more depending on
+	// how many busy reviewers it had to pass over).
+	UseStatusAvailability bool `json:"use_status_availability,omitempty"`
+	// IgnoreDrafts instructs the plugin to ignore assigning reviewers
+	// to the PR that is in Draft state. Default it's false.
+	IgnoreDrafts bool `json:"ignore_drafts,omitempty"`
+	// IgnoreAuthors skips requesting reviewers for specified users.
+	// This is useful when a bot user or admin opens a PR that will be
+	// merged regardless of approvals.
+	IgnoreAuthors []string `json:"ignore_authors,omitempty"`
+	// WaitForStatus specifies whether to request reviews if the tide status indicates that
+	// the tests have passed but there are insufficient pull request reviews.
+	WaitForStatus *ContextMatch `json:"wait_for_status,omitempty"`
+}
+
+// Rifle holds configuration for the rifle plugin, which uses git blame data
+// to select reviewers most familiar with the changed code.
+type Rifle struct {
+	// ReviewerCount is the minimum number of reviewers to request
+	// reviews from. Defaults to requesting reviews from 2 reviewers
+	ReviewerCount *int `json:"request_count,omitempty"`
+	// MaxReviewerCount is the maximum number of reviewers to request
+	// reviews from. Defaults to 0 meaning no limit.
+	MaxReviewerCount int `json:"max_request_count,omitempty"`
+	// ExcludeApprovers controls whether approvers are considered to be
+	// reviewers. By default, approvers are considered as reviewers if
+	// insufficient reviewers are available. If ExcludeApprovers is true,
+	// approvers will never be considered as reviewers.
+	ExcludeApprovers bool `json:"exclude_approvers,omitempty"`
+	// UseStatusAvailability controls whether rifle will consider GitHub's
 	// status availability when requesting reviews for users. This will use at one
 	// additional token per successful reviewer (and potentially more depending on
 	// how many busy reviewers it had to pass over).
@@ -1260,6 +1293,21 @@ func (c *Configuration) setDefaults() {
 		c.Blunderbuss.ReviewerCount = new(int)
 		*c.Blunderbuss.ReviewerCount = defaultBlunderbussReviewerCount
 	}
+	if c.Rifle.ReviewerCount == nil {
+		c.Rifle.ReviewerCount = new(int)
+		*c.Rifle.ReviewerCount = defaultRifleReviewerCount
+	}
+	if c.Rifle.WaitForStatus != nil {
+		if c.Rifle.WaitForStatus.Context == "" {
+			c.Rifle.WaitForStatus.Context = "tide"
+		}
+		if c.Rifle.WaitForStatus.State == "" {
+			c.Rifle.WaitForStatus.State = "pending"
+		}
+		if c.Rifle.WaitForStatus.Description == "" {
+			c.Rifle.WaitForStatus.Description = "Not mergeable. (PullRequest is missing sufficient approving GitHub review\\(s\\)|Needs (lgtm|approved|approved, lgtm) labels?)\\.?"
+		}
+	}
 	if c.Blunderbuss.WaitForStatus != nil {
 		if c.Blunderbuss.WaitForStatus.Context == "" {
 			c.Blunderbuss.WaitForStatus.Context = "tide"
@@ -1398,6 +1446,40 @@ func validateBlunderbuss(b *Blunderbuss) error {
 		return fmt.Errorf("invalid request_count: %v (needs to be positive)", *b.ReviewerCount)
 	}
 	return nil
+}
+
+func validateRifle(r *Rifle) error {
+	if r.ReviewerCount != nil && *r.ReviewerCount < 1 {
+		return fmt.Errorf("invalid request_count: %v (needs to be positive)", *r.ReviewerCount)
+	}
+	return nil
+}
+
+func validateMutuallyExclusivePlugins(plugins Plugins) error {
+	var errs []error
+	for entry, cfg := range plugins {
+		hasBlunderbuss := slices.Contains(cfg.Plugins, "blunderbuss")
+		hasRifle := slices.Contains(cfg.Plugins, "rifle")
+		if hasBlunderbuss && hasRifle {
+			errs = append(errs, fmt.Errorf("%s: blunderbuss and rifle plugins are mutually exclusive", entry))
+			continue
+		}
+		if !strings.Contains(entry, "/") {
+			continue
+		}
+		split := strings.Split(entry, "/")
+		org, repo := split[0], split[1]
+		orgConfig := plugins[org]
+		if slices.Contains(orgConfig.ExcludedRepos, repo) {
+			continue
+		}
+		orgHasBlunderbuss := slices.Contains(orgConfig.Plugins, "blunderbuss")
+		orgHasRifle := slices.Contains(orgConfig.Plugins, "rifle")
+		if (hasBlunderbuss && orgHasRifle) || (hasRifle && orgHasBlunderbuss) {
+			errs = append(errs, fmt.Errorf("%s: blunderbuss and rifle plugins are mutually exclusive (conflict between %s and %s config)", entry, org, entry))
+		}
+	}
+	return utilerrors.NewAggregate(errs)
 }
 
 // ConfigMapID is a name/namespace/cluster combination that identifies a config map
@@ -1621,6 +1703,12 @@ func compileRegexpsAndDurations(pc *Configuration) error {
 			return fmt.Errorf("failed to compile blunderbuss wait for context description regular expression: %q, error: %w", pc.Blunderbuss.WaitForStatus.Description, err)
 		}
 	}
+	if pc.Rifle.WaitForStatus != nil {
+		pc.Rifle.WaitForStatus.DescriptionRe, err = regexp.Compile(pc.Rifle.WaitForStatus.Description)
+		if err != nil {
+			return fmt.Errorf("failed to compile rifle wait for context description regular expression: %q, error: %w", pc.Rifle.WaitForStatus.Description, err)
+		}
+	}
 	return nil
 }
 
@@ -1643,6 +1731,12 @@ func (c *Configuration) Validate() error {
 		return err
 	}
 	if err := validateBlunderbuss(&c.Blunderbuss); err != nil {
+		return err
+	}
+	if err := validateRifle(&c.Rifle); err != nil {
+		return err
+	}
+	if err := validateMutuallyExclusivePlugins(c.Plugins); err != nil {
 		return err
 	}
 	if err := validateConfigUpdater(&c.ConfigUpdater); err != nil {
