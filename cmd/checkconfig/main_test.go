@@ -1688,8 +1688,8 @@ func TestValidateTideContextPolicy(t *testing.T) {
 			cfg: cfg(func(c *config.Config) {
 				c.PresubmitsStatic["a/b"] = []config.Presubmit{
 					{
-						Reporter:           config.Reporter{Context: "ci/prow/test"},
-						Brancher:           config.Brancher{Branches: []string{`^master$`}},
+						Reporter:            config.Reporter{Context: "ci/prow/test"},
+						Brancher:            config.Brancher{Branches: []string{`^master$`}},
 						RegexpChangeMatcher: config.RegexpChangeMatcher{SkipIfOnlyChanged: `\.md$`},
 					},
 				}

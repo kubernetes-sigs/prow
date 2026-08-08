@@ -1609,7 +1609,7 @@ func TestIsAllowedToMerge_ReviewDecision(t *testing.T) {
 			name:             "BLOCKED status - repo config overrides org config (ignore)",
 			mergeStateStatus: "BLOCKED",
 			policyConfig: map[string]config.GitHubMergeBlocksPolicy{
-				orgName: config.GitHubMergeBlocksBlock,
+				orgName:                                 config.GitHubMergeBlocksBlock,
 				fmt.Sprintf("%s/%s", orgName, repoName): config.GitHubMergeBlocksIgnore,
 			},
 			expectedMergeOutput:  "",
@@ -1619,7 +1619,7 @@ func TestIsAllowedToMerge_ReviewDecision(t *testing.T) {
 			name:             "BLOCKED status - repo config overrides org config (block)",
 			mergeStateStatus: "BLOCKED",
 			policyConfig: map[string]config.GitHubMergeBlocksPolicy{
-				orgName: config.GitHubMergeBlocksPermit,
+				orgName:                                 config.GitHubMergeBlocksPermit,
 				fmt.Sprintf("%s/%s", orgName, repoName): config.GitHubMergeBlocksBlock,
 			},
 			expectedMergeOutput:  "PR is blocked from merging by GitHub (check branch protection, required reviews, or rulesets)",

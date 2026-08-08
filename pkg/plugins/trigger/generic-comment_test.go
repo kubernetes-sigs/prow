@@ -1849,21 +1849,170 @@ func TestApproveGitHubActionsWorkflowRuns(t *testing.T) {
 				t.Fatalf("unexpected error: %v", err)
 			}
 
-			// Verify approval was attempted or not based on expectations
+			// Verify approval was attempted or not based on expectations.
+			// Negative cases use the fake client which records synchronously in
+			// the goroutine; positive cases only verify no error from the handler.
 			if tc.expectApprovalAttempt {
 				if len(tc.pendingRuns) > 0 {
-					// Give goroutines time to execute
-					// In production this is async, but we can check if attempts were made
-					// by checking if ApprovedWorkflowRuns was populated
-					// Note: Due to goroutines, we can't reliably check this in tests without more complex synchronization
-					// For now, we just verify no error occurred
 					t.Logf("Approval should be attempted for %d pending runs", len(tc.pendingRuns))
 				}
 			} else {
-				// For negative cases, verify the approval list is empty
 				// This only works because the fake client records approvals synchronously
 				if len(g.ApprovedWorkflowRuns) > 0 {
 					t.Errorf("Expected no approval attempts, but found %d approvals: %v", len(g.ApprovedWorkflowRuns), g.ApprovedWorkflowRuns)
+				}
+			}
+		})
+	}
+}
+
+func TestApproveWorkflowRunsFallback(t *testing.T) {
+	testCases := []struct {
+		name             string
+		pendingRuns      []github.WorkflowRun
+		approveErrors    map[string]error
+		rerunErrors      map[string]error
+		expectApproved   []string
+		expectReran      []string
+		expectNoApproved bool
+		expectNoReran    bool
+	}{
+		{
+			name: "successful approval - no rerun needed",
+			pendingRuns: []github.WorkflowRun{
+				{ID: 1, Name: "test-workflow", Status: "action_required"},
+			},
+			expectApproved: []string{"org/repo/1"},
+			expectNoReran:  true,
+		},
+		{
+			name: "404 from approve - already approved, no rerun",
+			pendingRuns: []github.WorkflowRun{
+				{ID: 1, Name: "test-workflow", Status: "action_required"},
+			},
+			approveErrors: map[string]error{
+				"org/repo/1": github.NewNotFound(),
+			},
+			expectNoApproved: true,
+			expectNoReran:    true,
+		},
+		{
+			name: "403 from approve - falls back to rerun",
+			pendingRuns: []github.WorkflowRun{
+				{ID: 1, Name: "test-workflow", Status: "action_required"},
+			},
+			approveErrors: map[string]error{
+				"org/repo/1": github.NewForbidden(),
+			},
+			expectNoApproved: true,
+			expectReran:      []string{"org/repo/1"},
+		},
+		{
+			name: "403 from approve and rerun also fails - logs error",
+			pendingRuns: []github.WorkflowRun{
+				{ID: 1, Name: "test-workflow", Status: "action_required"},
+			},
+			approveErrors: map[string]error{
+				"org/repo/1": github.NewForbidden(),
+			},
+			rerunErrors: map[string]error{
+				"org/repo/1": fmt.Errorf("rerun failed"),
+			},
+			expectNoApproved: true,
+			expectNoReran:    true,
+		},
+		{
+			name: "generic error from approve - no rerun attempted",
+			pendingRuns: []github.WorkflowRun{
+				{ID: 1, Name: "test-workflow", Status: "action_required"},
+			},
+			approveErrors: map[string]error{
+				"org/repo/1": fmt.Errorf("server error"),
+			},
+			expectNoApproved: true,
+			expectNoReran:    true,
+		},
+		{
+			name: "multiple runs with 403 - all fall back to rerun",
+			pendingRuns: []github.WorkflowRun{
+				{ID: 1, Name: "workflow-1", Status: "action_required"},
+				{ID: 2, Name: "workflow-2", Status: "action_required"},
+			},
+			approveErrors: map[string]error{
+				"org/repo/1": github.NewForbidden(),
+				"org/repo/2": github.NewForbidden(),
+			},
+			expectNoApproved: true,
+			expectReran:      []string{"org/repo/1", "org/repo/2"},
+		},
+		{
+			name: "mixed: one approve succeeds, one gets 403 and reruns",
+			pendingRuns: []github.WorkflowRun{
+				{ID: 1, Name: "workflow-1", Status: "action_required"},
+				{ID: 2, Name: "workflow-2", Status: "action_required"},
+			},
+			approveErrors: map[string]error{
+				"org/repo/2": github.NewForbidden(),
+			},
+			expectApproved: []string{"org/repo/1"},
+			expectReran:    []string{"org/repo/2"},
+		},
+		{
+			name:          "no pending runs - no-op",
+			pendingRuns:   []github.WorkflowRun{},
+			expectNoReran: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			org := "org"
+			repo := "repo"
+			branch := "pr-branch"
+			headSHA := "abc123"
+
+			g := &fakegithub.FakeClient{
+				PendingApprovalRuns:      map[string][]github.WorkflowRun{},
+				ApprovedWorkflowRuns:     []string{},
+				ApproveWorkflowRunErrors: tc.approveErrors,
+				ReranWorkflowRuns:        []string{},
+				ReranWorkflowRunErrors:   tc.rerunErrors,
+			}
+
+			if len(tc.pendingRuns) > 0 {
+				key := fmt.Sprintf("%s/%s/%s/%s", org, repo, branch, headSHA)
+				g.PendingApprovalRuns[key] = tc.pendingRuns
+			}
+
+			c := Client{
+				GitHubClient: g,
+				Logger:       logrus.WithField("plugin", PluginName),
+			}
+
+			wg := approveGitHubActionsWorkflowRuns(c, org, repo, branch, headSHA)
+			wg.Wait()
+
+			// Check approved runs
+			if tc.expectNoApproved {
+				if len(g.ApprovedWorkflowRuns) > 0 {
+					t.Errorf("Expected no approved runs, got %v", g.ApprovedWorkflowRuns)
+				}
+			}
+			if len(tc.expectApproved) > 0 {
+				if !reflect.DeepEqual(sets.New[string](g.ApprovedWorkflowRuns...), sets.New[string](tc.expectApproved...)) {
+					t.Errorf("Expected approved runs %v, got %v", tc.expectApproved, g.ApprovedWorkflowRuns)
+				}
+			}
+
+			// Check reran runs
+			if tc.expectNoReran {
+				if len(g.ReranWorkflowRuns) > 0 {
+					t.Errorf("Expected no reran runs, got %v", g.ReranWorkflowRuns)
+				}
+			}
+			if len(tc.expectReran) > 0 {
+				if !reflect.DeepEqual(sets.New[string](g.ReranWorkflowRuns...), sets.New[string](tc.expectReran...)) {
+					t.Errorf("Expected reran runs %v, got %v", tc.expectReran, g.ReranWorkflowRuns)
 				}
 			}
 		})
