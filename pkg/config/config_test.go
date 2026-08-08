@@ -8465,6 +8465,7 @@ status_error_link: https://github.com/kubernetes/test-infra/issues
 tide:
   context_options: {}
   max_goroutines: 20
+  max_query_concurrency: 25
   status_update_period: 1m0s
   sync_period: 1m0s
 `,
@@ -8551,6 +8552,7 @@ status_error_link: https://github.com/kubernetes/test-infra/issues
 tide:
   context_options: {}
   max_goroutines: 20
+  max_query_concurrency: 25
   merge_method:
     foo/bar: squash
   status_update_period: 1m0s
@@ -8630,6 +8632,7 @@ status_error_link: https://github.com/kubernetes/test-infra/issues
 tide:
   context_options: {}
   max_goroutines: 20
+  max_query_concurrency: 25
   queries:
   - labels:
     - approved
@@ -8726,6 +8729,7 @@ status_error_link: https://github.com/kubernetes/test-infra/issues
 tide:
   context_options: {}
   max_goroutines: 20
+  max_query_concurrency: 25
   status_update_period: 1m0s
   sync_period: 1m0s
 `,
