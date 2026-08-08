@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package transferissue
+package issuemanagement
 
 import (
 	"bytes"
@@ -36,51 +36,24 @@ import (
 
 const issuerNum = 1
 
-func Test_handleTransfer(t *testing.T) {
+func Test_handleTransferIssue(t *testing.T) {
 	ts := []struct {
-		name         string
-		event        github.GenericCommentEvent
-		expectError  bool
-		errorMessage string
-		comment      string
-		fcFunc       func(client *fakegithub.FakeClient)
-		tcFunc       func(client *testClient)
+		name    string
+		event   github.GenericCommentEvent
+		comment string
+		fcFunc  func(client *fakegithub.FakeClient)
+		tcFunc  func(client *testClient)
 	}{
 		{
-			name:  "is a pr",
-			event: github.GenericCommentEvent{IsPR: true},
+			name:  "Skips transfer when event is on a pull request",
+			event: github.GenericCommentEvent{IsPR: true, Body: "/transfer-issue test-repo"},
 		},
 		{
-			name:  "is not comment added",
-			event: github.GenericCommentEvent{Action: github.GenericCommentActionDeleted},
+			name:  "Skips transfer when comment action is not created",
+			event: github.GenericCommentEvent{Action: github.GenericCommentActionDeleted, Body: "/transfer-issue test-repo"},
 		},
 		{
-			name: "multiple matches",
-			event: github.GenericCommentEvent{
-				Action: github.GenericCommentActionCreated,
-				Body: `/transfer-issue kubectl
-/transfer test-infra`,
-				HTMLURL: fmt.Sprintf("https://github.com/kubernetes/fake/issues/%d", issuerNum),
-				Number:  issuerNum,
-				Repo:    github.Repo{Owner: github.User{Login: "org"}, Name: "repo"},
-				User:    github.User{Login: "user"},
-			},
-			comment: "single destination",
-		},
-		{
-			name: "no destination",
-			event: github.GenericCommentEvent{
-				Action:  github.GenericCommentActionCreated,
-				Body:    "/transfer",
-				HTMLURL: fmt.Sprintf("https://github.com/kubernetes/fake/issues/%d", issuerNum),
-				Number:  issuerNum,
-				Repo:    github.Repo{Owner: github.User{Login: "org"}, Name: "repo"},
-				User:    github.User{Login: "user"},
-			},
-			comment: "single destination",
-		},
-		{
-			name: "dest repo does not exist",
+			name: "Returns error comment when destination repo does not exist",
 			event: github.GenericCommentEvent{
 				Action:  github.GenericCommentActionCreated,
 				Body:    "/transfer-issue fake",
@@ -95,7 +68,7 @@ func Test_handleTransfer(t *testing.T) {
 			},
 		},
 		{
-			name: "not collaborator",
+			name: "Returns error comment when user is not an org member",
 			event: github.GenericCommentEvent{
 				Action:  github.GenericCommentActionCreated,
 				Body:    "/transfer-issue test-infra",
@@ -110,7 +83,7 @@ func Test_handleTransfer(t *testing.T) {
 			},
 		},
 		{
-			name: "trims whitespace from user input",
+			name: "Successfully transfers issue and trims whitespace from destination repo",
 			event: github.GenericCommentEvent{
 				Action: github.GenericCommentActionCreated,
 				Body:   "/transfer-issue test-infra\r",
@@ -127,7 +100,7 @@ func Test_handleTransfer(t *testing.T) {
 			},
 		},
 		{
-			name: "happy path",
+			name: "Successfully transfers issue to destination repo",
 			event: github.GenericCommentEvent{
 				Action: github.GenericCommentActionCreated,
 				Body: `This belongs elsewhere
@@ -158,17 +131,15 @@ Thanks!`,
 				tc.fcFunc(fc)
 			}
 			log := logrus.WithField("plugin", pluginName)
-			err := handleTransfer(c, log, tc.event)
+			destRepo, err := parseTransferCommand(c, tc.event)
 			if err != nil {
-				if !tc.expectError {
+				t.Fatalf("unexpected error from parseTransferCommand: %v", err)
+			}
+			if destRepo != "" {
+				err = handleTransferIssue(c, log, tc.event, destRepo)
+				if err != nil {
 					t.Fatalf("unexpected error: %v", err)
 				}
-				if m := err.Error(); !strings.Contains(m, tc.errorMessage) {
-					t.Fatalf("expected error to contain: %s got: %v", tc.errorMessage, m)
-				}
-			}
-			if err == nil && tc.expectError {
-				t.Fatalf("expected error but did not produce")
 			}
 			if len(tc.comment) != 0 {
 				if cm, ok := fc.IssueComments[tc.event.Number]; ok {
@@ -217,6 +188,18 @@ func (t *testClient) CreateComment(org, repo string, number int, comment string)
 
 func (t *testClient) IsMember(org, user string) (bool, error) {
 	return t.fc.IsMember(org, user)
+}
+
+func (t *testClient) GetIssue(org, repo string, number int) (*github.Issue, error) {
+	return t.fc.GetIssue(org, repo, number)
+}
+
+func (t *testClient) GetPullRequest(org, repo string, number int) (*github.PullRequest, error) {
+	return t.fc.GetPullRequest(org, repo, number)
+}
+
+func (t *testClient) UpdatePullRequest(org, repo string, number int, title, body *string, open *bool, branch *string, canModify *bool) error {
+	return t.fc.UpdatePullRequest(org, repo, number, title, body, open, branch, canModify)
 }
 
 func (t *testClient) MutateWithGitHubAppsSupport(ctx context.Context, m any, input githubv4.Input, vars map[string]any, org string) error {
