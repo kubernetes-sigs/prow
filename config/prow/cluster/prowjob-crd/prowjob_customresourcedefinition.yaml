@@ -76,47 +76,45 @@ spec:
           metadata:
             type: object
           spec:
-            description: |-
-              ProwJobSpec configures the details of the prow job.
-              Details include the podspec, code to clone, the cluster it runs
-              any child jobs, concurrency limitations, etc.
+            description: spec is the ProwJob spec
             properties:
               agent:
                 description: |-
-                  Agent determines which controller fulfills
+                  agent determines which controller fulfills
                   this specific ProwJobSpec and runs the job
                 type: string
               cluster:
                 description: |-
-                  Cluster is which Kubernetes cluster is used
+                  cluster is which Kubernetes cluster is used
                   to run the job, only applicable for that
                   specific agent
                 type: string
               context:
                 description: |-
-                  Context is the name of the status context used to
+                  context is the name of the status context used to
                   report back to GitHub
                 type: string
               decoration_config:
                 description: |-
-                  DecorationConfig holds configuration options for
+                  decoration_config holds configuration options for
                   decorating PodSpecs that users provide
                 properties:
                   blobless_fetch:
                     description: |-
-                      BloblessFetch tells Prow to avoid fetching objects when cloning using
+                      blobless_fetch tells Prow to avoid fetching objects when cloning using
                       the --filter=blob:none flag.
                     type: boolean
                   censor_secrets:
-                    description: CensorSecrets enables censoring output logs and artifacts.
+                    description: censor_secrets enables censoring output logs and
+                      artifacts.
                     type: boolean
                   censoring_options:
-                    description: CensoringOptions exposes options for censoring output
+                    description: censoring_options exposes options for censoring output
                       logs and artifacts.
                     properties:
                       censoring_buffer_size:
                         description: |-
-                          CensoringBufferSize is the size in bytes of the buffer allocated for every file
+                          censoring_buffer_size is the size in bytes of the buffer allocated for every file
                           being censored. We want to keep as little of the file in memory as possible in
                           order for censoring to be reasonably performant in space. However, to guarantee
                           that we censor every instance of every secret, our buffer size must be at least
@@ -127,13 +125,13 @@ spec:
                         type: integer
                       censoring_concurrency:
                         description: |-
-                          CensoringConcurrency is the maximum number of goroutines that should be censoring
+                          censoring_concurrency is the maximum number of goroutines that should be censoring
                           artifacts and logs at any time. If unset, defaults to 10.
                         format: int64
                         type: integer
                       exclude_directories:
                         description: |-
-                          ExcludeDirectories are directories which should not have their content censored. If
+                          exclude_directories are directories which should not have their content censored. If
                           present, content in these directories will not be censored even if the directory also
                           matches a glob in IncludeDirectories. Entries in this list are relative to $ARTIFACTS,
                           and are parsed with the go-zglob library, allowing for globbed matches.
@@ -142,7 +140,7 @@ spec:
                         type: array
                       include_directories:
                         description: |-
-                          IncludeDirectories are directories which should have their content censored. If
+                          include_directories are directories which should have their content censored. If
                           present, only content in these directories will be censored. Entries in this list
                           are relative to $ARTIFACTS and are parsed with the go-zglob library, allowing for
                           globbed matches.
@@ -151,14 +149,14 @@ spec:
                         type: array
                       minimum_secret_length:
                         description: |-
-                          MinimumSecretLength is the minimum length a secret must have to be censored.
+                          minimum_secret_length is the minimum length a secret must have to be censored.
                           Secrets shorter than this length will not be censored. If unset, defaults to 0
                           (all secrets are censored regardless of length).
                         type: integer
                     type: object
                   cookiefile_secret:
                     description: |-
-                      CookieFileSecret is the name of a kubernetes secret that contains
+                      cookiefile_secret is the name of a kubernetes secret that contains
                       a git http.cookiefile, which should be used during the cloning process.
                     type: string
                   default_memory_request:
@@ -166,7 +164,7 @@ spec:
                     - type: integer
                     - type: string
                     description: |-
-                      DefaultMemoryRequest is the default requested memory on a test container.
+                      default_memory_request is the default requested memory on a test container.
                       If SetLimitEqualsMemoryRequest is also true then the Limit will also be
                       set the same as this request. Could be overridden by memory request
                       defined explicitly on prowjob.
@@ -174,12 +172,12 @@ spec:
                     x-kubernetes-int-or-string: true
                   default_service_account_name:
                     description: |-
-                      DefaultServiceAccountName is the name of the Kubernetes service account
+                      default_service_account_name is the name of the Kubernetes service account
                       that should be used by the pod if one is not specified in the podspec.
                     type: string
                   fs_group:
                     description: |-
-                      FsGroup defines special supplemental group ID used in all containers in a Pod.
+                      fs_group defines special supplemental group ID used in all containers in a Pod.
                       This allows to change the ownership of particular volumes by kubelet.
                       This field will not override the existing ProwJob's PodSecurityContext.
                       Equivalent to PodSecurityContext's FsGroup
@@ -187,19 +185,19 @@ spec:
                     type: integer
                   gcs_configuration:
                     description: |-
-                      GCSConfiguration holds options for pushing logs and
+                      gcs_configuration holds options for pushing logs and
                       artifacts to GCS from a job.
                     properties:
                       bucket:
                         description: |-
-                          Bucket is the bucket to upload to, it can be:
+                          bucket is the bucket to upload to, it can be:
                           * a GCS bucket: with gs:// prefix
                           * a S3 bucket: with s3:// prefix
                           * a GCS bucket: without a prefix (deprecated, it's discouraged to use Bucket without prefix please add the gs:// prefix)
                         type: string
                       compress_file_types:
                         description: |-
-                          CompressFileTypes specify file types that should be gzipped prior to upload.
+                          compress_file_types specify file types that should be gzipped prior to upload.
                           Matching files will be compressed prior to upload, and the content-encoding on these files will be set to gzip.
                           GCS will transcode these gzipped files transparently when viewing. See: https://cloud.google.com/storage/docs/transcoding
                           Example: "txt", "json"
@@ -209,115 +207,116 @@ spec:
                         type: array
                       default_org:
                         description: |-
-                          DefaultOrg is omitted from GCS paths when using the
+                          default_org is omitted from GCS paths when using the
                           legacy or simple strategy
                         type: string
                       default_repo:
                         description: |-
-                          DefaultRepo is omitted from GCS paths when using the
+                          default_repo is omitted from GCS paths when using the
                           legacy or simple strategy
                         type: string
                       job_url_prefix:
                         description: |-
-                          JobURLPrefix holds the baseURL under which the jobs output can be viewed.
+                          job_url_prefix holds the baseURL under which the jobs output can be viewed.
                           If unset, this will be derived based on org/repo from the job_url_prefix_config.
                         type: string
                       local_output_dir:
                         description: |-
-                          LocalOutputDir specifies a directory where files should be copied INSTEAD of uploading to blob storage.
+                          local_output_dir specifies a directory where files should be copied INSTEAD of uploading to blob storage.
                           This option is useful for testing jobs that use the pod-utilities without actually uploading.
                         type: string
                       mediaTypes:
                         additionalProperties:
                           type: string
                         description: |-
-                          MediaTypes holds additional extension media types to add to Go's
+                          mediaTypes holds additional extension media types to add to Go's
                           builtin's and the local system's defaults.  This maps extensions
                           to media types, for example: MediaTypes["log"] = "text/plain"
                         type: object
                       path_prefix:
                         description: |-
-                          PathPrefix is an optional path that follows the
+                          path_prefix is an optional path that follows the
                           bucket name and comes before any structure
                         type: string
                       path_strategy:
                         description: |-
-                          PathStrategy dictates how the org and repo are used
+                          path_strategy dictates how the org and repo are used
                           when calculating the full path to an artifact in GCS
                         type: string
                     type: object
                   gcs_credentials_secret:
                     description: |-
-                      GCSCredentialsSecret is the name of the Kubernetes secret
+                      gcs_credentials_secret is the name of the Kubernetes secret
                       that holds GCS push credentials.
                     type: string
                   github_api_endpoints:
-                    description: GitHubAPIEndpoints are the endpoints of GitHub APIs.
+                    description: github_api_endpoints are the endpoints of GitHub
+                      APIs.
                     items:
                       type: string
                     type: array
                   github_app_id:
                     description: |-
-                      GitHubAppID is the ID of GitHub App, which is going to be used for fetching a private
+                      github_app_id is the ID of GitHub App, which is going to be used for fetching a private
                       repository.
                     type: string
                   github_app_private_key_secret:
                     description: |-
-                      GitHubAppPrivateKeySecret is a Kubernetes secret that contains the GitHub App private key,
+                      github_app_private_key_secret is a Kubernetes secret that contains the GitHub App private key,
                       which is going to be used for fetching a private repository.
                     properties:
                       key:
                         description: |-
-                          Key is the key of the corresponding kubernetes secret that
+                          key is the key of the corresponding kubernetes secret that
                           holds the value of the GitHub App private key.
                         type: string
                       name:
-                        description: Name is the name of a kubernetes secret.
+                        description: name is the name of a kubernetes secret.
                         type: string
                     type: object
                   grace_period:
                     description: |-
-                      GracePeriod is how long the pod utilities will wait
+                      grace_period is how long the pod utilities will wait
                       after sending SIGINT to send SIGKILL when aborting
                       a job. Only applicable if decorating the PodSpec.
                     type: string
                   oauth_token_secret:
                     description: |-
-                      OauthTokenSecret is a Kubernetes secret that contains the OAuth token,
+                      oauth_token_secret is a Kubernetes secret that contains the OAuth token,
                       which is going to be used for fetching a private repository.
                     properties:
                       key:
                         description: |-
-                          Key is the key of the corresponding kubernetes secret that
+                          key is the key of the corresponding kubernetes secret that
                           holds the value of the OAuth token.
                         type: string
                       name:
-                        description: Name is the name of a kubernetes secret.
+                        description: name is the name of a kubernetes secret.
                         type: string
                     type: object
                   pod_pending_timeout:
                     description: |-
-                      PodPendingTimeout defines how long the controller will wait to perform garbage
+                      pod_pending_timeout defines how long the controller will wait to perform garbage
                       collection on pending pods. Specific for OrgRepo or Cluster. If not set, it has a fallback inside plank field.
                     type: string
                   pod_running_timeout:
                     description: |-
-                      PodRunningTimeout defines how long the controller will wait to abort a prowjob pod
+                      pod_running_timeout defines how long the controller will wait to abort a prowjob pod
                       stuck in running state. Specific for OrgRepo or Cluster. If not set, it has a fallback inside plank field.
                     type: string
                   pod_unscheduled_timeout:
                     description: |-
-                      PodUnscheduledTimeout defines how long the controller will wait to abort a prowjob
+                      pod_unscheduled_timeout defines how long the controller will wait to abort a prowjob
                       stuck in an unscheduled state. Specific for OrgRepo or Cluster. If not set, it has a fallback inside plank field.
                     type: string
                   resources:
                     description: |-
-                      Resources holds resource requests and limits for utility
+                      resources holds resource requests and limits for utility
                       containers used to decorate a PodSpec.
                     properties:
                       clonerefs:
-                        description: ResourceRequirements describes the compute resource
-                          requirements.
+                        description: clonerefs is the resource requirements for the
+                          clonerefs utility
                         properties:
                           claims:
                             description: |-
@@ -374,8 +373,8 @@ spec:
                             type: object
                         type: object
                       initupload:
-                        description: ResourceRequirements describes the compute resource
-                          requirements.
+                        description: initupload is the resource requirements for the
+                          initupload utility
                         properties:
                           claims:
                             description: |-
@@ -432,8 +431,8 @@ spec:
                             type: object
                         type: object
                       place_entrypoint:
-                        description: ResourceRequirements describes the compute resource
-                          requirements.
+                        description: place_entrypoint is the resource requirements
+                          for the place_entrypoint utility
                         properties:
                           claims:
                             description: |-
@@ -490,8 +489,8 @@ spec:
                             type: object
                         type: object
                       sidecar:
-                        description: ResourceRequirements describes the compute resource
-                          requirements.
+                        description: sidecar is the resource requirements for the
+                          sidecar utility
                         properties:
                           claims:
                             description: |-
@@ -550,33 +549,33 @@ spec:
                     type: object
                   run_as_group:
                     description: |-
-                      RunAsGroup defines GID of process in all containers running in a Pod.
+                      run_as_group defines GID of process in all containers running in a Pod.
                       This field will not override the existing ProwJob's PodSecurityContext.
                       Equivalent to PodSecurityContext's RunAsGroup
                     format: int64
                     type: integer
                   run_as_user:
                     description: |-
-                      RunAsUser defines UID for process in all containers running in a Pod.
+                      run_as_user defines UID for process in all containers running in a Pod.
                       This field will not override the existing ProwJob's PodSecurityContext.
                       Equivalent to PodSecurityContext's RunAsUser
                     format: int64
                     type: integer
                   s3_credentials_secret:
                     description: |-
-                      S3CredentialsSecret is the name of the Kubernetes secret
+                      s3_credentials_secret is the name of the Kubernetes secret
                       that holds blob storage push credentials.
                     type: string
                   scheduling_options:
                     description: |-
-                      SchedulingOptions define the configuration for fields required for pod scheduling.
+                      scheduling_options define the configuration for fields required for pod scheduling.
                       These fields directly modify the way how pods can be scheduled giving the operator
                       ability to run workloads on designated node.
                       If these fields are already present in the pod definition, they will be ignored.
                     properties:
                       affinity:
                         description: |-
-                          Affinity is the Pod Affinity configuration applied to the ProwJob's pod.
+                          affinity is the Pod Affinity configuration applied to the ProwJob's pod.
                           Equivalent to PodSpec's Affinity
                         properties:
                           nodeAffinity:
@@ -1502,7 +1501,7 @@ spec:
                         type: object
                       tolerations:
                         description: |-
-                          Tolerations define list of tolerable taints applied to the ProwJob's pod.
+                          tolerations define list of tolerable taints applied to the ProwJob's pod.
                           Equivalent to PodSpec's Tolerations
                         items:
                           description: |-
@@ -1543,17 +1542,17 @@ spec:
                         type: array
                     type: object
                   set_limit_equals_memory_request:
-                    description: SetLimitEqualsMemoryRequest sets memory limit equal
-                      to request.
+                    description: set_limit_equals_memory_request sets memory limit
+                      equal to request.
                     type: boolean
                   skip_cloning:
                     description: |-
-                      SkipCloning determines if we should clone source code in the
+                      skip_cloning determines if we should clone source code in the
                       initcontainers for jobs that specify refs
                     type: boolean
                   sparse_checkout_files:
                     description: |-
-                      SparseCheckoutFiles limits the working tree to only the listed paths.
+                      sparse_checkout_files limits the working tree to only the listed paths.
                       Accepts the same patterns as git sparse-checkout set (file names,
                       directory names, gitignore-style globs). When set, clonerefs performs a
                       sparse checkout instead of a full clone. Applied to the primary ref for
@@ -1563,7 +1562,7 @@ spec:
                     type: array
                   ssh_host_fingerprints:
                     description: |-
-                      SSHHostFingerprints are the fingerprints of known SSH hosts
+                      ssh_host_fingerprints are the fingerprints of known SSH hosts
                       that the cloning process can trust.
                       Create with ssh-keyscan [-t rsa] host
                     items:
@@ -1571,36 +1570,36 @@ spec:
                     type: array
                   ssh_key_secrets:
                     description: |-
-                      SSHKeySecrets are the names of Kubernetes secrets that contain
+                      ssh_key_secrets are the names of Kubernetes secrets that contain
                       SSK keys which should be used during the cloning process.
                     items:
                       type: string
                     type: array
                   timeout:
                     description: |-
-                      Timeout is how long the pod utilities will wait
+                      timeout is how long the pod utilities will wait
                       before aborting a job with SIGINT.
                     type: string
                   upload_ignores_interrupts:
                     description: |-
-                      UploadIgnoresInterrupts causes sidecar to ignore interrupts for the upload process in
+                      upload_ignores_interrupts causes sidecar to ignore interrupts for the upload process in
                       hope that the test process exits cleanly before starting an upload.
                     type: boolean
                   utility_images:
                     description: |-
-                      UtilityImages holds pull specs for utility container
+                      utility_images holds pull specs for utility container
                       images used to decorate a PodSpec.
                     properties:
                       clonerefs:
-                        description: CloneRefs is the pull spec used for the clonerefs
+                        description: clonerefs is the pull spec used for the clonerefs
                           utility
                         type: string
                       entrypoint:
-                        description: Entrypoint is the pull spec used for the entrypoint
+                        description: entrypoint is the pull spec used for the entrypoint
                           utility
                         type: string
                       initupload:
-                        description: InitUpload is the pull spec used for the initupload
+                        description: initupload is the pull spec used for the initupload
                           utility
                         type: string
                       sidecar:
@@ -1611,21 +1610,21 @@ spec:
                 type: object
               error_on_eviction:
                 description: |-
-                  ErrorOnEviction indicates that the ProwJob should be completed and given
+                  error_on_eviction indicates that the ProwJob should be completed and given
                   the ErrorState status if the pod that is executing the job is evicted.
                   If this field is unspecified or false, a new pod will be created to replace
                   the evicted one.
                 type: boolean
               extra_refs:
                 description: |-
-                  ExtraRefs are auxiliary repositories that
+                  extra_refs are auxiliary repositories that
                   need to be cloned, determined from config
                 items:
                   description: Refs describes how the repo was constructed.
                   properties:
                     auxiliary:
                       description: |-
-                        Auxiliary indicates that the repository really only provides
+                        auxiliary indicates that the repository really only provides
                         auxiliary files for the job and is not the main repository that is
                         being tested.
                         This is relevant when determining which version to record in a
@@ -1636,76 +1635,84 @@ spec:
                         for which the job is defined.
                       type: boolean
                     base_link:
-                      description: BaseLink is a link to the commit identified by
+                      description: base_link is a link to the commit identified by
                         BaseSHA.
                       type: string
                     base_ref:
+                      description: base_ref is the base git ref of the pull request
                       type: string
                     base_sha:
+                      description: base_sha is the base git SHA of the pull request
                       type: string
                     blobless_fetch:
                       description: |-
-                        BloblessFetch tells prow to avoid fetching objects when cloning
+                        blobless_fetch tells prow to avoid fetching objects when cloning
                         using the --filter=blob:none flag. If unspecified, defaults to
                         DecorationConfig.BloblessFetch.
                       type: boolean
                     clone_depth:
                       description: |-
-                        CloneDepth is the depth of the clone that will be used.
+                        clone_depth is the depth of the clone that will be used.
                         A depth of zero will do a full clone.
                       type: integer
                     clone_uri:
                       description: |-
-                        CloneURI is the URI that is used to clone the
+                        clone_uri is the URI that is used to clone the
                         repository. If unset, will default to
                         `https://github.com/org/repo.git`.
                       type: string
                     org:
-                      description: Org is something like kubernetes or k8s.io
+                      description: org is something like kubernetes or k8s.io
                       type: string
                     path_alias:
                       description: |-
-                        PathAlias is the location under <root-dir>/src
+                        path_alias is the location under <root-dir>/src
                         where this repository is cloned. If this is not
                         set, <root-dir>/src/github.com/org/repo will be
                         used as the default.
                       type: string
                     pulls:
+                      description: pulls is the list of pull requests associated with
+                        the ref
                       items:
                         description: Pull describes a pull request at a particular
                           point in time.
                         properties:
                           author:
+                            description: author is the author of the pull request
                             type: string
                           author_link:
-                            description: AuthorLink links to the author of the pull
+                            description: author_link links to the author of the pull
                               request.
                             type: string
                           commit_link:
-                            description: CommitLink links to the commit identified
+                            description: commit_link links to the commit identified
                               by the SHA.
                             type: string
                           head_ref:
                             description: |-
-                              HeadRef is the git ref (branch name) of the proposed change.  This can be more human-readable than just
+                              head_ref is the git ref (branch name) of the proposed change.  This can be more human-readable than just
                               a PR #, and some tools want this metadata to help associate the work with a pull request (e.g. some code
                               scanning services, or chromatic.com).
                             type: string
                           link:
-                            description: Link links to the pull request itself.
+                            description: link links to the pull request itself.
                             type: string
                           number:
+                            description: number is the pull request number
                             type: integer
                           ref:
                             description: |-
-                              Ref is git ref can be checked out for a change
+                              ref is git ref can be checked out for a change
                               for example,
                               github: pull/123/head
                               gerrit: refs/changes/00/123/1
                             type: string
                           sha:
+                            description: sha is the SHA of the pull request head
                             type: string
                           title:
+                            description: title is the title of the pull request
                             type: string
                         required:
                         - author
@@ -1714,25 +1721,25 @@ spec:
                         type: object
                       type: array
                     repo:
-                      description: Repo is something like test-infra
+                      description: repo is something like test-infra
                       type: string
                     repo_link:
-                      description: RepoLink links to the source for Repo.
+                      description: repo_link links to the source for Repo.
                       type: string
                     skip_fetch_head:
                       description: |-
-                        SkipFetchHead tells prow to avoid a git fetch <remote> call.
+                        skip_fetch_head tells prow to avoid a git fetch <remote> call.
                         Multiheaded repos may need to not make this call.
                         The git fetch <remote> <BaseRef> call occurs regardless.
                       type: boolean
                     skip_submodules:
                       description: |-
-                        SkipSubmodules determines if submodules should be
+                        skip_submodules determines if submodules should be
                         cloned when the job is run. Defaults to false.
                       type: boolean
                     sparse_checkout_files:
                       description: |-
-                        SparseCheckoutFiles limits the working tree to only the listed paths.
+                        sparse_checkout_files limits the working tree to only the listed paths.
                         Accepts the same patterns as git sparse-checkout set: file names,
                         directory names, and gitignore-style globs (e.g. "Makefile",
                         "pkg/operator", "config/**/*.yaml").
@@ -1746,7 +1753,7 @@ spec:
                       type: array
                     workdir:
                       description: |-
-                        WorkDir defines if the location of the cloned
+                        workdir defines if the location of the cloned
                         repository will be used as the default working
                         directory.
                       type: boolean
@@ -1757,24 +1764,28 @@ spec:
                 type: array
               hidden:
                 description: |-
-                  Hidden specifies if the Job is considered hidden.
+                  hidden specifies if the Job is considered hidden.
                   Hidden jobs are only shown by deck instances that have the
                   `--hiddenOnly=true` or `--show-hidden=true` flag set.
                   Presubmits and Postsubmits can also be set to hidden by
                   adding their repository in Decks `hidden_repo` setting.
                 type: boolean
               jenkins_spec:
-                description: JenkinsSpec holds configuration specific to Jenkins jobs
+                description: jenkins_spec holds configuration specific to Jenkins
+                  jobs
                 properties:
                   github_branch_source_job:
+                    description: |-
+                      github_branch_source_job indicates if the job is generated by the
+                      https://go.cloudbees.com/docs/plugins/github-branch-source/#github-branch-source plugin
                     type: boolean
                 type: object
               job:
-                description: Job is the name of the job
+                description: job is the name of the job
                 type: string
               job_queue_name:
                 description: |-
-                  JobQueueName is an optional field with name of a queue defining
+                  job_queue_name is an optional field with name of a queue defining
                   max concurrency. When several jobs from the same queue try to run
                   at the same time, the number of them that is actually started is
                   limited by JobQueueCapacities (part of Plank's config). If
@@ -1784,25 +1795,25 @@ spec:
                 type: string
               max_concurrency:
                 description: |-
-                  MaxConcurrency restricts the total number of instances
+                  max_concurrency restricts the total number of instances
                   of this job that can run in parallel at once. This is
                   a separate mechanism to JobQueueName and the lowest max
                   concurrency is selected from these two.
                 minimum: 0
                 type: integer
               namespace:
-                description: Namespace defines where to create pods/resources.
+                description: namespace defines where to create pods/resources.
                 type: string
               pipeline_run_spec:
                 description: |-
-                  PipelineRunSpec provides the basis for running the test as
+                  pipeline_run_spec provides the basis for running the test as
                   a pipeline-crd resource
                   https://github.com/tektoncd/pipeline
                 type: object
                 x-kubernetes-preserve-unknown-fields: true
               pod_spec:
                 description: |-
-                  PodSpec provides the basis for running the test under
+                  pod_spec provides the basis for running the test under
                   a Kubernetes agent
                 properties:
                   activeDeadlineSeconds:
@@ -9717,17 +9728,15 @@ spec:
                 type: object
               prowjob_defaults:
                 description: |-
-                  ProwJobDefault holds configuration options provided as defaults
+                  prowjob_defaults holds configuration options provided as defaults
                   in the Prow config
                 properties:
                   resultstore_config:
-                    description: |-
-                      ResultStoreConfig specifies parameters for uploading results to
-                      the ResultStore service.
+                    description: resultstore_config specifies parameters for ResultStore
                     properties:
                       project_id:
                         description: |-
-                          ProjectID specifies the ResultStore InvocationAttributes.ProjectID, used
+                          project_id specifies the ResultStore InvocationAttributes.ProjectID, used
                           for various quota and GUI access control purposes.
                           In practice, it is generally the same as the Google Cloud Project ID or
                           number of the job's GCS storage bucket.
@@ -9735,16 +9744,17 @@ spec:
                         type: string
                     type: object
                   tenant_id:
+                    description: tenant_id is the tenant identifier
                     type: string
                 type: object
               refs:
                 description: |-
-                  Refs is the code under test, determined at
+                  refs is the code under test, determined at
                   runtime by Prow itself
                 properties:
                   auxiliary:
                     description: |-
-                      Auxiliary indicates that the repository really only provides
+                      auxiliary indicates that the repository really only provides
                       auxiliary files for the job and is not the main repository that is
                       being tested.
                       This is relevant when determining which version to record in a
@@ -9755,75 +9765,83 @@ spec:
                       for which the job is defined.
                     type: boolean
                   base_link:
-                    description: BaseLink is a link to the commit identified by BaseSHA.
+                    description: base_link is a link to the commit identified by BaseSHA.
                     type: string
                   base_ref:
+                    description: base_ref is the base git ref of the pull request
                     type: string
                   base_sha:
+                    description: base_sha is the base git SHA of the pull request
                     type: string
                   blobless_fetch:
                     description: |-
-                      BloblessFetch tells prow to avoid fetching objects when cloning
+                      blobless_fetch tells prow to avoid fetching objects when cloning
                       using the --filter=blob:none flag. If unspecified, defaults to
                       DecorationConfig.BloblessFetch.
                     type: boolean
                   clone_depth:
                     description: |-
-                      CloneDepth is the depth of the clone that will be used.
+                      clone_depth is the depth of the clone that will be used.
                       A depth of zero will do a full clone.
                     type: integer
                   clone_uri:
                     description: |-
-                      CloneURI is the URI that is used to clone the
+                      clone_uri is the URI that is used to clone the
                       repository. If unset, will default to
                       `https://github.com/org/repo.git`.
                     type: string
                   org:
-                    description: Org is something like kubernetes or k8s.io
+                    description: org is something like kubernetes or k8s.io
                     type: string
                   path_alias:
                     description: |-
-                      PathAlias is the location under <root-dir>/src
+                      path_alias is the location under <root-dir>/src
                       where this repository is cloned. If this is not
                       set, <root-dir>/src/github.com/org/repo will be
                       used as the default.
                     type: string
                   pulls:
+                    description: pulls is the list of pull requests associated with
+                      the ref
                     items:
                       description: Pull describes a pull request at a particular point
                         in time.
                       properties:
                         author:
+                          description: author is the author of the pull request
                           type: string
                         author_link:
-                          description: AuthorLink links to the author of the pull
+                          description: author_link links to the author of the pull
                             request.
                           type: string
                         commit_link:
-                          description: CommitLink links to the commit identified by
-                            the SHA.
+                          description: commit_link links to the commit identified
+                            by the SHA.
                           type: string
                         head_ref:
                           description: |-
-                            HeadRef is the git ref (branch name) of the proposed change.  This can be more human-readable than just
+                            head_ref is the git ref (branch name) of the proposed change.  This can be more human-readable than just
                             a PR #, and some tools want this metadata to help associate the work with a pull request (e.g. some code
                             scanning services, or chromatic.com).
                           type: string
                         link:
-                          description: Link links to the pull request itself.
+                          description: link links to the pull request itself.
                           type: string
                         number:
+                          description: number is the pull request number
                           type: integer
                         ref:
                           description: |-
-                            Ref is git ref can be checked out for a change
+                            ref is git ref can be checked out for a change
                             for example,
                             github: pull/123/head
                             gerrit: refs/changes/00/123/1
                           type: string
                         sha:
+                          description: sha is the SHA of the pull request head
                           type: string
                         title:
+                          description: title is the title of the pull request
                           type: string
                       required:
                       - author
@@ -9832,25 +9850,25 @@ spec:
                       type: object
                     type: array
                   repo:
-                    description: Repo is something like test-infra
+                    description: repo is something like test-infra
                     type: string
                   repo_link:
-                    description: RepoLink links to the source for Repo.
+                    description: repo_link links to the source for Repo.
                     type: string
                   skip_fetch_head:
                     description: |-
-                      SkipFetchHead tells prow to avoid a git fetch <remote> call.
+                      skip_fetch_head tells prow to avoid a git fetch <remote> call.
                       Multiheaded repos may need to not make this call.
                       The git fetch <remote> <BaseRef> call occurs regardless.
                     type: boolean
                   skip_submodules:
                     description: |-
-                      SkipSubmodules determines if submodules should be
+                      skip_submodules determines if submodules should be
                       cloned when the job is run. Defaults to false.
                     type: boolean
                   sparse_checkout_files:
                     description: |-
-                      SparseCheckoutFiles limits the working tree to only the listed paths.
+                      sparse_checkout_files limits the working tree to only the listed paths.
                       Accepts the same patterns as git sparse-checkout set: file names,
                       directory names, and gitignore-style globs (e.g. "Makefile",
                       "pkg/operator", "config/**/*.yaml").
@@ -9864,7 +9882,7 @@ spec:
                     type: array
                   workdir:
                     description: |-
-                      WorkDir defines if the location of the cloned
+                      workdir defines if the location of the cloned
                       repository will be used as the default working
                       directory.
                     type: boolean
@@ -9874,26 +9892,31 @@ spec:
                 type: object
               report:
                 description: |-
-                  Report determines if the result of this job should
+                  report determines if the result of this job should
                   be reported (e.g. status on GitHub, message in Slack, etc.)
                 type: boolean
               reporter_config:
-                description: ReporterConfig holds reporter-specific configuration
+                description: reporter_config holds reporter-specific configuration
                 properties:
                   slack:
+                    description: slack is the Slack reporter configuration
                     properties:
                       channel:
+                        description: channel is the Slack channel
                         type: string
                       host:
+                        description: host is the Slack host
                         type: string
                       job_states_to_report:
+                        description: job_states_to_report lists the job states to
+                          report
                         items:
                           description: ProwJobState specifies whether the job is running
                           type: string
                         type: array
                       report:
                         description: |-
-                          Report is derived from JobStatesToReport, it's used for differentiating
+                          report is derived from JobStatesToReport, it's used for differentiating
                           nil from empty slice, as yaml roundtrip by design can't tell the
                           difference when omitempty is supplied.
                           See https://github.com/kubernetes/test-infra/pull/24168 for details
@@ -9904,26 +9927,27 @@ spec:
                           - `JobStatesToReport:` in global config
                         type: boolean
                       report_template:
+                        description: report_template is the template for the report
                         type: string
                     type: object
                 type: object
               rerun_auth_config:
-                description: RerunAuthConfig holds information about which users can
-                  rerun the job
+                description: rerun_auth_config holds information about which users
+                  can rerun the job
                 properties:
                   allow_anyone:
-                    description: If AllowAnyone is set to true, any user can rerun
-                      the job
+                    description: allow_anyone if set to true, any user can rerun the
+                      job
                     type: boolean
                   github_orgs:
-                    description: GitHubOrgs contains names of GitHub organizations
+                    description: github_orgs contains names of GitHub organizations
                       whose members can rerun the job
                     items:
                       type: string
                     type: array
                   github_team_ids:
                     description: |-
-                      GitHubTeams contains IDs of GitHub teams of users who can rerun the job
+                      github_team_ids contains IDs of GitHub teams of users who can rerun the job
                       If you know the name of a team and the org it belongs to,
                       you can look up its ID using this command, where the team slug is the hyphenated name:
                       curl -H "Authorization: token <token>" "https://api.github.com/orgs/<org-name>/teams/<team slug>"
@@ -9933,13 +9957,15 @@ spec:
                       type: integer
                     type: array
                   github_team_slugs:
-                    description: GitHubTeamSlugs contains slugs and orgs of teams
+                    description: github_team_slugs contains slugs and orgs of teams
                       of users who can rerun the job
                     items:
                       properties:
                         org:
+                          description: org is the GitHub organization
                           type: string
                         slug:
+                          description: slug is the team slug
                           type: string
                       required:
                       - org
@@ -9947,7 +9973,7 @@ spec:
                       type: object
                     type: array
                   github_users:
-                    description: GitHubUsers contains names of individual users who
+                    description: github_users contains names of individual users who
                       can rerun the job
                     items:
                       type: string
@@ -9955,12 +9981,12 @@ spec:
                 type: object
               rerun_command:
                 description: |-
-                  RerunCommand is the command a user would write to
+                  rerun_command is the command a user would write to
                   trigger this job on their pull request
                 type: string
               tekton_pipeline_run_spec:
                 description: |-
-                  TektonPipelineRunSpec provides the basis for running the test as
+                  tekton_pipeline_run_spec provides the basis for running the test as
                   a pipeline-crd resource
                   https://github.com/tektoncd/pipeline
                 properties:
@@ -9970,7 +9996,7 @@ spec:
                 type: object
               type:
                 description: |-
-                  Type is the type of job and informs how
+                  type is the type of job and informs how
                   the jobs is triggered
                 enum:
                 - presubmit
@@ -9993,12 +10019,11 @@ spec:
                     - "error"
             - required:
               - completionTime
-            description: ProwJobStatus provides runtime metadata, such as when it
-              finished, whether it is running, etc.
+            description: status is the ProwJob status
             properties:
               build_id:
                 description: |-
-                  BuildID is the build identifier vended either by tot
+                  build_id is the build identifier vended either by tot
                   or the snowflake library for this job and used as an
                   identifier for grouping artifacts in GCS for views in
                   TestGrid and Gubernator. Idenitifiers vended by tot
@@ -10006,33 +10031,35 @@ spec:
                   by the snowflake library are not.
                 type: string
               completionTime:
-                description: CompletionTime is the timestamp for when the job goes
+                description: completionTime is the timestamp for when the job goes
                   to a final state
                 format: date-time
                 type: string
               description:
+                description: description is a human-readable description of the job
+                  status
                 type: string
               jenkins_build_id:
                 description: |-
-                  JenkinsBuildID applies only to ProwJobs fulfilled
+                  jenkins_build_id applies only to ProwJobs fulfilled
                   by the jenkins-operator. This field is the build
                   identifier that Jenkins gave to the build for this
                   ProwJob.
                 type: string
               pendingTime:
-                description: PendingTime is the timestamp for when the job moved from
+                description: pendingTime is the timestamp for when the job moved from
                   triggered to pending
                 format: date-time
                 type: string
               pod_name:
                 description: |-
-                  PodName applies only to ProwJobs fulfilled by
+                  pod_name applies only to ProwJobs fulfilled by
                   plank. This field should always be the same as
                   the ProwJob.ObjectMeta.Name field.
                 type: string
               pod_revival_count:
                 description: |-
-                  PodRevivalCount applies only to ProwJobs fulfilled by
+                  pod_revival_count applies only to ProwJobs fulfilled by
                   plank. This field shows the amount of times the
                   Pod was recreated due to an unexpected stop.
                 type: integer
@@ -10041,15 +10068,15 @@ spec:
                   description: ProwJobState specifies whether the job is running
                   type: string
                 description: |-
-                  PrevReportStates stores the previous reported prowjob state per reporter
+                  prev_report_states stores the previous reported prowjob state per reporter
                   So crier won't make duplicated report attempt
                 type: object
               startTime:
-                description: StartTime is equal to the creation time of the ProwJob
+                description: startTime is equal to the creation time of the ProwJob
                 format: date-time
                 type: string
               state:
-                description: ProwJobState specifies whether the job is running
+                description: state is the current state of the prow job
                 enum:
                 - scheduling
                 - triggered
@@ -10060,6 +10087,7 @@ spec:
                 - error
                 type: string
               url:
+                description: url is the URL where the job results can be viewed
                 type: string
             required:
             - state

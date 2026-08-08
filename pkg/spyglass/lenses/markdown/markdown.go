@@ -48,9 +48,9 @@ type document struct {
 // Config returns the lens's configuration.
 func (lens Lens) Config() lenses.LensConfig {
 	return lenses.LensConfig{
-		Name:      "markdown",
-		Title:     "Summary",
-		Priority:  5,
+		Name:     "markdown",
+		Title:    "Summary",
+		Priority: 5,
 	}
 }
 
@@ -108,7 +108,7 @@ func (lens Lens) Body(artifacts []api.Artifact, resourceDir string, data string,
 			logrus.WithError(err).WithField("artifact_url", artifact.CanonicalLink()).Warn("failed to read content")
 			continue
 		}
-		
+
 		var buf bytes.Buffer
 		if err := md.Convert(content, &buf); err != nil {
 			logrus.WithError(err).WithField("artifact_url", artifact.CanonicalLink()).Warn("failed to convert markdown")

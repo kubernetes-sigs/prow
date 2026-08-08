@@ -3893,7 +3893,6 @@ func TestCollaboratorMethodsDryRun(t *testing.T) {
 	}
 }
 
-
 func TestGetPendingApprovalActionRuns(t *testing.T) {
 	const (
 		org     = "k8s"
