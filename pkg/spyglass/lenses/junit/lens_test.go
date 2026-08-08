@@ -1234,7 +1234,7 @@ func TestTemplate(t *testing.T) {
 				`Informing`,
 				`1/2 Failed.`,
 				`1/2 Passed.`,
-				`group-layout`,
+				`detail-layout`,
 				`fake_class: informing_fail`,
 				`hidden-tests`,
 			},
