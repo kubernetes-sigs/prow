@@ -2352,9 +2352,10 @@ func TestStatusControllerSearch(t *testing.T) {
 			},
 		},
 		{
-			name: "No apps auth: Query remains unsplit",
+			name: "No apps auth: Query still gets split by org for ISSUE_ADVANCED compatibility",
 			prs: map[string][]PullRequest{
-				"": {{Number: githubql.Int(1)}, {Number: githubql.Int(2)}},
+				"org-a": {{Number: githubql.Int(1)}},
+				"org-b": {{Number: githubql.Int(2)}},
 			},
 			usesAppsAuth: false,
 			expected: []CodeReviewCommon{
