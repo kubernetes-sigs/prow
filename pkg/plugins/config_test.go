@@ -1071,6 +1071,37 @@ orgs:
 	}
 }
 
+func TestTopLevelApproversAllowed(t *testing.T) {
+	testCases := []struct {
+		name     string
+		config   DeleteSpamIssue
+		expected bool
+	}{
+		{
+			name:     "unset defaults to true",
+			config:   DeleteSpamIssue{},
+			expected: true,
+		},
+		{
+			name:     "explicitly enabled",
+			config:   DeleteSpamIssue{AllowTopLevelApprovers: ptr.To(true)},
+			expected: true,
+		},
+		{
+			name:     "explicitly disabled",
+			config:   DeleteSpamIssue{AllowTopLevelApprovers: ptr.To(false)},
+			expected: false,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			if actual := tc.config.TopLevelApproversAllowed(); actual != tc.expected {
+				t.Errorf("expected: %t, got: %t", tc.expected, actual)
+			}
+		})
+	}
+}
+
 func TestBugzillaBugState_String(t *testing.T) {
 	testCases := []struct {
 		name     string
