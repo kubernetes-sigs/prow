@@ -332,6 +332,7 @@ type Repo struct {
 	DefaultBranch string `json:"default_branch"`
 	Archived      bool   `json:"archived"`
 	Private       bool   `json:"private"`
+	Visibility    string `json:"visibility"`
 	Description   string `json:"description"`
 	Homepage      string `json:"homepage"`
 	HasIssues     bool   `json:"has_issues"`
