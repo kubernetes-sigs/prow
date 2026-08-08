@@ -216,6 +216,7 @@ func HonorOkToTest(trigger plugins.Trigger) bool {
 func commentMatchesTrigger(text string, presubmits []config.Presubmit) bool {
 	if pjutil.RetestRe.MatchString(text) ||
 		pjutil.RetestRequiredRe.MatchString(text) ||
+		pjutil.TestRequiredRe.MatchString(text) ||
 		pjutil.OkToTestRe.MatchString(text) ||
 		pjutil.OkToTestCancelRe.MatchString(text) ||
 		pjutil.TestAllRe.MatchString(text) ||

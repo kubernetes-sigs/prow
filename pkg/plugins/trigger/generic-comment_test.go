@@ -596,6 +596,79 @@ func TestHandleGenericComment(t *testing.T) {
 			PruneHelp: true,
 		},
 		{
+			name:   "Test-Required triggers missing required job",
+			Author: "trusted-member",
+			Body:   "/test-required",
+			State:  "open",
+			IsPR:   true,
+			Presubmits: map[string][]config.Presubmit{
+				"org/repo": {
+					{
+						JobBase: config.JobBase{
+							Name: "jab",
+						},
+						AlwaysRun: true,
+						Reporter: config.Reporter{
+							Context: "pull-jab",
+						},
+						Trigger:      `(?m)^/test (?:.*? )?jab(?: .*?)?$`,
+						RerunCommand: `/test jab`,
+					},
+				},
+			},
+			ShouldBuild:   true,
+			StartsExactly: "pull-jab",
+			PruneHelp:     true,
+		},
+		{
+			name:   "Test-Required doesn't trigger missing optional job",
+			Author: "trusted-member",
+			Body:   "/test-required",
+			State:  "open",
+			IsPR:   true,
+			Presubmits: map[string][]config.Presubmit{
+				"org/repo": {
+					{
+						JobBase: config.JobBase{
+							Name: "jab",
+						},
+						AlwaysRun: true,
+						Optional:  true,
+						Reporter: config.Reporter{
+							Context: "pull-jab",
+						},
+						Trigger:      `(?m)^/test (?:.*? )?jab(?: .*?)?$`,
+						RerunCommand: `/test jab`,
+					},
+				},
+			},
+			PruneHelp: true,
+		},
+		{
+			name:   "Test-Required triggers missing required explicit job",
+			Author: "trusted-member",
+			Body:   "/test-required",
+			State:  "open",
+			IsPR:   true,
+			Presubmits: map[string][]config.Presubmit{
+				"org/repo": {
+					{
+						JobBase: config.JobBase{
+							Name: "jab",
+						},
+						Reporter: config.Reporter{
+							Context: "pull-jab",
+						},
+						Trigger:      `(?m)^/test (?:.*? )?jab(?: .*?)?$`,
+						RerunCommand: `/test jab`,
+					},
+				},
+			},
+			ShouldBuild:   true,
+			StartsExactly: "pull-jab",
+			PruneHelp:     true,
+		},
+		{
 			name:   "Retest of run_if_changed job that failed. Changes do not require the job",
 			Author: "trusted-member",
 			Body:   "/retest",

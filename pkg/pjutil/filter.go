@@ -35,6 +35,9 @@ var RetestRe = regexp.MustCompile(`(?m)^/retest\s*$`)
 // RetestRe provides the regex for `/retest-required`
 var RetestRequiredRe = regexp.MustCompile(`(?m)^/retest-required\s*$`)
 
+// TestRequiredRe provides the regex for `/test-required`
+var TestRequiredRe = regexp.MustCompile(`(?m)^/test-required\s*$`)
+
 var OkToTestRe = regexp.MustCompile(`(?m)^/ok-to-test\s*$`)
 
 // OkToTestCancelRe checks for cancellation of the `/ok-to-test` approval
@@ -263,6 +266,27 @@ func (rrf *RetestRequiredFilter) Name() string {
 	return "retest-required-filter"
 }
 
+type TestRequiredFilter struct {
+	allContexts sets.Set[string]
+}
+
+func NewTestRequiredFilter(allContexts sets.Set[string]) *TestRequiredFilter {
+	return &TestRequiredFilter{
+		allContexts: allContexts,
+	}
+}
+
+func (trf *TestRequiredFilter) ShouldRun(ps config.Presubmit) (bool, bool, bool) {
+	if ps.Optional {
+		return false, false, false
+	}
+	return !trf.allContexts.Has(ps.Context), ps.NeedsExplicitTrigger(), false
+}
+
+func (trf *TestRequiredFilter) Name() string {
+	return "test-required-filter"
+}
+
 type contextGetter func() (sets.Set[string], sets.Set[string], error)
 
 // PresubmitFilter creates a filter for presubmits
@@ -290,6 +314,14 @@ func PresubmitFilter(honorOkToTest bool, contextGetter contextGetter, body strin
 			return nil, err
 		}
 		filters = append(filters, NewRetestRequiredFilter(failedContexts, allContexts))
+	}
+	if TestRequiredRe.MatchString(body) {
+		logger.Info("Using test-required filter")
+		_, allContexts, err := contextGetter()
+		if err != nil {
+			return nil, err
+		}
+		filters = append(filters, NewTestRequiredFilter(allContexts))
 	}
 	if (honorOkToTest && OkToTestRe.MatchString(body)) || TestAllRe.MatchString(body) {
 		logger.Debug("Using test-all filter.")

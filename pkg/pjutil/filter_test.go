@@ -753,6 +753,85 @@ func TestPresubmitFilter(t *testing.T) {
 			expected: [][]bool{{false, false, false}, {false, false, false}, {false, false, false}, {true, false, true}, {true, false, false}},
 		},
 		{
+			name: "test-required command selects required contexts that have not run yet",
+			body: "/test-required",
+			org:  "org",
+			repo: "repo",
+			ref:  "ref",
+			presubmits: []config.Presubmit{
+				{
+					JobBase: config.JobBase{
+						Name: "successful-job",
+					},
+					Reporter: config.Reporter{
+						Context: "existing-successful",
+					},
+				},
+				{
+					JobBase: config.JobBase{
+						Name: "pending-job",
+					},
+					Reporter: config.Reporter{
+						Context: "existing-pending",
+					},
+				},
+				{
+					JobBase: config.JobBase{
+						Name: "failure-job",
+					},
+					Reporter: config.Reporter{
+						Context: "existing-failure",
+					},
+				},
+				{
+					JobBase: config.JobBase{
+						Name: "error-job",
+					},
+					Reporter: config.Reporter{
+						Context: "existing-error",
+					},
+				},
+				{
+					JobBase: config.JobBase{
+						Name: "missing-required",
+					},
+					AlwaysRun: true,
+					Reporter: config.Reporter{
+						Context: "missing-required",
+					},
+				},
+				{
+					JobBase: config.JobBase{
+						Name: "missing-optional",
+					},
+					AlwaysRun: true,
+					Optional:  true,
+					Reporter: config.Reporter{
+						Context: "missing-optional",
+					},
+				},
+				{
+					JobBase: config.JobBase{
+						Name: "missing-explicit",
+					},
+					Reporter: config.Reporter{
+						Context: "missing-explicit",
+					},
+					Trigger:      `(?m)^/test (?:.*? )?explicit(?: .*?)?$`,
+					RerunCommand: "/test explicit",
+				},
+			},
+			expected: [][]bool{
+				{false, false, false},
+				{false, false, false},
+				{false, false, false},
+				{false, false, false},
+				{true, false, false},
+				{false, false, false},
+				{true, true, false},
+			},
+		},
+		{
 			name: "explicit test command filters for jobs that match",
 			body: "/test trigger",
 			org:  "org",
