@@ -443,6 +443,17 @@ help:
     # HelpGuidelinesURL is the URL of the help page, which provides guidance on how and when to use the help wanted and good first issue labels.
     # The default value is "https://git.k8s.io/community/contributors/guide/help-wanted.md".
     help_guidelines_url: ' '
+invalid_commit_msg:
+    - # Checks is a list of check configurations.
+      # Each check can be individually enabled or disabled.
+      checks:
+        - # Disabled indicates whether this check should be skipped.
+          disabled: true
+          # Name is the name of the check (e.g., "fixupPrefix", "issueClosingKeywords").
+          name: ' '
+      # Repos is either of the form org/repos or just org.
+      repos:
+        - ""
 jira:
     # DisabledJiraProjects are projects for which we will never try to create a link,
     # for example including `enterprise` here would disable linking for all issues
