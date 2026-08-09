@@ -95,10 +95,11 @@ gen-prow-config-documented() {
 
 gen-deepcopy() {
   echo "Generating DeepCopy() methods..." >&2
-  "$deepcopygen" ./... \
+  "$deepcopygen" \
     --go-header-file hack/boilerplate/boilerplate.generated.go.txt \
     --output-file zz_generated.deepcopy.go \
-    --bounding-dirs sigs.k8s.io/prow/pkg/apis,sigs.k8s.io/prow/pkg/config
+    sigs.k8s.io/prow/pkg/apis/prowjobs/v1 \
+    sigs.k8s.io/prow/pkg/config
 }
 
 gen-client() {
