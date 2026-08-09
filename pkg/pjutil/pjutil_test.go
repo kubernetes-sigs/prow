@@ -827,13 +827,13 @@ func TestNewProwJob(t *testing.T) {
 	for _, testCase := range testCases {
 		pj := NewProwJob(testCase.spec, testCase.labels, testCase.annotations)
 		if actual, expected := pj.Spec, testCase.spec; !equality.Semantic.DeepEqual(actual, expected) {
-			t.Errorf("%s: incorrect ProwJobSpec created: %s", testCase.name, diff.ObjectReflectDiff(actual, expected))
+			t.Errorf("%s: incorrect ProwJobSpec created: %s", testCase.name, diff.Diff(actual, expected))
 		}
 		if actual, expected := pj.Labels, testCase.expectedLabels; !reflect.DeepEqual(actual, expected) {
-			t.Errorf("%s: incorrect ProwJob labels created: %s", testCase.name, diff.ObjectReflectDiff(actual, expected))
+			t.Errorf("%s: incorrect ProwJob labels created: %s", testCase.name, diff.Diff(actual, expected))
 		}
 		if actual, expected := pj.Annotations, testCase.expectedAnnotations; !reflect.DeepEqual(actual, expected) {
-			t.Errorf("%s: incorrect ProwJob annotations created: %s", testCase.name, diff.ObjectReflectDiff(actual, expected))
+			t.Errorf("%s: incorrect ProwJob annotations created: %s", testCase.name, diff.Diff(actual, expected))
 		}
 		if pj.Spec.PodSpec != nil {
 			futzWithPodSpec := func(spec *corev1.PodSpec, val string) {
@@ -903,10 +903,10 @@ func TestNewProwJobWithAnnotations(t *testing.T) {
 	for _, testCase := range testCases {
 		pj := NewProwJob(testCase.spec, nil, testCase.annotations)
 		if actual, expected := pj.Spec, testCase.spec; !equality.Semantic.DeepEqual(actual, expected) {
-			t.Errorf("%s: incorrect ProwJobSpec created: %s", testCase.name, diff.ObjectReflectDiff(actual, expected))
+			t.Errorf("%s: incorrect ProwJobSpec created: %s", testCase.name, diff.Diff(actual, expected))
 		}
 		if actual, expected := pj.Annotations, testCase.expectedAnnotations; !reflect.DeepEqual(actual, expected) {
-			t.Errorf("%s: incorrect ProwJob labels created: %s", testCase.name, diff.ObjectReflectDiff(actual, expected))
+			t.Errorf("%s: incorrect ProwJob labels created: %s", testCase.name, diff.Diff(actual, expected))
 		}
 	}
 }
@@ -1500,7 +1500,7 @@ func TestCreateRefs(t *testing.T) {
 		},
 	}
 	if actual := createRefs(pr, "abcdef"); !reflect.DeepEqual(expected, actual) {
-		t.Errorf("diff between expected and actual refs:%s", diff.ObjectReflectDiff(expected, actual))
+		t.Errorf("diff between expected and actual refs:%s", diff.Diff(expected, actual))
 	}
 }
 

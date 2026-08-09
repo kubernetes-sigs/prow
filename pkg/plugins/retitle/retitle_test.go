@@ -21,7 +21,7 @@ import (
 	"testing"
 
 	"github.com/sirupsen/logrus"
-	"k8s.io/apimachinery/pkg/util/diff"
+	"k8s.io/utils/diff"
 	"sigs.k8s.io/prow/pkg/github"
 	"sigs.k8s.io/prow/pkg/github/fakegithub"
 )

@@ -941,9 +941,9 @@ func TestReconcile(t *testing.T) {
 			case tc.err:
 				t.Error("failed to receive expected error")
 			case !equality.Semantic.DeepEqual(r.jobs, expectedJobs):
-				t.Errorf("prowjobs do not match:\n%s", diff.ObjectReflectDiff(expectedJobs, r.jobs))
+				t.Errorf("prowjobs do not match:\n%s", diff.Diff(expectedJobs, r.jobs))
 			case !equality.Semantic.DeepEqual(r.pipelines, expectedPipelineRuns):
-				t.Errorf("pipelineruns do not match:\n%s", diff.ObjectReflectDiff(expectedPipelineRuns, r.pipelines))
+				t.Errorf("pipelineruns do not match:\n%s", diff.Diff(expectedPipelineRuns, r.pipelines))
 			}
 		})
 	}
@@ -1095,7 +1095,7 @@ func TestReconcileWithAllowConcurrentPostsubmitJobs(t *testing.T) {
 				t.Errorf("unexpected error: %v", err)
 			}
 			if !equality.Semantic.DeepEqual(r.jobs, expectedJobs) {
-				t.Errorf("prowjobs do not match:\n%s", diff.ObjectReflectDiff(expectedJobs, r.jobs))
+				t.Errorf("prowjobs do not match:\n%s", diff.Diff(expectedJobs, r.jobs))
 			}
 		})
 	}
@@ -1132,7 +1132,7 @@ func TestPipelineMeta(t *testing.T) {
 			tc.expected(tc.pj, &expected)
 			actual := pipelineMeta(tc.pj.Name, tc.pj)
 			if !equality.Semantic.DeepEqual(actual, expected) {
-				t.Errorf("pipeline meta does not match:\n%s", diff.ObjectReflectDiff(expected, actual))
+				t.Errorf("pipeline meta does not match:\n%s", diff.Diff(expected, actual))
 			}
 		})
 	}

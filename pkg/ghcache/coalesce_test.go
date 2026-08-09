@@ -111,7 +111,7 @@ func TestRoundTrip(t *testing.T) {
 	wg.Wait()
 	expectedHits := map[string]int{"/resource1": 1, "/resource2": 2}
 	if !reflect.DeepEqual(fre.hits, expectedHits) {
-		t.Errorf("Unexpected hit count(s). Diff: %v.", diff.ObjectReflectDiff(expectedHits, fre.hits))
+		t.Errorf("Unexpected hit count(s). Diff: %v.", diff.Diff(expectedHits, fre.hits))
 	}
 }
 
@@ -216,7 +216,7 @@ func TestCacheModeHeader(t *testing.T) {
 	// Might as well mind the hit count in this test too.
 	expectedHits := map[string]int{"/resource1": 3, "/resource2": 1, "/resource3": 1}
 	if !reflect.DeepEqual(fre.hits, expectedHits) {
-		t.Errorf("Unexpected hit count(s). Diff: %v.", diff.ObjectReflectDiff(expectedHits, fre.hits))
+		t.Errorf("Unexpected hit count(s). Diff: %v.", diff.Diff(expectedHits, fre.hits))
 	}
 }
 

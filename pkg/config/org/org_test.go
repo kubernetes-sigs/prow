@@ -126,7 +126,7 @@ func TestPruneRepoDefaults(t *testing.T) {
 		t.Run(tc.description, func(t *testing.T) {
 			pruned := PruneRepoDefaults(tc.repo)
 			if !reflect.DeepEqual(tc.expected, pruned) {
-				t.Errorf("%s: result differs from expected:\n", diff.ObjectReflectDiff(tc.expected, pruned))
+				t.Errorf("%s: result differs from expected:\n", diff.Diff(tc.expected, pruned))
 			}
 		})
 	}
