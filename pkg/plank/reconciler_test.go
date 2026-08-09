@@ -150,8 +150,8 @@ func TestAdd(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			fakeProwJobInformer := &controllertest.FakeInformer{Synced: true}
-			fakePodInformers := &controllertest.FakeInformer{Synced: true}
+			fakeProwJobInformer := controllertest.NewFakeInformer(controllertest.Synced)
+			fakePodInformers := controllertest.NewFakeInformer(controllertest.Synced)
 
 			prowJobInformerStarted := make(chan struct{})
 			mgr, err := mgrFromFakeInformer(prowv1.SchemeGroupVersion.WithKind("ProwJob"), fakeProwJobInformer, prowJobInformerStarted)
