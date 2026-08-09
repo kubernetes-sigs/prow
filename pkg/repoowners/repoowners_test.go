@@ -444,10 +444,6 @@ func testOwnersRegexpFiltering(clients localgit.Clients, t *testing.T) {
 	}
 }
 
-func strP(str string) *string {
-	return &str
-}
-
 func TestLoadRepoOwnersV2(t *testing.T) {
 	testLoadRepoOwners(localgit.NewV2, t)
 }
@@ -566,7 +562,7 @@ func testLoadRepoOwners(clients localgit.Clients, t *testing.T) {
 		},
 		{
 			name:   "OWNERS from non-default branch",
-			branch: strP("release-1.10"),
+			branch: new("release-1.10"),
 			extraBranchesAndFiles: map[string]map[string][]byte{
 				"release-1.10": {
 					"src/doc/OWNERS": []byte("approvers:\n - maggie\n"),
@@ -603,7 +599,7 @@ func testLoadRepoOwners(clients localgit.Clients, t *testing.T) {
 		},
 		{
 			name:   "OWNERS from master branch while release branch diverges",
-			branch: strP(defaultBranch),
+			branch: new(defaultBranch),
 			extraBranchesAndFiles: map[string]map[string][]byte{
 				"release-1.10": {
 					"src/doc/OWNERS": []byte("approvers:\n - maggie\n"),

@@ -31,7 +31,6 @@ import (
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/utils/ptr"
 	"sigs.k8s.io/yaml"
 
 	"sigs.k8s.io/prow/pkg/bugzilla"
@@ -1463,7 +1462,7 @@ func TestConfigUpdaterResolve(t *testing.T) {
 				Maps: map[string]ConfigMapSpec{"map": {
 					Name:          "name",
 					Key:           "key",
-					GZIP:          ptr.To(true),
+					GZIP:          new(true),
 					ClusterGroups: []string{"some-group", "another-group"}},
 				},
 			},
@@ -1471,7 +1470,7 @@ func TestConfigUpdaterResolve(t *testing.T) {
 				Maps: map[string]ConfigMapSpec{"map": {
 					Name: "name",
 					Key:  "key",
-					GZIP: ptr.To(true),
+					GZIP: new(true),
 					Clusters: map[string][]string{
 						"cluster-a": {"namespace-a"},
 						"cluster-b": {"namespace-b"},

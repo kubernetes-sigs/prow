@@ -967,7 +967,7 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 					},
 					"prow/plugins.yaml": {
 						Name: "plugins",
-						GZIP: boolPtr(false),
+						GZIP: new(false),
 					},
 				},
 			},
@@ -1027,7 +1027,7 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 				Maps: map[string]plugins.ConfigMapSpec{
 					"prow/config.yaml": {
 						Name: "config",
-						GZIP: boolPtr(true),
+						GZIP: new(true),
 					},
 					"prow/plugins.yaml": {
 						Name: "plugins",
@@ -1904,10 +1904,6 @@ func getFileMap(s string) map[string][]byte {
 		}
 	}
 	return result
-}
-
-func boolPtr(b bool) *bool {
-	return &b
 }
 
 type MapFS fstest.MapFS

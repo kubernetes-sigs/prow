@@ -28,7 +28,6 @@ import (
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clienttesting "k8s.io/client-go/testing"
-	"k8s.io/utils/ptr"
 
 	prowapi "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 	"sigs.k8s.io/prow/pkg/client/clientset/versioned/fake"
@@ -801,7 +800,7 @@ func TestShouldHighlightJoinOrgMessageCustomThreshold(t *testing.T) {
 	}{
 		{
 			name:      "custom threshold of 5, only 3 merged PRs",
-			threshold: ptr.To(5),
+			threshold: new(5),
 			issues: map[int]*github.Issue{
 				1: mergedPRIssue(1, "author"),
 				2: mergedPRIssue(2, "author"),
@@ -811,7 +810,7 @@ func TestShouldHighlightJoinOrgMessageCustomThreshold(t *testing.T) {
 		},
 		{
 			name:      "custom threshold of 5, 5 merged PRs",
-			threshold: ptr.To(5),
+			threshold: new(5),
 			issues: map[int]*github.Issue{
 				1: mergedPRIssue(1, "author"),
 				2: mergedPRIssue(2, "author"),
@@ -823,7 +822,7 @@ func TestShouldHighlightJoinOrgMessageCustomThreshold(t *testing.T) {
 		},
 		{
 			name:      "custom threshold of 1, 1 merged PR",
-			threshold: ptr.To(1),
+			threshold: new(1),
 			issues: map[int]*github.Issue{
 				1: mergedPRIssue(1, "author"),
 			},
@@ -831,7 +830,7 @@ func TestShouldHighlightJoinOrgMessageCustomThreshold(t *testing.T) {
 		},
 		{
 			name:      "custom threshold of 0, no merged PRs",
-			threshold: ptr.To(0),
+			threshold: new(0),
 			issues:    map[int]*github.Issue{},
 			expecting: true,
 		},
