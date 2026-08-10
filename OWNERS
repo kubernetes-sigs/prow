@@ -1,6 +1,7 @@
 # See the OWNERS docs at https://go.k8s.io/owners
 
 approvers:
+  - cblecker
   - petr-muller
   - matthyx
   - droslean
@@ -8,7 +9,6 @@ approvers:
   - smg247
 emeritus_approvers:
   - alvaroaleman
-  - cblecker
   - cjwagner
   - stevekuznetsov
   - timwangmusic
