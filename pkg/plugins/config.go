@@ -1370,7 +1370,7 @@ func validateExternalPlugins(pluginMap map[string][]ExternalPlugin) error {
 		if !strings.Contains(repo, "/") {
 			continue
 		}
-		org := strings.Split(repo, "/")[0]
+		org, _, _ := strings.Cut(repo, "/")
 
 		var orgConfig []string
 		for _, p := range pluginMap[org] {

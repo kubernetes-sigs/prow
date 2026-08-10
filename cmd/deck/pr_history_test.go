@@ -60,7 +60,7 @@ func (bucket fakeBucket) listSubDirs(_ context.Context, prefix string) ([]string
 			continue
 		}
 		suffix := strings.TrimPrefix(k, prefix)
-		dir := strings.Split(suffix, "/")[0]
+		dir, _, _ := strings.Cut(suffix, "/")
 		dirs.Insert(dir)
 	}
 	return sets.List(dirs), nil
