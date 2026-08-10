@@ -332,7 +332,7 @@ function createSearchCard(): HTMLElement {
  * all pr contexts and only replaces contexts that have existing Prow Jobs. Tide
  * context will be omitted from the list.
  */
-function getFullPRContext(builds: ProwJob[], contexts: Context[]): UnifiedContext[] {
+export function getFullPRContext(builds: ProwJob[], contexts: Context[]): UnifiedContext[] {
   const contextMap: Map<string, UnifiedContext> = new Map();
   if (contexts) {
     for (const context of contexts) {
@@ -348,6 +348,7 @@ function getFullPRContext(builds: ProwJob[], contexts: Context[]): UnifiedContex
     }
   }
 
+  const buildContextNames = new Set<string>();
   for (const build of builds) {
     const {
       spec: {
@@ -357,6 +358,7 @@ function getFullPRContext(builds: ProwJob[], contexts: Context[]): UnifiedContex
         url = "", description = "", state = "",
       },
     } = build;
+    buildContextNames.add(context);
 
     let discrepancy = null;
     // If GitHub context exits, check if mismatch or not.
@@ -375,6 +377,16 @@ function getFullPRContext(builds: ProwJob[], contexts: Context[]): UnifiedContex
       state,
       url,
     });
+  }
+
+  // Drop stale Prow contexts (renamed/removed jobs) that GitHub still
+  // reports but have no current ProwJob. Only touch names matching
+  // Prow's convention so we don't hide non-Prow checks.
+  const prowJobNamePattern = /^(pull-|branch-ci-|ci-)/;
+  for (const [name] of contextMap) {
+    if (!buildContextNames.has(name) && prowJobNamePattern.test(name)) {
+      contextMap.delete(name);
+    }
   }
 
   return Array.from(contextMap.values());
