@@ -1005,7 +1005,7 @@ func validateManagedWebhooks(cfg *config.Config) error {
 	}
 	for repo := range mw.OrgRepoConfig {
 		if strings.Contains(repo, "/") {
-			org := strings.SplitN(repo, "/", 2)[0]
+			org, _, _ := strings.Cut(repo, "/")
 			if orgs.Has(org) {
 				errs = append(errs, fmt.Errorf(
 					"org-level and repo-level webhooks are configured together for %q, "+
@@ -1542,7 +1542,7 @@ func validateGitHubAppIsInstalled(client ghAppListingClient, allRepos sets.Set[s
 
 	var errs []error
 	for _, repo := range sets.List(allRepos) {
-		if org := strings.Split(repo, "/")[0]; !orgsWithInstalledApp.Has(org) {
+		if org, _, _ := strings.Cut(repo, "/"); !orgsWithInstalledApp.Has(org) {
 			errs = append(errs, fmt.Errorf("There is configuration for the GitHub org %q but the GitHub app is not installed there", org))
 		}
 	}

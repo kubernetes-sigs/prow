@@ -187,11 +187,11 @@ func (sg *Spyglass) ResolveSymlink(src string) (string, error) {
 		if keyType == api.GCSKeyType {
 			keyType = providers.GS
 		}
-		potentialAlias := strings.Split(key, "/")[0]
+		potentialAlias, _, _ := strings.Cut(key, "/")
 		if bucket, exists := sg.cfg().Deck.Spyglass.BucketAliases[potentialAlias]; exists {
 			key = strings.Replace(key, potentialAlias, bucket, 1)
 		}
-		bucket := strings.Split(key, "/")[0]
+		bucket, _, _ := strings.Cut(key, "/")
 		if err := sg.cfg().ValidateStorageBucket(bucket); err != nil {
 			return "", fmt.Errorf("refusing to resolve symlink in disallowed bucket %q: %w", bucket, err)
 		}

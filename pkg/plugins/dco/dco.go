@@ -353,7 +353,7 @@ func MarkdownSHAList(org, repo string, list []github.RepositoryCommit) string {
 		}
 
 		// get the first line of the commit
-		message := strings.Split(commit.Commit.Message, "\n")[0]
+		message, _, _ := strings.Cut(commit.Commit.Message, "\n")
 
 		lines[i] = fmt.Sprintf(lineFmt, shortSHA, github.DefaultHost, org, repo, commit.SHA, message)
 	}

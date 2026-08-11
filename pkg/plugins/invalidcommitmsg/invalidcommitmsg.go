@@ -111,7 +111,7 @@ func handle(gc githubClient, log *logrus.Entry, config *plugins.Configuration, p
 	// Run all checks
 	for _, commit := range allCommits {
 		msg := commit.Commit.Message
-		subject := strings.Split(msg, "\n")[0]
+		subject, _, _ := strings.Cut(msg, "\n")
 
 		if checkIssueClosing && CloseIssueRegex.MatchString(msg) {
 			invalidCommits = append(invalidCommits, commit)

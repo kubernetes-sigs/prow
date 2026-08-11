@@ -80,7 +80,7 @@ func GetConfiguredJobs(cfg config.Getter, org, repo string) (*configuredjobs.Job
 		orgRepos = []string{fmt.Sprintf("%s/%s", org, repo)}
 	} else {
 		for _, r := range allRepos {
-			o := strings.Split(r, "/")[0]
+			o, _, _ := strings.Cut(r, "/")
 			if o == org {
 				orgRepos = append(orgRepos, r)
 			}

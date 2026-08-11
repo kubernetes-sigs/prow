@@ -190,7 +190,7 @@ func noTenantIDOrDefaultTenantID(ids []string) bool {
 func (ta *tideAgent) filterHistory(hist map[string][]history.Record) map[string][]history.Record {
 	filtered := make(map[string][]history.Record, len(hist))
 	for pool, records := range hist {
-		orgRepo := strings.Split(pool, ":")[0]
+		orgRepo, _, _ := strings.Cut(pool, ":")
 		orgRepoID := ta.cfg().GetProwJobDefault(orgRepo, "*").TenantID
 		needsHide := matches(orgRepo, ta.hiddenRepos())
 		var filteredRecords []history.Record
@@ -269,7 +269,7 @@ func (ta *tideAgent) filterQueries(queries []config.TideQuery) []config.TideQuer
 // with repos. repo has always the "org/repo" format but
 // repos can include both orgs and repos.
 func matches(repo string, repos []string) bool {
-	org := strings.Split(repo, "/")[0]
+	org, _, _ := strings.Cut(repo, "/")
 	for _, r := range repos {
 		if r == repo || r == org {
 			return true
