@@ -9,6 +9,10 @@ description: >
 
 New features added to each component:
 
+- *August 11, 2026* The `transfer-issue` plugin has been consolidated into the new `issue-management`
+    plugin along with `/link-issue`, `/unlink-issue`, `/pin-issue`, and `/unpin-issue` commands.
+    Users should replace `transfer-issue` with `issue-management` in their `plugins.yaml`.
+    Both `/transfer-issue <repo>` and the shorter `/transfer <repo>` are supported.
 - *April 20, 2024* The `ghcache_cache_parititions` Prometheus metric has been deprecated in favor
     of `ghcache_cache_partitions`. Besides spelling both metrics are identical.
 - *April 20, 2024* The `validate-supplemental-prow-config-hirarchy` check in `checkconfig` has been
