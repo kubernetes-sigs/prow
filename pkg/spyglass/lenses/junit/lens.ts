@@ -51,8 +51,41 @@ const addStdoutStderrOpeners = (): void => {
   }
 };
 
+// Delegated to the container instead of one listener per icon: a run can have
+// thousands of tests, so thousands of copy icons.
+const addCopyTestNameButtons = (): void => {
+  const container = document.getElementById('junit-container');
+  if (!container) {
+    return;
+  }
+  // Capture phase: the expand/collapse handlers in addTestExpanders are bound
+  // directly to the row, which sits between the icon and this container, so a
+  // bubble-phase listener here would run after the row's handler already
+  // toggled it. Capturing runs top-down and lets us stop the click before it
+  // gets there.
+  container.addEventListener('click', (e) => {
+    const button = (e.target as HTMLElement).closest<HTMLElement>('i.copy-test-name');
+    if (!button) {
+      return;
+    }
+    e.stopPropagation();
+    navigator.clipboard.writeText(button.dataset.testName!).then(() => {
+      button.innerText = 'check';
+      setTimeout(() => {
+        button.innerText = 'content_copy';
+      }, 1000);
+    }, () => {
+      button.innerText = 'error_outline';
+      setTimeout(() => {
+        button.innerText = 'content_copy';
+      }, 1000);
+    });
+  }, true);
+};
+
 const loaded = (): void => {
   addTestExpanders();
+  addCopyTestNameButtons();
   addStdoutStderrOpeners();
   addSectionExpanders();
 };

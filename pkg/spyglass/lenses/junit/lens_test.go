@@ -1237,6 +1237,8 @@ func TestTemplate(t *testing.T) {
 				`group-layout`,
 				`fake_class: informing_fail`,
 				`hidden-tests`,
+				`class="icon-button material-icons copy-test-name noselect" data-test-name="informing_fail"`,
+				`class="icon-button material-icons copy-test-name noselect" data-test-name="informing_pass"`,
 			},
 		},
 		{
