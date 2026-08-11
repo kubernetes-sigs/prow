@@ -19,8 +19,6 @@ package simplifypath
 import (
 	"strings"
 	"testing"
-
-	"k8s.io/apimachinery/pkg/util/diff"
 )
 
 func TestLiteral(t *testing.T) {
@@ -143,7 +141,7 @@ func TestSimplify(t *testing.T) {
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			if actual, expected := s.Simplify(testCase.path), testCase.expected; actual != expected {
-				t.Errorf("%s: got incorrect simplification: %v", testCase.name, diff.StringDiff(actual, expected))
+				t.Errorf("%s: got incorrect simplification: got %q, want %q", testCase.name, actual, expected)
 			}
 		})
 	}

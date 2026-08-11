@@ -227,7 +227,7 @@ Instructions for interacting with me using PR comments are available [here](http
 
 			if testCase.expectedComment != "" && len(gc.IssueCommentsAdded) == 1 {
 				if testCase.expectedComment != gc.IssueCommentsAdded[0] {
-					t.Errorf("%s: got incorrect comment: %v", testCase.name, diff.StringDiff(testCase.expectedComment, gc.IssueCommentsAdded[0]))
+					t.Errorf("%s: got incorrect comment: %v", testCase.name, diff.Diff(testCase.expectedComment, gc.IssueCommentsAdded[0]))
 				}
 			}
 		})

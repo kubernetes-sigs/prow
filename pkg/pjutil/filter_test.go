@@ -411,7 +411,7 @@ func TestFilterPresubmits(t *testing.T) {
 				t.Errorf("%s: expected no error filtering presubmits, but got one: %v", testCase.name, err)
 			}
 			if !reflect.DeepEqual(actualToTrigger, testCase.expectedToTrigger) {
-				t.Errorf("%s: incorrect set of presubmits to skip: %s", testCase.name, diff.ObjectReflectDiff(actualToTrigger, testCase.expectedToTrigger))
+				t.Errorf("%s: incorrect set of presubmits to skip: %s", testCase.name, diff.Diff(actualToTrigger, testCase.expectedToTrigger))
 			}
 		})
 	}

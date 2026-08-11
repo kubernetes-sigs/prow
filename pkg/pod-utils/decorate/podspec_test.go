@@ -551,9 +551,9 @@ func TestCloneRefs(t *testing.T) {
 			case tc.err:
 				t.Error("failed to receive expected exception")
 			case !equality.Semantic.DeepEqual(tc.expected, actual):
-				t.Errorf("unexpected container:\n%s", diff.ObjectReflectDiff(tc.expected, actual))
+				t.Errorf("unexpected container:\n%s", diff.Diff(tc.expected, actual))
 			case !equality.Semantic.DeepEqual(tc.volumes, volumes):
-				t.Errorf("unexpected volume:\n%s", diff.ObjectReflectDiff(tc.volumes, volumes))
+				t.Errorf("unexpected volume:\n%s", diff.Diff(tc.volumes, volumes))
 			case actual != nil:
 				var er []prowapi.Refs
 				if tc.pj.Spec.Refs != nil {
@@ -561,7 +561,7 @@ func TestCloneRefs(t *testing.T) {
 				}
 				er = append(er, tc.pj.Spec.ExtraRefs...)
 				if !equality.Semantic.DeepEqual(refs, er) {
-					t.Errorf("unexpected refs:\n%s", diff.ObjectReflectDiff(er, refs))
+					t.Errorf("unexpected refs:\n%s", diff.Diff(er, refs))
 				}
 			}
 		})
@@ -1295,7 +1295,7 @@ func TestProwJobToPod(t *testing.T) {
 				t.Fatalf("failed to unmarshal fixture: %v", err)
 			}
 			if !equality.Semantic.DeepEqual(got, expected) {
-				t.Errorf("unexpected pod diff:\n%s. You can update the fixtures by running this test with UPDATE=true if this is expected.", diff.ObjectReflectDiff(expected, got))
+				t.Errorf("unexpected pod diff:\n%s. You can update the fixtures by running this test with UPDATE=true if this is expected.", diff.Diff(expected, got))
 			}
 			if err := checkEnv(*got, "sidecar", sidecar.NewOptions()); err != nil {
 				t.Errorf("bad sidecar env: %v", err)

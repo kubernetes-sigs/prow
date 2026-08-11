@@ -1268,7 +1268,7 @@ reviewers:
 			t.Errorf("unexpected error when load simple config: %v", err)
 		}
 		if !reflect.DeepEqual(simple, test.given) {
-			t.Errorf("unexpected error when loading simple config from: '%s'", diff.ObjectReflectDiff(simple, test.given))
+			t.Errorf("unexpected error when loading simple config from: '%s'", diff.Diff(simple, test.given))
 		}
 	}
 }
@@ -1326,7 +1326,7 @@ options: {}
 			t.Errorf("unexpected error when load full config: %v", err)
 		}
 		if !reflect.DeepEqual(full, test.given) {
-			t.Errorf("unexpected error when loading simple config from: '%s'", diff.ObjectReflectDiff(full, test.given))
+			t.Errorf("unexpected error when loading simple config from: '%s'", diff.Diff(full, test.given))
 		}
 	}
 }

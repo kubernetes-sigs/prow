@@ -71,10 +71,10 @@ func TestPresubmitContexts(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			gotFailed, gotAll := presubmitContexts(tc.failing, tc.presubmits, logrus.WithField("case", tc.name))
 			if !equality.Semantic.DeepEqual(tc.failed, gotFailed) {
-				t.Errorf("wrong failures:%s", diff.ObjectReflectDiff(tc.failed, gotFailed))
+				t.Errorf("wrong failures:%s", diff.Diff(tc.failed, gotFailed))
 			}
 			if !equality.Semantic.DeepEqual(tc.all, gotAll) {
-				t.Errorf("wrong all contexts:%s", diff.ObjectReflectDiff(tc.all, gotAll))
+				t.Errorf("wrong all contexts:%s", diff.Diff(tc.all, gotAll))
 			}
 		})
 	}
@@ -168,7 +168,7 @@ func TestCurrentMessages(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			got := currentMessages(tc.change, tc.since)
 			if !reflect.DeepEqual(got, tc.want) {
-				t.Errorf("wrong messages:%s", diff.ObjectReflectDiff(got, tc.want))
+				t.Errorf("wrong messages:%s", diff.Diff(got, tc.want))
 			}
 		})
 	}
