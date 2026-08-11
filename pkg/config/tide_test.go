@@ -26,7 +26,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/utils/ptr"
 	"sigs.k8s.io/yaml"
 
 	"sigs.k8s.io/prow/pkg/git/types"
@@ -1508,7 +1507,7 @@ func TestConfigGetTideContextPolicy(t *testing.T) {
 				},
 				ProwConfig: ProwConfig{
 					InRepoConfig: InRepoConfig{
-						Enabled: map[string]*bool{"*": ptr.To(true)},
+						Enabled: map[string]*bool{"*": new(true)},
 					},
 				},
 			},
@@ -1556,7 +1555,7 @@ func TestConfigGetTideContextPolicy(t *testing.T) {
 				},
 				ProwConfig: ProwConfig{
 					InRepoConfig: InRepoConfig{
-						Enabled: map[string]*bool{"*": ptr.To(true)},
+						Enabled: map[string]*bool{"*": new(true)},
 					},
 				},
 			},

@@ -292,8 +292,6 @@ func TestGroupLines(t *testing.T) {
 	}
 }
 
-func pstr(s string) *string { return &s }
-
 func TestBody(t *testing.T) {
 	const (
 		anonLink   = "https://storage.googleapis.com/bucket/object/build-log.txt"
@@ -334,10 +332,10 @@ func TestBody(t *testing.T) {
 				{
 					Start:        1,
 					End:          1,
-					ArtifactName: pstr("foo"),
+					ArtifactName: new("foo"),
 					LogLines: []LogLine{
 						{
-							ArtifactName: pstr("foo"),
+							ArtifactName: new("foo"),
 							Number:       1,
 							SubLines: []SubLine{
 								{},
@@ -358,10 +356,10 @@ func TestBody(t *testing.T) {
 				{
 					Start:        1,
 					End:          1,
-					ArtifactName: pstr("foo"),
+					ArtifactName: new("foo"),
 					LogLines: []LogLine{
 						{
-							ArtifactName: pstr("foo"),
+							ArtifactName: new("foo"),
 							Number:       1,
 							SubLines: []SubLine{
 								{
@@ -378,17 +376,17 @@ func TestBody(t *testing.T) {
 			artifact: &fake.Artifact{
 				Path:    "foo",
 				Content: []byte("hello"),
-				Link:    pstr(cookieLink),
+				Link:    new(cookieLink),
 			},
 			want: render(func() LogArtifactView {
 				lav := view("foo", cookieLink, []LineGroup{
 					{
 						Start:        1,
 						End:          1,
-						ArtifactName: pstr("foo"),
+						ArtifactName: new("foo"),
 						LogLines: []LogLine{
 							{
-								ArtifactName: pstr("foo"),
+								ArtifactName: new("foo"),
 								Number:       1,
 								SubLines: []SubLine{
 									{
@@ -408,17 +406,17 @@ func TestBody(t *testing.T) {
 			artifact: &fake.Artifact{
 				Path:    "foo",
 				Content: []byte("hello"),
-				Link:    pstr(anonLink),
+				Link:    new(anonLink),
 			},
 			want: render(func() LogArtifactView {
 				lav := view("foo", anonLink, []LineGroup{
 					{
 						Start:        1,
 						End:          1,
-						ArtifactName: pstr("foo"),
+						ArtifactName: new("foo"),
 						LogLines: []LogLine{
 							{
-								ArtifactName: pstr("foo"),
+								ArtifactName: new("foo"),
 								Number:       1,
 								SubLines: []SubLine{
 									{
@@ -453,7 +451,7 @@ func TestBody(t *testing.T) {
 				{
 					Start:        0,
 					End:          14,
-					ArtifactName: pstr("foo"),
+					ArtifactName: new("foo"),
 					Skip:         true,
 					ByteLength:   69,
 					ByteOffset:   0,
@@ -462,14 +460,14 @@ func TestBody(t *testing.T) {
 				{
 					Start:        15,
 					End:          40,
-					ArtifactName: pstr("foo"),
+					ArtifactName: new("foo"),
 					LogLines: func() []LogLine {
 						var out []LogLine
 						const s = 20
 						const e = 35
 						for i := s - neighborLines; i <= e+neighborLines; i++ {
 							out = append(out, LogLine{
-								ArtifactName: pstr("foo"),
+								ArtifactName: new("foo"),
 								Number:       i,
 								Focused:      i >= s && i <= e,
 								Clip:         i == s,
@@ -486,7 +484,7 @@ func TestBody(t *testing.T) {
 				{
 					Start:        40,
 					End:          101,
-					ArtifactName: pstr("foo"),
+					ArtifactName: new("foo"),
 					Skip:         true,
 					ByteLength:   100*5 - 5*40,
 					ByteOffset:   5 * 40,
@@ -509,7 +507,7 @@ func TestBody(t *testing.T) {
 					}
 					return []byte(sb.String())
 				}(),
-				Link: pstr("https://storage.googleapis.com/some-bucket/path/to/foo"),
+				Link: new("https://storage.googleapis.com/some-bucket/path/to/foo"),
 			},
 			highlighter: func() (highlightRequest, int, string) {
 				req := highlightRequest{
@@ -534,7 +532,7 @@ func TestBody(t *testing.T) {
 					{
 						Start:        0,
 						End:          14,
-						ArtifactName: pstr("foo"),
+						ArtifactName: new("foo"),
 						Skip:         true,
 						ByteLength:   69,
 						ByteOffset:   0,
@@ -543,14 +541,14 @@ func TestBody(t *testing.T) {
 					{
 						Start:        15,
 						End:          40,
-						ArtifactName: pstr("foo"),
+						ArtifactName: new("foo"),
 						LogLines: func() []LogLine {
 							var out []LogLine
 							const s = 20
 							const e = 35
 							for i := s - neighborLines; i <= e+neighborLines; i++ {
 								out = append(out, LogLine{
-									ArtifactName: pstr("foo"),
+									ArtifactName: new("foo"),
 									Number:       i,
 									Focused:      i >= s && i <= e,
 									Clip:         i == s,
@@ -567,7 +565,7 @@ func TestBody(t *testing.T) {
 					{
 						Start:        40,
 						End:          101,
-						ArtifactName: pstr("foo"),
+						ArtifactName: new("foo"),
 						Skip:         true,
 						ByteLength:   100*5 - 5*40,
 						ByteOffset:   5 * 40,
@@ -628,10 +626,10 @@ func TestCallback(t *testing.T) {
 				{
 					Start:        1,
 					End:          1,
-					ArtifactName: pstr("foo"),
+					ArtifactName: new("foo"),
 					LogLines: []LogLine{
 						{
-							ArtifactName: pstr("foo"),
+							ArtifactName: new("foo"),
 							Number:       1,
 							SubLines: []SubLine{
 								{},
@@ -656,10 +654,10 @@ func TestCallback(t *testing.T) {
 				{
 					Start:        1,
 					End:          1,
-					ArtifactName: pstr("foo"),
+					ArtifactName: new("foo"),
 					LogLines: []LogLine{
 						{
-							ArtifactName: pstr("foo"),
+							ArtifactName: new("foo"),
 							Number:       1,
 							SubLines: []SubLine{
 								{
@@ -686,10 +684,10 @@ func TestCallback(t *testing.T) {
 				{
 					Start:        1,
 					End:          2,
-					ArtifactName: pstr("foo"),
+					ArtifactName: new("foo"),
 					LogLines: []LogLine{
 						{
-							ArtifactName: pstr("foo"),
+							ArtifactName: new("foo"),
 							Number:       1,
 							SubLines: []SubLine{
 								{
@@ -698,7 +696,7 @@ func TestCallback(t *testing.T) {
 							},
 						},
 						{
-							ArtifactName: pstr("foo"),
+							ArtifactName: new("foo"),
 							Number:       2,
 							SubLines: []SubLine{
 								{
@@ -731,10 +729,10 @@ func TestCallback(t *testing.T) {
 				{
 					Start:        1,
 					End:          3,
-					ArtifactName: pstr("foo"),
+					ArtifactName: new("foo"),
 					LogLines: []LogLine{
 						{
-							ArtifactName: pstr("foo"),
+							ArtifactName: new("foo"),
 							Number:       1,
 							SubLines: []SubLine{
 								{
@@ -743,7 +741,7 @@ func TestCallback(t *testing.T) {
 							},
 						},
 						{
-							ArtifactName: pstr("foo"),
+							ArtifactName: new("foo"),
 							Number:       2,
 							SubLines: []SubLine{
 								{
@@ -752,7 +750,7 @@ func TestCallback(t *testing.T) {
 							},
 						},
 						{
-							ArtifactName: pstr("foo"),
+							ArtifactName: new("foo"),
 							Number:       3,
 							SubLines: []SubLine{
 								{
@@ -765,7 +763,7 @@ func TestCallback(t *testing.T) {
 				{
 					Start:        3,
 					End:          81,
-					ArtifactName: pstr("foo"),
+					ArtifactName: new("foo"),
 					Skip:         true,
 					ByteLength:   385,
 					ByteOffset:   15,
@@ -794,7 +792,7 @@ func TestCallback(t *testing.T) {
 				{
 					Start:        0,
 					End:          78,
-					ArtifactName: pstr("foo"),
+					ArtifactName: new("foo"),
 					Skip:         true,
 					ByteLength:   389,
 					ByteOffset:   0,
@@ -803,10 +801,10 @@ func TestCallback(t *testing.T) {
 				{
 					Start:        78,
 					End:          80,
-					ArtifactName: pstr("foo"),
+					ArtifactName: new("foo"),
 					LogLines: []LogLine{
 						{
-							ArtifactName: pstr("foo"),
+							ArtifactName: new("foo"),
 							Number:       79,
 							SubLines: []SubLine{
 								{
@@ -815,7 +813,7 @@ func TestCallback(t *testing.T) {
 							},
 						},
 						{
-							ArtifactName: pstr("foo"),
+							ArtifactName: new("foo"),
 							Number:       80,
 							SubLines: []SubLine{
 								{
@@ -824,7 +822,7 @@ func TestCallback(t *testing.T) {
 							},
 						},
 						{
-							ArtifactName: pstr("foo"),
+							ArtifactName: new("foo"),
 							Number:       81,
 							SubLines: []SubLine{
 								{
@@ -856,12 +854,12 @@ func TestCallback(t *testing.T) {
 				{
 					Start:        0,
 					End:          81,
-					ArtifactName: pstr("foo"),
+					ArtifactName: new("foo"),
 					LogLines: func() []LogLine {
 						out := make([]LogLine, 0, 81)
 						for i := range 80 {
 							out = append(out, LogLine{
-								ArtifactName: pstr("foo"),
+								ArtifactName: new("foo"),
 								Number:       i + 1,
 								SubLines: []SubLine{
 									{
@@ -871,7 +869,7 @@ func TestCallback(t *testing.T) {
 							})
 						}
 						out = append(out, LogLine{
-							ArtifactName: pstr("foo"),
+							ArtifactName: new("foo"),
 							Number:       81,
 							SubLines: []SubLine{
 								{
@@ -989,7 +987,7 @@ func TestAnalyzeArtifact(t *testing.T) {
 			name: "unparsable link",
 			high: &highlightConfig{},
 			art: &fake.Artifact{
-				Link: pstr("bad::%\x00:://" + pkgio.GSAnonHost),
+				Link: new("bad::%\x00:://" + pkgio.GSAnonHost),
 			},
 			err: true,
 		},
@@ -997,7 +995,7 @@ func TestAnalyzeArtifact(t *testing.T) {
 			name: "basic",
 			high: &highlightConfig{},
 			art: &fake.Artifact{
-				Link: pstr("https://storage.googleapis.com/bucket/obj"),
+				Link: new("https://storage.googleapis.com/bucket/obj"),
 			},
 			wantReq: &highlightRequest{
 				URL: "https://storage.googleapis.com/bucket/obj",
@@ -1013,7 +1011,7 @@ func TestAnalyzeArtifact(t *testing.T) {
 				Overwrite: true,
 			},
 			art: &fake.Artifact{
-				Link: pstr("https://storage.googleapis.com/bucket/obj"),
+				Link: new("https://storage.googleapis.com/bucket/obj"),
 			},
 			wantReq: &highlightRequest{
 				URL:       "https://storage.googleapis.com/bucket/obj",
@@ -1031,7 +1029,7 @@ func TestAnalyzeArtifact(t *testing.T) {
 				Overwrite: true,
 			},
 			art: &fake.Artifact{
-				Link: pstr("https://storage.googleapis.com/bucket/obj"),
+				Link: new("https://storage.googleapis.com/bucket/obj"),
 			},
 			wantReq: &highlightRequest{
 				URL:       "https://storage.googleapis.com/bucket/obj",
@@ -1046,7 +1044,7 @@ func TestAnalyzeArtifact(t *testing.T) {
 			name: "bad status",
 			high: &highlightConfig{},
 			art: &fake.Artifact{
-				Link: pstr("https://storage.googleapis.com/bucket/obj"),
+				Link: new("https://storage.googleapis.com/bucket/obj"),
 			},
 			wantReq: &highlightRequest{
 				URL: "https://storage.googleapis.com/bucket/obj",
@@ -1059,7 +1057,7 @@ func TestAnalyzeArtifact(t *testing.T) {
 			name: "bad response",
 			high: &highlightConfig{},
 			art: &fake.Artifact{
-				Link: pstr("https://storage.googleapis.com/bucket/obj"),
+				Link: new("https://storage.googleapis.com/bucket/obj"),
 			},
 			wantReq: &highlightRequest{
 				URL: "https://storage.googleapis.com/bucket/obj",

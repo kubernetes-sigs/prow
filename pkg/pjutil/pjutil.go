@@ -119,9 +119,9 @@ func setReportDefault(spec *prowapi.ProwJobSpec) {
 	}
 	// `job_states_to_report: []` means false
 	if spec.ReporterConfig.Slack.JobStatesToReport != nil && len(spec.ReporterConfig.Slack.JobStatesToReport) == 0 {
-		spec.ReporterConfig.Slack.Report = boolPtr(false)
+		spec.ReporterConfig.Slack.Report = new(false)
 	} else {
-		spec.ReporterConfig.Slack.Report = boolPtr(true)
+		spec.ReporterConfig.Slack.Report = new(true)
 	}
 }
 
@@ -414,8 +414,4 @@ func ClusterToCtx(cluster string) string {
 		return kube.DefaultClusterAlias
 	}
 	return cluster
-}
-
-func boolPtr(b bool) *bool {
-	return &b
 }

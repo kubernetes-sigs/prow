@@ -75,10 +75,6 @@ func TestInvocationID(t *testing.T) {
 	}
 }
 
-func int64Pointer(v int64) *int64 {
-	return &v
-}
-
 func TestInvocation(t *testing.T) {
 	for _, tc := range []struct {
 		desc    string
@@ -139,7 +135,7 @@ func TestInvocation(t *testing.T) {
 					},
 				},
 				Finished: &metadata.Finished{
-					Timestamp: int64Pointer(250),
+					Timestamp: new(int64(250)),
 				},
 				ProjectID: "project-id",
 			},
@@ -802,7 +798,7 @@ func TestConfiguredTarget(t *testing.T) {
 					},
 				},
 				Finished: &metadata.Finished{
-					Timestamp: int64Pointer(250),
+					Timestamp: new(int64(250)),
 				},
 			},
 			want: &resultstore.ConfiguredTarget{
@@ -870,7 +866,7 @@ func TestOverallAction(t *testing.T) {
 					},
 				},
 				Finished: &metadata.Finished{
-					Timestamp: int64Pointer(250),
+					Timestamp: new(int64(250)),
 				},
 			},
 			want: &resultstore.Action{
@@ -905,7 +901,7 @@ func TestOverallAction(t *testing.T) {
 					},
 				},
 				Finished: &metadata.Finished{
-					Timestamp: int64Pointer(250),
+					Timestamp: new(int64(250)),
 				},
 			},
 			want: &resultstore.Action{
@@ -1004,7 +1000,7 @@ func TestOverallAction(t *testing.T) {
 					},
 				},
 				Finished: &metadata.Finished{
-					Timestamp: int64Pointer(250),
+					Timestamp: new(int64(250)),
 				},
 			},
 			want: &resultstore.Action{

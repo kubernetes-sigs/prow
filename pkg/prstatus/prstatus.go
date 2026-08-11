@@ -323,7 +323,7 @@ func (da *DashboardAgent) queryPullRequests(ctx context.Context, ghc githubQueri
 		if !sq.Search.PageInfo.HasNextPage {
 			break
 		}
-		vars["searchCursor"] = githubql.NewString(sq.Search.PageInfo.EndCursor)
+		vars["searchCursor"] = new(sq.Search.PageInfo.EndCursor)
 	}
 	da.log.Infof("Search for query \"%s\" cost %d point(s). %d remaining.", query, totalCost, remaining)
 	return prs, nil

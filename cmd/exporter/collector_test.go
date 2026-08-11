@@ -152,53 +152,28 @@ func TestProwJobCollector(t *testing.T) {
 		{
 			labels: []*dto.LabelPair{
 				{
-					Name:  stringPointer("job_agent"),
-					Value: stringPointer("kubernetes"),
+					Name:  new("job_agent"),
+					Value: new("kubernetes"),
 				},
 				{
-					Name:  stringPointer("job_name"),
-					Value: stringPointer("pull-test-infra-bazel"),
+					Name:  new("job_name"),
+					Value: new("pull-test-infra-bazel"),
 				},
 				{
-					Name:  stringPointer("job_namespace"),
-					Value: stringPointer("default"),
+					Name:  new("job_namespace"),
+					Value: new("default"),
 				},
 				{
-					Name:  stringPointer("label_event_GUID"),
-					Value: stringPointer("770bab40-e601-11e9-8e50-08c45d902b6f"),
+					Name:  new("label_event_GUID"),
+					Value: new("770bab40-e601-11e9-8e50-08c45d902b6f"),
 				},
 				{
-					Name:  stringPointer("label_preset_bazel_scratch_dir"),
-					Value: stringPointer("true"),
+					Name:  new("label_preset_bazel_scratch_dir"),
+					Value: new("true"),
 				},
 				{
-					Name:  stringPointer("label_preset_service_account"),
-					Value: stringPointer("true"),
-				},
-			},
-			gaugeValue: float64(1),
-		},
-		{
-			labels: []*dto.LabelPair{
-				{
-					Name:  stringPointer("annotation_prow_k8s_io_job"),
-					Value: stringPointer("pull-test-infra-bazel"),
-				},
-				{
-					Name:  stringPointer("annotation_testgrid_create_test_group"),
-					Value: stringPointer("true"),
-				},
-				{
-					Name:  stringPointer("job_agent"),
-					Value: stringPointer("kubernetes"),
-				},
-				{
-					Name:  stringPointer("job_name"),
-					Value: stringPointer("pull-test-infra-bazel"),
-				},
-				{
-					Name:  stringPointer("job_namespace"),
-					Value: stringPointer("default"),
+					Name:  new("label_preset_service_account"),
+					Value: new("true"),
 				},
 			},
 			gaugeValue: float64(1),
@@ -206,20 +181,24 @@ func TestProwJobCollector(t *testing.T) {
 		{
 			labels: []*dto.LabelPair{
 				{
-					Name:  stringPointer("job_agent"),
-					Value: stringPointer("kubernetes"),
+					Name:  new("annotation_prow_k8s_io_job"),
+					Value: new("pull-test-infra-bazel"),
 				},
 				{
-					Name:  stringPointer("job_name"),
-					Value: stringPointer("branch-ci-openshift-release-master-config-updates"),
+					Name:  new("annotation_testgrid_create_test_group"),
+					Value: new("true"),
 				},
 				{
-					Name:  stringPointer("job_namespace"),
-					Value: stringPointer("default"),
+					Name:  new("job_agent"),
+					Value: new("kubernetes"),
 				},
 				{
-					Name:  stringPointer("label_event_GUID"),
-					Value: stringPointer("e4216820-e604-11e9-8cf0-295472589b4f"),
+					Name:  new("job_name"),
+					Value: new("pull-test-infra-bazel"),
+				},
+				{
+					Name:  new("job_namespace"),
+					Value: new("default"),
 				},
 			},
 			gaugeValue: float64(1),
@@ -227,20 +206,41 @@ func TestProwJobCollector(t *testing.T) {
 		{
 			labels: []*dto.LabelPair{
 				{
-					Name:  stringPointer("annotation_prow_k8s_io_job"),
-					Value: stringPointer("branch-ci-openshift-release-master-config-updates"),
+					Name:  new("job_agent"),
+					Value: new("kubernetes"),
 				},
 				{
-					Name:  stringPointer("job_agent"),
-					Value: stringPointer("kubernetes"),
+					Name:  new("job_name"),
+					Value: new("branch-ci-openshift-release-master-config-updates"),
 				},
 				{
-					Name:  stringPointer("job_name"),
-					Value: stringPointer("branch-ci-openshift-release-master-config-updates"),
+					Name:  new("job_namespace"),
+					Value: new("default"),
 				},
 				{
-					Name:  stringPointer("job_namespace"),
-					Value: stringPointer("default"),
+					Name:  new("label_event_GUID"),
+					Value: new("e4216820-e604-11e9-8cf0-295472589b4f"),
+				},
+			},
+			gaugeValue: float64(1),
+		},
+		{
+			labels: []*dto.LabelPair{
+				{
+					Name:  new("annotation_prow_k8s_io_job"),
+					Value: new("branch-ci-openshift-release-master-config-updates"),
+				},
+				{
+					Name:  new("job_agent"),
+					Value: new("kubernetes"),
+				},
+				{
+					Name:  new("job_name"),
+					Value: new("branch-ci-openshift-release-master-config-updates"),
+				},
+				{
+					Name:  new("job_namespace"),
+					Value: new("default"),
 				},
 			},
 			gaugeValue: float64(1),
@@ -316,10 +316,6 @@ func contains(values []labelsAndValue, value labelsAndValue) bool {
 		}
 	}
 	return false
-}
-
-func stringPointer(s string) *string {
-	return &s
 }
 
 func TestFilterWithDenylist(t *testing.T) {

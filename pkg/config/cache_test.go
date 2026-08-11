@@ -488,7 +488,7 @@ func TestGetProwYAMLCachedAndDefaulted(t *testing.T) {
 			DefaultOrg:   "org",
 			DefaultRepo:  "repo",
 		},
-		GCSCredentialsSecret: pStr("service-account-secret"),
+		GCSCredentialsSecret: new("service-account-secret"),
 		UtilityImages: &prowapi.UtilityImages{
 			CloneRefs:  "clonerefs:default-BEFORE",
 			InitUpload: "initupload:default-BEFORE",
@@ -504,7 +504,7 @@ func TestGetProwYAMLCachedAndDefaulted(t *testing.T) {
 			DefaultOrg:   "org",
 			DefaultRepo:  "repo",
 		},
-		GCSCredentialsSecret: pStr("service-account-secret"),
+		GCSCredentialsSecret: new("service-account-secret"),
 		UtilityImages: &prowapi.UtilityImages{
 			CloneRefs:  "clonerefs:default-AFTER",
 			InitUpload: "initupload:default-AFTER",
@@ -526,7 +526,7 @@ func TestGetProwYAMLCachedAndDefaulted(t *testing.T) {
 				Name:           "presubmitFoo",
 				Agent:          "kubernetes",
 				Cluster:        "clusterFoo",
-				Namespace:      pStr("default"),
+				Namespace:      new("default"),
 				ProwJobDefault: &prowapi.ProwJobDefault{TenantID: "GlobalDefaultID"},
 				Spec: &v1.PodSpec{
 					Containers: []v1.Container{
@@ -558,7 +558,7 @@ func TestGetProwYAMLCachedAndDefaulted(t *testing.T) {
 				Name:           "postsubmitFoo",
 				Agent:          "kubernetes",
 				Cluster:        "clusterFoo",
-				Namespace:      pStr("default"),
+				Namespace:      new("default"),
 				ProwJobDefault: &prowapi.ProwJobDefault{TenantID: "GlobalDefaultID"},
 				Spec: &v1.PodSpec{
 					Containers: []v1.Container{
@@ -594,7 +594,7 @@ func TestGetProwYAMLCachedAndDefaulted(t *testing.T) {
 			JobBase: JobBase{
 				Name:      "presubmitFoo",
 				Cluster:   "clusterFoo",
-				Namespace: pStr("default"),
+				Namespace: new("default"),
 				Spec: &v1.PodSpec{
 					Containers: []v1.Container{
 						{
@@ -610,7 +610,7 @@ func TestGetProwYAMLCachedAndDefaulted(t *testing.T) {
 			JobBase: JobBase{
 				Name:      "postsubmitFoo",
 				Cluster:   "clusterFoo",
-				Namespace: pStr("default"),
+				Namespace: new("default"),
 				Spec: &v1.PodSpec{
 					Containers: []v1.Container{
 						{
@@ -733,7 +733,7 @@ func TestGetProwYAMLCachedAndDefaulted(t *testing.T) {
 							Name:           "presubmitFoo",
 							Agent:          "kubernetes",
 							Cluster:        "clusterFoo",
-							Namespace:      pStr("default"),
+							Namespace:      new("default"),
 							ProwJobDefault: &prowapi.ProwJobDefault{TenantID: "GlobalDefaultID"},
 							Spec: &v1.PodSpec{
 								Containers: []v1.Container{
@@ -765,7 +765,7 @@ func TestGetProwYAMLCachedAndDefaulted(t *testing.T) {
 							Name:           "postsubmitFoo",
 							Agent:          "kubernetes",
 							Cluster:        "clusterFoo",
-							Namespace:      pStr("default"),
+							Namespace:      new("default"),
 							ProwJobDefault: &prowapi.ProwJobDefault{TenantID: "GlobalDefaultID"},
 							Spec: &v1.PodSpec{
 								Containers: []v1.Container{

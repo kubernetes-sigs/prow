@@ -47,7 +47,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/utils/ptr"
 	fakectrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	prowapi "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
@@ -278,7 +277,7 @@ func TestAccumulateBatch(t *testing.T) {
 
 			inrepoconfig := config.InRepoConfig{}
 			if test.prowYAMLGetter != nil {
-				inrepoconfig.Enabled = map[string]*bool{"*": ptr.To(true)}
+				inrepoconfig.Enabled = map[string]*bool{"*": new(true)}
 			}
 			cfg := func() *config.Config {
 				return &config.Config{
@@ -1609,7 +1608,7 @@ func TestIsAllowedToMerge_ReviewDecision(t *testing.T) {
 			name:             "BLOCKED status - repo config overrides org config (ignore)",
 			mergeStateStatus: "BLOCKED",
 			policyConfig: map[string]config.GitHubMergeBlocksPolicy{
-				orgName: config.GitHubMergeBlocksBlock,
+				orgName:                                 config.GitHubMergeBlocksBlock,
 				fmt.Sprintf("%s/%s", orgName, repoName): config.GitHubMergeBlocksIgnore,
 			},
 			expectedMergeOutput:  "",
@@ -1619,7 +1618,7 @@ func TestIsAllowedToMerge_ReviewDecision(t *testing.T) {
 			name:             "BLOCKED status - repo config overrides org config (block)",
 			mergeStateStatus: "BLOCKED",
 			policyConfig: map[string]config.GitHubMergeBlocksPolicy{
-				orgName: config.GitHubMergeBlocksPermit,
+				orgName:                                 config.GitHubMergeBlocksPermit,
 				fmt.Sprintf("%s/%s", orgName, repoName): config.GitHubMergeBlocksBlock,
 			},
 			expectedMergeOutput:  "PR is blocked from merging by GitHub (check branch protection, required reviews, or rulesets)",
@@ -3675,7 +3674,7 @@ func TestPresubmitsByPull(t *testing.T) {
 				"foo/bar": {{Reporter: config.Reporter{Context: "wrong-repo"}, AlwaysRun: true}},
 			})
 			if tc.prowYAMLGetter != nil {
-				cfg.InRepoConfig.Enabled = map[string]*bool{"*": ptr.To(true)}
+				cfg.InRepoConfig.Enabled = map[string]*bool{"*": new(true)}
 				cfg.ProwYAMLGetterWithDefaults = tc.prowYAMLGetter
 			}
 			cfgAgent := &config.Agent{}
@@ -4247,7 +4246,7 @@ func TestPresubmitsForBatch(t *testing.T) {
 
 			inrepoconfig := config.InRepoConfig{}
 			if tc.prowYAMLGetter != nil {
-				inrepoconfig.Enabled = map[string]*bool{"*": ptr.To(true)}
+				inrepoconfig.Enabled = map[string]*bool{"*": new(true)}
 			}
 			cfg := func() *config.Config {
 				return &config.Config{

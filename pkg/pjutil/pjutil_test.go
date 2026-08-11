@@ -316,7 +316,7 @@ func TestCompletePrimaryRefs(t *testing.T) {
 					CloneDepth:     2,
 					SkipFetchHead:  true,
 					DecorationConfig: &prowapi.DecorationConfig{
-						BloblessFetch: boolPtr(true),
+						BloblessFetch: new(true),
 					},
 				},
 			},
@@ -326,7 +326,7 @@ func TestCompletePrimaryRefs(t *testing.T) {
 				SkipSubmodules: true,
 				CloneDepth:     2,
 				SkipFetchHead:  true,
-				BloblessFetch:  boolPtr(true),
+				BloblessFetch:  new(true),
 			},
 		},
 		{
@@ -1356,7 +1356,7 @@ func TestSetReportDefault(t *testing.T) {
 				ReporterConfig: &prowapi.ReporterConfig{
 					Slack: &prowapi.SlackReporterConfig{
 						JobStatesToReport: []prowapi.ProwJobState{},
-						Report:            boolPtr(false),
+						Report:            new(false),
 					},
 				},
 			},
@@ -1374,7 +1374,7 @@ func TestSetReportDefault(t *testing.T) {
 				ReporterConfig: &prowapi.ReporterConfig{
 					Slack: &prowapi.SlackReporterConfig{
 						JobStatesToReport: []prowapi.ProwJobState{prowapi.AbortedState},
-						Report:            boolPtr(true),
+						Report:            new(true),
 					},
 				},
 			},
@@ -1385,7 +1385,7 @@ func TestSetReportDefault(t *testing.T) {
 				ReporterConfig: &prowapi.ReporterConfig{
 					Slack: &prowapi.SlackReporterConfig{
 						JobStatesToReport: []prowapi.ProwJobState{},
-						Report:            boolPtr(true),
+						Report:            new(true),
 					},
 				},
 			},
@@ -1393,7 +1393,7 @@ func TestSetReportDefault(t *testing.T) {
 				ReporterConfig: &prowapi.ReporterConfig{
 					Slack: &prowapi.SlackReporterConfig{
 						JobStatesToReport: []prowapi.ProwJobState{},
-						Report:            boolPtr(true),
+						Report:            new(true),
 					},
 				},
 			},
@@ -1403,14 +1403,14 @@ func TestSetReportDefault(t *testing.T) {
 			spec: &prowapi.ProwJobSpec{
 				ReporterConfig: &prowapi.ReporterConfig{
 					Slack: &prowapi.SlackReporterConfig{
-						Report: boolPtr(false),
+						Report: new(false),
 					},
 				},
 			},
 			wantSpec: &prowapi.ProwJobSpec{
 				ReporterConfig: &prowapi.ReporterConfig{
 					Slack: &prowapi.SlackReporterConfig{
-						Report: boolPtr(false),
+						Report: new(false),
 					},
 				},
 			},
@@ -1421,7 +1421,7 @@ func TestSetReportDefault(t *testing.T) {
 				ReporterConfig: &prowapi.ReporterConfig{
 					Slack: &prowapi.SlackReporterConfig{
 						JobStatesToReport: []prowapi.ProwJobState{prowapi.AbortedState},
-						Report:            boolPtr(false),
+						Report:            new(false),
 					},
 				},
 			},
@@ -1429,7 +1429,7 @@ func TestSetReportDefault(t *testing.T) {
 				ReporterConfig: &prowapi.ReporterConfig{
 					Slack: &prowapi.SlackReporterConfig{
 						JobStatesToReport: []prowapi.ProwJobState{prowapi.AbortedState},
-						Report:            boolPtr(false),
+						Report:            new(false),
 					},
 				},
 			},
@@ -1580,16 +1580,16 @@ func TestSpecFromJobBase(t *testing.T) {
 			jobBase: config.JobBase{
 				UtilityConfig: config.UtilityConfig{
 					DecorationConfig: &prowapi.DecorationConfig{
-						BloblessFetch: boolPtr(true),
+						BloblessFetch: new(true),
 					},
 					ExtraRefs: []prowapi.Refs{
 						{
 							Org:           "true-org",
-							BloblessFetch: boolPtr(true),
+							BloblessFetch: new(true),
 						},
 						{
 							Org:           "false-org",
-							BloblessFetch: boolPtr(false),
+							BloblessFetch: new(false),
 						},
 						{
 							Org:           "default-org",
@@ -1601,7 +1601,7 @@ func TestSpecFromJobBase(t *testing.T) {
 			verify: func(pj prowapi.ProwJobSpec) error {
 				for _, r := range pj.ExtraRefs {
 					got := r.BloblessFetch
-					want := boolPtr(r.Org != "false-org")
+					want := new(r.Org != "false-org")
 					if diff := cmp.Diff(want, got); diff != "" {
 						return fmt.Errorf("ExtraRefs BloblessFetch for %s differs (-want +got)\n%s", r.Org, diff)
 					}
@@ -1614,16 +1614,16 @@ func TestSpecFromJobBase(t *testing.T) {
 			jobBase: config.JobBase{
 				UtilityConfig: config.UtilityConfig{
 					DecorationConfig: &prowapi.DecorationConfig{
-						BloblessFetch: boolPtr(false),
+						BloblessFetch: new(false),
 					},
 					ExtraRefs: []prowapi.Refs{
 						{
 							Org:           "true-org",
-							BloblessFetch: boolPtr(true),
+							BloblessFetch: new(true),
 						},
 						{
 							Org:           "false-org",
-							BloblessFetch: boolPtr(false),
+							BloblessFetch: new(false),
 						},
 						{
 							Org:           "default-org",
@@ -1635,7 +1635,7 @@ func TestSpecFromJobBase(t *testing.T) {
 			verify: func(pj prowapi.ProwJobSpec) error {
 				for _, r := range pj.ExtraRefs {
 					got := r.BloblessFetch
-					want := boolPtr(r.Org == "true-org")
+					want := new(r.Org == "true-org")
 					if diff := cmp.Diff(want, got); diff != "" {
 						return fmt.Errorf("ExtraRefs BloblessFetch for %s differs (-want +got)\n%s", r.Org, diff)
 					}
@@ -1650,11 +1650,11 @@ func TestSpecFromJobBase(t *testing.T) {
 					ExtraRefs: []prowapi.Refs{
 						{
 							Org:           "true-org",
-							BloblessFetch: boolPtr(true),
+							BloblessFetch: new(true),
 						},
 						{
 							Org:           "false-org",
-							BloblessFetch: boolPtr(false),
+							BloblessFetch: new(false),
 						},
 						{
 							Org:           "default-org",
@@ -1669,9 +1669,9 @@ func TestSpecFromJobBase(t *testing.T) {
 					var want *bool
 					switch r.Org {
 					case "true-org":
-						want = boolPtr(true)
+						want = new(true)
 					case "false-org":
-						want = boolPtr(false)
+						want = new(false)
 					case "default-org":
 						// Keep the unset default value.
 						want = nil

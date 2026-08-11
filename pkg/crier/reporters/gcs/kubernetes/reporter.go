@@ -34,7 +34,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/kubernetes/scheme"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
-	"k8s.io/utils/ptr"
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -233,7 +232,7 @@ func (gr *gcsK8sReporter) reportPodInfo(ctx context.Context, log *logrus.Entry, 
 		return nil
 	}
 
-	overWriteOpts := io.WriterOptions{PreconditionDoesNotExist: ptr.To(false)}
+	overWriteOpts := io.WriterOptions{PreconditionDoesNotExist: new(false)}
 	podInfoPath, err := providers.StoragePath(bucketName, path.Join(dir, "podinfo.json"))
 	if err != nil {
 		return fmt.Errorf("failed to resolve podinfo.json path: %v", err)
