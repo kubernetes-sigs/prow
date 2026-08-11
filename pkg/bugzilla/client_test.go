@@ -804,7 +804,7 @@ func TestRemovePullRequestAsExternalBug(t *testing.T) {
 		for _, testCase := range testCases {
 			if payload.Parameters[0].BugIDs[0] == testCase.id {
 				if actual, expected := string(raw), testCase.expectedPayload; actual != expected {
-					t.Errorf("%s: got incorrect JSONRPC payload: %v", testCase.name, diff.ObjectReflectDiff(expected, actual))
+					t.Errorf("%s: got incorrect JSONRPC payload: %v", testCase.name, diff.Diff(expected, actual))
 				}
 				if _, err := w.Write([]byte(testCase.response)); err != nil {
 					t.Fatalf("%s: failed to send JSONRPC response: %v", testCase.name, err)

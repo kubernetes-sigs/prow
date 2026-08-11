@@ -28,7 +28,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
 	clienttesting "k8s.io/client-go/testing"
-	"k8s.io/utils/ptr"
 
 	prowapi "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 	"sigs.k8s.io/prow/pkg/client/clientset/versioned/fake"
@@ -201,7 +200,7 @@ func TestRunRequested(t *testing.T) {
 				Head: github.PullRequestBranch{
 					SHA: "foobar1",
 				},
-				Mergable: ptr.To(false),
+				Mergable: new(false),
 			},
 			requestedJobs: []config.Presubmit{{
 				JobBase: config.JobBase{
@@ -496,7 +495,7 @@ func TestGetPresubmits(t *testing.T) {
 					},
 				},
 				ProwConfig: config.ProwConfig{
-					InRepoConfig: config.InRepoConfig{Enabled: map[string]*bool{"*": ptr.To(true)}},
+					InRepoConfig: config.InRepoConfig{Enabled: map[string]*bool{"*": new(true)}},
 				},
 			},
 
@@ -520,7 +519,7 @@ func TestGetPresubmits(t *testing.T) {
 					},
 				},
 				ProwConfig: config.ProwConfig{
-					InRepoConfig: config.InRepoConfig{Enabled: map[string]*bool{"*": ptr.To(true)}},
+					InRepoConfig: config.InRepoConfig{Enabled: map[string]*bool{"*": new(true)}},
 				},
 			},
 
@@ -574,7 +573,7 @@ func TestGetPostsubmits(t *testing.T) {
 					},
 				},
 				ProwConfig: config.ProwConfig{
-					InRepoConfig: config.InRepoConfig{Enabled: map[string]*bool{"*": ptr.To(true)}},
+					InRepoConfig: config.InRepoConfig{Enabled: map[string]*bool{"*": new(true)}},
 				},
 			},
 
@@ -598,7 +597,7 @@ func TestGetPostsubmits(t *testing.T) {
 					},
 				},
 				ProwConfig: config.ProwConfig{
-					InRepoConfig: config.InRepoConfig{Enabled: map[string]*bool{"*": ptr.To(true)}},
+					InRepoConfig: config.InRepoConfig{Enabled: map[string]*bool{"*": new(true)}},
 				},
 			},
 

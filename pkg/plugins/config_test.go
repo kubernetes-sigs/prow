@@ -31,7 +31,6 @@ import (
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/utils/ptr"
 	"sigs.k8s.io/yaml"
 
 	"sigs.k8s.io/prow/pkg/bugzilla"
@@ -147,7 +146,7 @@ func TestOwnersFilenames(t *testing.T) {
 		}
 		actual := cfg.OwnersFilenames(tc.org, tc.repo)
 		if actual != tc.expected {
-			t.Errorf("%s/%s: unexpected value. Diff: %v", tc.org, tc.repo, diff.ObjectDiff(actual, tc.expected))
+			t.Errorf("%s/%s: unexpected value. Diff: %v", tc.org, tc.repo, diff.Diff(actual, tc.expected))
 		}
 	}
 }
@@ -206,7 +205,7 @@ func TestSetDefault_Maps(t *testing.T) {
 		}
 		for k, n := range tc.expected {
 			if an := actual[k]; !reflect.DeepEqual(an, n) {
-				t.Errorf("%s - %s: unexpected value. Diff: %v", tc.name, k, diff.ObjectReflectDiff(an, n))
+				t.Errorf("%s - %s: unexpected value. Diff: %v", tc.name, k, diff.Diff(an, n))
 			}
 		}
 	}
@@ -551,7 +550,7 @@ func TestOptionsForItem(t *testing.T) {
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			if actual, expected := OptionsForItem(testCase.item, testCase.config), testCase.expected; !reflect.DeepEqual(actual, expected) {
-				t.Errorf("%s: got incorrect options for item %q: %v", testCase.name, testCase.item, diff.ObjectReflectDiff(actual, expected))
+				t.Errorf("%s: got incorrect options for item %q: %v", testCase.name, testCase.item, diff.Diff(actual, expected))
 			}
 		})
 	}
@@ -735,7 +734,7 @@ func TestResolveBugzillaOptions(t *testing.T) {
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			if actual, expected := ResolveBugzillaOptions(testCase.parent, testCase.child), testCase.expected; !reflect.DeepEqual(actual, expected) {
-				t.Errorf("%s: resolved incorrect options for parent and child: %v", testCase.name, diff.ObjectReflectDiff(actual, expected))
+				t.Errorf("%s: resolved incorrect options for parent and child: %v", testCase.name, diff.Diff(actual, expected))
 			}
 		})
 	}
@@ -972,7 +971,7 @@ orgs:
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			if actual, expected := config.OptionsForBranch(testCase.org, testCase.repo, testCase.branch), testCase.expected; !reflect.DeepEqual(actual, expected) {
-				t.Errorf("%s: resolved incorrect options for %s/%s#%s: %v", testCase.name, testCase.org, testCase.repo, testCase.branch, diff.ObjectReflectDiff(actual, expected))
+				t.Errorf("%s: resolved incorrect options for %s/%s#%s: %v", testCase.name, testCase.org, testCase.repo, testCase.branch, diff.Diff(actual, expected))
 			}
 		})
 	}
@@ -1065,7 +1064,7 @@ orgs:
 	for _, testCase := range repoTestCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			if actual, expected := config.OptionsForRepo(testCase.org, testCase.repo), testCase.expected; !reflect.DeepEqual(actual, expected) {
-				t.Errorf("%s: resolved incorrect options for %s/%s: %v", testCase.name, testCase.org, testCase.repo, diff.ObjectReflectDiff(actual, expected))
+				t.Errorf("%s: resolved incorrect options for %s/%s: %v", testCase.name, testCase.org, testCase.repo, diff.Diff(actual, expected))
 			}
 		})
 	}
@@ -1232,7 +1231,7 @@ func TestBugzillaBugState_AsBugUpdate(t *testing.T) {
 			}
 
 			if !reflect.DeepEqual(tc.expected, actual) {
-				t.Errorf("%s: BugUpdate differs from expected:\n%s", tc.name, diff.ObjectReflectDiff(*actual, *tc.expected))
+				t.Errorf("%s: BugUpdate differs from expected:\n%s", tc.name, diff.Diff(*actual, *tc.expected))
 			}
 		})
 	}
@@ -1463,7 +1462,7 @@ func TestConfigUpdaterResolve(t *testing.T) {
 				Maps: map[string]ConfigMapSpec{"map": {
 					Name:          "name",
 					Key:           "key",
-					GZIP:          ptr.To(true),
+					GZIP:          new(true),
 					ClusterGroups: []string{"some-group", "another-group"}},
 				},
 			},
@@ -1471,7 +1470,7 @@ func TestConfigUpdaterResolve(t *testing.T) {
 				Maps: map[string]ConfigMapSpec{"map": {
 					Name: "name",
 					Key:  "key",
-					GZIP: ptr.To(true),
+					GZIP: new(true),
 					Clusters: map[string][]string{
 						"cluster-a": {"namespace-a"},
 						"cluster-b": {"namespace-b"},

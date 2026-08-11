@@ -158,7 +158,7 @@ func TestUploadNewReaderFunc(t *testing.T) {
 				t.Errorf("error expected but got nil")
 			}
 			if !reflect.DeepEqual(testCase.wantReaderFuncMeta, *readerFuncMeta) {
-				t.Errorf("unexpected ReaderFuncMetadata: %s", diff.ObjectReflectDiff(testCase.wantReaderFuncMeta, *readerFuncMeta))
+				t.Errorf("unexpected ReaderFuncMetadata: %s", diff.Diff(testCase.wantReaderFuncMeta, *readerFuncMeta))
 			}
 		})
 	}

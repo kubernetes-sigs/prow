@@ -192,13 +192,13 @@ func TestCensoringExecutor_Run(t *testing.T) {
 				censor: testCase.censor,
 				execute: func(dir, command string, args ...string) (bytes []byte, e error) {
 					if dir != testCase.dir {
-						t.Errorf("%s: got incorrect dir: %v", testCase.name, diff.StringDiff(dir, testCase.dir))
+						t.Errorf("%s: got incorrect dir: %v", testCase.name, diff.Diff(dir, testCase.dir))
 					}
 					if command != testCase.git {
-						t.Errorf("%s: got incorrect command: %v", testCase.name, diff.StringDiff(command, testCase.git))
+						t.Errorf("%s: got incorrect command: %v", testCase.name, diff.Diff(command, testCase.git))
 					}
 					if !reflect.DeepEqual(args, testCase.args) {
-						t.Errorf("%s: got incorrect args: %v", testCase.name, diff.ObjectReflectDiff(args, testCase.args))
+						t.Errorf("%s: got incorrect args: %v", testCase.name, diff.Diff(args, testCase.args))
 					}
 					return testCase.executeOut, testCase.executeErr
 				},
@@ -212,7 +212,7 @@ func TestCensoringExecutor_Run(t *testing.T) {
 				t.Errorf("%s: expected no error but got one: %v", testCase.name, actualErr)
 			}
 			if !reflect.DeepEqual(actual, testCase.expectedOut) {
-				t.Errorf("%s: got incorrect command output: %v", testCase.name, diff.StringDiff(string(actual), string(testCase.expectedOut)))
+				t.Errorf("%s: got incorrect command output: %v", testCase.name, diff.Diff(string(actual), string(testCase.expectedOut)))
 			}
 		})
 	}

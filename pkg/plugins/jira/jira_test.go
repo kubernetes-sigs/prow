@@ -124,7 +124,7 @@ func TestHandle(t *testing.T) {
 		{
 			name: "Link is created based on body",
 			event: github.GenericCommentEvent{
-				CommentID:  intPtr(1),
+				CommentID:  new(1),
 				HTMLURL:    "https://github.com/org/repo/issues/3",
 				IssueTitle: "Some issue",
 				Body:       "Some text and also ABC-123",
@@ -147,7 +147,7 @@ func TestHandle(t *testing.T) {
 		{
 			name: "Link is created based on body with pasted link",
 			event: github.GenericCommentEvent{
-				CommentID:  intPtr(1),
+				CommentID:  new(1),
 				HTMLURL:    "https://github.com/org/repo/issues/3",
 				IssueTitle: "Some issue",
 				Body:       "Some text and also https://my-jira.com/browse/ABC-123",
@@ -169,7 +169,7 @@ func TestHandle(t *testing.T) {
 		{
 			name: "Link is created based on body and issuecomment suffix is removed from url",
 			event: github.GenericCommentEvent{
-				CommentID:  intPtr(1),
+				CommentID:  new(1),
 				HTMLURL:    "https://github.com/org/repo/issues/3#issuecomment-705743977",
 				IssueTitle: "Some issue",
 				Body:       "Some text and also ABC-123",
@@ -213,7 +213,7 @@ func TestHandle(t *testing.T) {
 		{
 			name: "Multiple references for issue, one link is created",
 			event: github.GenericCommentEvent{
-				CommentID:  intPtr(1),
+				CommentID:  new(1),
 				HTMLURL:    "https://github.com/org/repo/issues/3",
 				IssueTitle: "Some issue",
 				Body:       "Some text and also ABC-123 and again ABC-123",
@@ -356,10 +356,6 @@ func TestHandle(t *testing.T) {
 		})
 	}
 
-}
-
-func intPtr(i int) *int {
-	return &i
 }
 
 func TestInsertLinksIntoComment(t *testing.T) {

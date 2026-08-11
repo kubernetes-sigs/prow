@@ -223,7 +223,7 @@ func search(ctx context.Context, ghc githubClient, githubOrg string, log *logrus
 		if !sq.Search.PageInfo.HasNextPage {
 			break
 		}
-		vars["searchCursor"] = githubql.NewString(sq.Search.PageInfo.EndCursor)
+		vars["searchCursor"] = new(sq.Search.PageInfo.EndCursor)
 	}
 	log.WithFields(logrus.Fields{
 		"duration":       time.Since(requestStart).String(),

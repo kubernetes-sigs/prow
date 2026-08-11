@@ -267,7 +267,7 @@ func TestReadHistory(t *testing.T) {
 				t.Fatalf("Unexpected error reading history: %v.", err)
 			}
 			if !reflect.DeepEqual(hist, tc.expectedHist) {
-				t.Errorf("Unexpected diff between loaded history and expected history: %v.", diff.ObjectReflectDiff(hist, tc.expectedHist))
+				t.Errorf("Unexpected diff between loaded history and expected history: %v.", diff.Diff(hist, tc.expectedHist))
 			}
 			if !obj.closed && !tc.dne {
 				t.Errorf("Reader was not closed.")

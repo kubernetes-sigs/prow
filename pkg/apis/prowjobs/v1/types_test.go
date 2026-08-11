@@ -28,10 +28,6 @@ import (
 	pipelinev1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
 )
 
-func pStr(str string) *string {
-	return &str
-}
-
 // TODO(mpherman): Add more tests when ProwJobDefaults have more than 1 field
 func TestProwJobDefaulting(t *testing.T) {
 	var testCases = []struct {
@@ -235,7 +231,7 @@ func TestDecorationDefaultingDoesntOverwrite(t *testing.T) {
 		{
 			name: "gcs secret name provided",
 			provided: &DecorationConfig{
-				GCSCredentialsSecret: pStr("somethingSecret"),
+				GCSCredentialsSecret: new("somethingSecret"),
 			},
 			expected: func(orig, def *DecorationConfig) *DecorationConfig {
 				def.GCSCredentialsSecret = orig.GCSCredentialsSecret
@@ -245,7 +241,7 @@ func TestDecorationDefaultingDoesntOverwrite(t *testing.T) {
 		{
 			name: "gcs secret name unset",
 			provided: &DecorationConfig{
-				GCSCredentialsSecret: pStr(""),
+				GCSCredentialsSecret: new(""),
 			},
 			expected: func(orig, def *DecorationConfig) *DecorationConfig {
 				def.GCSCredentialsSecret = orig.GCSCredentialsSecret
@@ -255,7 +251,7 @@ func TestDecorationDefaultingDoesntOverwrite(t *testing.T) {
 		{
 			name: "s3 secret name provided",
 			provided: &DecorationConfig{
-				S3CredentialsSecret: pStr("overwritten"),
+				S3CredentialsSecret: new("overwritten"),
 			},
 			expected: func(orig, def *DecorationConfig) *DecorationConfig {
 				def.S3CredentialsSecret = orig.S3CredentialsSecret
@@ -265,7 +261,7 @@ func TestDecorationDefaultingDoesntOverwrite(t *testing.T) {
 		{
 			name: "s3 secret name unset",
 			provided: &DecorationConfig{
-				S3CredentialsSecret: pStr(""),
+				S3CredentialsSecret: new(""),
 			},
 			expected: func(orig, def *DecorationConfig) *DecorationConfig {
 				def.S3CredentialsSecret = orig.S3CredentialsSecret
@@ -275,7 +271,7 @@ func TestDecorationDefaultingDoesntOverwrite(t *testing.T) {
 		{
 			name: "default service account name provided",
 			provided: &DecorationConfig{
-				DefaultServiceAccountName: pStr("gcs-upload-sa"),
+				DefaultServiceAccountName: new("gcs-upload-sa"),
 			},
 			expected: func(orig, def *DecorationConfig) *DecorationConfig {
 				def.DefaultServiceAccountName = orig.DefaultServiceAccountName
@@ -381,8 +377,8 @@ func TestDecorationDefaultingDoesntOverwrite(t *testing.T) {
 					DefaultOrg:   "org",
 					DefaultRepo:  "repo",
 				},
-				GCSCredentialsSecret: pStr("secretName"),
-				S3CredentialsSecret:  pStr("s3-secret"),
+				GCSCredentialsSecret: new("secretName"),
+				S3CredentialsSecret:  new("s3-secret"),
 				SSHKeySecrets:        []string{"first", "second"},
 				SSHHostFingerprints:  []string{"primero", "segundo"},
 				SkipCloning:          &truth,

@@ -47,7 +47,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/utils/ptr"
 	fakectrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	prowapi "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
@@ -278,7 +277,7 @@ func TestAccumulateBatch(t *testing.T) {
 
 			inrepoconfig := config.InRepoConfig{}
 			if test.prowYAMLGetter != nil {
-				inrepoconfig.Enabled = map[string]*bool{"*": ptr.To(true)}
+				inrepoconfig.Enabled = map[string]*bool{"*": new(true)}
 			}
 			cfg := func() *config.Config {
 				return &config.Config{
@@ -1273,7 +1272,7 @@ func testPickBatch(clients localgit.Clients, t *testing.T) {
 		t.Fatalf("Error from pickBatch: %v", err)
 	}
 	if !apiequality.Semantic.DeepEqual(presubmits, ca.Config().PresubmitsStatic["o/r"]) {
-		t.Errorf("resolving presubmits failed, diff:\n%v\n", diff.ObjectReflectDiff(presubmits, ca.Config().PresubmitsStatic["o/r"]))
+		t.Errorf("resolving presubmits failed, diff:\n%v\n", diff.Diff(presubmits, ca.Config().PresubmitsStatic["o/r"]))
 	}
 	for _, testpr := range testprs {
 		var found bool
@@ -1609,7 +1608,7 @@ func TestIsAllowedToMerge_ReviewDecision(t *testing.T) {
 			name:             "BLOCKED status - repo config overrides org config (ignore)",
 			mergeStateStatus: "BLOCKED",
 			policyConfig: map[string]config.GitHubMergeBlocksPolicy{
-				orgName: config.GitHubMergeBlocksBlock,
+				orgName:                                 config.GitHubMergeBlocksBlock,
 				fmt.Sprintf("%s/%s", orgName, repoName): config.GitHubMergeBlocksIgnore,
 			},
 			expectedMergeOutput:  "",
@@ -1619,7 +1618,7 @@ func TestIsAllowedToMerge_ReviewDecision(t *testing.T) {
 			name:             "BLOCKED status - repo config overrides org config (block)",
 			mergeStateStatus: "BLOCKED",
 			policyConfig: map[string]config.GitHubMergeBlocksPolicy{
-				orgName: config.GitHubMergeBlocksPermit,
+				orgName:                                 config.GitHubMergeBlocksPermit,
 				fmt.Sprintf("%s/%s", orgName, repoName): config.GitHubMergeBlocksBlock,
 			},
 			expectedMergeOutput:  "PR is blocked from merging by GitHub (check branch protection, required reviews, or rulesets)",
@@ -3675,7 +3674,7 @@ func TestPresubmitsByPull(t *testing.T) {
 				"foo/bar": {{Reporter: config.Reporter{Context: "wrong-repo"}, AlwaysRun: true}},
 			})
 			if tc.prowYAMLGetter != nil {
-				cfg.InRepoConfig.Enabled = map[string]*bool{"*": ptr.To(true)}
+				cfg.InRepoConfig.Enabled = map[string]*bool{"*": new(true)}
 				cfg.ProwYAMLGetterWithDefaults = tc.prowYAMLGetter
 			}
 			cfgAgent := &config.Agent{}
@@ -3707,10 +3706,10 @@ func TestPresubmitsByPull(t *testing.T) {
 				config.ClearCompiledRegexes(jobs)
 			}
 			if !apiequality.Semantic.DeepEqual(presubmits, tc.expectedPresubmits) {
-				t.Errorf("got incorrect presubmit mapping: %v\n", diff.ObjectReflectDiff(tc.expectedPresubmits, presubmits))
+				t.Errorf("got incorrect presubmit mapping: %v\n", diff.Diff(tc.expectedPresubmits, presubmits))
 			}
 			if got := c.changedFiles.changeCache; !reflect.DeepEqual(got, tc.expectedChangeCache) {
-				t.Errorf("got incorrect file change cache: %v", diff.ObjectReflectDiff(tc.expectedChangeCache, got))
+				t.Errorf("got incorrect file change cache: %v", diff.Diff(tc.expectedChangeCache, got))
 			}
 		})
 	}
@@ -4247,7 +4246,7 @@ func TestPresubmitsForBatch(t *testing.T) {
 
 			inrepoconfig := config.InRepoConfig{}
 			if tc.prowYAMLGetter != nil {
-				inrepoconfig.Enabled = map[string]*bool{"*": ptr.To(true)}
+				inrepoconfig.Enabled = map[string]*bool{"*": new(true)}
 			}
 			cfg := func() *config.Config {
 				return &config.Config{
@@ -4294,7 +4293,7 @@ func TestPresubmitsForBatch(t *testing.T) {
 			// Clear regexes, otherwise DeepEqual comparison wont work
 			config.ClearCompiledRegexes(presubmits)
 			if !apiequality.Semantic.DeepEqual(tc.expected, presubmits) {
-				t.Errorf("returned presubmits do not match expected, diff: %v\n", diff.ObjectReflectDiff(tc.expected, presubmits))
+				t.Errorf("returned presubmits do not match expected, diff: %v\n", diff.Diff(tc.expected, presubmits))
 			}
 		})
 	}
@@ -4344,7 +4343,7 @@ func TestChangedFilesAgentBatchChanges(t *testing.T) {
 				t.Fatalf("fauked to get changed files: %v", err)
 			}
 			if !apiequality.Semantic.DeepEqual(result, tc.expected) {
-				t.Errorf("returned changes do not match expected; diff: %v\n", diff.ObjectReflectDiff(tc.expected, result))
+				t.Errorf("returned changes do not match expected; diff: %v\n", diff.Diff(tc.expected, result))
 			}
 		})
 	}

@@ -373,11 +373,11 @@ func TestCombineMetadata(t *testing.T) {
 			delete(tc.expected, errorKey)
 			delete(actual, errorKey)
 			if !equality.Semantic.DeepEqual(tc.expected, actual) {
-				t.Errorf("maps do not match:\n%s", diff.ObjectReflectDiff(tc.expected, actual))
+				t.Errorf("maps do not match:\n%s", diff.Diff(tc.expected, actual))
 			}
 
 			if !equality.Semantic.DeepEqual(sets.KeySet[string](expectedErrors), sets.KeySet[string](actualErrors)) { // ignore the error values
-				t.Errorf("errors do not match:\n%s", diff.ObjectReflectDiff(expectedErrors, actualErrors))
+				t.Errorf("errors do not match:\n%s", diff.Diff(expectedErrors, actualErrors))
 			}
 		})
 	}
@@ -504,7 +504,7 @@ func TestLogReaders(t *testing.T) {
 			}
 
 			if !equality.Semantic.DeepEqual(tc.expected, actual) {
-				t.Errorf("maps do not match:\n%s", diff.ObjectReflectDiff(tc.expected, actual))
+				t.Errorf("maps do not match:\n%s", diff.Diff(tc.expected, actual))
 			}
 		})
 	}

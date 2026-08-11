@@ -23,7 +23,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"k8s.io/apimachinery/pkg/util/diff"
-	"k8s.io/utils/ptr"
 )
 
 var (
@@ -315,7 +314,7 @@ func TestApply(test *testing.T) {
 			normalize(&actual)
 			normalize(&tc.expected)
 			if !reflect.DeepEqual(actual, tc.expected) {
-				test.Errorf("bad merged policy:\n%s", diff.ObjectReflectDiff(tc.expected, actual))
+				test.Errorf("bad merged policy:\n%s", diff.Diff(tc.expected, actual))
 			}
 		})
 	}
@@ -471,23 +470,23 @@ func TestBranchRequirements(t *testing.T) {
 		}
 		masterActual, masterActualIfPresent, masterOptional := BranchRequirements("master", presubmits["o/r"], &tc.requireManuallyTriggeredJobs)
 		if !reflect.DeepEqual(masterActual, tc.masterExpected) {
-			t.Errorf("%s: identified incorrect required contexts on branch master: %s", tc.name, diff.ObjectReflectDiff(masterActual, tc.masterExpected))
+			t.Errorf("%s: identified incorrect required contexts on branch master: %s", tc.name, diff.Diff(masterActual, tc.masterExpected))
 		}
 		if !reflect.DeepEqual(masterOptional, tc.masterOptional) {
-			t.Errorf("%s: identified incorrect optional contexts on branch master: %s", tc.name, diff.ObjectReflectDiff(masterOptional, tc.masterOptional))
+			t.Errorf("%s: identified incorrect optional contexts on branch master: %s", tc.name, diff.Diff(masterOptional, tc.masterOptional))
 		}
 		if !reflect.DeepEqual(masterActualIfPresent, tc.masterIfPresent) {
-			t.Errorf("%s: identified incorrect if-present contexts on branch master: %s", tc.name, diff.ObjectReflectDiff(masterActualIfPresent, tc.masterIfPresent))
+			t.Errorf("%s: identified incorrect if-present contexts on branch master: %s", tc.name, diff.Diff(masterActualIfPresent, tc.masterIfPresent))
 		}
 		otherActual, otherActualIfPresent, otherOptional := BranchRequirements("other", presubmits["o/r"], &tc.requireManuallyTriggeredJobs)
 		if !reflect.DeepEqual(masterActual, tc.masterExpected) {
-			t.Errorf("%s: identified incorrect required contexts on branch other: : %s", tc.name, diff.ObjectReflectDiff(otherActual, tc.otherExpected))
+			t.Errorf("%s: identified incorrect required contexts on branch other: : %s", tc.name, diff.Diff(otherActual, tc.otherExpected))
 		}
 		if !reflect.DeepEqual(otherOptional, tc.otherOptional) {
-			t.Errorf("%s: identified incorrect optional contexts on branch other: %s", tc.name, diff.ObjectReflectDiff(otherOptional, tc.otherOptional))
+			t.Errorf("%s: identified incorrect optional contexts on branch other: %s", tc.name, diff.Diff(otherOptional, tc.otherOptional))
 		}
 		if !reflect.DeepEqual(otherActualIfPresent, tc.otherIfPresent) {
-			t.Errorf("%s: identified incorrect if-present contexts on branch other: %s", tc.name, diff.ObjectReflectDiff(otherActualIfPresent, tc.otherIfPresent))
+			t.Errorf("%s: identified incorrect if-present contexts on branch other: %s", tc.name, diff.Diff(otherActualIfPresent, tc.otherIfPresent))
 		}
 	}
 }
@@ -679,7 +678,7 @@ func TestConfig_GetBranchProtection(t *testing.T) {
 			config: Config{
 				ProwConfig: ProwConfig{
 					BranchProtection: BranchProtection{
-						AllowDisabledPolicies: ptr.To(true),
+						AllowDisabledPolicies: new(true),
 						Policy: Policy{
 							Protect: yes,
 							Restrictions: &Restrictions{
@@ -747,7 +746,7 @@ func TestConfig_GetBranchProtection(t *testing.T) {
 			config: Config{
 				ProwConfig: ProwConfig{
 					BranchProtection: BranchProtection{
-						ProtectTested: ptr.To(true),
+						ProtectTested: new(true),
 						Orgs: map[string]Org{
 							"org": {},
 						},
@@ -812,7 +811,7 @@ func TestConfig_GetBranchProtection(t *testing.T) {
 			config: Config{
 				ProwConfig: ProwConfig{
 					BranchProtection: BranchProtection{
-						ProtectTested: ptr.To(true),
+						ProtectTested: new(true),
 						Orgs: map[string]Org{
 							"org": {},
 						},
@@ -841,8 +840,8 @@ func TestConfig_GetBranchProtection(t *testing.T) {
 			config: Config{
 				ProwConfig: ProwConfig{
 					BranchProtection: BranchProtection{
-						ProtectTested:                ptr.To(true),
-						ProtectReposWithOptionalJobs: ptr.To(true),
+						ProtectTested:                new(true),
+						ProtectReposWithOptionalJobs: new(true),
 						Orgs: map[string]Org{
 							"org": {},
 						},
@@ -875,7 +874,7 @@ func TestConfig_GetBranchProtection(t *testing.T) {
 			config: Config{
 				ProwConfig: ProwConfig{
 					BranchProtection: BranchProtection{
-						ProtectTested: ptr.To(true),
+						ProtectTested: new(true),
 						Orgs: map[string]Org{
 							"org": {
 								Policy: Policy{
@@ -909,8 +908,8 @@ func TestConfig_GetBranchProtection(t *testing.T) {
 			config: Config{
 				ProwConfig: ProwConfig{
 					BranchProtection: BranchProtection{
-						AllowDisabledJobPolicies: ptr.To(true),
-						ProtectTested:            ptr.To(true),
+						AllowDisabledJobPolicies: new(true),
+						ProtectTested:            new(true),
 						Orgs: map[string]Org{
 							"org": {
 								Repos: map[string]Repo{
@@ -982,7 +981,7 @@ func TestReposWithDisabledPolicy(t *testing.T) {
 								Contexts: []string{"hello", "world"},
 							},
 						},
-						AllowDisabledPolicies: ptr.To(true),
+						AllowDisabledPolicies: new(true),
 						Orgs: map[string]Org{
 							"org1": {
 								Repos: map[string]Repo{
@@ -1089,7 +1088,7 @@ func TestUnprotectedBranches(t *testing.T) {
 								Contexts: []string{"hello", "world"},
 							},
 						},
-						AllowDisabledPolicies: ptr.To(true),
+						AllowDisabledPolicies: new(true),
 						Orgs: map[string]Org{
 							"org1": {
 								Repos: map[string]Repo{
@@ -1129,7 +1128,7 @@ func TestUnprotectedBranches(t *testing.T) {
 								Contexts: []string{"hello", "world"},
 							},
 						},
-						AllowDisabledPolicies: ptr.To(true),
+						AllowDisabledPolicies: new(true),
 						Orgs: map[string]Org{
 							"org1": {
 								Repos: map[string]Repo{
@@ -1225,7 +1224,7 @@ func TestUnprotectedBranches(t *testing.T) {
 			config: Config{
 				ProwConfig: ProwConfig{
 					BranchProtection: BranchProtection{
-						AllowDisabledJobPolicies: ptr.To(true),
+						AllowDisabledJobPolicies: new(true),
 						Orgs: map[string]Org{
 							"org1": {
 								Repos: map[string]Repo{
@@ -1261,7 +1260,7 @@ func TestUnprotectedBranches(t *testing.T) {
 			config: Config{
 				ProwConfig: ProwConfig{
 					BranchProtection: BranchProtection{
-						AllowDisabledJobPolicies: ptr.To(true),
+						AllowDisabledJobPolicies: new(true),
 						Orgs: map[string]Org{
 							"org1": {
 								Repos: map[string]Repo{

@@ -236,15 +236,13 @@ func proxy(o *options, upstreamTransport http.RoundTripper, diskCachePruneInterv
 }
 
 func newReverseProxy(upstreamURL *url.URL, transport http.RoundTripper, timeout time.Duration) http.Handler {
-	proxy := httputil.NewSingleHostReverseProxy(upstreamURL)
-	// Wrap the director to change the upstream request 'Host' header to the
-	// target host.
-	director := proxy.Director
-	proxy.Director = func(req *http.Request) {
-		director(req)
-		req.Host = req.URL.Host
+	proxy := &httputil.ReverseProxy{
+		Rewrite: func(r *httputil.ProxyRequest) {
+			r.SetURL(upstreamURL)
+			r.Out.Host = upstreamURL.Host
+		},
+		Transport: transport,
 	}
-	proxy.Transport = transport
 
 	return http.TimeoutHandler(proxy, timeout, fmt.Sprintf("ghproxy timed out after %v", timeout))
 }
