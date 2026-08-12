@@ -32,6 +32,12 @@ if [[ "${VERIFY_GO_LINT:-true}" == "true" ]]; then
   hack/make-rules/verify/golangci-lint.sh || { FAILED+=($name); echo "ERROR: $name failed"; }
   cd "${REPO_ROOT}"
 fi
+if [[ "${VERIFY_KUBE_API_LINT:-true}" == "true" ]]; then
+  name="kube api lint"
+  echo "verifying $name ..."
+  hack/make-rules/verify/kube-api-lint.sh || { FAILED+=($name); echo "ERROR: $name failed"; }
+  cd "${REPO_ROOT}"
+fi
 if [[ "${VERIFY_GOFMT:-true}" == "true" ]]; then
   name="go fmt"
   echo "verifying $name"
