@@ -765,6 +765,40 @@ func Test_editReleaseNote(t *testing.T) {
 			},
 		},
 		{
+			name: "append to body without release note block",
+			event: github.IssueCommentEvent{
+				Action: github.IssueCommentActionCreated,
+				Issue:  github.Issue{Number: issueNum, User: github.User{Login: "user"}, Body: "Top\nBelow"},
+				Comment: github.IssueComment{
+					Body: "/release-note-edit\r\n```release-note\r\nThe new note\r\n```\r\n",
+					User: github.User{Login: "user"},
+				},
+				Repo: github.Repo{Owner: github.User{Login: "org"}},
+			},
+			fcFunc: func(fc *fakegithub.FakeClient) {
+				fc.OrgMembers["org"] = []string{"user"}
+				fc.Issues[issueNum] = &github.Issue{Number: issueNum, User: github.User{Login: "user"}, Body: "Top\nBelow"}
+			},
+			expectedNote: "Top\nBelow\n\n```release-note\nThe new note\n```\n",
+		},
+		{
+			name: "append to empty body",
+			event: github.IssueCommentEvent{
+				Action: github.IssueCommentActionCreated,
+				Issue:  github.Issue{Number: issueNum, User: github.User{Login: "user"}},
+				Comment: github.IssueComment{
+					Body: "/release-note-edit\r\n```release-note\r\nThe new note\r\n```\r\n",
+					User: github.User{Login: "user"},
+				},
+				Repo: github.Repo{Owner: github.User{Login: "org"}},
+			},
+			fcFunc: func(fc *fakegithub.FakeClient) {
+				fc.OrgMembers["org"] = []string{"user"}
+				fc.Issues[issueNum] = &github.Issue{Number: issueNum, User: github.User{Login: "user"}}
+			},
+			expectedNote: "```release-note\nThe new note\n```\n",
+		},
+		{
 			name: "happy path",
 			event: github.IssueCommentEvent{
 				Action: github.IssueCommentActionCreated,
