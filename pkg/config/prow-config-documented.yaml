@@ -474,6 +474,9 @@ gerrit:
     # job runs for a given CL.
     deck_url: ' '
     org_repos_config: null
+    # RateLimit defines how many changes to query per gerrit API call
+    # default is 5.
+    ratelimit: 1
     # TickInterval is how often we do a sync with bound gerrit instance.
     tick_interval: 0s
 # GitHubOptions allows users to control how prow applications display GitHub website links.
@@ -524,6 +527,13 @@ jenkins_operators:
       # For label selector syntax, see below:
       # https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#label-selectors
       label_selector: ' '
+      # MaxConcurrency is the maximum number of tests running concurrently that
+      # will be allowed by the controller. 0 implies no limit.
+      max_concurrency: 1
+      # MaxGoroutines is the maximum number of goroutines spawned inside the
+      # controller to handle tests. Defaults to 20. Needs to be a positive
+      # number.
+      max_goroutines: 1
       # ReportTemplateString compiles into ReportTemplate at load time.
       report_template: ' '
       # ReportTemplateStrings is a mapping of template comments.
@@ -1347,6 +1357,13 @@ plank:
     # JobURLPrefixDisableAppendStorageProvider disables that the storageProvider is
     # automatically appended to the JobURLPrefix.
     jobURLPrefixDisableAppendStorageProvider: true
+    # MaxConcurrency is the maximum number of tests running concurrently that
+    # will be allowed by the controller. 0 implies no limit.
+    max_concurrency: 1
+    # MaxGoroutines is the maximum number of goroutines spawned inside the
+    # controller to handle tests. Defaults to 20. Needs to be a positive
+    # number.
+    max_goroutines: 1
     # MaxRevivals is the maximum number of times a prowjob will be retried in case of an
     # unexpected stop of the job before being marked as failed. Generally a job is stopped
     # unexpectedly due to the underlying Node being terminated, evicted or becoming unreachable.
@@ -1582,6 +1599,9 @@ tide:
               org: ' '
               repos:
                 - ""
+        # RateLimit defines how many changes to query per gerrit API call
+        # default is 5.
+        ratelimit: 1
     # GitHubMergeBlocksPolicyMap configures on org or org/repo level how Tide should handle
     # GitHub's mergeStateStatus (BLOCKED state from branch protection rules, rulesets,
     # required reviews, etc.).
@@ -1589,6 +1609,10 @@ tide:
     # Valid values: "ignore", "permit", "block"
     github_merge_blocks_policy:
         "": ""
+    # MaxGoroutines is the maximum number of goroutines spawned inside the
+    # controller to handle org/repo:branch pools. Defaults to 20. Needs to be a
+    # positive number.
+    max_goroutines: 1
     # A key/value pair of an org/repo as the key and Go template to override
     # the default merge commit title and/or message. Template is passed the
     # PullRequest struct (prow/github/types.go#PullRequest)
