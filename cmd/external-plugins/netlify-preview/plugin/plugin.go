@@ -31,10 +31,10 @@ type Command string
 
 const (
 	RetestCommand         Command = "retest"
-	RebuildPreviewCommand Command = "rebuild-preview"
+	NetlifyRebuildCommand Command = "netlify-rebuild"
 )
 
-var commandRe = regexp.MustCompile(`(?mi)^/(retest|rebuild-preview)\s*$`)
+var commandRe = regexp.MustCompile(`(?mi)^/(retest|netlify-rebuild)\s*$`)
 
 func ParseCommand(body string) (Command, bool) {
 	body = markdown.DropCodeBlock(body)
@@ -82,7 +82,7 @@ func Evaluate(command Command, preview *netlify.Deploy) Decision {
 	if preview.State == "building" || preview.State == "enqueued" {
 		return Decision{Action: ActionAlreadyRunning}
 	}
-	if command == RebuildPreviewCommand {
+	if command == NetlifyRebuildCommand {
 		return Decision{Action: ActionRetry, ShouldRetry: true}
 	}
 	switch preview.State {
@@ -107,11 +107,11 @@ func HelpProvider(_ []config.OrgRepo) (*pluginhelp.PluginHelp, error) {
 		Examples:    []string{"/retest"},
 	})
 	pluginHelp.AddCommand(pluginhelp.Command{
-		Usage:       "/rebuild-preview",
+		Usage:       "/netlify-rebuild",
 		Description: "Force a retry of the latest Netlify deploy preview for a PR regardless of its current state, except when a build is already running.",
 		Featured:    true,
 		WhoCanUse:   "Anyone can trigger this command on a trusted PR.",
-		Examples:    []string{"/rebuild-preview"},
+		Examples:    []string{"/netlify-rebuild"},
 	})
 	return pluginHelp, nil
 }

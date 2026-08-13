@@ -42,7 +42,7 @@ type githubClient interface {
 }
 
 type netlifyClient interface {
-	ListDeploys(ctx context.Context, siteID string) ([]netlify.Deploy, error)
+	ForEachDeployPage(ctx context.Context, siteID string, fn func(page []netlify.Deploy) bool) error
 	RetryDeploy(ctx context.Context, deployID string) error
 }
 
@@ -114,6 +114,10 @@ func (s *server) handleIssueComment(l *logrus.Entry, ic github.IssueCommentEvent
 		github.PrLogField:   number,
 		"command":           command,
 	})
+	noopLevel := logrus.DebugLevel
+	if command == netlifypreview.NetlifyRebuildCommand {
+		noopLevel = logrus.InfoLevel
+	}
 
 	botUserChecker, err := s.ghc.BotUserChecker()
 	if err != nil {
@@ -127,22 +131,32 @@ func (s *server) handleIssueComment(l *logrus.Entry, ic github.IssueCommentEvent
 	if trusted, err := s.trustedForCommand(org, repo, number, ic.Issue.User.Login, commentAuthor); err != nil {
 		return err
 	} else if !trusted {
-		return s.comment(ic, "Cannot retry the Netlify deploy preview until a trusted user reviews the PR and leaves an `/ok-to-test` message.")
+		l.Log(noopLevel, "Comment author is not trusted to retry the Netlify deploy preview.")
+		if command == netlifypreview.NetlifyRebuildCommand {
+			return s.comment(ic, "Cannot retry the Netlify deploy preview until a trusted user reviews the PR and leaves an `/ok-to-test` message.")
+		}
+		return nil
 	}
 
 	repoConfig, ok := s.previewConfig.Repo(org, repo)
 	if !ok {
-		l.WithField("action", "config_error").Info("Repository has no Netlify preview site mapping.")
-		return s.comment(ic, "This repository does not have a Netlify preview site mapping configured, so I can't retry a deploy preview for it.")
+		l.WithField("action", "config_error").Log(noopLevel, "Repository has no Netlify preview site mapping.")
+		if command == netlifypreview.NetlifyRebuildCommand {
+			return s.comment(ic, "This repository does not have a Netlify preview site mapping configured, so I can't retry a deploy preview for it.")
+		}
+		return nil
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	deploys, err := s.netlifyClient.ListDeploys(ctx, repoConfig.SiteID)
-	if err != nil {
+	var preview netlify.Deploy
+	var found bool
+	if err := s.netlifyClient.ForEachDeployPage(ctx, repoConfig.SiteID, func(page []netlify.Deploy) bool {
+		preview, found = netlifypreview.LatestDeployPreview(page, number)
+		return !found
+	}); err != nil {
 		return err
 	}
-	preview, found := netlifypreview.LatestDeployPreview(deploys, number)
 	var previewPtr *netlify.Deploy
 	if found {
 		previewPtr = &preview
@@ -167,11 +181,17 @@ func (s *server) handleIssueComment(l *logrus.Entry, ic github.IssueCommentEvent
 			}
 		}
 		l.Info("Requested Netlify deploy preview retry.")
-		return s.comment(ic, fmt.Sprintf("Retrying the latest Netlify deploy preview for this PR: %s", preview.DeploySSLURL))
+		if command == netlifypreview.NetlifyRebuildCommand {
+			return s.comment(ic, fmt.Sprintf("Retrying the latest Netlify deploy preview for this PR: %s", preview.DeploySSLURL))
+		}
+		return nil
 	}
 
-	l.Info("Did not request Netlify deploy preview retry.")
-	return s.comment(ic, responseForDecision(command, decision, previewPtr))
+	l.Log(noopLevel, "Did not request Netlify deploy preview retry.")
+	if command == netlifypreview.NetlifyRebuildCommand {
+		return s.comment(ic, responseForDecision(command, decision, previewPtr))
+	}
+	return nil
 }
 
 func (s *server) trustedForCommand(org, repo string, number int, issueAuthor, commentAuthor string) (bool, error) {
@@ -198,9 +218,9 @@ func responseForDecision(command netlifypreview.Command, decision netlifypreview
 	case netlifypreview.ActionAlreadyRunning:
 		return fmt.Sprintf("A Netlify deploy preview is already in progress for this PR: %s", preview.DeploySSLURL)
 	case netlifypreview.ActionReadyRequiresRebuild:
-		return fmt.Sprintf("The latest Netlify deploy preview is `ready`. `/retest` only retries previews in `error` state. Use `/rebuild-preview` to refresh it: %s", preview.DeploySSLURL)
+		return fmt.Sprintf("The latest Netlify deploy preview is `ready`. `/retest` only retries previews in `error` state. Use `/netlify-rebuild` to refresh it: %s", preview.DeploySSLURL)
 	case netlifypreview.ActionUnsupportedState:
-		return fmt.Sprintf("The latest Netlify deploy preview is in state `%s`. `/retest` does not retry this state. Use `/rebuild-preview` to force a retry: %s", preview.State, preview.DeploySSLURL)
+		return fmt.Sprintf("The latest Netlify deploy preview is in state `%s`. `/retest` does not retry this state. Use `/netlify-rebuild` to force a retry: %s", preview.State, preview.DeploySSLURL)
 	default:
 		return fmt.Sprintf("No Netlify deploy preview retry was requested for command `%s`.", command)
 	}

@@ -23,8 +23,16 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
+)
+
+const (
+	listDeploysPerPage = 100
+	// maxListDeployPages bounds the search so busy sites cannot make a single
+	// command walk the whole deploy history.
+	maxListDeployPages = 10
 )
 
 // Deploy is the subset of Netlify deploy data needed to retry PR deploy previews.
@@ -55,26 +63,73 @@ func NewClient(baseURL string, httpClient *http.Client, tokenGenerator func() []
 	}
 }
 
-func (c *Client) ListDeploys(ctx context.Context, siteID string) ([]Deploy, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s/api/v1/sites/%s/deploys", c.baseURL, url.PathEscape(siteID)), nil)
+// ForEachDeployPage calls fn with successive pages of the site's deploy
+// previews, newest first. Iteration stops when fn returns false, the pages
+// are exhausted, or maxListDeployPages pages have been fetched.
+func (c *Client) ForEachDeployPage(ctx context.Context, siteID string, fn func(page []Deploy) bool) error {
+	deploysURL, err := url.Parse(fmt.Sprintf("%s/api/v1/sites/%s/deploys", c.baseURL, url.PathEscape(siteID)))
 	if err != nil {
-		return nil, err
+		return err
+	}
+	query := deploysURL.Query()
+	query.Set("deploy-previews", "true")
+	query.Set("page", "1")
+	query.Set("per_page", strconv.Itoa(listDeploysPerPage))
+	deploysURL.RawQuery = query.Encode()
+
+	nextURL := deploysURL.String()
+	for page := 0; nextURL != "" && page < maxListDeployPages; page++ {
+		pageDeploys, next, err := c.listDeploysPage(ctx, nextURL)
+		if err != nil {
+			return err
+		}
+		if !fn(pageDeploys) {
+			return nil
+		}
+		nextURL = next
+	}
+	return nil
+}
+
+func (c *Client) listDeploysPage(ctx context.Context, deploysURL string) ([]Deploy, string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, deploysURL, nil)
+	if err != nil {
+		return nil, "", err
 	}
 	c.authorize(req)
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
 		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("list deploys returned %s: %s", resp.Status, strings.TrimSpace(string(body)))
+		return nil, "", fmt.Errorf("list deploys returned %s: %s", resp.Status, strings.TrimSpace(string(body)))
 	}
 	var deploys []Deploy
 	if err := json.NewDecoder(resp.Body).Decode(&deploys); err != nil {
-		return nil, err
+		return nil, "", err
 	}
-	return deploys, nil
+	return deploys, nextLink(resp.Header.Get("Link")), nil
+}
+
+func nextLink(header string) string {
+	for link := range strings.SplitSeq(header, ",") {
+		sections := strings.Split(link, ";")
+		if len(sections) < 2 {
+			continue
+		}
+		target := strings.TrimSpace(sections[0])
+		if !strings.HasPrefix(target, "<") || !strings.HasSuffix(target, ">") {
+			continue
+		}
+		for _, parameter := range sections[1:] {
+			if strings.TrimSpace(parameter) == `rel="next"` {
+				return strings.TrimSuffix(strings.TrimPrefix(target, "<"), ">")
+			}
+		}
+	}
+	return ""
 }
 
 func (c *Client) RetryDeploy(ctx context.Context, deployID string) error {

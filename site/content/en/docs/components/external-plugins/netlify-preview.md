@@ -17,18 +17,20 @@ for repositories whose pull request previews are built by Netlify (for example
 ```
 
 Retries the latest Netlify deploy preview for the PR **only when that preview
-is in `error` state**. If the preview is `ready`, the plugin posts a comment
-explaining that `/retest` will not retry passing previews and points the user
-to `/rebuild-preview`.
+is in `error` state**. If the preview is missing, already running, ready, or in
+another unsupported state, the plugin does not post a comment.
 
 ```
-/rebuild-preview
+/netlify-rebuild
 ```
 
 Forces a retry of the latest Netlify deploy preview regardless of its current
 state, with one exception: if a build is already running (`building` or
 `enqueued`), the plugin declines and reports the in-progress preview rather
 than triggering a redundant build.
+
+Both commands look for the PR's preview among the site's newest 1000 deploys;
+older previews are treated as not found.
 
 Both commands require the comment author to be trusted under the same rules
 that Prow's `trigger` plugin applies: org members, configured trusted apps and
@@ -48,8 +50,9 @@ repos:
 ```
 
 Repositories that are listed under `external_plugins:` in the Prow
-configuration but missing from this file will receive a comment explaining
-that no Netlify preview site is configured.
+configuration but missing from this file are ignored for `/retest` comments.
+For `/netlify-rebuild`, the plugin posts a comment explaining that no Netlify
+preview site is configured.
 
 ## Required credentials
 

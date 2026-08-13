@@ -37,25 +37,30 @@ func TestParseCommand(t *testing.T) {
 			ok:   true,
 		},
 		{
-			name: "rebuild preview",
-			body: "/rebuild-preview",
-			want: RebuildPreviewCommand,
+			name: "netlify rebuild",
+			body: "/netlify-rebuild",
+			want: NetlifyRebuildCommand,
 			ok:   true,
 		},
 		{
 			name: "command inside multiline comment",
-			body: "please try this again\n/rebuild-preview\nthanks",
-			want: RebuildPreviewCommand,
+			body: "please try this again\n/netlify-rebuild\nthanks",
+			want: NetlifyRebuildCommand,
 			ok:   true,
 		},
 		{
 			name: "trailing words are rejected",
-			body: "/rebuild-preview please",
+			body: "/netlify-rebuild please",
+			ok:   false,
+		},
+		{
+			name: "old rebuild preview command is rejected",
+			body: "/rebuild-preview",
 			ok:   false,
 		},
 		{
 			name: "command in code block is ignored",
-			body: "```\n/rebuild-preview\n```",
+			body: "```\n/netlify-rebuild\n```",
 			ok:   false,
 		},
 	}
@@ -102,18 +107,18 @@ func TestEvaluate(t *testing.T) {
 	}{
 		{
 			name:       "no preview",
-			command:    RebuildPreviewCommand,
+			command:    NetlifyRebuildCommand,
 			wantAction: ActionNoPreview,
 		},
 		{
 			name:       "building preview is already running",
-			command:    RebuildPreviewCommand,
+			command:    NetlifyRebuildCommand,
 			preview:    &netlify.Deploy{State: "building"},
 			wantAction: ActionAlreadyRunning,
 		},
 		{
 			name:       "enqueued preview is already running",
-			command:    RebuildPreviewCommand,
+			command:    NetlifyRebuildCommand,
 			preview:    &netlify.Deploy{State: "enqueued"},
 			wantAction: ActionAlreadyRunning,
 		},
@@ -126,7 +131,7 @@ func TestEvaluate(t *testing.T) {
 		},
 		{
 			name:       "rebuild preview retries error preview",
-			command:    RebuildPreviewCommand,
+			command:    NetlifyRebuildCommand,
 			preview:    &netlify.Deploy{State: "error"},
 			wantAction: ActionRetry,
 			wantRetry:  true,
@@ -139,7 +144,7 @@ func TestEvaluate(t *testing.T) {
 		},
 		{
 			name:       "rebuild preview retries ready preview",
-			command:    RebuildPreviewCommand,
+			command:    NetlifyRebuildCommand,
 			preview:    &netlify.Deploy{State: "ready"},
 			wantAction: ActionRetry,
 			wantRetry:  true,
@@ -152,7 +157,7 @@ func TestEvaluate(t *testing.T) {
 		},
 		{
 			name:       "rebuild preview overrides unknown state",
-			command:    RebuildPreviewCommand,
+			command:    NetlifyRebuildCommand,
 			preview:    &netlify.Deploy{State: "uploaded"},
 			wantAction: ActionRetry,
 			wantRetry:  true,

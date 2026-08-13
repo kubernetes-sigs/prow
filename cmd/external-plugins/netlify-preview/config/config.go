@@ -24,10 +24,10 @@ import (
 )
 
 type Config struct {
-	Repos map[string]Repo `json:"repos,omitempty"`
+	Repos map[string]SiteConfig `json:"repos,omitempty"`
 }
 
-type Repo struct {
+type SiteConfig struct {
 	SiteID string `json:"site_id,omitempty"`
 }
 
@@ -55,9 +55,9 @@ func (c *Config) Validate() error {
 	return nil
 }
 
-func (c *Config) Repo(org, repo string) (Repo, bool) {
+func (c *Config) Repo(org, repo string) (SiteConfig, bool) {
 	if c == nil {
-		return Repo{}, false
+		return SiteConfig{}, false
 	}
 	cfg, ok := c.Repos[org+"/"+repo]
 	return cfg, ok

@@ -38,11 +38,11 @@ func TestHandleIssueCommentIgnoresNonActionableComments(t *testing.T) {
 	}{
 		{
 			name: "non pr comment",
-			ice:  issueCommentEvent("/rebuild-preview", "open", false),
+			ice:  issueCommentEvent("/netlify-rebuild", "open", false),
 		},
 		{
 			name: "closed pr comment",
-			ice:  issueCommentEvent("/rebuild-preview", "closed", true),
+			ice:  issueCommentEvent("/netlify-rebuild", "closed", true),
 		},
 		{
 			name: "non command comment",
@@ -71,7 +71,7 @@ func TestHandleIssueCommentRejectsUntrustedComment(t *testing.T) {
 	ghc := &fakeGitHubClient{}
 	s := newTestServer(ghc, &fakeNetlifyClient{}, &previewconfig.Config{})
 
-	if err := s.handleIssueComment(logrus.NewEntry(logrus.New()), issueCommentEvent("/rebuild-preview", "open", true)); err != nil {
+	if err := s.handleIssueComment(logrus.NewEntry(logrus.New()), issueCommentEvent("/netlify-rebuild", "open", true)); err != nil {
 		t.Fatalf("handleIssueComment returned error: %v", err)
 	}
 	if len(ghc.comments) != 1 {
@@ -82,7 +82,23 @@ func TestHandleIssueCommentRejectsUntrustedComment(t *testing.T) {
 	}
 }
 
-func TestHandleIssueCommentAllowsTrustedPullRequest(t *testing.T) {
+func TestHandleIssueCommentKeepsRetestQuietForUntrustedComment(t *testing.T) {
+	ghc := &fakeGitHubClient{}
+	netlifyClient := &fakeNetlifyClient{}
+	s := newTestServer(ghc, netlifyClient, &previewconfig.Config{})
+
+	if err := s.handleIssueComment(logrus.NewEntry(logrus.New()), issueCommentEvent("/retest", "open", true)); err != nil {
+		t.Fatalf("handleIssueComment returned error: %v", err)
+	}
+	if len(ghc.comments) != 0 {
+		t.Fatalf("expected no comments, got %v", ghc.comments)
+	}
+	if netlifyClient.listCalled {
+		t.Fatal("expected Netlify not to be called")
+	}
+}
+
+func TestHandleIssueCommentAllowsTrustedPullRequestRetest(t *testing.T) {
 	ghc := &fakeGitHubClient{labels: []github.Label{{Name: labels.OkToTest}}}
 	netlifyClient := &fakeNetlifyClient{deploys: []netlify.Deploy{{
 		ID:           "deploy-123",
@@ -92,10 +108,34 @@ func TestHandleIssueCommentAllowsTrustedPullRequest(t *testing.T) {
 		DeploySSLURL: "https://deploy-preview-5.example.netlify.app",
 		CreatedAt:    time.Now(),
 	}}}
-	cfg := &previewconfig.Config{Repos: map[string]previewconfig.Repo{"kubernetes/website": {SiteID: "site-123"}}}
+	cfg := &previewconfig.Config{Repos: map[string]previewconfig.SiteConfig{"kubernetes/website": {SiteID: "site-123"}}}
 	s := newTestServer(ghc, netlifyClient, cfg)
 
 	if err := s.handleIssueComment(logrus.NewEntry(logrus.New()), issueCommentEvent("/retest", "open", true)); err != nil {
+		t.Fatalf("handleIssueComment returned error: %v", err)
+	}
+	if !netlifyClient.retryCalled {
+		t.Fatal("expected Netlify retry")
+	}
+	if len(ghc.comments) != 0 {
+		t.Fatalf("unexpected comments: %v", ghc.comments)
+	}
+}
+
+func TestHandleIssueCommentCommentsAfterNetlifyRebuildRetry(t *testing.T) {
+	ghc := &fakeGitHubClient{labels: []github.Label{{Name: labels.OkToTest}}}
+	netlifyClient := &fakeNetlifyClient{deploys: []netlify.Deploy{{
+		ID:           "deploy-123",
+		Context:      "deploy-preview",
+		State:        "ready",
+		ReviewID:     5,
+		DeploySSLURL: "https://deploy-preview-5.example.netlify.app",
+		CreatedAt:    time.Now(),
+	}}}
+	cfg := &previewconfig.Config{Repos: map[string]previewconfig.SiteConfig{"kubernetes/website": {SiteID: "site-123"}}}
+	s := newTestServer(ghc, netlifyClient, cfg)
+
+	if err := s.handleIssueComment(logrus.NewEntry(logrus.New()), issueCommentEvent("/netlify-rebuild", "open", true)); err != nil {
 		t.Fatalf("handleIssueComment returned error: %v", err)
 	}
 	if !netlifyClient.retryCalled {
@@ -110,7 +150,7 @@ func TestHandleIssueCommentFailsClosedWhenMappingMissing(t *testing.T) {
 	ghc := &fakeGitHubClient{member: true}
 	s := newTestServer(ghc, &fakeNetlifyClient{}, &previewconfig.Config{})
 
-	if err := s.handleIssueComment(logrus.NewEntry(logrus.New()), issueCommentEvent("/rebuild-preview", "open", true)); err != nil {
+	if err := s.handleIssueComment(logrus.NewEntry(logrus.New()), issueCommentEvent("/netlify-rebuild", "open", true)); err != nil {
 		t.Fatalf("handleIssueComment returned error: %v", err)
 	}
 	if len(ghc.comments) != 1 {
@@ -118,6 +158,127 @@ func TestHandleIssueCommentFailsClosedWhenMappingMissing(t *testing.T) {
 	}
 	if !strings.Contains(ghc.comments[0], "does not have a Netlify preview site mapping configured") {
 		t.Fatalf("unexpected comment: %s", ghc.comments[0])
+	}
+}
+
+func TestHandleIssueCommentKeepsRetestQuietWhenMappingMissing(t *testing.T) {
+	ghc := &fakeGitHubClient{member: true}
+	netlifyClient := &fakeNetlifyClient{}
+	s := newTestServer(ghc, netlifyClient, &previewconfig.Config{})
+
+	if err := s.handleIssueComment(logrus.NewEntry(logrus.New()), issueCommentEvent("/retest", "open", true)); err != nil {
+		t.Fatalf("handleIssueComment returned error: %v", err)
+	}
+	if len(ghc.comments) != 0 {
+		t.Fatalf("expected no comments, got %v", ghc.comments)
+	}
+	if netlifyClient.listCalled {
+		t.Fatal("expected Netlify not to be called")
+	}
+}
+
+func TestHandleIssueCommentKeepsRetestQuietWhenNoRetryIsRequested(t *testing.T) {
+	tests := []struct {
+		name    string
+		deploys []netlify.Deploy
+	}{
+		{
+			name: "no preview",
+		},
+		{
+			name: "ready preview",
+			deploys: []netlify.Deploy{{
+				ID:           "deploy-123",
+				Context:      "deploy-preview",
+				State:        "ready",
+				ReviewID:     5,
+				DeploySSLURL: "https://deploy-preview-5.example.netlify.app",
+				CreatedAt:    time.Now(),
+			}},
+		},
+		{
+			name: "already running preview",
+			deploys: []netlify.Deploy{{
+				ID:           "deploy-123",
+				Context:      "deploy-preview",
+				State:        "building",
+				ReviewID:     5,
+				DeploySSLURL: "https://deploy-preview-5.example.netlify.app",
+				CreatedAt:    time.Now(),
+			}},
+		},
+		{
+			name: "unsupported preview state",
+			deploys: []netlify.Deploy{{
+				ID:           "deploy-123",
+				Context:      "deploy-preview",
+				State:        "uploaded",
+				ReviewID:     5,
+				DeploySSLURL: "https://deploy-preview-5.example.netlify.app",
+				CreatedAt:    time.Now(),
+			}},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ghc := &fakeGitHubClient{member: true}
+			netlifyClient := &fakeNetlifyClient{deploys: tc.deploys}
+			cfg := &previewconfig.Config{Repos: map[string]previewconfig.SiteConfig{"kubernetes/website": {SiteID: "site-123"}}}
+			s := newTestServer(ghc, netlifyClient, cfg)
+
+			if err := s.handleIssueComment(logrus.NewEntry(logrus.New()), issueCommentEvent("/retest", "open", true)); err != nil {
+				t.Fatalf("handleIssueComment returned error: %v", err)
+			}
+			if len(ghc.comments) != 0 {
+				t.Fatalf("expected no comments, got %v", ghc.comments)
+			}
+			if netlifyClient.retryCalled {
+				t.Fatal("expected Netlify retry not to be called")
+			}
+		})
+	}
+}
+
+func TestHandleIssueCommentCommentsForNetlifyRebuildNoRetryDecisions(t *testing.T) {
+	tests := []struct {
+		name        string
+		deploys     []netlify.Deploy
+		wantComment string
+	}{
+		{
+			name:        "no preview",
+			wantComment: "No Netlify deploy preview was found",
+		},
+		{
+			name: "already running preview",
+			deploys: []netlify.Deploy{{
+				ID:           "deploy-123",
+				Context:      "deploy-preview",
+				State:        "building",
+				ReviewID:     5,
+				DeploySSLURL: "https://deploy-preview-5.example.netlify.app",
+				CreatedAt:    time.Now(),
+			}},
+			wantComment: "already in progress",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ghc := &fakeGitHubClient{member: true}
+			netlifyClient := &fakeNetlifyClient{deploys: tc.deploys}
+			cfg := &previewconfig.Config{Repos: map[string]previewconfig.SiteConfig{"kubernetes/website": {SiteID: "site-123"}}}
+			s := newTestServer(ghc, netlifyClient, cfg)
+
+			if err := s.handleIssueComment(logrus.NewEntry(logrus.New()), issueCommentEvent("/netlify-rebuild", "open", true)); err != nil {
+				t.Fatalf("handleIssueComment returned error: %v", err)
+			}
+			if netlifyClient.retryCalled {
+				t.Fatal("expected Netlify retry not to be called")
+			}
+			if len(ghc.comments) != 1 || !strings.Contains(ghc.comments[0], tc.wantComment) {
+				t.Fatalf("unexpected comments: %v", ghc.comments)
+			}
+		})
 	}
 }
 
@@ -188,9 +349,10 @@ type fakeNetlifyClient struct {
 	retryCalled bool
 }
 
-func (f *fakeNetlifyClient) ListDeploys(ctx context.Context, siteID string) ([]netlify.Deploy, error) {
+func (f *fakeNetlifyClient) ForEachDeployPage(ctx context.Context, siteID string, fn func(page []netlify.Deploy) bool) error {
 	f.listCalled = true
-	return f.deploys, nil
+	fn(f.deploys)
+	return nil
 }
 
 func (f *fakeNetlifyClient) RetryDeploy(ctx context.Context, deployID string) error {
