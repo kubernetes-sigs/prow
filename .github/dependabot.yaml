@@ -7,6 +7,9 @@ updates:
       - "/site"
     schedule:
       interval: "weekly"
+    labels:
+      - "area/dependency"
+      - "ok-to-test"
     groups:
       kubernetes:
         patterns:
