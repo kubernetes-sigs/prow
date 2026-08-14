@@ -454,6 +454,11 @@ type Label struct {
 	// defines to which repos this applies and can be `*` for global, an org
 	// or a repo in org/repo notation.
 	RestrictedLabels map[string][]RestrictedLabel `json:"restricted_labels,omitempty"`
+
+	// ExclusiveLabelPrefixes is a list of label prefixes that should be treated
+	// as mutually exclusive. When a label matching one of these prefixes is added,
+	// any existing labels with the same prefix on the issue or PR are removed.
+	ExclusiveLabelPrefixes []string `json:"exclusive_label_prefixes,omitempty"`
 }
 
 func (l Label) RestrictedLabelsFor(org, repo string) map[string]RestrictedLabel {
@@ -2380,6 +2385,7 @@ func (l *Label) mergeFrom(other *Label) error {
 		return nil
 	}
 	l.AdditionalLabels = append(l.AdditionalLabels, other.AdditionalLabels...)
+	l.ExclusiveLabelPrefixes = append(l.ExclusiveLabelPrefixes, other.ExclusiveLabelPrefixes...)
 
 	var errs []error
 	for key, labelConfigs := range other.RestrictedLabels {
