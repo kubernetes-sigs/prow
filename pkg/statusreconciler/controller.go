@@ -165,14 +165,35 @@ func (c *Controller) Run(ctx context.Context) {
 		return
 	}
 
+	// lastProcessed tracks the config we last reconciled against. We maintain
+	// this ourselves rather than trusting the delta's Before field, because
+	// config.Agent.Set() silently drops deltas when the subscriber channel is
+	// blocked for over a minute. When that happens, ca.c advances but we never
+	// receive the delta, so subsequent deltas have a Before that already
+	// includes the dropped changes. By diffing against our own lastProcessed,
+	// the next delta that does get through captures everything we missed.
+	var lastProcessed *config.Config
+
 	for {
 		select {
 		case change := <-changes:
 			start := time.Now()
-			log := logrus.WithField("old_config_revision", change.Before.ConfigVersionSHA).WithField("config_revision", change.After.ConfigVersionSHA)
-			if err := c.reconcile(change, log); err != nil {
+
+			if lastProcessed == nil {
+				// First notification: use the delta's Before (the saved state
+				// from --status-path, or empty config if none was configured).
+				lastProcessed = &change.Before
+			}
+
+			current := c.statusClient.Config()
+			delta := config.Delta{Before: *lastProcessed, After: *current}
+
+			log := logrus.WithField("config_revision", current.ConfigVersionSHA)
+			if err := c.reconcile(delta, log); err != nil {
 				log.WithError(err).Error("Error reconciling statuses.")
 			}
+			cp := *current
+			lastProcessed = &cp
 			log.WithField("duration", fmt.Sprintf("%v", time.Since(start))).Info("Statuses reconciled")
 			c.statusClient.Save()
 		case <-ctx.Done():
