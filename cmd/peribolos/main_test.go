@@ -133,18 +133,33 @@ func TestOptions(t *testing.T) {
 		},
 		{
 			name: "full",
-			args: []string{"--config-path=foo", "--github-token-path=bar", "--github-endpoint=weird://url", "--confirm=true", "--require-self=false", "--dump=", "--fix-org", "--fix-org-members", "--fix-teams", "--fix-team-members", "--log-level=debug"},
+			args: []string{"--config-path=foo", "--github-token-path=bar", "--github-endpoint=weird://url", "--confirm=true", "--require-self=false", "--dump=", "--fix-org", "--fix-org-members", "--fix-teams", "--fix-team-members", "--ignore-repos=repo-a,repo-b", "--ignore-private-repos", "--ignore-internal-repos", "--log-level=debug"},
 			expected: &options{
-				config:         "foo",
-				confirm:        true,
-				requireSelf:    false,
-				minAdmins:      defaultMinAdmins,
-				maximumDelta:   defaultDelta,
-				fixOrg:         true,
-				fixOrgMembers:  true,
-				fixTeams:       true,
-				fixTeamMembers: true,
-				logLevel:       "debug",
+				config:              "foo",
+				confirm:             true,
+				requireSelf:         false,
+				minAdmins:           defaultMinAdmins,
+				maximumDelta:        defaultDelta,
+				fixOrg:              true,
+				fixOrgMembers:       true,
+				fixTeams:            true,
+				fixTeamMembers:      true,
+				ignoreRepos:         flagutil.NewStringsBeenSet("repo-a,repo-b"),
+				ignorePrivateRepos:  true,
+				ignoreInternalRepos: true,
+				logLevel:            "debug",
+			},
+		},
+		{
+			name: "repeated ignore repos",
+			args: []string{"--config-path=foo", "--ignore-repos=repo-a", "--ignore-repos=repo-b,repo-c"},
+			expected: &options{
+				config:       "foo",
+				minAdmins:    defaultMinAdmins,
+				requireSelf:  true,
+				maximumDelta: defaultDelta,
+				ignoreRepos:  flagutil.NewStringsBeenSet("repo-a", "repo-b,repo-c"),
+				logLevel:     "info",
 			},
 		},
 	}
@@ -164,6 +179,20 @@ func TestOptions(t *testing.T) {
 				t.Errorf("%s: got incorrect options: %v", tc.name, cmp.Diff(actual, *tc.expected, cmp.AllowUnexported(options{}, flagutil.Strings{}, flagutil.GitHubOptions{})))
 			}
 		})
+	}
+}
+
+func TestIgnoredRepos(t *testing.T) {
+	actual := ignoredRepos([]string{
+		"repo-a,repo-b",
+		"repo-c",
+		" repo-d , ",
+		"Repo-E",
+		"",
+	})
+	expected := sets.New[string]("repo-a", "repo-b", "repo-c", "repo-d", "repo-e")
+	if diff := cmp.Diff(actual, expected); diff != "" {
+		t.Errorf("got incorrect ignored repos: %s", diff)
 	}
 }
 
@@ -2679,16 +2708,19 @@ func (c *fakeTeamRepoClient) RemoveTeamRepoBySlug(org, teamSlug, repo string) er
 
 func TestConfigureTeamRepos(t *testing.T) {
 	var testCases = []struct {
-		name          string
-		githubTeams   map[string]github.Team
-		teamName      string
-		team          org.Team
-		existingRepos map[string][]github.Repo
-		failList      bool
-		failUpdate    bool
-		failRemove    bool
-		expected      map[string][]github.Repo
-		expectedErr   bool
+		name                string
+		githubTeams         map[string]github.Team
+		teamName            string
+		team                org.Team
+		existingRepos       map[string][]github.Repo
+		failList            bool
+		failUpdate          bool
+		failRemove          bool
+		ignoreRepos         sets.Set[string]
+		ignorePrivateRepos  bool
+		ignoreInternalRepos bool
+		expected            map[string][]github.Repo
+		expectedErr         bool
 	}{
 		{
 			name:        "githubTeams cache not containing team errors",
@@ -2798,6 +2830,96 @@ func TestConfigureTeamRepos(t *testing.T) {
 			}},
 		},
 		{
+			name:        "ignored repos are not removed or updated",
+			githubTeams: map[string]github.Team{"team": {ID: 1, Slug: "team"}},
+			teamName:    "team",
+			team: org.Team{
+				Repos: map[string]github.RepoPermissionLevel{
+					"managed":        github.Write,
+					"ignored-update": github.Admin,
+					"ignored-add":    github.Read,
+				},
+			},
+			existingRepos: map[string][]github.Repo{"team": {
+				{Name: "managed", Permissions: github.RepoPermissions{Pull: true}},
+				{Name: "ignored-update", Permissions: github.RepoPermissions{Pull: true}},
+				{Name: "ignored-remove", Permissions: github.RepoPermissions{Pull: true}},
+				{Name: "remove", Permissions: github.RepoPermissions{Pull: true}},
+			}},
+			ignoreRepos: sets.New[string]("ignored-add", "ignored-update", "ignored-remove"),
+			expected: map[string][]github.Repo{"team": {
+				{Name: "managed", Permissions: github.RepoPermissions{Pull: true, Triage: true, Push: true}},
+				{Name: "ignored-update", Permissions: github.RepoPermissions{Pull: true}},
+				{Name: "ignored-remove", Permissions: github.RepoPermissions{Pull: true}},
+			}},
+		},
+		{
+			name:        "ignored repo matching is case-insensitive",
+			githubTeams: map[string]github.Team{"team": {ID: 1, Slug: "team"}},
+			teamName:    "team",
+			team: org.Team{
+				Repos: map[string]github.RepoPermissionLevel{
+					"Ignored-Add":    github.Read,
+					"Ignored-Update": github.Admin,
+				},
+			},
+			existingRepos: map[string][]github.Repo{"team": {
+				{Name: "ignored-update", Permissions: github.RepoPermissions{Pull: true}},
+				{Name: "Ignored-Remove", Permissions: github.RepoPermissions{Pull: true}},
+			}},
+			ignoreRepos: sets.New[string]("ignored-add", "ignored-update", "ignored-remove"),
+			expected: map[string][]github.Repo{"team": {
+				{Name: "ignored-update", Permissions: github.RepoPermissions{Pull: true}},
+				{Name: "Ignored-Remove", Permissions: github.RepoPermissions{Pull: true}},
+			}},
+		},
+		{
+			name:        "private repos are not removed or updated when ignored",
+			githubTeams: map[string]github.Team{"team": {ID: 1, Slug: "team"}},
+			teamName:    "team",
+			team: org.Team{
+				Repos: map[string]github.RepoPermissionLevel{
+					"managed":        github.Write,
+					"private-update": github.Admin,
+				},
+			},
+			existingRepos: map[string][]github.Repo{"team": {
+				{Name: "managed", Permissions: github.RepoPermissions{Pull: true}},
+				{Name: "private-update", Private: true, Permissions: github.RepoPermissions{Pull: true}},
+				{Name: "private-remove", Private: true, Permissions: github.RepoPermissions{Pull: true}},
+				{Name: "public-remove", Permissions: github.RepoPermissions{Pull: true}},
+			}},
+			ignorePrivateRepos: true,
+			expected: map[string][]github.Repo{"team": {
+				{Name: "managed", Permissions: github.RepoPermissions{Pull: true, Triage: true, Push: true}},
+				{Name: "private-update", Private: true, Permissions: github.RepoPermissions{Pull: true}},
+				{Name: "private-remove", Private: true, Permissions: github.RepoPermissions{Pull: true}},
+			}},
+		},
+		{
+			name:        "internal repos are not removed or updated when ignored",
+			githubTeams: map[string]github.Team{"team": {ID: 1, Slug: "team"}},
+			teamName:    "team",
+			team: org.Team{
+				Repos: map[string]github.RepoPermissionLevel{
+					"managed":         github.Write,
+					"internal-update": github.Admin,
+				},
+			},
+			existingRepos: map[string][]github.Repo{"team": {
+				{Name: "managed", Permissions: github.RepoPermissions{Pull: true}},
+				{Name: "internal-update", Visibility: "internal", Permissions: github.RepoPermissions{Pull: true}},
+				{Name: "internal-remove", Visibility: "internal", Permissions: github.RepoPermissions{Pull: true}},
+				{Name: "public-remove", Permissions: github.RepoPermissions{Pull: true}},
+			}},
+			ignoreInternalRepos: true,
+			expected: map[string][]github.Repo{"team": {
+				{Name: "managed", Permissions: github.RepoPermissions{Pull: true, Triage: true, Push: true}},
+				{Name: "internal-update", Visibility: "internal", Permissions: github.RepoPermissions{Pull: true}},
+				{Name: "internal-remove", Visibility: "internal", Permissions: github.RepoPermissions{Pull: true}},
+			}},
+		},
+		{
 			name:        "failed update errors",
 			failUpdate:  true,
 			githubTeams: map[string]github.Team{"team": {ID: 1}},
@@ -2856,6 +2978,76 @@ func TestConfigureTeamRepos(t *testing.T) {
 			}},
 		},
 		{
+			name:        "ignored repos propagate to child teams",
+			githubTeams: map[string]github.Team{"team": {ID: 1, Slug: "team"}, "child": {ID: 2, Slug: "child"}},
+			teamName:    "team",
+			team: org.Team{
+				Children: map[string]org.Team{
+					"child": {
+						Repos: map[string]github.RepoPermissionLevel{
+							"ignored-add":    github.Read,
+							"ignored-update": github.Admin,
+						},
+					},
+				},
+			},
+			existingRepos: map[string][]github.Repo{"child": {
+				{Name: "ignored-update", Permissions: github.RepoPermissions{Pull: true}},
+				{Name: "ignored-remove", Permissions: github.RepoPermissions{Pull: true}},
+			}},
+			ignoreRepos: sets.New[string]("ignored-add", "ignored-update", "ignored-remove"),
+			expected: map[string][]github.Repo{"child": {
+				{Name: "ignored-update", Permissions: github.RepoPermissions{Pull: true}},
+				{Name: "ignored-remove", Permissions: github.RepoPermissions{Pull: true}},
+			}},
+		},
+		{
+			name:        "private repo ignore propagates to child teams",
+			githubTeams: map[string]github.Team{"team": {ID: 1, Slug: "team"}, "child": {ID: 2, Slug: "child"}},
+			teamName:    "team",
+			team: org.Team{
+				Children: map[string]org.Team{
+					"child": {
+						Repos: map[string]github.RepoPermissionLevel{
+							"private-update": github.Admin,
+						},
+					},
+				},
+			},
+			existingRepos: map[string][]github.Repo{"child": {
+				{Name: "private-update", Private: true, Permissions: github.RepoPermissions{Pull: true}},
+				{Name: "private-remove", Private: true, Permissions: github.RepoPermissions{Pull: true}},
+			}},
+			ignorePrivateRepos: true,
+			expected: map[string][]github.Repo{"child": {
+				{Name: "private-update", Private: true, Permissions: github.RepoPermissions{Pull: true}},
+				{Name: "private-remove", Private: true, Permissions: github.RepoPermissions{Pull: true}},
+			}},
+		},
+		{
+			name:        "internal repo ignore propagates to child teams",
+			githubTeams: map[string]github.Team{"team": {ID: 1, Slug: "team"}, "child": {ID: 2, Slug: "child"}},
+			teamName:    "team",
+			team: org.Team{
+				Children: map[string]org.Team{
+					"child": {
+						Repos: map[string]github.RepoPermissionLevel{
+							"internal-update": github.Admin,
+						},
+					},
+				},
+			},
+			existingRepos: map[string][]github.Repo{"child": {
+				{Name: "internal-update", Visibility: "internal", Permissions: github.RepoPermissions{Pull: true}},
+				{Name: "internal-remove", Visibility: "internal", Permissions: github.RepoPermissions{Pull: true}},
+			}},
+			ignoreInternalRepos: true,
+			expected: map[string][]github.Repo{"child": {
+				{Name: "internal-update", Visibility: "internal", Permissions: github.RepoPermissions{Pull: true}},
+				{Name: "internal-remove", Visibility: "internal", Permissions: github.RepoPermissions{Pull: true}},
+			}},
+		},
+		{
 			name:        "failure in a child errors",
 			failRemove:  true,
 			githubTeams: map[string]github.Team{"team": {ID: 1, Slug: "team"}, "child": {ID: 2, Slug: "child"}},
@@ -2885,7 +3077,7 @@ func TestConfigureTeamRepos(t *testing.T) {
 			failUpdate: testCase.failUpdate,
 			failRemove: testCase.failRemove,
 		}
-		err := configureTeamRepos(&client, testCase.githubTeams, testCase.teamName, "org", testCase.team)
+		err := configureTeamRepos(&client, testCase.githubTeams, testCase.teamName, "org", testCase.team, testCase.ignoreRepos, testCase.ignorePrivateRepos, testCase.ignoreInternalRepos)
 		if err == nil && testCase.expectedErr {
 			t.Errorf("%s: expected an error but got none", testCase.name)
 		}

@@ -62,6 +62,9 @@ type options struct {
 	ignoreInvitees        bool
 	ignoreSecretTeams     bool
 	ignoreEnterpriseTeams bool
+	ignoreRepos           flagutil.Strings
+	ignorePrivateRepos    bool
+	ignoreInternalRepos   bool
 	allowRepoArchival     bool
 	allowRepoPublish      bool
 	github                flagutil.GitHubOptions
@@ -90,6 +93,10 @@ func (o *options) parseArgs(flags *flag.FlagSet, args []string) error {
 	flags.BoolVar(&o.ignoreInvitees, "ignore-invitees", false, "Do not compare missing members with active invitations (compatibility for GitHub Enterprise)")
 	flags.BoolVar(&o.ignoreSecretTeams, "ignore-secret-teams", false, "Do not dump or update secret teams if set")
 	flags.BoolVar(&o.ignoreEnterpriseTeams, "ignore-enterprise-teams", false, "Skip enterprise teams and their members during reconciliation")
+	o.ignoreRepos = flagutil.NewStrings()
+	flags.Var(&o.ignoreRepos, "ignore-repos", "Comma-separated list of repositories to skip while reconciling team repo permissions")
+	flags.BoolVar(&o.ignorePrivateRepos, "ignore-private-repos", false, "Skip private repositories while reconciling team repo permissions")
+	flags.BoolVar(&o.ignoreInternalRepos, "ignore-internal-repos", false, "Skip internal repositories while reconciling team repo permissions")
 	flags.BoolVar(&o.fixOrg, "fix-org", false, "Change org metadata if set")
 	flags.BoolVar(&o.fixOrgMembers, "fix-org-members", false, "Add/remove org members if set")
 	flags.BoolVar(&o.fixTeams, "fix-teams", false, "Create/delete/update teams if set")
@@ -151,6 +158,19 @@ func (o *options) parseArgs(flags *flag.FlagSet, args []string) error {
 	}
 
 	return nil
+}
+
+func ignoredRepos(values []string) sets.Set[string] {
+	repos := sets.Set[string]{}
+	for _, value := range values {
+		for _, repo := range strings.Split(value, ",") {
+			repo = strings.TrimSpace(repo)
+			if repo != "" {
+				repos.Insert(strings.ToLower(repo))
+			}
+		}
+	}
+	return repos
 }
 
 func main() {
@@ -997,6 +1017,7 @@ func configureOrg(opt options, client github.Client, orgName string, orgConfig o
 	if err != nil {
 		return fmt.Errorf("failed to configure %s teams: %w", orgName, err)
 	}
+	ignoreRepos := ignoredRepos(opt.ignoreRepos.Strings())
 
 	for name, team := range orgConfig.Teams {
 		err := configureTeamAndMembers(opt, client, githubTeams, name, orgName, team, nil)
@@ -1008,7 +1029,7 @@ func configureOrg(opt options, client github.Client, orgName string, orgConfig o
 			logrus.Infof("Skipping team repo permissions configuration")
 			continue
 		}
-		if err := configureTeamRepos(client, githubTeams, name, orgName, team); err != nil {
+		if err := configureTeamRepos(client, githubTeams, name, orgName, team, ignoreRepos, opt.ignorePrivateRepos, opt.ignoreInternalRepos); err != nil {
 			return fmt.Errorf("failed to configure %s team %s repos: %w", orgName, name, err)
 		}
 	}
@@ -1466,7 +1487,7 @@ type teamRepoClient interface {
 }
 
 // configureTeamRepos updates the list of repos that the team has permissions for when necessary
-func configureTeamRepos(client teamRepoClient, githubTeams map[string]github.Team, name, orgName string, team org.Team) error {
+func configureTeamRepos(client teamRepoClient, githubTeams map[string]github.Team, name, orgName string, team org.Team, ignoreRepos sets.Set[string], ignorePrivateRepos bool, ignoreInternalRepos bool) error {
 	gt, ok := githubTeams[name]
 	if !ok { // configureTeams is buggy if this is the case
 		return fmt.Errorf("%s not found in id list", name)
@@ -1474,16 +1495,34 @@ func configureTeamRepos(client teamRepoClient, githubTeams map[string]github.Tea
 
 	want := team.Repos
 	have := map[string]github.RepoPermissionLevel{}
+	privateRepos := sets.Set[string]{}
+	internalRepos := sets.Set[string]{}
 	repos, err := client.ListTeamReposBySlug(orgName, gt.Slug)
 	if err != nil {
 		return fmt.Errorf("failed to list team %d(%s) repos: %w", gt.ID, name, err)
 	}
 	for _, repo := range repos {
+		repoName := strings.ToLower(repo.Name)
+		if ignorePrivateRepos && repo.Private {
+			privateRepos.Insert(repoName)
+			continue
+		}
+		if ignoreInternalRepos && repo.Visibility == "internal" {
+			internalRepos.Insert(repoName)
+			continue
+		}
+		if ignoreRepos.Has(repoName) {
+			continue
+		}
 		have[repo.Name] = github.LevelFromPermissions(repo.Permissions)
 	}
 
 	actions := map[string]github.RepoPermissionLevel{}
 	for wantRepo, wantPermission := range want {
+		repoName := strings.ToLower(wantRepo)
+		if ignoreRepos.Has(repoName) || privateRepos.Has(repoName) || internalRepos.Has(repoName) {
+			continue
+		}
 		if havePermission, haveRepo := have[wantRepo]; haveRepo && havePermission == wantPermission {
 			// nothing to do
 			continue
@@ -1523,7 +1562,7 @@ func configureTeamRepos(client teamRepoClient, githubTeams map[string]github.Tea
 	}
 
 	for childName, childTeam := range team.Children {
-		if err := configureTeamRepos(client, githubTeams, childName, orgName, childTeam); err != nil {
+		if err := configureTeamRepos(client, githubTeams, childName, orgName, childTeam, ignoreRepos, ignorePrivateRepos, ignoreInternalRepos); err != nil {
 			updateErrors = append(updateErrors, fmt.Errorf("failed to configure %s child team %s repos: %w", orgName, childName, err))
 		}
 	}
