@@ -7,7 +7,6 @@ import {isTransitMessage, serialiseHashes} from "./common";
 declare const src: string;
 declare const lensArtifacts: {[index: string]: string[]};
 declare const lensIndexes: number[];
-declare const csrfToken: string;
 declare const rerunCreatesJob: boolean;
 declare const prowJob: string;
 declare const prowJobName: string;
@@ -74,7 +73,7 @@ function parseHash(): {[index: string]: string} {
 }
 
 function getLensRequestOptions(reqBody: string): RequestInit {
-  return {body: reqBody, method: 'POST', headers: {'X-CSRF-Token': csrfToken}, credentials: 'same-origin'};
+  return {body: reqBody, method: 'POST', credentials: 'same-origin'};
 }
 
 window.addEventListener('message', async (e) => {
@@ -184,7 +183,7 @@ function handleRerunButton() {
 
   const r = document.getElementById("header-title")!;
   const c = document.createElement("div");
-  c.appendChild(createRerunProwJobIcon(modal, modalContent, prowJobName, rerunCreatesJob, csrfToken));
+  c.appendChild(createRerunProwJobIcon(modal, modalContent, prowJobName, rerunCreatesJob));
   r.appendChild(c);
 
   if (rerunStatus === "gh_redirect") {
@@ -204,6 +203,6 @@ function handleAbortButton(): void {
 
   const r = document.getElementById("header-title")!;
   const c = document.createElement("div");
-  c.appendChild(createAbortProwJobIcon(modal, modalContent, prowJob, prowJobState, prowJobName, csrfToken));
+  c.appendChild(createAbortProwJobIcon(modal, modalContent, prowJob, prowJobState, prowJobName));
   r.appendChild(c);
 }
