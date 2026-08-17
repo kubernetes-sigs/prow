@@ -1,0 +1,17 @@
+plugins:
+  <GITHUB_USER>/prow-sandbox: # Replace with your GitHub username
+    plugins:
+      - approve
+      - assign
+      - blunderbuss
+      - cat
+      - dog
+      - help
+      - heart
+      - hold
+      - label
+      - lgtm
+      - trigger
+      - verify-owners
+      - wip
+      - yuks

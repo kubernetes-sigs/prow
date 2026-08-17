@@ -6,6 +6,9 @@ _output/
 pj.yaml
 pod.yaml
 
+# Local configuration files. Make sure to not commit sensitive credentials.
+config/local/
+
 # See https://github.com/kubernetes-sigs/prow/pull/101#discussion_r1568605799
 yarn.lock
 node_modules/
