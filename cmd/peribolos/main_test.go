@@ -2053,11 +2053,29 @@ func TestDumpOrgConfig(t *testing.T) {
 						Name:          repoName,
 						Description:   repoDescription,
 						Homepage:      repoHomepage,
-						Private:       false,
+						Visibility:    github.RepoVisibilityPublic,
 						HasIssues:     true,
 						HasProjects:   true,
 						HasWiki:       true,
 						Archived:      true,
+						DefaultBranch: master,
+					},
+				},
+				{
+					Repo: github.Repo{
+						Name:          "internal-project",
+						Visibility:    github.RepoVisibilityInternal,
+						HasIssues:     true,
+						HasWiki:       true,
+						DefaultBranch: master,
+					},
+				},
+				{
+					Repo: github.Repo{
+						Name:          "private-project",
+						Visibility:    github.RepoVisibilityPrivate,
+						HasIssues:     true,
+						HasWiki:       true,
 						DefaultBranch: master,
 					},
 				},
@@ -2124,6 +2142,24 @@ func TestDumpOrgConfig(t *testing.T) {
 						AllowRebaseMerge: &no,
 						AllowSquashMerge: &no,
 						Archived:         &yes,
+						DefaultBranch:    &master,
+					},
+					// Non-public visibilities survive PruneRepoDefaults, so they
+					// must round-trip into the dumped config.
+					"internal-project": {
+						Visibility:       new(github.RepoVisibilityInternal),
+						HasProjects:      &no,
+						AllowMergeCommit: &no,
+						AllowRebaseMerge: &no,
+						AllowSquashMerge: &no,
+						DefaultBranch:    &master,
+					},
+					"private-project": {
+						Visibility:       new(github.RepoVisibilityPrivate),
+						HasProjects:      &no,
+						AllowMergeCommit: &no,
+						AllowRebaseMerge: &no,
+						AllowSquashMerge: &no,
 						DefaultBranch:    &master,
 					},
 				},
@@ -2945,6 +2981,13 @@ func (f fakeRepoClient) CreateRepo(owner string, isUser bool, repoReq github.Rep
 	return repo, nil
 }
 
+// updateIfSet copies *want into *have when want is non-nil.
+func updateIfSet[T any](have, want *T) {
+	if want != nil {
+		*have = *want
+	}
+}
+
 func (f fakeRepoClient) UpdateRepo(owner, name string, want github.RepoUpdateRequest) (*github.FullRepo, error) {
 	if name == "fail" {
 		return nil, fmt.Errorf("injected UpdateRepo failure")
@@ -2964,32 +3007,20 @@ func (f fakeRepoClient) UpdateRepo(owner, name string, want github.RepoUpdateReq
 		return nil, fmt.Errorf("Repository was archived so is read-only.")
 	}
 
-	updateString := func(have, want *string) {
-		if want != nil {
-			*have = *want
-		}
-	}
-
-	updateBool := func(have, want *bool) {
-		if want != nil {
-			*have = *want
-		}
-	}
-
-	updateString(&have.Name, want.Name)
-	updateString(&have.DefaultBranch, want.DefaultBranch)
-	updateString(&have.Homepage, want.Homepage)
-	updateString(&have.Description, want.Description)
-	updateBool(&have.Archived, want.Archived)
-	updateBool(&have.Private, want.Private)
-	updateBool(&have.HasIssues, want.HasIssues)
-	updateBool(&have.HasProjects, want.HasProjects)
-	updateBool(&have.HasWiki, want.HasWiki)
-	updateBool(&have.AllowSquashMerge, want.AllowSquashMerge)
-	updateBool(&have.AllowMergeCommit, want.AllowMergeCommit)
-	updateBool(&have.AllowRebaseMerge, want.AllowRebaseMerge)
-	updateString(&have.SquashMergeCommitTitle, want.SquashMergeCommitTitle)
-	updateString(&have.SquashMergeCommitMessage, want.SquashMergeCommitMessage)
+	updateIfSet(&have.Name, want.Name)
+	updateIfSet(&have.DefaultBranch, want.DefaultBranch)
+	updateIfSet(&have.Homepage, want.Homepage)
+	updateIfSet(&have.Description, want.Description)
+	updateIfSet(&have.Archived, want.Archived)
+	updateIfSet(&have.Visibility, want.Visibility)
+	updateIfSet(&have.HasIssues, want.HasIssues)
+	updateIfSet(&have.HasProjects, want.HasProjects)
+	updateIfSet(&have.HasWiki, want.HasWiki)
+	updateIfSet(&have.AllowSquashMerge, want.AllowSquashMerge)
+	updateIfSet(&have.AllowMergeCommit, want.AllowMergeCommit)
+	updateIfSet(&have.AllowRebaseMerge, want.AllowRebaseMerge)
+	updateIfSet(&have.SquashMergeCommitTitle, want.SquashMergeCommitTitle)
+	updateIfSet(&have.SquashMergeCommitMessage, want.SquashMergeCommitMessage)
 
 	f.repos[name] = have
 	return &have, nil
@@ -3195,28 +3226,59 @@ func TestConfigureRepos(t *testing.T) {
 			expectedRepos: []github.Repo{{Name: oldName, Archived: true}},
 		},
 		{
-			description: "request to publish a private repo fails when not allowed, but updates other fields",
+			description: "request to make a private repo public fails when not allowed, but updates other fields",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
-					oldName: {Private: &no, Description: &updated},
+					oldName: {Visibility: new(github.RepoVisibilityPublic), Description: &updated},
 				},
 			},
-			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Private: true, Description: "OLD"}}},
+			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Visibility: github.RepoVisibilityPrivate, Description: "OLD"}}},
 			expectError:   true,
-			expectedRepos: []github.Repo{{Name: oldName, Private: true, Description: updated}},
+			expectedRepos: []github.Repo{{Name: oldName, Visibility: github.RepoVisibilityPrivate, Description: updated}},
 		},
 		{
-			description: "request to publish a private repo succeeds when allowed",
+			description: "request to make a private repo public succeeds when allowed",
 			opts: options{
 				allowRepoPublish: true,
 			},
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
-					oldName: {Private: &no},
+					oldName: {Visibility: new(github.RepoVisibilityPublic)},
 				},
 			},
-			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Private: true}}},
-			expectedRepos: []github.Repo{{Name: oldName, Private: false}},
+			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Visibility: github.RepoVisibilityPrivate}}},
+			expectedRepos: []github.Repo{{Name: oldName, Visibility: github.RepoVisibilityPublic}},
+		},
+		{
+			description: "request to make an internal repo public fails when not allowed",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					oldName: {Visibility: new(github.RepoVisibilityPublic)},
+				},
+			},
+			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Visibility: github.RepoVisibilityInternal}}},
+			expectError:   true,
+			expectedRepos: []github.Repo{{Name: oldName, Visibility: github.RepoVisibilityInternal}},
+		},
+		{
+			description: "transitioning private to internal is allowed without flag",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					oldName: {Visibility: new(github.RepoVisibilityInternal)},
+				},
+			},
+			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Visibility: github.RepoVisibilityPrivate}}},
+			expectedRepos: []github.Repo{{Name: oldName, Visibility: github.RepoVisibilityInternal}},
+		},
+		{
+			description: "transitioning internal to private is allowed without flag",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					oldName: {Visibility: new(github.RepoVisibilityPrivate)},
+				},
+			},
+			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Visibility: github.RepoVisibilityInternal}}},
+			expectedRepos: []github.Repo{{Name: oldName, Visibility: github.RepoVisibilityPrivate}},
 		},
 		{
 			description: "renaming a repo is successful",
@@ -3496,6 +3558,48 @@ func TestNewRepoUpdateRequest(t *testing.T) {
 					SquashMergeCommitMessage: &squashMergeCommitMessage,
 				},
 			},
+		},
+		{
+			description: "visibility change produces a delta",
+			current: github.FullRepo{
+				Repo: github.Repo{
+					Name:       repoName,
+					Visibility: github.RepoVisibilityPublic,
+				},
+			},
+			name: repoName,
+			newState: org.Repo{
+				Visibility: new(github.RepoVisibilityPrivate),
+			},
+			expected: github.RepoUpdateRequest{
+				RepoRequest: github.RepoRequest{
+					Visibility: new(github.RepoVisibilityPrivate),
+				},
+			},
+		},
+		{
+			description: "same visibility produces no delta",
+			current: github.FullRepo{
+				Repo: github.Repo{
+					Name:       repoName,
+					Visibility: github.RepoVisibilityPublic,
+				},
+			},
+			name: repoName,
+			newState: org.Repo{
+				Visibility: new(github.RepoVisibilityPublic),
+			},
+		},
+		{
+			description: "nil visibility produces no delta",
+			current: github.FullRepo{
+				Repo: github.Repo{
+					Name:       repoName,
+					Visibility: github.RepoVisibilityPublic,
+				},
+			},
+			name:     repoName,
+			newState: org.Repo{},
 		},
 	}
 

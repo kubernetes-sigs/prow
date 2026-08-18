@@ -17,9 +17,12 @@ limitations under the License.
 package org
 
 import (
+	"encoding/json"
 	"fmt"
+	"time"
 
 	"sigs.k8s.io/prow/pkg/github"
+	"sigs.k8s.io/prow/pkg/logrusutil"
 )
 
 // FullConfig stores the full configuration to be used by the tool, mapping
@@ -56,17 +59,17 @@ type RepoCreateOptions struct {
 //
 // See https://developer.github.com/v3/repos/#edit
 type Repo struct {
-	Description              *string `json:"description,omitempty"`
-	HomePage                 *string `json:"homepage,omitempty"`
-	Private                  *bool   `json:"private,omitempty"`
-	HasIssues                *bool   `json:"has_issues,omitempty"`
-	HasProjects              *bool   `json:"has_projects,omitempty"`
-	HasWiki                  *bool   `json:"has_wiki,omitempty"`
-	AllowSquashMerge         *bool   `json:"allow_squash_merge,omitempty"`
-	AllowMergeCommit         *bool   `json:"allow_merge_commit,omitempty"`
-	AllowRebaseMerge         *bool   `json:"allow_rebase_merge,omitempty"`
-	SquashMergeCommitTitle   *string `json:"squash_merge_commit_title,omitempty"`
-	SquashMergeCommitMessage *string `json:"squash_merge_commit_message,omitempty"`
+	Description              *string                `json:"description,omitempty"`
+	HomePage                 *string                `json:"homepage,omitempty"`
+	Visibility               *github.RepoVisibility `json:"visibility,omitempty"`
+	HasIssues                *bool                  `json:"has_issues,omitempty"`
+	HasProjects              *bool                  `json:"has_projects,omitempty"`
+	HasWiki                  *bool                  `json:"has_wiki,omitempty"`
+	AllowSquashMerge         *bool                  `json:"allow_squash_merge,omitempty"`
+	AllowMergeCommit         *bool                  `json:"allow_merge_commit,omitempty"`
+	AllowRebaseMerge         *bool                  `json:"allow_rebase_merge,omitempty"`
+	SquashMergeCommitTitle   *string                `json:"squash_merge_commit_title,omitempty"`
+	SquashMergeCommitMessage *string                `json:"squash_merge_commit_message,omitempty"`
 
 	DefaultBranch *string `json:"default_branch,omitempty"`
 	Archived      *bool   `json:"archived,omitempty"`
@@ -77,6 +80,39 @@ type Repo struct {
 	Collaborators map[string]github.RepoPermissionLevel `json:"collaborators,omitempty"`
 
 	OnCreate *RepoCreateOptions `json:"on_create,omitempty"`
+}
+
+var privateFieldDeprecationWarningLast time.Time
+
+// UnmarshalJSON supports both the old "private" bool field and the new
+// "visibility" string field. If "private" is present and "visibility" is not,
+// it is translated to the equivalent visibility value with a deprecation
+// warning. Specifying both is an error.
+func (r *Repo) UnmarshalJSON(data []byte) error {
+	type RepoAlias Repo
+	var alias struct {
+		RepoAlias
+		Private *bool `json:"private"`
+	}
+	if err := json.Unmarshal(data, &alias); err != nil {
+		return err
+	}
+
+	if alias.Private != nil {
+		if alias.Visibility != nil {
+			return fmt.Errorf("repo config may not specify both 'private' and 'visibility'")
+		}
+		logrusutil.ThrottledWarnf(&privateFieldDeprecationWarningLast, 5*time.Minute,
+			"the 'private' field in repo config is deprecated; use 'visibility: public/private/internal' instead")
+		v := github.RepoVisibilityPublic
+		if *alias.Private {
+			v = github.RepoVisibilityPrivate
+		}
+		alias.Visibility = &v
+	}
+
+	*r = Repo(alias.RepoAlias)
+	return nil
 }
 
 // Config declares org metadata as well as its people and teams.
@@ -145,35 +181,31 @@ func (p *Privacy) UnmarshalText(text []byte) error {
 	return nil
 }
 
+// pruneDefault sets *p to nil when it points at the default value.
+func pruneDefault[T comparable](p **T, def T) {
+	if *p != nil && **p == def {
+		*p = nil
+	}
+}
+
 // PruneRepoDefaults finds values in org.Repo config that matches the default
 // values replaces them with nil pointer. This reduces the size of an org dump
 // by omitting the fields that would be set to the same value when not set at all.
 // See https://developer.github.com/v3/repos/#edit
 func PruneRepoDefaults(repo Repo) Repo {
-	pruneString := func(p **string, def string) {
-		if *p != nil && **p == def {
-			*p = nil
-		}
-	}
-	pruneBool := func(p **bool, def bool) {
-		if *p != nil && **p == def {
-			*p = nil
-		}
-	}
+	pruneDefault(&repo.Description, "")
+	pruneDefault(&repo.HomePage, "")
 
-	pruneString(&repo.Description, "")
-	pruneString(&repo.HomePage, "")
-
-	pruneBool(&repo.Private, false)
-	pruneBool(&repo.HasIssues, true)
+	pruneDefault(&repo.Visibility, github.RepoVisibilityPublic)
+	pruneDefault(&repo.HasIssues, true)
 	// Projects' defaults depend on org setting, do not prune
-	pruneBool(&repo.HasWiki, true)
-	pruneBool(&repo.AllowRebaseMerge, true)
-	pruneBool(&repo.AllowSquashMerge, true)
-	pruneBool(&repo.AllowMergeCommit, true)
+	pruneDefault(&repo.HasWiki, true)
+	pruneDefault(&repo.AllowRebaseMerge, true)
+	pruneDefault(&repo.AllowSquashMerge, true)
+	pruneDefault(&repo.AllowMergeCommit, true)
 
-	pruneBool(&repo.Archived, false)
-	pruneString(&repo.DefaultBranch, "master")
+	pruneDefault(&repo.Archived, false)
+	pruneDefault(&repo.DefaultBranch, "master")
 
 	return repo
 }

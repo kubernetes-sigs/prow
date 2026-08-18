@@ -319,25 +319,61 @@ type PullRequestChange struct {
 	PreviousFilename string `json:"previous_filename"`
 }
 
+// RepoVisibility is public, private or internal.
+//
+// See https://docs.github.com/en/rest/repos/repos#create-an-organization-repository
+type RepoVisibility string
+
+const (
+	// RepoVisibilityPublic identifies a public repository.
+	RepoVisibilityPublic RepoVisibility = "public"
+	// RepoVisibilityPrivate identifies a private repository.
+	RepoVisibilityPrivate RepoVisibility = "private"
+	// RepoVisibilityInternal identifies an enterprise-internal repository.
+	RepoVisibilityInternal RepoVisibility = "internal"
+)
+
+var repoVisibilities = map[RepoVisibility]bool{
+	RepoVisibilityPublic:   true,
+	RepoVisibilityPrivate:  true,
+	RepoVisibilityInternal: true,
+}
+
+// MarshalText returns the byte representation of the visibility
+func (v RepoVisibility) MarshalText() ([]byte, error) {
+	return []byte(v), nil
+}
+
+// UnmarshalText validates that the text is one of the known repo visibilities.
+func (v *RepoVisibility) UnmarshalText(text []byte) error {
+	val := RepoVisibility(text)
+	if _, ok := repoVisibilities[val]; !ok {
+		return fmt.Errorf("bad repo visibility: %s not in %v", val, repoVisibilities)
+	}
+	*v = val
+	return nil
+}
+
 // Repo contains general repository information: it includes fields available
 // in repo records returned by GH "List" methods but not those returned by GH
 // "Get" method. Use FullRepo struct for "Get" method.
 // See also https://developer.github.com/v3/repos/#list-organization-repositories
 type Repo struct {
-	Owner         User   `json:"owner"`
-	Name          string `json:"name"`
-	FullName      string `json:"full_name"`
-	HTMLURL       string `json:"html_url"`
-	Fork          bool   `json:"fork"`
-	DefaultBranch string `json:"default_branch"`
-	Archived      bool   `json:"archived"`
-	Private       bool   `json:"private"`
-	Description   string `json:"description"`
-	Homepage      string `json:"homepage"`
-	HasIssues     bool   `json:"has_issues"`
-	HasProjects   bool   `json:"has_projects"`
-	HasWiki       bool   `json:"has_wiki"`
-	NodeID        string `json:"node_id"`
+	Owner         User           `json:"owner"`
+	Name          string         `json:"name"`
+	FullName      string         `json:"full_name"`
+	HTMLURL       string         `json:"html_url"`
+	Fork          bool           `json:"fork"`
+	DefaultBranch string         `json:"default_branch"`
+	Archived      bool           `json:"archived"`
+	Private       bool           `json:"private"`
+	Visibility    RepoVisibility `json:"visibility,omitempty"`
+	Description   string         `json:"description"`
+	Homepage      string         `json:"homepage"`
+	HasIssues     bool           `json:"has_issues"`
+	HasProjects   bool           `json:"has_projects"`
+	HasWiki       bool           `json:"has_wiki"`
+	NodeID        string         `json:"node_id"`
 	// Permissions reflect the permission level for the requester, so
 	// on a repository GET call this will be for the user whose token
 	// is being used, if listing a team's repos this will be for the
@@ -374,22 +410,30 @@ type FullRepo struct {
 // RepoRequest contains metadata used in requests to create or update a Repo.
 // Compared to `Repo`, its members are pointers to allow the "not set/use default
 // semantics.
+//
+// Both Private and Visibility are supported: the user repo creation API
+// (POST /user/repos) only accepts the "private" bool, while the org repo
+// creation and update APIs accept "visibility" (public/private/internal) as well.
+// When both are set, ToRepo reconciles them with Visibility taking
+// precedence; note that a marshaled request sends both fields verbatim, so
+// a caller should set only one to avoid sending a conflicting pair to GitHub.
 // See also:
 // - https://developer.github.com/v3/repos/#create
 // - https://developer.github.com/v3/repos/#edit
 type RepoRequest struct {
-	Name                     *string `json:"name,omitempty"`
-	Description              *string `json:"description,omitempty"`
-	Homepage                 *string `json:"homepage,omitempty"`
-	Private                  *bool   `json:"private,omitempty"`
-	HasIssues                *bool   `json:"has_issues,omitempty"`
-	HasProjects              *bool   `json:"has_projects,omitempty"`
-	HasWiki                  *bool   `json:"has_wiki,omitempty"`
-	AllowSquashMerge         *bool   `json:"allow_squash_merge,omitempty"`
-	AllowMergeCommit         *bool   `json:"allow_merge_commit,omitempty"`
-	AllowRebaseMerge         *bool   `json:"allow_rebase_merge,omitempty"`
-	SquashMergeCommitTitle   *string `json:"squash_merge_commit_title,omitempty"`
-	SquashMergeCommitMessage *string `json:"squash_merge_commit_message,omitempty"`
+	Name                     *string         `json:"name,omitempty"`
+	Description              *string         `json:"description,omitempty"`
+	Homepage                 *string         `json:"homepage,omitempty"`
+	Private                  *bool           `json:"private,omitempty"`
+	Visibility               *RepoVisibility `json:"visibility,omitempty"`
+	HasIssues                *bool           `json:"has_issues,omitempty"`
+	HasProjects              *bool           `json:"has_projects,omitempty"`
+	HasWiki                  *bool           `json:"has_wiki,omitempty"`
+	AllowSquashMerge         *bool           `json:"allow_squash_merge,omitempty"`
+	AllowMergeCommit         *bool           `json:"allow_merge_commit,omitempty"`
+	AllowRebaseMerge         *bool           `json:"allow_rebase_merge,omitempty"`
+	SquashMergeCommitTitle   *string         `json:"squash_merge_commit_title,omitempty"`
+	SquashMergeCommitMessage *string         `json:"squash_merge_commit_message,omitempty"`
 }
 
 type WorkflowRuns struct {
@@ -424,6 +468,10 @@ func (r RepoRequest) ToRepo() *FullRepo {
 	setString(&repo.Description, r.Description)
 	setString(&repo.Homepage, r.Homepage)
 	setBool(&repo.Private, r.Private)
+	if r.Visibility != nil {
+		repo.Visibility = *r.Visibility
+		repo.Private = repo.Visibility != RepoVisibilityPublic
+	}
 	setBool(&repo.HasIssues, r.HasIssues)
 	setBool(&repo.HasProjects, r.HasProjects)
 	setBool(&repo.HasWiki, r.HasWiki)
@@ -438,7 +486,7 @@ func (r RepoRequest) ToRepo() *FullRepo {
 
 // Defined returns true if at least one of the pointer fields are not nil
 func (r RepoRequest) Defined() bool {
-	return r.Name != nil || r.Description != nil || r.Homepage != nil || r.Private != nil ||
+	return r.Name != nil || r.Description != nil || r.Homepage != nil || r.Private != nil || r.Visibility != nil ||
 		r.HasIssues != nil || r.HasProjects != nil || r.HasWiki != nil || r.AllowSquashMerge != nil ||
 		r.AllowMergeCommit != nil || r.AllowRebaseMerge != nil
 }
