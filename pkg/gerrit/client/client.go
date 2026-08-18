@@ -27,6 +27,7 @@ import (
 	"net/http"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -84,25 +85,25 @@ type gerritAuthentication interface {
 }
 
 type gerritAccount interface {
-	GetAccount(name string) (*gerrit.AccountInfo, *gerrit.Response, error)
-	SetUsername(accountID string, input *gerrit.UsernameInput) (*string, *gerrit.Response, error)
+	GetAccount(ctx context.Context, name string) (*gerrit.AccountInfo, *gerrit.Response, error)
+	SetUsername(ctx context.Context, accountID string, input *gerrit.UsernameInput) (*string, *gerrit.Response, error)
 }
 
 type gerritChange interface {
-	QueryChanges(opt *gerrit.QueryChangeOptions) (*[]gerrit.ChangeInfo, *gerrit.Response, error)
-	SetReview(changeID, revisionID string, input *gerrit.ReviewInput) (*gerrit.ReviewResult, *gerrit.Response, error)
-	ListChangeComments(changeID string) (*map[string][]gerrit.CommentInfo, *gerrit.Response, error)
-	GetChange(changeId string, opt *gerrit.ChangeOptions) (*ChangeInfo, *gerrit.Response, error)
-	SubmitChange(id string, opt *gerrit.SubmitInput) (*ChangeInfo, *gerrit.Response, error)
-	GetRelatedChanges(changeID string, revisionID string) (*gerrit.RelatedChangesInfo, *gerrit.Response, error)
+	QueryChanges(ctx context.Context, opt *gerrit.QueryChangeOptions) (*[]gerrit.ChangeInfo, *gerrit.Response, error)
+	SetReview(ctx context.Context, changeID, revisionID string, input *gerrit.ReviewInput) (*gerrit.ReviewResult, *gerrit.Response, error)
+	ListChangeComments(ctx context.Context, changeID string) (*map[string][]gerrit.CommentInfo, *gerrit.Response, error)
+	GetChange(ctx context.Context, changeId string, opt *gerrit.ChangeOptions) (*ChangeInfo, *gerrit.Response, error)
+	SubmitChange(ctx context.Context, id string, opt *gerrit.SubmitInput) (*ChangeInfo, *gerrit.Response, error)
+	GetRelatedChanges(ctx context.Context, changeID string, revisionID string) (*gerrit.RelatedChangesInfo, *gerrit.Response, error)
 }
 
 type gerritProjects interface {
-	GetBranch(projectName, branchID string) (*gerrit.BranchInfo, *gerrit.Response, error)
+	GetBranch(ctx context.Context, projectName, branchID string) (*gerrit.BranchInfo, *gerrit.Response, error)
 }
 
 type gerritRevision interface {
-	GetMergeable(changeID, revisionID string, opt *gerrit.MergableOptions) (*gerrit.MergeableInfo, *gerrit.Response, error)
+	GetMergeable(ctx context.Context, changeID, revisionID string, opt *gerrit.MergableOptions) (*gerrit.MergeableInfo, *gerrit.Response, error)
 }
 
 // gerritInstanceHandler holds all actual gerrit handlers
@@ -313,7 +314,7 @@ func (c *Client) Authenticate(cookiefilePath, tokenPath string) {
 }
 
 func (c *Client) newInstanceHandler(instance string, projects map[string]*config.GerritQueryFilter) (*gerritInstanceHandler, error) {
-	gc, err := gerrit.NewClient(instance, &c.httpClient)
+	gc, err := gerrit.NewClient(context.Background(), instance, &c.httpClient)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create gerrit client: %w", err)
 	}
@@ -422,7 +423,7 @@ func (c *Client) GetChange(instance, id string, additionalFields ...string) (*Ch
 		return nil, fmt.Errorf("not activated gerrit instance: %s", instance)
 	}
 
-	info, resp, err := h.changeService.GetChange(id, &gerrit.ChangeOptions{AdditionalFields: additionalFields})
+	info, resp, err := h.changeService.GetChange(context.Background(), id, &gerrit.ChangeOptions{AdditionalFields: additionalFields})
 
 	if err != nil {
 		return nil, fmt.Errorf("error getting current change: %w", responseBodyError(err, resp))
@@ -439,7 +440,7 @@ func (c *Client) SubmitChange(instance, id string, wait bool) (*ChangeInfo, erro
 		return nil, fmt.Errorf("not activated gerrit instance: %s", instance)
 	}
 
-	info, resp, err := h.changeService.SubmitChange(id, &gerrit.SubmitInput{WaitForMerge: wait})
+	info, resp, err := h.changeService.SubmitChange(context.Background(), id, &gerrit.SubmitInput{WaitForMerge: wait})
 
 	if err != nil {
 		return nil, fmt.Errorf("error submitting current change: %w", responseBodyError(err, resp))
@@ -456,7 +457,7 @@ func (c *Client) ChangeExist(instance, id string) (bool, error) {
 		return false, fmt.Errorf("not activated gerrit instance: %s", instance)
 	}
 
-	_, resp, err := h.changeService.GetChange(id, nil)
+	_, resp, err := h.changeService.GetChange(context.Background(), id, nil)
 
 	if err != nil {
 		if resp != nil && resp.StatusCode == http.StatusNotFound {
@@ -487,7 +488,21 @@ func (c *Client) SetReview(instance, id, revision, message string, labels map[st
 		return fmt.Errorf("not activated gerrit instance: %s", instance)
 	}
 
-	_, resp, err := h.changeService.SetReview(id, revision, &gerrit.ReviewInput{Message: message, Labels: labels})
+	// go-gerrit models label votes as ints, while callers pass the vote as it is
+	// written in Gerrit ("+1", "0", "-1").
+	var votes map[string]int
+	if len(labels) > 0 {
+		votes = make(map[string]int, len(labels))
+		for label, vote := range labels {
+			v, err := strconv.Atoi(vote)
+			if err != nil {
+				return fmt.Errorf("invalid vote %q for label %q: %w", vote, label, err)
+			}
+			votes[label] = v
+		}
+	}
+
+	_, resp, err := h.changeService.SetReview(context.Background(), id, revision, &gerrit.ReviewInput{Message: message, Labels: votes})
 
 	if err != nil {
 		return fmt.Errorf("cannot comment to gerrit: %w", responseBodyError(err, resp))
@@ -505,7 +520,7 @@ func (c *Client) GetBranchRevision(instance, project, branch string) (string, er
 		return "", fmt.Errorf("not activated gerrit instance: %s", instance)
 	}
 
-	res, resp, err := h.projectService.GetBranch(project, branch)
+	res, resp, err := h.projectService.GetBranch(context.Background(), project, branch)
 
 	if err != nil {
 		return "", responseBodyError(err, resp)
@@ -536,7 +551,7 @@ func (c *Client) Account(instance string) (*gerrit.AccountInfo, error) {
 		return nil, errors.New("no handlers found")
 	}
 
-	self, resp, err := handler.accountService.GetAccount("self")
+	self, resp, err := handler.accountService.GetAccount(context.Background(), "self")
 	if err != nil {
 		return nil, fmt.Errorf("GetAccount() failed with new authentication: %w", responseBodyError(err, resp))
 
@@ -553,7 +568,7 @@ func (c *Client) GetMergeableInfo(instance, changeID, revisionID string) (*gerri
 		return nil, fmt.Errorf("not activated Gerrit instance: %s", instance)
 	}
 
-	mergeableInfo, resp, err := h.revisionService.GetMergeable(changeID, revisionID, nil)
+	mergeableInfo, resp, err := h.revisionService.GetMergeable(context.Background(), changeID, revisionID, nil)
 
 	if err != nil {
 		return nil, responseBodyError(err, resp)
@@ -587,7 +602,7 @@ func parseStamp(value gerrit.Timestamp) time.Time {
 
 func (h *gerritInstanceHandler) injectPatchsetMessages(change *gerrit.ChangeInfo) error {
 
-	out, _, err := h.changeService.ListChangeComments(change.ID)
+	out, _, err := h.changeService.ListChangeComments(context.Background(), change.ID)
 
 	if err != nil {
 		return err
@@ -627,14 +642,14 @@ func queryStringsFromQueryFilter(filters *config.GerritQueryFilter) []string {
 		branchFilter = append(branchFilter, fmt.Sprintf("branch:%s", br))
 	}
 	if len(branchFilter) > 0 {
-		res = append(res, fmt.Sprintf("(%s)", strings.Join(branchFilter, "+OR+")))
+		res = append(res, fmt.Sprintf("(%s)", strings.Join(branchFilter, " OR ")))
 	}
 	var excludedBranchFilter []string
 	for _, br := range filters.ExcludedBranches {
 		excludedBranchFilter = append(excludedBranchFilter, fmt.Sprintf("-branch:%s", br))
 	}
 	if len(excludedBranchFilter) > 0 {
-		res = append(res, fmt.Sprintf("(%s)", strings.Join(excludedBranchFilter, "+AND+")))
+		res = append(res, fmt.Sprintf("(%s)", strings.Join(excludedBranchFilter, " AND ")))
 	}
 
 	return res
@@ -679,7 +694,9 @@ func (d *deduper) dedupeIntoResult(ci gerrit.ChangeInfo) {
 
 func (h *gerritInstanceHandler) queryChangesForProjectWithoutMetrics(log logrus.FieldLogger, project string, lastUpdate time.Time, rateLimit int, additionalFilters ...string) ([]gerrit.ChangeInfo, error) {
 	var opt gerrit.QueryChangeOptions
-	opt.Query = append(opt.Query, strings.Join(append(additionalFilters, "project:"+project), "+"))
+	// Gerrit query terms are separated by whitespace. go-gerrit percent-encodes
+	// a literal "+", so it can no longer be used as the separator.
+	opt.Query = append(opt.Query, strings.Join(append(additionalFilters, "project:"+project), " "))
 	opt.AdditionalFields = []string{"CURRENT_REVISION", "CURRENT_COMMIT", "CURRENT_FILES", "MESSAGES", "LABELS"}
 
 	log = log.WithFields(logrus.Fields{"query": opt.Query, "additional_fields": opt.AdditionalFields})
@@ -701,7 +718,7 @@ func (h *gerritInstanceHandler) queryChangesForProjectWithoutMetrics(log logrus.
 		// The change output is sorted by the last update time, most recently updated to oldest updated.
 		// Gerrit API docs: https://gerrit-review.googlesource.com/Documentation/rest-api-changes.html#list-changes
 
-		changes, resp, err := h.changeService.QueryChanges(&opt)
+		changes, resp, err := h.changeService.QueryChanges(context.Background(), &opt)
 
 		if err != nil {
 			// should not happen? Let next sync loop catch up
@@ -823,7 +840,7 @@ func (c *Client) HasRelatedChanges(instance, id, revision string) (bool, error) 
 		return false, fmt.Errorf("not activated gerrit instance: %s", instance)
 	}
 
-	info, resp, err := h.changeService.GetRelatedChanges(id, revision)
+	info, resp, err := h.changeService.GetRelatedChanges(context.Background(), id, revision)
 
 	if err != nil {
 		return false, fmt.Errorf("error getting related changes: %w", responseBodyError(err, resp))

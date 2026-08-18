@@ -53,20 +53,20 @@ const (
 	// ref:
 	// https://gerrit-review.googlesource.com/Documentation/user-search.html#_search_operators.
 	// Also good to know: `(repo:repo-A OR repo:repo-B)`
-	gerritDefaultQueryParam = "status:open+-is:wip+is:submittable"
+	gerritDefaultQueryParam = "status:open -is:wip is:submittable"
 )
 
 func gerritQueryParam(optInByDefault bool) string {
 	// Whenever a the `Prow-Auto-Submit` label is voted with -1 by anyone, the
 	// PR has to be excluded from Tide.
-	enablementLabelQueryParam := "+-label:" + tideEnablementLabel + "=-1"
+	enablementLabelQueryParam := " -label:" + tideEnablementLabel + "=-1"
 	// By default require `Prow-Auto-Submit` label.
 	// If the repo enabled optInByDefault, `Prow-Auto-Submit` is no longer
 	// required. But users can still temporarily opting out of merge automation
 	// by voting -1 on this label.
 	if !optInByDefault {
 		// We want `-label:Prow-Auto-Submit=-1 label:Prow-Auto-Submit`
-		enablementLabelQueryParam += "+label:" + tideEnablementLabel
+		enablementLabelQueryParam += " label:" + tideEnablementLabel
 	}
 	return gerritDefaultQueryParam + enablementLabelQueryParam
 }

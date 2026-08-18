@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -39,13 +40,16 @@ type fgc struct {
 	instance string
 	changes  map[string][]gerrit.ChangeInfo
 	comments map[string]map[string][]gerrit.CommentInfo
+
+	// lastReview records the input of the most recent SetReview call.
+	lastReview *gerrit.ReviewInput
 }
 
-func (f *fgc) GetRelatedChanges(changeID string, revisionID string) (*gerrit.RelatedChangesInfo, *gerrit.Response, error) {
+func (f *fgc) GetRelatedChanges(ctx context.Context, changeID string, revisionID string) (*gerrit.RelatedChangesInfo, *gerrit.Response, error) {
 	return &gerrit.RelatedChangesInfo{}, nil, nil
 }
 
-func (f *fgc) ListChangeComments(id string) (*map[string][]gerrit.CommentInfo, *gerrit.Response, error) {
+func (f *fgc) ListChangeComments(ctx context.Context, id string) (*map[string][]gerrit.CommentInfo, *gerrit.Response, error) {
 	comments := map[string][]gerrit.CommentInfo{}
 
 	val, ok := f.comments[id]
@@ -60,7 +64,7 @@ func (f *fgc) ListChangeComments(id string) (*map[string][]gerrit.CommentInfo, *
 	return &comments, nil, nil
 }
 
-func (f *fgc) SubmitChange(changeID string, input *gerrit.SubmitInput) (*ChangeInfo, *gerrit.Response, error) {
+func (f *fgc) SubmitChange(ctx context.Context, changeID string, input *gerrit.SubmitInput) (*ChangeInfo, *gerrit.Response, error) {
 	return nil, nil, nil
 }
 
@@ -170,6 +174,35 @@ func TestApplyGlobalConfigOnce(t *testing.T) {
 	}
 }
 
+// TestQueryTermsReachGerritSeparated checks that the query prow builds survives
+// go-gerrit's URL encoding and arrives at Gerrit as distinct search terms.
+// go-gerrit percent-encodes "+", so terms have to be separated by whitespace.
+func TestQueryTermsReachGerritSeparated(t *testing.T) {
+	var got string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = r.URL.Query().Get("q")
+		// Gerrit prefixes JSON responses with a magic line.
+		w.Write([]byte(")]}'\n[]\n"))
+	}))
+	defer srv.Close()
+
+	c, err := NewClient(map[string]map[string]*config.GerritQueryFilter{
+		srv.URL: {"myproject": {Branches: []string{"foo", "bar"}}},
+	}, 1, 1)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	if _, err := c.QueryChangesForProject(srv.URL, "myproject", time.Now(), 1); err != nil {
+		t.Fatalf("Failed to query changes: %v", err)
+	}
+
+	want := "(branch:foo OR branch:bar) project:myproject"
+	if got != want {
+		t.Errorf("Gerrit received query %q, want %q", got, want)
+	}
+}
+
 func TestQueryStringsFromQueryFilter(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -192,7 +225,7 @@ func TestQueryStringsFromQueryFilter(t *testing.T) {
 			filters: &config.GerritQueryFilter{
 				Branches: []string{"foo1", "foo2", "foo3"},
 			},
-			expected: []string{"(branch:foo1+OR+branch:foo2+OR+branch:foo3)"},
+			expected: []string{"(branch:foo1 OR branch:foo2 OR branch:foo3)"},
 		},
 		{
 			name: "branches-and-excluded",
@@ -201,8 +234,8 @@ func TestQueryStringsFromQueryFilter(t *testing.T) {
 				ExcludedBranches: []string{"bar1", "bar2", "bar3"},
 			},
 			expected: []string{
-				"(branch:foo1+OR+branch:foo2+OR+branch:foo3)",
-				"(-branch:bar1+AND+-branch:bar2+AND+-branch:bar3)",
+				"(branch:foo1 OR branch:foo2 OR branch:foo3)",
+				"(-branch:bar1 AND -branch:bar2 AND -branch:bar3)",
 			},
 		},
 	}
@@ -288,11 +321,11 @@ type fgcWithErr struct {
 	gerritChange
 }
 
-func (f *fgcWithErr) GetChange(changeId string, opt *gerrit.ChangeOptions) (*ChangeInfo, *gerrit.Response, error) {
+func (f *fgcWithErr) GetChange(ctx context.Context, changeId string, opt *gerrit.ChangeOptions) (*ChangeInfo, *gerrit.Response, error) {
 	return nil, f.resp, f.err
 }
 
-func (f *fgc) QueryChanges(opt *gerrit.QueryChangeOptions) (*[]gerrit.ChangeInfo, *gerrit.Response, error) {
+func (f *fgc) QueryChanges(ctx context.Context, opt *gerrit.QueryChangeOptions) (*[]gerrit.ChangeInfo, *gerrit.Response, error) {
 	changes := []gerrit.ChangeInfo{}
 
 	changeInfos, ok := f.changes[f.instance]
@@ -302,7 +335,7 @@ func (f *fgc) QueryChanges(opt *gerrit.QueryChangeOptions) (*[]gerrit.ChangeInfo
 
 	project := ""
 	for _, query := range opt.Query {
-		for q := range strings.SplitSeq(query, "+") {
+		for q := range strings.FieldsSeq(query) {
 			if strings.HasPrefix(q, "project:") {
 				project = q[8:]
 			}
@@ -320,11 +353,61 @@ func (f *fgc) QueryChanges(opt *gerrit.QueryChangeOptions) (*[]gerrit.ChangeInfo
 	return &changes, nil, nil
 }
 
-func (f *fgc) SetReview(changeID, revisionID string, input *gerrit.ReviewInput) (*gerrit.ReviewResult, *gerrit.Response, error) {
+func (f *fgc) SetReview(ctx context.Context, changeID, revisionID string, input *gerrit.ReviewInput) (*gerrit.ReviewResult, *gerrit.Response, error) {
+	f.lastReview = input
 	return nil, nil, nil
 }
 
-func (f *fgc) GetChange(changeId string, opt *gerrit.ChangeOptions) (*ChangeInfo, *gerrit.Response, error) {
+// Gerrit label votes are ints in go-gerrit, while callers pass them as they are
+// written in Gerrit ("+1", "0", "-1").
+func TestSetReviewLabelVotes(t *testing.T) {
+	tests := []struct {
+		name    string
+		labels  map[string]string
+		want    map[string]int
+		wantErr bool
+	}{
+		{
+			name:   "no labels",
+			labels: nil,
+		},
+		{
+			name:   "votes are converted",
+			labels: map[string]string{"Code-Review": "+1", "Verified": "-1", "Other": "0"},
+			want:   map[string]int{"Code-Review": 1, "Verified": -1, "Other": 0},
+		},
+		{
+			name:    "unparseable vote",
+			labels:  map[string]string{"Code-Review": "lgtm"},
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			f := &fgc{}
+			cl := &Client{handlers: map[string]*gerritInstanceHandler{
+				"instance": {changeService: f},
+			}}
+
+			err := cl.SetReview("instance", "id", "revision", "message", tc.labels)
+			if gotErr := err != nil; gotErr != tc.wantErr {
+				t.Fatalf("SetReview() err = %v; wantErr = %t", err, tc.wantErr)
+			}
+			if tc.wantErr {
+				if f.lastReview != nil {
+					t.Errorf("SetReview() sent %v to gerrit, want no call", f.lastReview)
+				}
+				return
+			}
+			if diff := cmp.Diff(tc.want, f.lastReview.Labels); diff != "" {
+				t.Errorf("Labels mismatch. Want(-), got(+):\n%s", diff)
+			}
+		})
+	}
+}
+
+func (f *fgc) GetChange(ctx context.Context, changeId string, opt *gerrit.ChangeOptions) (*ChangeInfo, *gerrit.Response, error) {
 	return nil, nil, nil
 }
 

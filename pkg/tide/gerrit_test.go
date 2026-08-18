@@ -117,12 +117,12 @@ func TestGerritQueryParam(t *testing.T) {
 		{
 			name:  "default",
 			optIn: false,
-			want:  "status:open+-is:wip+is:submittable+-label:Prow-Auto-Submit=-1+label:Prow-Auto-Submit",
+			want:  "status:open -is:wip is:submittable -label:Prow-Auto-Submit=-1 label:Prow-Auto-Submit",
 		},
 		{
 			name:  "opt-in",
 			optIn: true,
-			want:  "status:open+-is:wip+is:submittable+-label:Prow-Auto-Submit=-1",
+			want:  "status:open -is:wip is:submittable -label:Prow-Auto-Submit=-1",
 		},
 	}
 

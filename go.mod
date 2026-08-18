@@ -9,7 +9,7 @@ require (
 	cloud.google.com/go/storage v1.50.0
 	github.com/GoogleCloudPlatform/testgrid v0.0.123
 	github.com/NYTimes/gziphandler v1.1.1
-	github.com/andygrunwald/go-gerrit v0.0.0-20210709065208-9d38b0be0268
+	github.com/andygrunwald/go-gerrit v1.1.1
 	github.com/andygrunwald/go-jira v1.17.0
 	github.com/aws/aws-sdk-go-v2 v1.43.5
 	github.com/aws/aws-sdk-go-v2/config v1.32.36
