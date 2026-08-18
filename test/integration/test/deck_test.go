@@ -48,7 +48,8 @@ var (
 			},
 		},
 		Spec: prowjobv1.ProwJobSpec{
-			Job: "Default TenantID",
+			Job:  "Default TenantID",
+			Type: prowjobv1.PresubmitJob,
 			ProwJobDefault: &prowjobv1.ProwJobDefault{
 				TenantID: config.DefaultTenantID,
 			},
@@ -69,6 +70,7 @@ var (
 		},
 		Spec: prowjobv1.ProwJobSpec{
 			Job:            "No TenantID",
+			Type:           prowjobv1.PresubmitJob,
 			ProwJobDefault: &prowjobv1.ProwJobDefault{},
 			Namespace:      testpodNamespace,
 		},
@@ -87,6 +89,7 @@ var (
 		},
 		Spec: prowjobv1.ProwJobSpec{
 			Job:       "No ProwJobDefault",
+			Type:      prowjobv1.PresubmitJob,
 			Namespace: testpodNamespace,
 		},
 		Status: prowjobv1.ProwJobStatus{
@@ -103,7 +106,8 @@ var (
 			},
 		},
 		Spec: prowjobv1.ProwJobSpec{
-			Job: "Default TenantID and Hidden",
+			Job:  "Default TenantID and Hidden",
+			Type: prowjobv1.PresubmitJob,
 			ProwJobDefault: &prowjobv1.ProwJobDefault{
 				TenantID: config.DefaultTenantID,
 			},
@@ -125,6 +129,7 @@ var (
 		},
 		Spec: prowjobv1.ProwJobSpec{
 			Job:            "No TenantID and Hidden",
+			Type:           prowjobv1.PresubmitJob,
 			ProwJobDefault: &prowjobv1.ProwJobDefault{},
 			Hidden:         true,
 			Namespace:      testpodNamespace,
@@ -144,6 +149,7 @@ var (
 		},
 		Spec: prowjobv1.ProwJobSpec{
 			Job:       "No ProwJobDefault and Hidden",
+			Type:      prowjobv1.PresubmitJob,
 			Hidden:    true,
 			Namespace: testpodNamespace,
 		},
@@ -161,7 +167,8 @@ var (
 			},
 		},
 		Spec: prowjobv1.ProwJobSpec{
-			Job: "TenantID and hidden",
+			Job:  "TenantID and hidden",
+			Type: prowjobv1.PresubmitJob,
 			ProwJobDefault: &prowjobv1.ProwJobDefault{
 				TenantID: "tester",
 			},
@@ -181,7 +188,8 @@ var (
 			},
 		},
 		Spec: prowjobv1.ProwJobSpec{
-			Job: "Default TenantID and Hidden",
+			Job:  "Default TenantID and Hidden",
+			Type: prowjobv1.PresubmitJob,
 			ProwJobDefault: &prowjobv1.ProwJobDefault{
 				TenantID: "tester",
 			},
