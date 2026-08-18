@@ -33,3 +33,45 @@ export function relativeURL(params: { [key: string]: string } = {}): string {
   }
   return encodeURIComponent(url.pathname + url.search + url.hash);
 }
+
+declare global {
+  interface Window {
+    prowBasePath?: string;
+  }
+}
+
+function splitPathAndSuffix(path: string): [string, string] {
+  const idx = path.search(/[?#]/);
+  if (idx === -1) {
+    return [path, ""];
+  }
+  return [path.slice(0, idx), path.slice(idx)];
+}
+
+export function deckBasePath(): string {
+  const base = window.prowBasePath || "/";
+  if (base === "/") {
+    return "";
+  }
+  return base;
+}
+
+export function deckURL(path: string): string {
+  const [rawPath, suffix] = splitPathAndSuffix(path);
+  let normalizedPath = rawPath || "/";
+  if (!normalizedPath.startsWith("/")) {
+    normalizedPath = `/${normalizedPath}`;
+  }
+  const base = window.prowBasePath || "/";
+  if (base === "/") {
+    return `${normalizedPath}${suffix}`;
+  }
+  if (normalizedPath === "/") {
+    return `${base}${suffix}`;
+  }
+  return `${base}${normalizedPath}${suffix}`;
+}
+
+export function absoluteDeckURL(path: string): string {
+  return `${window.location.origin}${deckURL(path)}`;
+}

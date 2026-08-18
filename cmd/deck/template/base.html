@@ -5,6 +5,7 @@
   <meta charset="UTF-8">
   <script type="text/javascript">
     var csrfToken = {{csrfToken}};
+    window.prowBasePath = "{{deckBasePath}}";
   </script>
   {{if googleAnalytics}}
   <!-- Global site tag (gtag.js) - Google Analytics -->
@@ -27,11 +28,11 @@
   {{end}}
   <title>{{block "title" .Arguments}}Prow{{ end }}</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/material-design-lite/1.3.0/material.indigo-pink.min.css">
-  <link rel="stylesheet" type="text/css" href="/static/style.css?v={{deckVersion}}">
-  <link rel="stylesheet" type="text/css" href="/static/extensions/style.css?v={{deckVersion}}">
+  <link rel="stylesheet" type="text/css" href="{{deckPath "/static/style.css"}}?v={{deckVersion}}">
+  <link rel="stylesheet" type="text/css" href="{{deckPath "/static/extensions/style.css"}}?v={{deckVersion}}">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:400,700">
   <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
-  <script type="text/javascript" src="/static/extensions/script.js?v={{deckVersion}}"></script>
+  <script type="text/javascript" src="{{deckPath "/static/extensions/script.js"}}?v={{deckVersion}}"></script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/material-design-lite/1.3.0/material.min.js"></script>
   {{block "scripts" .Arguments}}{{end}}
 </head>
@@ -44,25 +45,25 @@
 <div class="mdl-layout mdl-js-layout mdl-layout--fixed-header">
   <header class="mdl-layout__header"{{if branding.HeaderColor}} style="background-color: {{branding.HeaderColor}};"{{end}}>
     <div id="header-title" class="mdl-layout__header-row">
-      <a href="/"
-         class="logo"><img src="{{or branding.Logo $defaultLogo}}?v={{deckVersion}}" alt="kubernetes logo" class="logo"/></a>
+      <a href="{{deckPath "/"}}"
+         class="logo"><img src="{{deckPathIfRelative (or branding.Logo $defaultLogo)}}?v={{deckVersion}}" alt="kubernetes logo" class="logo"/></a>
       <span class="mdl-layout-title header-title">{{block "pageTitle" .Arguments}}{{template "title" .}}{{end}}</span>
     </div>
   </header>
   <div class="mdl-layout__drawer">
     <span class="mdl-layout-title">Prow Dashboard</span>
     <nav class="mdl-navigation">
-      <a class="mdl-navigation__link{{if eq .PageName "index"}} mdl-navigation__link--current{{end}}" href="/">Prow Status</a>
+      <a class="mdl-navigation__link{{if eq .PageName "index"}} mdl-navigation__link--current{{end}}" href="{{deckPath "/"}}">Prow Status</a>
       {{ if sections.PR }}
-        <a class="mdl-navigation__link{{if eq .PageName "pr"}} mdl-navigation__link--current{{end}}" href="/pr">PR Status</a>
+        <a class="mdl-navigation__link{{if eq .PageName "pr"}} mdl-navigation__link--current{{end}}" href="{{deckPath "/pr"}}">PR Status</a>
       {{ end }}
-      <a class="mdl-navigation__link{{if eq .PageName "command-help"}} mdl-navigation__link--current{{end}}" href="/command-help">Command Help</a>
+      <a class="mdl-navigation__link{{if eq .PageName "command-help"}} mdl-navigation__link--current{{end}}" href="{{deckPath "/command-help"}}">Command Help</a>
       {{ if sections.Tide }}
-        <a class="mdl-navigation__link{{if eq .PageName "tide"}} mdl-navigation__link--current{{end}}" href="/tide">Tide Status</a>
-        <a class="mdl-navigation__link{{if eq .PageName "tide-history"}} mdl-navigation__link--current{{end}}" href="/tide-history">Tide History</a>
+        <a class="mdl-navigation__link{{if eq .PageName "tide"}} mdl-navigation__link--current{{end}}" href="{{deckPath "/tide"}}">Tide Status</a>
+        <a class="mdl-navigation__link{{if eq .PageName "tide-history"}} mdl-navigation__link--current{{end}}" href="{{deckPath "/tide-history"}}">Tide History</a>
       {{ end }}
-      <a class="mdl-navigation__link{{if eq .PageName "plugins"}} mdl-navigation__link--current{{end}}" href="/plugins">Plugins</a>
-      <a class="mdl-navigation__link{{if eq .PageName "configured-jobs"}} mdl-navigation__link--current{{end}}" href="/configured-jobs">Configured Jobs</a>
+      <a class="mdl-navigation__link{{if eq .PageName "plugins"}} mdl-navigation__link--current{{end}}" href="{{deckPath "/plugins"}}">Plugins</a>
+      <a class="mdl-navigation__link{{if eq .PageName "configured-jobs"}} mdl-navigation__link--current{{end}}" href="{{deckPath "/configured-jobs"}}">Configured Jobs</a>
       <a class="mdl-navigation__link" href="https://docs.prow.k8s.io/docs/" target="_blank">Documentation <span class="material-icons">open_in_new</span></a>
     </nav>
     <footer>
