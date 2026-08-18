@@ -20,10 +20,12 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"testing"
 
+	"cloud.google.com/go/storage"
 	prowv1 "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 	pkgio "sigs.k8s.io/prow/pkg/io"
 	"sigs.k8s.io/prow/pkg/spyglass/api"
@@ -58,6 +60,8 @@ func (rc *ByteReadCloser) Read(p []byte) (int, error) {
 	return read, err
 }
 
+var errFakeAttrs = errors.New("error getting attrs")
+
 type fakeArtifactHandle struct {
 	oAttrs         pkgio.Attributes
 	contents       []byte
@@ -67,7 +71,7 @@ type fakeArtifactHandle struct {
 
 func (h *fakeArtifactHandle) Attrs(ctx context.Context) (pkgio.Attributes, error) {
 	if bytes.Equal(h.contents, []byte("no attrs")) {
-		return pkgio.Attributes{}, fmt.Errorf("error getting attrs")
+		return pkgio.Attributes{}, errFakeAttrs
 	}
 	return h.oAttrs, nil
 }
@@ -104,9 +108,9 @@ func (h *fakeArtifactHandle) NewRangeReader(ctx context.Context, offset, length 
 		}
 	}
 	return &ByteReadCloser{
-		Reader: bytes.NewReader(h.contents[offset : offset+toRead]),
+		Reader:         bytes.NewReader(h.contents[offset : offset+toRead]),
 		incompleteRead: h.incompleteRead,
-		returnEOF: h.returnEOF,
+		returnEOF:      h.returnEOF,
 	}, err
 }
 
@@ -127,9 +131,9 @@ func (h *fakeArtifactHandle) NewReader(ctx context.Context) (io.ReadCloser, erro
 		return nil, fmt.Errorf("cannot read unreadable contents")
 	}
 	return &ByteReadCloser{
-		Reader: bytes.NewReader(h.contents),
+		Reader:         bytes.NewReader(h.contents),
 		incompleteRead: false,
-		returnEOF: false,
+		returnEOF:      false,
 	}, nil
 }
 
@@ -452,10 +456,10 @@ func TestSize_GCS(t *testing.T) {
 	fakeOpener := pkgio.NewGCSOpener(fakeGCSClient)
 	startedContent := []byte("hi jason, im started")
 	testCases := []struct {
-		name      string
-		handle    artifactHandle
-		expected  int64
-		expectErr string
+		name     string
+		handle   artifactHandle
+		expected int64
+		errIs    error
 	}{
 		{
 			name: "Test size simple",
@@ -475,7 +479,7 @@ func TestSize_GCS(t *testing.T) {
 					Size: 8,
 				},
 			},
-			expectErr: "error getting gcs attributes for artifact: error getting attrs",
+			errIs: errFakeAttrs,
 		},
 		{
 			name: "Size of nonexistentArtifact",
@@ -483,18 +487,14 @@ func TestSize_GCS(t *testing.T) {
 				Opener: fakeOpener,
 				Name:   "gs://test-bucket/logs/example-ci-run/404/started.json",
 			},
-			expectErr: "error getting gcs attributes for artifact: storage: object doesn't exist",
+			errIs: storage.ErrObjectNotExist,
 		},
 	}
 	for _, tc := range testCases {
 		artifact := NewStorageArtifact(context.Background(), tc.handle, "", prowv1.StartedStatusFile, 500e6)
 		actual, err := artifact.Size()
-		var actualErr string
-		if err != nil {
-			actualErr = err.Error()
-		}
-		if actualErr != tc.expectErr {
-			t.Fatalf("%s failed getting size for artifact %s, error = %v, expectErr %v", tc.name, artifact.JobPath(), actualErr, tc.expectErr)
+		if !errors.Is(err, tc.errIs) {
+			t.Fatalf("%s failed getting size for artifact %s, error = %v, expected %v", tc.name, artifact.JobPath(), err, tc.errIs)
 		}
 		if tc.expected != actual {
 			t.Errorf("Test %s failed.\nExpected:\n%d\nActual:\n%d", tc.name, tc.expected, actual)

@@ -22,11 +22,13 @@ import (
 	"fmt"
 	"time"
 
-	"cloud.google.com/go/pubsub"
+	"cloud.google.com/go/pubsub/v2"
+	"cloud.google.com/go/pubsub/v2/apiv1/pubsubpb"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	"sigs.k8s.io/prow/pkg/pubsub/subscriber"
 )
@@ -82,8 +84,9 @@ func (c *Client) PublishMessage(ctx context.Context, msg PubSubMessageForSub, to
 		return fmt.Errorf("failed to marshal: %v", err)
 	}
 
-	t := c.pubsubClient.Topic(topicID)
-	result := t.Publish(ctx, &pubsub.Message{Data: bytes, Attributes: msg.Attributes})
+	publisher := c.pubsubClient.Publisher(topicID)
+	defer publisher.Stop()
+	result := publisher.Publish(ctx, &pubsub.Message{Data: bytes, Attributes: msg.Attributes})
 
 	id, err := result.Get(ctx)
 	if err != nil {
@@ -97,15 +100,18 @@ func (c *Client) PublishMessage(ctx context.Context, msg PubSubMessageForSub, to
 
 // CreateSubscription creates a Pub/Sub topic and a corresponding subscription.
 func (c *Client) CreateSubscription(ctx context.Context, projectID, topicID, subscriptionID string) error {
-	topic, err := c.pubsubClient.CreateTopic(ctx, topicID)
-	if err != nil {
+	topicName := fmt.Sprintf("projects/%s/topics/%s", projectID, topicID)
+	if _, err := c.pubsubClient.TopicAdminClient.CreateTopic(ctx, &pubsubpb.Topic{Name: topicName}); err != nil {
 		return err
 	}
 
-	if _, err := c.pubsubClient.CreateSubscription(ctx, subscriptionID, pubsub.SubscriptionConfig{
-		Topic:            topic,
-		AckDeadline:      10 * time.Second,
-		ExpirationPolicy: 25 * time.Hour,
+	if _, err := c.pubsubClient.SubscriptionAdminClient.CreateSubscription(ctx, &pubsubpb.Subscription{
+		Name:               fmt.Sprintf("projects/%s/subscriptions/%s", projectID, subscriptionID),
+		Topic:              topicName,
+		AckDeadlineSeconds: 10,
+		ExpirationPolicy: &pubsubpb.ExpirationPolicy{
+			Ttl: durationpb.New(25 * time.Hour),
+		},
 	}); err != nil {
 		return err
 	}

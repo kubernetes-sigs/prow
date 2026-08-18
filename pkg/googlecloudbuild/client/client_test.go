@@ -17,11 +17,24 @@ limitations under the License.
 package client
 
 import (
+	"context"
 	"testing"
 
 	"cloud.google.com/go/cloudbuild/apiv1/v2/cloudbuildpb"
 	"github.com/google/go-cmp/cmp"
+
+	"sigs.k8s.io/prow/pkg/testutil"
 )
+
+func TestNewClientAcceptsAuthorizedUserCredentials(t *testing.T) {
+	client, err := NewClient(context.Background(), testutil.WriteAuthorizedUserCredentialsFile(t))
+	if err != nil {
+		t.Fatalf("NewClient() returned an error for authorized_user credentials: %v", err)
+	}
+	if err := client.interactor.Close(); err != nil {
+		t.Errorf("close Cloud Build client: %v", err)
+	}
+}
 
 func TestProwLabel(t *testing.T) {
 	tests := []struct {

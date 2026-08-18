@@ -25,8 +25,11 @@ import (
 	"strings"
 	"time"
 
-	"cloud.google.com/go/pubsub"
+	"cloud.google.com/go/pubsub/v2"
+	"cloud.google.com/go/pubsub/v2/apiv1/pubsubpb"
 	"github.com/sirupsen/logrus"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	prowapi "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
@@ -62,12 +65,18 @@ type ReportMessage struct {
 // Client is a reporter client fed to crier controller
 type Client struct {
 	config config.Getter
+	// newPubSubClient creates the Pub/Sub client used to report to the given
+	// project. Tests override it to point at a fake server.
+	newPubSubClient func(ctx context.Context, project string) (*pubsub.Client, error)
 }
 
 // NewReporter creates a new Pub/Sub reporter
 func NewReporter(cfg config.Getter) *Client {
 	return &Client{
 		config: cfg,
+		newPubSubClient: func(ctx context.Context, project string) (*pubsub.Client, error) {
+			return pubsub.NewClient(ctx, project)
+		},
 	}
 }
 
@@ -103,7 +112,7 @@ func (c *Client) Report(ctx context.Context, l *logrus.Entry, pj *prowapi.ProwJo
 
 	message := c.generateMessageFromPJ(pj)
 	// TODO: Consider caching the pubsub client.
-	client, err := pubsub.NewClient(ctx, message.Project)
+	client, err := c.newPubSubClient(ctx, message.Project)
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not create pubsub Client: %w", err)
 	}
@@ -113,8 +122,6 @@ func (c *Client) Report(ctx context.Context, l *logrus.Entry, pj *prowapi.ProwJo
 
 	l = l.WithFields(logrus.Fields{"project": message.Project, "topic": message.Topic, "run-id": message.RunID, "status": pj.Status.State})
 	l.Debug("Reporting prowjob status to pubsub.")
-	topic := client.Topic(message.Topic)
-	defer topic.Stop() // Sends remaining messages then stops goroutines.
 
 	d, err := json.Marshal(message)
 	if err != nil {
@@ -122,20 +129,20 @@ func (c *Client) Report(ctx context.Context, l *logrus.Entry, pj *prowapi.ProwJo
 		return nil, nil, fmt.Errorf("could not marshal pubsub report: %w", err)
 	}
 
-	res := topic.Publish(ctx, &pubsub.Message{
-		Data: d,
-	})
-
-	_, err = res.Get(ctx)
-	if err != nil {
+	publisher := client.Publisher(message.Topic)
+	defer publisher.Stop() // Sends remaining messages then stops goroutines.
+	if _, err := publisher.Publish(ctx, &pubsub.Message{Data: d}).Get(ctx); err != nil {
 		wrappedError := fmt.Errorf(
 			"failed to publish pubsub message with run ID %q to topic: \"%s/%s\". %v",
 			message.RunID, message.Project, message.Topic, err)
 
 		// It would be a user error if the topic doesn't exist, return a user
 		// error in this case so that we can avoid logging on error level.
-		topicExist, existErr := topic.Exists(ctx)
-		if existErr == nil && !topicExist {
+		// Use a fresh context: the publish may have exhausted the report one.
+		getCtx, getCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer getCancel()
+		_, getErr := client.TopicAdminClient.GetTopic(getCtx, &pubsubpb.GetTopicRequest{Topic: publisher.String()})
+		if status.Code(getErr) == codes.NotFound {
 			l.Debug("Pubsub topic doesn't exist.")
 			return nil, nil, criercommonlib.UserError(wrappedError)
 		}
