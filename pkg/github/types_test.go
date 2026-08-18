@@ -20,6 +20,59 @@ import (
 	"testing"
 )
 
+func TestRepoRequestToRepoSetsPrivate(t *testing.T) {
+	testCases := []struct {
+		name        string
+		private     *bool
+		visibility  *RepoVisibility
+		wantPrivate bool
+	}{
+		{
+			name:        "private field true",
+			private:     new(true),
+			wantPrivate: true,
+		},
+		{
+			name:    "private field false",
+			private: new(false),
+		},
+		{
+			name:       "public visibility",
+			visibility: new(RepoVisibilityPublic),
+		},
+		{
+			name:        "private visibility",
+			visibility:  new(RepoVisibilityPrivate),
+			wantPrivate: true,
+		},
+		{
+			name:        "internal visibility",
+			visibility:  new(RepoVisibilityInternal),
+			wantPrivate: true,
+		},
+		{
+			name:       "visibility overrides private",
+			private:    new(true),
+			visibility: new(RepoVisibilityPublic),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := (RepoRequest{Private: tc.private, Visibility: tc.visibility}).ToRepo()
+			if got := repo.Private; got != tc.wantPrivate {
+				t.Errorf("Private = %t, want %t", got, tc.wantPrivate)
+			}
+		})
+	}
+}
+
+func TestRepoRequestDefinedWithVisibility(t *testing.T) {
+	if !(RepoRequest{Visibility: new(RepoVisibilityInternal)}).Defined() {
+		t.Error("expected request with Visibility set to be defined")
+	}
+}
+
 func TestIssueCapsLogin(t *testing.T) {
 	// some valid logins that should all normalize to match the first
 	validLoginVariants := []string{

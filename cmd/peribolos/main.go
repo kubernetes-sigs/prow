@@ -98,7 +98,7 @@ func (o *options) parseArgs(flags *flag.FlagSet, args []string) error {
 	flags.BoolVar(&o.fixRepos, "fix-repos", false, "Create/update repositories if set")
 	flags.BoolVar(&o.fixCollaborators, "fix-collaborators", false, "Add/remove/update repository collaborators if set")
 	flags.BoolVar(&o.allowRepoArchival, "allow-repo-archival", false, "If set, archiving repos is allowed while updating repos")
-	flags.BoolVar(&o.allowRepoPublish, "allow-repo-publish", false, "If set, making private repos public is allowed while updating repos")
+	flags.BoolVar(&o.allowRepoPublish, "allow-repo-publish", false, "If set, changing repository visibility to public is allowed while updating repos")
 	flags.StringVar(&o.logLevel, "log-level", logrus.InfoLevel.String(), fmt.Sprintf("Logging level, one of %v", logrus.AllLevels))
 	o.github.AddCustomizedFlags(flags, flagutil.ThrottlerDefaults(defaultTokens, defaultBurst))
 	if err := flags.Parse(args); err != nil {
@@ -368,10 +368,14 @@ func dumpOrgConfig(client dumpClient, orgName string, ignoreSecretTeams bool, ig
 		}
 		logrus.WithField("repo", full.FullName).Debug("Recording repo.")
 
+		var visibility *github.RepoVisibility
+		if full.Visibility != "" {
+			visibility = &full.Visibility
+		}
 		repoConfig := org.PruneRepoDefaults(org.Repo{
 			Description:      &full.Description,
 			HomePage:         &full.Homepage,
-			Private:          &full.Private,
+			Visibility:       visibility,
 			HasIssues:        &full.HasIssues,
 			HasProjects:      &full.HasProjects,
 			HasWiki:          &full.HasWiki,
@@ -1028,7 +1032,7 @@ func newRepoCreateRequest(name string, definition org.Repo) github.RepoCreateReq
 			Name:                     &name,
 			Description:              definition.Description,
 			Homepage:                 definition.HomePage,
-			Private:                  definition.Private,
+			Visibility:               definition.Visibility,
 			HasIssues:                definition.HasIssues,
 			HasProjects:              definition.HasProjects,
 			HasWiki:                  definition.HasWiki,
@@ -1075,38 +1079,34 @@ func validateRepos(repos map[string]org.Repo) error {
 	return nil
 }
 
+// setIfChanged returns want when it is set and differs from current, else nil.
+func setIfChanged[T comparable](current T, want *T) *T {
+	if want != nil && *want != current {
+		return want
+	}
+	return nil
+}
+
 // newRepoUpdateRequest creates a minimal github.RepoUpdateRequest instance
 // needed to update the current repo into the target state.
 func newRepoUpdateRequest(current github.FullRepo, name string, repo org.Repo) github.RepoUpdateRequest {
-	setString := func(current string, want *string) *string {
-		if want != nil && *want != current {
-			return want
-		}
-		return nil
-	}
-	setBool := func(current bool, want *bool) *bool {
-		if want != nil && *want != current {
-			return want
-		}
-		return nil
-	}
 	repoUpdate := github.RepoUpdateRequest{
 		RepoRequest: github.RepoRequest{
-			Name:                     setString(current.Name, &name),
-			Description:              setString(current.Description, repo.Description),
-			Homepage:                 setString(current.Homepage, repo.HomePage),
-			Private:                  setBool(current.Private, repo.Private),
-			HasIssues:                setBool(current.HasIssues, repo.HasIssues),
-			HasProjects:              setBool(current.HasProjects, repo.HasProjects),
-			HasWiki:                  setBool(current.HasWiki, repo.HasWiki),
-			AllowSquashMerge:         setBool(current.AllowSquashMerge, repo.AllowSquashMerge),
-			AllowMergeCommit:         setBool(current.AllowMergeCommit, repo.AllowMergeCommit),
-			AllowRebaseMerge:         setBool(current.AllowRebaseMerge, repo.AllowRebaseMerge),
-			SquashMergeCommitTitle:   setString(current.SquashMergeCommitTitle, repo.SquashMergeCommitTitle),
-			SquashMergeCommitMessage: setString(current.SquashMergeCommitMessage, repo.SquashMergeCommitMessage),
+			Name:                     setIfChanged(current.Name, &name),
+			Description:              setIfChanged(current.Description, repo.Description),
+			Homepage:                 setIfChanged(current.Homepage, repo.HomePage),
+			Visibility:               setIfChanged(current.Visibility, repo.Visibility),
+			HasIssues:                setIfChanged(current.HasIssues, repo.HasIssues),
+			HasProjects:              setIfChanged(current.HasProjects, repo.HasProjects),
+			HasWiki:                  setIfChanged(current.HasWiki, repo.HasWiki),
+			AllowSquashMerge:         setIfChanged(current.AllowSquashMerge, repo.AllowSquashMerge),
+			AllowMergeCommit:         setIfChanged(current.AllowMergeCommit, repo.AllowMergeCommit),
+			AllowRebaseMerge:         setIfChanged(current.AllowRebaseMerge, repo.AllowRebaseMerge),
+			SquashMergeCommitTitle:   setIfChanged(current.SquashMergeCommitTitle, repo.SquashMergeCommitTitle),
+			SquashMergeCommitMessage: setIfChanged(current.SquashMergeCommitMessage, repo.SquashMergeCommitMessage),
 		},
-		DefaultBranch: setString(current.DefaultBranch, repo.DefaultBranch),
-		Archived:      setBool(current.Archived, repo.Archived),
+		DefaultBranch: setIfChanged(current.DefaultBranch, repo.DefaultBranch),
+		Archived:      setIfChanged(current.Archived, repo.Archived),
 	}
 
 	return repoUpdate
@@ -1123,9 +1123,9 @@ func sanitizeRepoDelta(opt options, delta *github.RepoUpdateRequest) []error {
 		delta.Archived = nil
 		errs = append(errs, fmt.Errorf("asked to archive a repo but this is not allowed by default (see --allow-repo-archival)"))
 	}
-	if delta.Private != nil && !(*delta.Private || opt.allowRepoPublish) {
-		delta.Private = nil
-		errs = append(errs, fmt.Errorf("asked to publish a private repo but this is not allowed by default (see --allow-repo-publish)"))
+	if delta.Visibility != nil && *delta.Visibility == github.RepoVisibilityPublic && !opt.allowRepoPublish {
+		delta.Visibility = nil
+		errs = append(errs, fmt.Errorf("asked to change repo visibility to public but this is not allowed by default (see --allow-repo-publish)"))
 	}
 
 	return errs

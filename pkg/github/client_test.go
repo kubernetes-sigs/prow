@@ -2944,45 +2944,60 @@ func TestCreateRepo(t *testing.T) {
 	orgsRepoName := "orgs-repository"
 	repoDesc := "description of users-repository"
 	testCases := []struct {
-		description string
-		isUser      bool
-		repo        RepoCreateRequest
-		statusCode  int
+		description     string
+		isUser          bool
+		repo            RepoCreateRequest
+		expectedRequest map[string]any
+		statusCode      int
 
 		expectError bool
 		expectRepo  *FullRepo
 	}{
 		{
-			description: "create repo as user",
+			description: "create private repo as user",
 			isUser:      true,
 			repo: RepoCreateRequest{
 				RepoRequest: RepoRequest{
 					Name:        &usersRepoName,
 					Description: &repoDesc,
+					Private:     new(true),
 				},
+			},
+			expectedRequest: map[string]any{
+				"name":        usersRepoName,
+				"description": repoDesc,
+				"private":     true,
 			},
 			statusCode: http.StatusCreated,
 			expectRepo: &FullRepo{
 				Repo: Repo{
 					Name:        "users-repository",
 					Description: "CREATED",
+					Private:     true,
 				},
 			},
 		},
 		{
-			description: "create repo as org",
+			description: "create internal repo as org",
 			isUser:      false,
 			repo: RepoCreateRequest{
 				RepoRequest: RepoRequest{
 					Name:        &orgsRepoName,
 					Description: &repoDesc,
+					Visibility:  new(RepoVisibilityInternal),
 				},
+			},
+			expectedRequest: map[string]any{
+				"name":        orgsRepoName,
+				"description": repoDesc,
+				"visibility":  "internal",
 			},
 			statusCode: http.StatusCreated,
 			expectRepo: &FullRepo{
 				Repo: Repo{
 					Name:        "orgs-repository",
 					Description: "CREATED",
+					Visibility:  RepoVisibilityInternal,
 				},
 			},
 		},
@@ -2994,6 +3009,10 @@ func TestCreateRepo(t *testing.T) {
 					Name:        &orgsRepoName,
 					Description: &repoDesc,
 				},
+			},
+			expectedRequest: map[string]any{
+				"name":        orgsRepoName,
+				"description": repoDesc,
 			},
 			statusCode:  http.StatusForbidden,
 			expectError: true,
@@ -3013,6 +3032,13 @@ func TestCreateRepo(t *testing.T) {
 				b, err := io.ReadAll(r.Body)
 				if err != nil {
 					t.Fatalf("Could not read request body: %v", err)
+				}
+				var requestBody map[string]any
+				if err := json.Unmarshal(b, &requestBody); err != nil {
+					t.Fatalf("Could not unmarshal request body: %v", err)
+				}
+				if diff := cmp.Diff(tc.expectedRequest, requestBody); diff != "" {
+					t.Errorf("unexpected request body (-want +got):\n%s", diff)
 				}
 				var repo Repo
 				switch err := json.Unmarshal(b, &repo); {
@@ -3892,7 +3918,6 @@ func TestCollaboratorMethodsDryRun(t *testing.T) {
 		t.Errorf("Expected 0 API calls in dry-run mode, but got %d", callCount)
 	}
 }
-
 
 func TestGetPendingApprovalActionRuns(t *testing.T) {
 	const (
