@@ -24,6 +24,7 @@ import (
 	"sigs.k8s.io/prow/pkg/config"
 	"sigs.k8s.io/prow/pkg/github"
 	"sigs.k8s.io/prow/pkg/github/fakegithub"
+	"sigs.k8s.io/prow/pkg/labels"
 	"sigs.k8s.io/prow/pkg/plugins"
 	"sigs.k8s.io/prow/pkg/slack"
 )
@@ -349,6 +350,12 @@ func TestHelpProvider(t *testing.T) {
 							},
 						},
 					},
+					CLAAlerts: []plugins.CLAAlert{
+						{
+							Repos:    []string{"org2/repo"},
+							Channels: []string{"cla-alerts"},
+						},
+					},
 				},
 			},
 			enabledRepos: enabledRepos,
@@ -359,6 +366,189 @@ func TestHelpProvider(t *testing.T) {
 			_, err := helpProvider(c.config, c.enabledRepos)
 			if err != nil && !c.err {
 				t.Fatalf("helpProvider error: %v", err)
+			}
+		})
+	}
+}
+
+func TestNotifyOnCLAIfMerged(t *testing.T) {
+	const (
+		org    = "kubernetes"
+		repo   = "test-repo"
+		prURL  = "https://github.com/kubernetes/test-repo/pull/42"
+		merger = "contributor"
+	)
+
+	basePR := github.PullRequestEvent{
+		Action: github.PullRequestActionClosed,
+		Number: 42,
+		PullRequest: github.PullRequest{
+			Number:  42,
+			Merged:  true,
+			HTMLURL: prURL,
+			User:    github.User{Login: merger},
+			Labels:  []github.Label{{Name: labels.ClaNo}},
+		},
+		Repo: github.Repo{
+			Name:  repo,
+			Owner: github.User{Login: org},
+		},
+	}
+
+	expectedMsg := `*Alert:* PR #42 merged with "cncf-cla: no" label by contributor — https://github.com/kubernetes/test-repo/pull/42`
+
+	testcases := []struct {
+		name             string
+		event            github.PullRequestEvent
+		claAlerts        []plugins.CLAAlert
+		expectedMessages map[string][]string
+	}{
+		{
+			name:  "merged PR with cncf-cla: no sends alert",
+			event: basePR,
+			claAlerts: []plugins.CLAAlert{
+				{Repos: []string{"kubernetes/test-repo"}, Channels: []string{"cla-alerts"}},
+			},
+			expectedMessages: map[string][]string{
+				"cla-alerts": {expectedMsg},
+			},
+		},
+		{
+			name: "closed but not merged PR sends no alert",
+			event: func() github.PullRequestEvent {
+				e := basePR
+				e.PullRequest.Merged = false
+				return e
+			}(),
+			claAlerts: []plugins.CLAAlert{
+				{Repos: []string{"kubernetes/test-repo"}, Channels: []string{"cla-alerts"}},
+			},
+			expectedMessages: map[string][]string{},
+		},
+		{
+			name: "non-closed action sends no alert",
+			event: func() github.PullRequestEvent {
+				e := basePR
+				e.Action = github.PullRequestActionOpened
+				return e
+			}(),
+			claAlerts: []plugins.CLAAlert{
+				{Repos: []string{"kubernetes/test-repo"}, Channels: []string{"cla-alerts"}},
+			},
+			expectedMessages: map[string][]string{},
+		},
+		{
+			name: "merged PR without cncf-cla: no sends no alert",
+			event: func() github.PullRequestEvent {
+				e := basePR
+				e.PullRequest.Labels = []github.Label{{Name: "approved"}, {Name: "lgtm"}}
+				return e
+			}(),
+			claAlerts: []plugins.CLAAlert{
+				{Repos: []string{"kubernetes/test-repo"}, Channels: []string{"cla-alerts"}},
+			},
+			expectedMessages: map[string][]string{},
+		},
+		{
+			name:  "repo not in config sends no alert",
+			event: basePR,
+			claAlerts: []plugins.CLAAlert{
+				{Repos: []string{"kubernetes/other-repo"}, Channels: []string{"cla-alerts"}},
+			},
+			expectedMessages: map[string][]string{},
+		},
+		{
+			name:             "no CLAAlerts configured sends no alert",
+			event:            basePR,
+			claAlerts:        []plugins.CLAAlert{},
+			expectedMessages: map[string][]string{},
+		},
+		{
+			name:  "org-level config matches all repos in org",
+			event: basePR,
+			claAlerts: []plugins.CLAAlert{
+				{Repos: []string{"kubernetes"}, Channels: []string{"cla-alerts"}},
+			},
+			expectedMessages: map[string][]string{
+				"cla-alerts": {expectedMsg},
+			},
+		},
+		{
+			name:  "alert sent to multiple channels",
+			event: basePR,
+			claAlerts: []plugins.CLAAlert{
+				{Repos: []string{"kubernetes/test-repo"}, Channels: []string{"cla-alerts", "sig-contribex"}},
+			},
+			expectedMessages: map[string][]string{
+				"cla-alerts":    {expectedMsg},
+				"sig-contribex": {expectedMsg},
+			},
+		},
+		{
+			name: "cncf-cla: no among multiple labels still triggers alert",
+			event: func() github.PullRequestEvent {
+				e := basePR
+				e.PullRequest.Labels = []github.Label{
+					{Name: "approved"},
+					{Name: labels.ClaNo},
+					{Name: "lgtm"},
+				}
+				return e
+			}(),
+			claAlerts: []plugins.CLAAlert{
+				{Repos: []string{"kubernetes/test-repo"}, Channels: []string{"cla-alerts"}},
+			},
+			expectedMessages: map[string][]string{
+				"cla-alerts": {expectedMsg},
+			},
+		},
+		{
+			name:  "exact repo match takes precedence over org-level",
+			event: basePR,
+			claAlerts: []plugins.CLAAlert{
+				{Repos: []string{"kubernetes/test-repo"}, Channels: []string{"exact-channel"}},
+				{Repos: []string{"kubernetes"}, Channels: []string{"org-channel"}},
+			},
+			expectedMessages: map[string][]string{
+				"exact-channel": {expectedMsg},
+			},
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			slackClient := &FakeClient{SentMessages: make(map[string][]string)}
+			pc := client{
+				SlackConfig: plugins.Slack{CLAAlerts: tc.claAlerts},
+				SlackClient: slackClient,
+			}
+
+			if err := notifyOnCLAIfMerged(pc, tc.event); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if len(slackClient.SentMessages) != len(tc.expectedMessages) {
+				t.Errorf("channel count mismatch: expected %d, got %d\nExpected: %v\nGot:      %v",
+					len(tc.expectedMessages), len(slackClient.SentMessages),
+					tc.expectedMessages, slackClient.SentMessages)
+				return
+			}
+			for ch, wantMsgs := range tc.expectedMessages {
+				gotMsgs, ok := slackClient.SentMessages[ch]
+				if !ok {
+					t.Errorf("expected message to channel %q but none sent", ch)
+					continue
+				}
+				if len(gotMsgs) != len(wantMsgs) {
+					t.Errorf("channel %q: expected %d messages, got %d", ch, len(wantMsgs), len(gotMsgs))
+					continue
+				}
+				for i := range wantMsgs {
+					if gotMsgs[i] != wantMsgs[i] {
+						t.Errorf("channel %q message %d mismatch:\nExpected: %q\nGot:      %q",
+							ch, i, wantMsgs[i], gotMsgs[i])
+					}
+				}
 			}
 		})
 	}
