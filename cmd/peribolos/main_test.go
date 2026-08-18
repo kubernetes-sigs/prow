@@ -24,14 +24,17 @@ import (
 	"reflect"
 	"slices"
 	"sort"
+	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/prow/pkg/config/org"
 	"sigs.k8s.io/prow/pkg/flagutil"
 	"sigs.k8s.io/prow/pkg/github"
-
-	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 func TestOptions(t *testing.T) {
@@ -145,6 +148,45 @@ func TestOptions(t *testing.T) {
 				fixTeams:       true,
 				fixTeamMembers: true,
 				logLevel:       "debug",
+			},
+		},
+		{
+			name: "--fix-forks inherits from --fix-repos when not set",
+			args: []string{"--config-path=foo", "--fix-repos"},
+			expected: &options{
+				config:       "foo",
+				minAdmins:    defaultMinAdmins,
+				requireSelf:  true,
+				maximumDelta: defaultDelta,
+				fixRepos:     true,
+				fixForks:     true, // Inherited from --fix-repos
+				logLevel:     "info",
+			},
+		},
+		{
+			name: "--fix-forks=false overrides --fix-repos inheritance",
+			args: []string{"--config-path=foo", "--fix-repos", "--fix-forks=false"},
+			expected: &options{
+				config:       "foo",
+				minAdmins:    defaultMinAdmins,
+				requireSelf:  true,
+				maximumDelta: defaultDelta,
+				fixRepos:     true,
+				fixForks:     false, // Explicitly set to false
+				logLevel:     "info",
+			},
+		},
+		{
+			name: "--fix-forks=true without --fix-repos",
+			args: []string{"--config-path=foo", "--fix-forks=true"},
+			expected: &options{
+				config:       "foo",
+				minAdmins:    defaultMinAdmins,
+				requireSelf:  true,
+				maximumDelta: defaultDelta,
+				fixRepos:     false,
+				fixForks:     true, // Explicitly set to true
+				logLevel:     "info",
 			},
 		},
 	}
@@ -2117,14 +2159,16 @@ func TestDumpOrgConfig(t *testing.T) {
 				Admins:  []string{"admin", "james", "giant", "peach"},
 				Repos: map[string]org.Repo{
 					"project": {
-						Description:      &repoDescription,
-						HomePage:         &repoHomepage,
-						HasProjects:      &yes,
-						AllowMergeCommit: &no,
-						AllowRebaseMerge: &no,
-						AllowSquashMerge: &no,
-						Archived:         &yes,
-						DefaultBranch:    &master,
+						RepoMetadata: org.RepoMetadata{
+							Description:      &repoDescription,
+							HomePage:         &repoHomepage,
+							HasProjects:      &yes,
+							AllowMergeCommit: &no,
+							AllowRebaseMerge: &no,
+							AllowSquashMerge: &no,
+							Archived:         &yes,
+							DefaultBranch:    &master,
+						},
 					},
 				},
 			},
@@ -3024,7 +3068,9 @@ func TestConfigureRepos(t *testing.T) {
 	newName := "new"
 	newDescription := "A new repository."
 	newConfigRepo := org.Repo{
-		Description: &newDescription,
+		RepoMetadata: org.RepoMetadata{
+			Description: &newDescription,
+		},
 	}
 	newRepo := github.Repo{
 		Name:        newName,
@@ -3074,6 +3120,16 @@ func TestConfigureRepos(t *testing.T) {
 			repos: []github.FullRepo{{Repo: oldRepo}},
 
 			expectedRepos: []github.Repo{newRepo, oldRepo},
+		},
+		{
+			description: "repo with fork_from is skipped (handled by configureForks)",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					"forked-repo": {Fork: &org.ForkConfig{From: "upstream/repo"}},
+				},
+			},
+			repos:         []github.FullRepo{},
+			expectedRepos: []github.Repo{}, // Should NOT create the repo
 		},
 		{
 			description:     "GetRepos failure is propagated",
@@ -3148,7 +3204,7 @@ func TestConfigureRepos(t *testing.T) {
 			description: "request to unarchive a repo fails, repo is read-only",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
-					oldName: {Archived: &no, Description: &updated},
+					oldName: {RepoMetadata: org.RepoMetadata{Archived: &no, Description: &updated}},
 				},
 			},
 			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Archived: true, Description: "OLD"}}},
@@ -3163,7 +3219,7 @@ func TestConfigureRepos(t *testing.T) {
 			description: "no field changes on archived repo",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
-					oldName: {Archived: &yes, Description: &updated},
+					oldName: {RepoMetadata: org.RepoMetadata{Archived: &yes, Description: &updated}},
 				},
 			},
 			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Archived: true, Description: "OLD"}}},
@@ -3174,7 +3230,7 @@ func TestConfigureRepos(t *testing.T) {
 			description: "request to archive repo fails when not allowed, but updates other fields",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
-					oldName: {Archived: &yes, Description: &updated},
+					oldName: {RepoMetadata: org.RepoMetadata{Archived: &yes, Description: &updated}},
 				},
 			},
 			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Archived: false, Description: "OLD"}}},
@@ -3188,7 +3244,7 @@ func TestConfigureRepos(t *testing.T) {
 			},
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
-					oldName: {Archived: &yes},
+					oldName: {RepoMetadata: org.RepoMetadata{Archived: &yes}},
 				},
 			},
 			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Archived: false}}},
@@ -3198,7 +3254,7 @@ func TestConfigureRepos(t *testing.T) {
 			description: "request to publish a private repo fails when not allowed, but updates other fields",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
-					oldName: {Private: &no, Description: &updated},
+					oldName: {RepoMetadata: org.RepoMetadata{Private: &no, Description: &updated}},
 				},
 			},
 			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Private: true, Description: "OLD"}}},
@@ -3212,7 +3268,7 @@ func TestConfigureRepos(t *testing.T) {
 			},
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
-					oldName: {Private: &no},
+					oldName: {RepoMetadata: org.RepoMetadata{Private: &no}},
 				},
 			},
 			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Private: true}}},
@@ -3243,7 +3299,7 @@ func TestConfigureRepos(t *testing.T) {
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
 					newName: {Previously: []string{oldName}},
-					oldName: {Description: &newDescription},
+					oldName: {RepoMetadata: org.RepoMetadata{Description: &newDescription}},
 				},
 			},
 			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Description: "this repo shall not be touched"}}},
@@ -3254,8 +3310,8 @@ func TestConfigureRepos(t *testing.T) {
 			description: "dup between two previous names is detected",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
-					"wants-projects": {Previously: []string{oldName}, HasProjects: &yes, HasWiki: &no},
-					"wants-wiki":     {Previously: []string{oldName}, HasProjects: &no, HasWiki: &yes},
+					"wants-projects": {Previously: []string{oldName}, RepoMetadata: org.RepoMetadata{HasProjects: &yes, HasWiki: &no}},
+					"wants-wiki":     {Previously: []string{oldName}, RepoMetadata: org.RepoMetadata{HasProjects: &no, HasWiki: &yes}},
 				},
 			},
 			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Description: "this repo shall not be touched"}}},
@@ -3266,7 +3322,7 @@ func TestConfigureRepos(t *testing.T) {
 			description: "error detected when both a repo and a repo of its previous name exist",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
-					newName: {Previously: []string{oldName}, Description: &newDescription},
+					newName: {Previously: []string{oldName}, RepoMetadata: org.RepoMetadata{Description: &newDescription}},
 				},
 			},
 			repos: []github.FullRepo{
@@ -3283,7 +3339,7 @@ func TestConfigureRepos(t *testing.T) {
 			description: "error detected when multiple previous repos exist",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
-					newName: {Previously: []string{oldName, "even-older"}, Description: &newDescription},
+					newName: {Previously: []string{oldName, "even-older"}, RepoMetadata: org.RepoMetadata{Description: &newDescription}},
 				},
 			},
 			repos: []github.FullRepo{
@@ -3300,7 +3356,7 @@ func TestConfigureRepos(t *testing.T) {
 			description: "repos are renamed to defined case even without explicit `previously` field",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
-					"CamelCase": {Description: &newDescription},
+					"CamelCase": {RepoMetadata: org.RepoMetadata{Description: &newDescription}},
 				},
 			},
 			repos:         []github.FullRepo{{Repo: github.Repo{Name: "CAMELCASE", Description: newDescription}}},
@@ -3310,7 +3366,7 @@ func TestConfigureRepos(t *testing.T) {
 			description: "avoid creating archived repo",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
-					oldName: {Archived: &yes},
+					oldName: {RepoMetadata: org.RepoMetadata{Archived: &yes}},
 				},
 			},
 			repos:         []github.FullRepo{},
@@ -3323,9 +3379,9 @@ func TestConfigureRepos(t *testing.T) {
 			fc := makeFakeRepoClient(t, tc.repos...)
 			var err error
 			if len(tc.orgNameOverride) > 0 {
-				err = configureRepos(tc.opts, fc, tc.orgNameOverride, tc.orgConfig)
+				err = configureRepos(tc.opts, fc, tc.orgNameOverride, tc.orgConfig, map[string]string{})
 			} else {
-				err = configureRepos(tc.opts, fc, orgName, tc.orgConfig)
+				err = configureRepos(tc.opts, fc, orgName, tc.orgConfig, map[string]string{})
 			}
 			if err != nil && !tc.expectError {
 				t.Errorf("%s: unexpected error: %v", tc.description, err)
@@ -3345,6 +3401,64 @@ func TestConfigureRepos(t *testing.T) {
 	}
 }
 
+func TestConfigureReposWithForkNames(t *testing.T) {
+	orgName := "test-org"
+	isOrg := false
+	newDescription := "updated description"
+
+	// Test that fork metadata is applied using actual GitHub name from forkNames
+	t.Run("fork metadata applied using actual name from forkNames", func(t *testing.T) {
+		forkName := "my-fork"
+		actualName := "upstream-repo" // GitHub renamed it
+
+		fc := makeFakeRepoClient(t, github.FullRepo{
+			Repo: github.Repo{
+				Name:        actualName,
+				Fork:        true,
+				Description: "old description",
+				Parent: github.ParentRepo{
+					FullName: "upstream-org/upstream-repo",
+				},
+			},
+		})
+
+		upstream := "upstream-org/upstream-repo"
+		orgConfig := org.Config{
+			Repos: map[string]org.Repo{
+				forkName: {
+					Fork: &org.ForkConfig{From: upstream},
+					RepoMetadata: org.RepoMetadata{
+						Description: &newDescription,
+					},
+				},
+			},
+		}
+
+		forkNames := map[string]string{
+			forkName: actualName,
+		}
+
+		err := configureRepos(options{}, fc, orgName, orgConfig, forkNames)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		// Verify the repo was updated
+		repos, err := fc.GetRepos(orgName, isOrg)
+		if err != nil {
+			t.Fatalf("failed to get repos: %v", err)
+		}
+
+		if len(repos) != 1 {
+			t.Fatalf("expected 1 repo, got %d", len(repos))
+		}
+
+		if repos[0].Description != newDescription {
+			t.Errorf("expected description %q, got %q", newDescription, repos[0].Description)
+		}
+	})
+}
+
 func TestValidateRepos(t *testing.T) {
 	description := "cool repo"
 	testCases := []struct {
@@ -3362,14 +3476,14 @@ func TestValidateRepos(t *testing.T) {
 		{
 			description: "handles valid config",
 			config: map[string]org.Repo{
-				"repo": {Description: &description},
+				"repo": {RepoMetadata: org.RepoMetadata{Description: &description}},
 			},
 		},
 		{
 			description: "finds repo names duplicate when normalized",
 			config: map[string]org.Repo{
-				"repo": {Description: &description},
-				"Repo": {Description: &description},
+				"repo": {RepoMetadata: org.RepoMetadata{Description: &description}},
+				"Repo": {RepoMetadata: org.RepoMetadata{Description: &description}},
 			},
 			expectError: true,
 		},
@@ -3377,7 +3491,7 @@ func TestValidateRepos(t *testing.T) {
 			description: "finds name conflict between previous and current names",
 			config: map[string]org.Repo{
 				"repo":     {Previously: []string{"conflict"}},
-				"conflict": {Description: &description},
+				"conflict": {RepoMetadata: org.RepoMetadata{Description: &description}},
 			},
 			expectError: true,
 		},
@@ -3439,8 +3553,10 @@ func TestNewRepoUpdateRequest(t *testing.T) {
 			},
 			name: repoName,
 			newState: org.Repo{
-				Description:   &description,
-				DefaultBranch: &branch,
+				RepoMetadata: org.RepoMetadata{
+					Description:   &description,
+					DefaultBranch: &branch,
+				},
 			},
 			expected: github.RepoUpdateRequest{
 				DefaultBranch: &branch,
@@ -3454,7 +3570,9 @@ func TestNewRepoUpdateRequest(t *testing.T) {
 			}},
 			name: repoName,
 			newState: org.Repo{
-				Description: &description,
+				RepoMetadata: org.RepoMetadata{
+					Description: &description,
+				},
 			},
 		},
 		{
@@ -3464,7 +3582,9 @@ func TestNewRepoUpdateRequest(t *testing.T) {
 			}},
 			name: newRepoName,
 			newState: org.Repo{
-				Description: &description,
+				RepoMetadata: org.RepoMetadata{
+					Description: &description,
+				},
 			},
 			expected: github.RepoUpdateRequest{
 				RepoRequest: github.RepoRequest{
@@ -3484,9 +3604,11 @@ func TestNewRepoUpdateRequest(t *testing.T) {
 			},
 			name: newRepoName,
 			newState: org.Repo{
-				Description:              &description,
-				SquashMergeCommitTitle:   &squashMergeCommitTitle,
-				SquashMergeCommitMessage: &squashMergeCommitMessage,
+				RepoMetadata: org.RepoMetadata{
+					Description:              &description,
+					SquashMergeCommitTitle:   &squashMergeCommitTitle,
+					SquashMergeCommitMessage: &squashMergeCommitMessage,
+				},
 			},
 			expected: github.RepoUpdateRequest{
 				RepoRequest: github.RepoRequest{
@@ -3675,7 +3797,7 @@ func TestConfigureCollaborators(t *testing.T) {
 			// Set up existing collaborators
 			maps.Copy(client.collaborators, tc.existingCollaborators)
 
-			err := configureCollaborators(client, "test-org", "test-repo", tc.repo)
+			err := configureCollaborators(client, "test-org", "test-repo", tc.repo, map[string]string{})
 
 			if tc.expectedErr && err == nil {
 				t.Errorf("Expected error but got none")
@@ -3830,7 +3952,7 @@ func TestConfigureCollaboratorsRemovePendingInvitations(t *testing.T) {
 		// Note: "remove-pending" is NOT in the config, so their invitation should be removed
 	}
 
-	err := configureCollaborators(client, "test-org", "test-repo", repo)
+	err := configureCollaborators(client, "test-org", "test-repo", repo, map[string]string{})
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -3907,7 +4029,7 @@ func TestConfigureCollaboratorsInvitationManagement(t *testing.T) {
 		},
 	}
 
-	err := configureCollaborators(client, "test-org", "test-repo", repo)
+	err := configureCollaborators(client, "test-org", "test-repo", repo, map[string]string{})
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -3970,7 +4092,7 @@ func TestConfigureCollaboratorsInvitationPermissionChecking(t *testing.T) {
 		},
 	}
 
-	err := configureCollaborators(client, "test-org", "test-repo", repo)
+	err := configureCollaborators(client, "test-org", "test-repo", repo, map[string]string{})
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -4092,7 +4214,7 @@ func TestConfigureCollaboratorsLargeSet(t *testing.T) {
 	}
 
 	repo := org.Repo{Collaborators: desired}
-	if err := configureCollaborators(client, "org", "repo", repo); err != nil {
+	if err := configureCollaborators(client, "org", "repo", repo, map[string]string{}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -4136,7 +4258,7 @@ func TestConfigureCollaboratorsCorrectAPIEndpoints(t *testing.T) {
 		},
 	}
 
-	err := configureCollaborators(client, "test-org", "test-repo", repo)
+	err := configureCollaborators(client, "test-org", "test-repo", repo, map[string]string{})
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -4189,7 +4311,7 @@ func TestConfigureCollaboratorsInvitationVsCollaboratorRemoval(t *testing.T) {
 		},
 	}
 
-	err := configureCollaborators(client, "test-org", "test-repo", repo)
+	err := configureCollaborators(client, "test-org", "test-repo", repo, map[string]string{})
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -4224,7 +4346,7 @@ func TestConfigureCollaborators_Idempotent_NoChangeForDirectCollaborator(t *test
 		},
 	}
 
-	err := configureCollaborators(client, "test-org", "test-repo", repo)
+	err := configureCollaborators(client, "test-org", "test-repo", repo, map[string]string{})
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -4255,7 +4377,7 @@ func TestConfigureCollaborators_PermissionMatrix_TransitionsExistingCollaborator
 
 				repo := org.Repo{Collaborators: map[string]github.RepoPermissionLevel{"user": to}}
 
-				err := configureCollaborators(client, "org", "repo", repo)
+				err := configureCollaborators(client, "org", "repo", repo, map[string]string{})
 				if err != nil {
 					t.Fatalf("unexpected error: %v", err)
 				}
@@ -4297,7 +4419,7 @@ func TestConfigureCollaborators_PermissionMatrix_PendingInvitationUpdates(t *tes
 
 				repo := org.Repo{Collaborators: map[string]github.RepoPermissionLevel{"user": to}}
 
-				err := configureCollaborators(client, "org", "repo", repo)
+				err := configureCollaborators(client, "org", "repo", repo, map[string]string{})
 				if err != nil {
 					t.Fatalf("unexpected error: %v", err)
 				}
@@ -4311,5 +4433,590 @@ func TestConfigureCollaborators_PermissionMatrix_PendingInvitationUpdates(t *tes
 				}
 			})
 		}
+	}
+}
+
+// fakeWaitClient implements forkClient for testing waitForFork
+type fakeWaitClient struct {
+	callCount    atomic.Int32
+	availableAt  int32 // GetRepo succeeds on this call number (1-based)
+	getRepoErr   error // non-404 error to return
+	getReposErr  error
+	availableRepo github.FullRepo
+}
+
+func (f *fakeWaitClient) GetRepo(owner, name string) (github.FullRepo, error) {
+	n := f.callCount.Add(1)
+	if f.getRepoErr != nil {
+		return github.FullRepo{}, f.getRepoErr
+	}
+	if n >= f.availableAt {
+		return f.availableRepo, nil
+	}
+	return github.FullRepo{}, github.NewNotFound()
+}
+
+func (f *fakeWaitClient) GetRepos(org string, isUser bool) ([]github.Repo, error) {
+	return nil, f.getReposErr
+}
+
+func (f *fakeWaitClient) CreateForkInOrg(owner, repo, targetOrg string, defaultBranchOnly bool, name string) (string, error) {
+	return "", nil
+}
+
+func TestWaitForFork(t *testing.T) {
+	testCases := []struct {
+		description string
+		availableAt int32
+		getRepoErr  error
+		timeout     time.Duration
+		interval    time.Duration
+		expectError bool
+		errContains string
+	}{
+		{
+			description: "succeeds immediately when fork is available",
+			availableAt: 1,
+			timeout:     5 * time.Second,
+			interval:    10 * time.Millisecond,
+			expectError: false,
+		},
+		{
+			description: "succeeds after polling",
+			availableAt: 3,
+			timeout:     5 * time.Second,
+			interval:    10 * time.Millisecond,
+			expectError: false,
+		},
+		{
+			description: "times out when fork never appears",
+			availableAt: 9999,
+			timeout:     50 * time.Millisecond,
+			interval:    10 * time.Millisecond,
+			expectError: true,
+			errContains: "timeout waiting for fork",
+		},
+		{
+			description: "fails fast on non-404 error",
+			availableAt: 9999,
+			getRepoErr:  errors.New("403 forbidden"),
+			timeout:     5 * time.Second,
+			interval:    10 * time.Millisecond,
+			expectError: true,
+			errContains: "unexpected error waiting for fork",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.description, func(t *testing.T) {
+			client := &fakeWaitClient{
+				availableAt:   tc.availableAt,
+				getRepoErr:    tc.getRepoErr,
+				availableRepo: github.FullRepo{Repo: github.Repo{Name: "test-repo"}},
+			}
+
+			err := waitForFork(client, "test-org", "test-repo", tc.timeout, tc.interval)
+
+			if tc.expectError {
+				if err == nil {
+					t.Fatal("expected error but got none")
+				}
+				if tc.errContains != "" && !strings.Contains(err.Error(), tc.errContains) {
+					t.Errorf("error %q should contain %q", err.Error(), tc.errContains)
+				}
+			} else {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+			}
+
+			if tc.getRepoErr != nil {
+				if client.callCount.Load() != 1 {
+					t.Errorf("expected exactly 1 GetRepo call on non-404 error, got %d", client.callCount.Load())
+				}
+			}
+		})
+	}
+}
+
+// forkCreation tracks details of a fork creation call
+type forkCreation struct {
+	upstream          string // "owner/repo"
+	defaultBranchOnly bool
+	name              string // requested fork name
+}
+
+// fakeForkClient implements the forkClient interface for testing
+type fakeForkClient struct {
+	repos         map[string]github.Repo     // repo name -> repo
+	fullRepos     map[string]github.FullRepo // repo name -> full repo
+	createdForks  []forkCreation             // list of fork creation calls with details
+	createForkErr error
+	getRepoErr    error
+	getReposErr   error
+	renameForkTo  string // if set, simulate GitHub renaming the fork to this name
+}
+
+func (f *fakeForkClient) GetRepo(owner, name string) (github.FullRepo, error) {
+	if f.getRepoErr != nil {
+		return github.FullRepo{}, f.getRepoErr
+	}
+	if repo, ok := f.fullRepos[name]; ok {
+		return repo, nil
+	}
+	return github.FullRepo{}, fmt.Errorf("repo not found: %s/%s", owner, name)
+}
+
+func (f *fakeForkClient) GetRepos(org string, isUser bool) ([]github.Repo, error) {
+	if f.getReposErr != nil {
+		return nil, f.getReposErr
+	}
+	var repos []github.Repo
+	for _, r := range f.repos {
+		repos = append(repos, r)
+	}
+	return repos, nil
+}
+
+func (f *fakeForkClient) CreateForkInOrg(owner, repo, targetOrg string, defaultBranchOnly bool, name string) (string, error) {
+	if f.createForkErr != nil {
+		return "", f.createForkErr
+	}
+	f.createdForks = append(f.createdForks, forkCreation{
+		upstream:          fmt.Sprintf("%s/%s", owner, repo),
+		defaultBranchOnly: defaultBranchOnly,
+		name:              name,
+	})
+	createdName := name
+	if createdName == "" {
+		createdName = repo
+	}
+	if f.renameForkTo != "" {
+		createdName = f.renameForkTo
+	}
+	// Simulate fork becoming available for waitForFork
+	if f.fullRepos == nil {
+		f.fullRepos = make(map[string]github.FullRepo)
+	}
+	f.fullRepos[createdName] = github.FullRepo{
+		Repo: github.Repo{
+			Name: createdName,
+			Fork: true,
+			Parent: github.ParentRepo{
+				FullName: fmt.Sprintf("%s/%s", owner, repo),
+			},
+		},
+	}
+	return createdName, nil
+}
+
+func TestConfigureForks(t *testing.T) {
+	upstream := "upstream-org/upstream-repo"
+	forkName := "upstream-repo"
+
+	testCases := []struct {
+		description   string
+		orgConfig     org.Config
+		existingRepos map[string]github.Repo
+		fullRepos     map[string]github.FullRepo
+		createForkErr error
+		getReposErr   error
+		getRepoErr    error
+		renameForkTo  string // simulate GitHub renaming the fork
+
+		expectError       bool
+		expectedForks     []forkCreation
+		expectedForkNames map[string]string // config name -> actual GitHub name
+	}{
+		{
+			description: "no forks configured - does nothing",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					"regular-repo": {RepoMetadata: org.RepoMetadata{Description: ptr.To("a regular repo")}},
+				},
+			},
+			existingRepos: map[string]github.Repo{},
+			expectedForks: nil,
+		},
+		{
+			description: "creates fork when repo doesn't exist",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					forkName: {Fork: &org.ForkConfig{From: upstream}},
+				},
+			},
+			existingRepos:     map[string]github.Repo{},
+			expectedForks:     []forkCreation{{upstream: upstream, defaultBranchOnly: false, name: forkName}},
+			expectedForkNames: map[string]string{forkName: forkName},
+		},
+		{
+			description: "skips fork when repo already exists as correct fork",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					forkName: {Fork: &org.ForkConfig{From: upstream}},
+				},
+			},
+			existingRepos: map[string]github.Repo{
+				forkName: {Name: forkName, Fork: true},
+			},
+			fullRepos: map[string]github.FullRepo{
+				forkName: {
+					Repo: github.Repo{Name: forkName, Fork: true, Parent: github.ParentRepo{FullName: upstream}},
+				},
+			},
+			expectedForks:     nil,
+			expectedForkNames: map[string]string{forkName: forkName},
+		},
+		{
+			description: "errors when repo exists but is not a fork",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					forkName: {Fork: &org.ForkConfig{From: upstream}},
+				},
+			},
+			existingRepos: map[string]github.Repo{
+				forkName: {Name: forkName, Fork: false},
+			},
+			fullRepos: map[string]github.FullRepo{
+				forkName: {Repo: github.Repo{Name: forkName, Fork: false}},
+			},
+			expectError: true,
+		},
+		{
+			description: "errors when fork exists from different upstream",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					forkName: {Fork: &org.ForkConfig{From: upstream}},
+				},
+			},
+			existingRepos: map[string]github.Repo{
+				forkName: {Name: forkName, Fork: true},
+			},
+			fullRepos: map[string]github.FullRepo{
+				forkName: {
+					Repo: github.Repo{Name: forkName, Fork: true, Parent: github.ParentRepo{FullName: "other-org/other-repo"}},
+				},
+			},
+			expectError: true,
+		},
+		{
+			description: "errors on invalid fork_from format",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					forkName: {Fork: &org.ForkConfig{From: "invalid-format"}},
+				},
+			},
+			existingRepos: map[string]github.Repo{},
+			expectError:   true,
+		},
+		{
+			description: "handles CreateForkInOrg error (e.g., generic failure)",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					forkName: {Fork: &org.ForkConfig{From: upstream}},
+				},
+			},
+			existingRepos: map[string]github.Repo{},
+			createForkErr: errors.New("failed to create fork"),
+			expectError:   true,
+		},
+		{
+			description: "errors when upstream repo does not exist (404)",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					forkName: {Fork: &org.ForkConfig{From: "nonexistent-org/nonexistent-repo"}},
+				},
+			},
+			existingRepos: map[string]github.Repo{},
+			createForkErr: errors.New("Not Found"),
+			expectError:   true,
+		},
+		{
+			description: "creates multiple forks",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					"fork1": {Fork: &org.ForkConfig{From: "org1/repo1"}},
+					"fork2": {Fork: &org.ForkConfig{From: "org2/repo2"}},
+				},
+			},
+			existingRepos: map[string]github.Repo{},
+			expectedForks: []forkCreation{
+				{upstream: "org1/repo1", defaultBranchOnly: false, name: "fork1"},
+				{upstream: "org2/repo2", defaultBranchOnly: false, name: "fork2"},
+			},
+		},
+		// New test cases for full coverage
+		{
+			description:   "GetRepos failure is propagated",
+			orgConfig:     org.Config{Repos: map[string]org.Repo{forkName: {Fork: &org.ForkConfig{From: upstream}}}},
+			existingRepos: map[string]github.Repo{},
+			getReposErr:   errors.New("failed to get repos"),
+			expectError:   true,
+		},
+		{
+			description: "GetRepo failure when checking existing fork parent",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					forkName: {Fork: &org.ForkConfig{From: upstream}},
+				},
+			},
+			existingRepos: map[string]github.Repo{
+				forkName: {Name: forkName, Fork: true},
+			},
+			getRepoErr:  errors.New("failed to get repo details"),
+			expectError: true,
+		},
+		{
+			description: "empty fork from string is an error",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					"repo-with-empty-fork": {Fork: &org.ForkConfig{From: ""}},
+					"regular-repo":         {RepoMetadata: org.RepoMetadata{Description: ptr.To("normal")}},
+				},
+			},
+			existingRepos: map[string]github.Repo{},
+			expectedForks: nil,
+			expectError:   true,
+		},
+		{
+			description: "case-insensitive repo name matching",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					"My-Fork": {Fork: &org.ForkConfig{From: upstream}}, // Config uses different case
+				},
+			},
+			existingRepos: map[string]github.Repo{
+				"my-fork": {Name: "my-fork", Fork: true}, // Org has lowercase
+			},
+			fullRepos: map[string]github.FullRepo{
+				"my-fork": {
+					Repo: github.Repo{Name: "my-fork", Fork: true, Parent: github.ParentRepo{FullName: upstream}},
+				},
+			},
+			expectedForks: nil, // Should recognize existing fork despite case difference
+		},
+		{
+			description: "DefaultBranchOnly parameter is passed correctly",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					forkName: {Fork: &org.ForkConfig{From: upstream, DefaultBranchOnly: true}},
+				},
+			},
+			existingRepos:     map[string]github.Repo{},
+			expectedForks:     []forkCreation{{upstream: upstream, defaultBranchOnly: true, name: forkName}},
+			expectedForkNames: map[string]string{forkName: forkName},
+		},
+		{
+			description: "records actual GitHub name when fork is renamed",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					"my-fork": {Fork: &org.ForkConfig{From: upstream}},
+				},
+			},
+			existingRepos:     map[string]github.Repo{},
+			renameForkTo:      "my-fork-1",
+			expectedForks:     []forkCreation{{upstream: upstream, defaultBranchOnly: false, name: "my-fork"}},
+			expectedForkNames: map[string]string{"my-fork": "my-fork-1"},
+		},
+		{
+			description: "validation rejects invalid format before any API calls",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					"good-fork":    {Fork: &org.ForkConfig{From: "good-org/good-repo"}},
+					"invalid-fork": {Fork: &org.ForkConfig{From: "no-slash"}}, // Invalid format
+				},
+			},
+			existingRepos: map[string]github.Repo{},
+			expectError:   true,
+			expectedForks: nil, // No forks created because validation fails before API calls
+		},
+		{
+			description: "errors when multiple config entries fork from the same upstream",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					"fork-a": {Fork: &org.ForkConfig{From: "org/repo"}},
+					"fork-b": {Fork: &org.ForkConfig{From: "org/repo"}},
+				},
+			},
+			existingRepos: map[string]github.Repo{},
+			expectError:   true,
+		},
+		{
+			description: "case-insensitive duplicate upstream detection",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					"fork-a": {Fork: &org.ForkConfig{From: "Org/Repo"}},
+					"fork-b": {Fork: &org.ForkConfig{From: "org/repo"}},
+				},
+			},
+			existingRepos: map[string]github.Repo{},
+			expectError:   true,
+		},
+		{
+			description:   "nil Repos map does nothing",
+			orgConfig:     org.Config{Repos: nil},
+			existingRepos: map[string]github.Repo{},
+			expectedForks: nil,
+		},
+		{
+			description:   "empty Repos map does nothing",
+			orgConfig:     org.Config{Repos: map[string]org.Repo{}},
+			existingRepos: map[string]github.Repo{},
+			expectedForks: nil,
+		},
+		// Idempotency tests: fork lookup by upstream parent
+		{
+			description: "idempotency: fork exists with different name than config (renamed by GitHub)",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					"my-custom-name": {Fork: &org.ForkConfig{From: upstream}}, // Config uses custom name
+				},
+			},
+			existingRepos: map[string]github.Repo{
+				// GitHub created it as "upstream-repo" (upstream's name), not "my-custom-name"
+				"upstream-repo": {Name: "upstream-repo", Fork: true},
+			},
+			fullRepos: map[string]github.FullRepo{
+				"upstream-repo": {
+					Repo: github.Repo{Name: "upstream-repo", Fork: true, Parent: github.ParentRepo{FullName: upstream}},
+				},
+			},
+			expectedForks:     nil,                                                  // Should NOT try to create - fork of upstream already exists
+			expectedForkNames: map[string]string{"my-custom-name": "upstream-repo"}, // Maps config name to actual GitHub name
+			expectError:       false,
+		},
+		{
+			description: "idempotency: fork exists with same name and correct upstream (standard case)",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					"upstream-repo": {Fork: &org.ForkConfig{From: upstream}},
+				},
+			},
+			existingRepos: map[string]github.Repo{
+				"upstream-repo": {Name: "upstream-repo", Fork: true},
+			},
+			fullRepos: map[string]github.FullRepo{
+				"upstream-repo": {
+					Repo: github.Repo{Name: "upstream-repo", Fork: true, Parent: github.ParentRepo{FullName: upstream}},
+				},
+			},
+			expectedForks: nil, // Should NOT try to create - already exists correctly
+			expectError:   false,
+		},
+		{
+			description: "idempotency: case-insensitive upstream matching",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					"my-fork": {Fork: &org.ForkConfig{From: "UPSTREAM-ORG/UPSTREAM-REPO"}}, // Uppercase in config
+				},
+			},
+			existingRepos: map[string]github.Repo{
+				// GitHub names forks after the upstream repo name by default
+				"upstream-repo": {Name: "upstream-repo", Fork: true},
+			},
+			fullRepos: map[string]github.FullRepo{
+				"upstream-repo": {
+					Repo: github.Repo{Name: "upstream-repo", Fork: true, Parent: github.ParentRepo{FullName: "upstream-org/upstream-repo"}}, // Lowercase from GitHub
+				},
+			},
+			expectedForks: nil, // Should match despite case difference
+			expectError:   false,
+		},
+		{
+			description: "idempotency: no existing fork of upstream - creates new fork",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					"my-fork": {Fork: &org.ForkConfig{From: upstream}},
+				},
+			},
+			existingRepos: map[string]github.Repo{
+				// Org has other forks, but none from our target upstream
+				"other-fork": {Name: "other-fork", Fork: true},
+			},
+			fullRepos: map[string]github.FullRepo{
+				"other-fork": {
+					Repo: github.Repo{Name: "other-fork", Fork: true, Parent: github.ParentRepo{FullName: "different-org/different-repo"}},
+				},
+			},
+			expectedForks: []forkCreation{{upstream: upstream, defaultBranchOnly: false, name: "my-fork"}}, // Should create since no fork of upstream exists
+			expectError:   false,
+		},
+		{
+			description: "idempotency: multiple configs, one upstream already forked",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					"fork-a": {Fork: &org.ForkConfig{From: "org-a/repo-a"}}, // Already forked (exists as "repo-a")
+					"fork-b": {Fork: &org.ForkConfig{From: "org-b/repo-b"}}, // Not yet forked
+				},
+			},
+			existingRepos: map[string]github.Repo{
+				"repo-a": {Name: "repo-a", Fork: true}, // Fork of org-a/repo-a exists with different name
+			},
+			fullRepos: map[string]github.FullRepo{
+				"repo-a": {
+					Repo: github.Repo{Name: "repo-a", Fork: true, Parent: github.ParentRepo{FullName: "org-a/repo-a"}},
+				},
+			},
+			expectedForks: []forkCreation{{upstream: "org-b/repo-b", defaultBranchOnly: false, name: "fork-b"}}, // Only fork-b should be created
+			expectError:   false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.description, func(t *testing.T) {
+			client := &fakeForkClient{
+				repos:         tc.existingRepos,
+				fullRepos:     tc.fullRepos,
+				createForkErr: tc.createForkErr,
+				getReposErr:   tc.getReposErr,
+				getRepoErr:    tc.getRepoErr,
+				renameForkTo:  tc.renameForkTo,
+			}
+
+			forkNames, err := configureForks(client, "test-org", tc.orgConfig)
+
+			if tc.expectError {
+				if err == nil {
+					t.Error("expected error but got none")
+				}
+			} else {
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+				}
+				// forkNames may be nil when there are no forks to configure
+			}
+
+			if tc.expectedForkNames != nil {
+				for configName, wantActual := range tc.expectedForkNames {
+					gotActual, ok := forkNames[configName]
+					if !ok {
+						t.Errorf("expected forkNames to contain %q, but it was missing", configName)
+					} else if gotActual != wantActual {
+						t.Errorf("forkNames[%q] = %q, want %q", configName, gotActual, wantActual)
+					}
+				}
+				if len(forkNames) != len(tc.expectedForkNames) {
+					t.Errorf("forkNames has %d entries, want %d: got %v", len(forkNames), len(tc.expectedForkNames), forkNames)
+				}
+			}
+
+			// Check created forks
+			if tc.expectedForks == nil {
+				if len(client.createdForks) != 0 {
+					t.Errorf("expected no forks to be created, but got: %v", client.createdForks)
+				}
+			} else {
+				// Sort both slices for comparison
+				sort.Slice(client.createdForks, func(i, j int) bool {
+					return client.createdForks[i].upstream < client.createdForks[j].upstream
+				})
+				sort.Slice(tc.expectedForks, func(i, j int) bool {
+					return tc.expectedForks[i].upstream < tc.expectedForks[j].upstream
+				})
+				if !reflect.DeepEqual(client.createdForks, tc.expectedForks) {
+					t.Errorf("created forks mismatch:\nexpected: %v\ngot: %v", tc.expectedForks, client.createdForks)
+				}
+			}
+		})
 	}
 }
