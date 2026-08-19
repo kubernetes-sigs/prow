@@ -60,7 +60,6 @@ type FakeClient struct {
 	Reviews                    map[int][]github.Review
 	CombinedStatuses           map[string]*github.CombinedStatus
 	CreatedStatuses            map[string][]github.Status
-	CheckRuns                  map[string][]github.CheckRun
 	IssueEvents                map[int][]github.ListedIssueEvent
 	Commits                    map[string]github.RepositoryCommit
 
@@ -591,20 +590,6 @@ func (f *FakeClient) GetCombinedStatus(owner, repo, ref string) (*github.Combine
 	f.lock.RLock()
 	defer f.lock.RUnlock()
 	return f.CombinedStatuses[ref], nil
-}
-
-// ListCheckRuns returns the check runs for a ref.
-func (f *FakeClient) ListCheckRuns(owner, repo, ref string) (*github.CheckRunList, error) {
-	f.lock.RLock()
-	defer f.lock.RUnlock()
-	if f.CheckRuns == nil {
-		return &github.CheckRunList{}, nil
-	}
-	runs := f.CheckRuns[ref]
-	return &github.CheckRunList{
-		Total:     len(runs),
-		CheckRuns: runs,
-	}, nil
 }
 
 // GetRepoLabels gets labels in a repo.

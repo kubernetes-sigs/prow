@@ -90,14 +90,14 @@ func handlePR(c Client, trigger plugins.Trigger, pr github.PullRequestEvent) err
 				return draftMsg(c.GitHubClient, pr.PullRequest)
 			}
 			c.Logger.Info("Starting all jobs for new PR.")
-			return buildAllButDrafts(c, &pr.PullRequest, pr.GUID, baseSHA, presubmits)
+			return buildAllButDrafts(c, &pr.PullRequest, pr.GUID, baseSHA, presubmits, true)
 		}
 		c.Logger.Infof("Welcome message to PR author %q.", author)
 		if err := welcomeMsg(c, trigger, pr.PullRequest); err != nil {
 			return fmt.Errorf("could not welcome non-org member %q: %w", author, err)
 		}
 	case github.PullRequestActionReopened:
-		return buildAllIfTrusted(c, trigger, pr, baseSHA, presubmits)
+		return buildAllIfTrusted(c, trigger, pr, baseSHA, presubmits, true)
 	case github.PullRequestActionEdited:
 		// if someone changes the base of their PR, we will get this
 		// event and the changes field will list that the base SHA and
@@ -118,14 +118,14 @@ func handlePR(c Client, trigger plugins.Trigger, pr github.PullRequestEvent) err
 			return nil
 		} else if changes.Base.Ref.From != "" || changes.Base.Sha.From != "" {
 			// the base of the PR changed and we need to re-test it
-			return buildAllIfTrusted(c, trigger, pr, baseSHA, presubmits)
+			return buildAllIfTrusted(c, trigger, pr, baseSHA, presubmits, false)
 		}
 	case github.PullRequestActionSynchronize:
 		var errs []error
 		if err := abortAllJobs(c, &pr.PullRequest); err != nil {
 			errs = append(errs, fmt.Errorf("failed to abort jobs: %w", err))
 		}
-		return utilerrors.NewAggregate(append(errs, buildAllIfTrusted(c, trigger, pr, baseSHA, presubmits)))
+		return utilerrors.NewAggregate(append(errs, buildAllIfTrusted(c, trigger, pr, baseSHA, presubmits, true)))
 	case github.PullRequestActionLabeled:
 		// When a PR is LGTMd, if it is untrusted then build it once.
 		if pr.Label.Name == labels.LGTM {
@@ -134,7 +134,7 @@ func handlePR(c Client, trigger plugins.Trigger, pr github.PullRequestEvent) err
 				return fmt.Errorf("could not validate PR: %s", err)
 			} else if !trusted {
 				c.Logger.Info("Starting all jobs for untrusted PR with LGTM.")
-				return buildAllButDrafts(c, &pr.PullRequest, pr.GUID, baseSHA, presubmits)
+				return buildAllButDrafts(c, &pr.PullRequest, pr.GUID, baseSHA, presubmits, true)
 			}
 		}
 		if pr.Label.Name == labels.OkToTest {
@@ -149,7 +149,7 @@ func handlePR(c Client, trigger plugins.Trigger, pr github.PullRequestEvent) err
 				c.Logger.Debug("Label added by the bot, skipping.")
 				return nil
 			}
-			return buildAllButDrafts(c, &pr.PullRequest, pr.GUID, baseSHA, presubmits)
+			return buildAllButDrafts(c, &pr.PullRequest, pr.GUID, baseSHA, presubmits, true)
 		}
 	case github.PullRequestActionClosed:
 		if err := abortAllJobs(c, &pr.PullRequest); err != nil {
@@ -157,7 +157,7 @@ func handlePR(c Client, trigger plugins.Trigger, pr github.PullRequestEvent) err
 			return err
 		}
 	case github.PullRequestActionReadyForReview:
-		return buildAllIfTrusted(c, trigger, pr, baseSHA, presubmits)
+		return buildAllIfTrusted(c, trigger, pr, baseSHA, presubmits, true)
 	case github.PullRequestActionConvertedToDraft:
 		if err := abortAllJobs(c, &pr.PullRequest); err != nil {
 			c.Logger.WithError(err).Error("Failed to abort jobs for pull request converted to draft")
@@ -225,7 +225,7 @@ func orgRepoAuthor(pr github.PullRequest) (string, string, login) {
 	return org, repo, login(author)
 }
 
-func buildAllIfTrusted(c Client, trigger plugins.Trigger, pr github.PullRequestEvent, baseSHA string, presubmits []config.Presubmit) error {
+func buildAllIfTrusted(c Client, trigger plugins.Trigger, pr github.PullRequestEvent, baseSHA string, presubmits []config.Presubmit, skipPassing bool) error {
 	// When a PR is updated, check that the user is in the org or that an org
 	// member has said "/ok-to-test" before building. There's no need to ask
 	// for "/ok-to-test" because we do that once when the PR is created.
@@ -244,7 +244,7 @@ func buildAllIfTrusted(c Client, trigger plugins.Trigger, pr github.PullRequestE
 			}
 		}
 		c.Logger.Info("Starting all jobs for updated PR.")
-		return buildAllButDrafts(c, &pr.PullRequest, pr.GUID, baseSHA, presubmits)
+		return buildAllButDrafts(c, &pr.PullRequest, pr.GUID, baseSHA, presubmits, skipPassing)
 	}
 	return nil
 }
@@ -382,46 +382,39 @@ func TrustedPullRequest(tprc trustedPullRequestClient, trigger plugins.Trigger, 
 }
 
 // buildAllButDrafts ensures that all builds that should run and will be required are built, but skips draft PRs
-func buildAllButDrafts(c Client, pr *github.PullRequest, eventGUID string, baseSHA string, presubmits []config.Presubmit) error {
+func buildAllButDrafts(c Client, pr *github.PullRequest, eventGUID string, baseSHA string, presubmits []config.Presubmit, skipPassing bool) error {
 	if pr.Draft {
 		c.Logger.Info("Skipping all jobs for draft PR.")
 		return nil
 	}
-	return buildAll(c, pr, eventGUID, baseSHA, presubmits)
+	return buildAll(c, pr, eventGUID, baseSHA, presubmits, skipPassing)
 }
 
 // buildAll ensures that all builds that should run and will be required are built.
-// It skips presubmits whose context already has a successful GitHub status or
-// check run to avoid redundantly re-running jobs that have already passed.
-func buildAll(c Client, pr *github.PullRequest, eventGUID string, baseSHA string, presubmits []config.Presubmit) error {
+// When skipPassing is true, it skips presubmits whose context already has a
+// successful GitHub status to avoid redundantly re-running jobs that have already passed.
+func buildAll(c Client, pr *github.PullRequest, eventGUID string, baseSHA string, presubmits []config.Presubmit, skipPassing bool) error {
 	org, repo, number, branch := pr.Base.Repo.Owner.Login, pr.Base.Repo.Name, pr.Number, pr.Base.Ref
 	changes := config.NewGitHubDeferredChangedFilesProvider(c.GitHubClient, org, repo, number)
 
-	successContexts := sets.New[string]()
-	combinedStatus, err := c.GitHubClient.GetCombinedStatus(org, repo, pr.Head.SHA)
-	if err != nil {
-		c.Logger.WithError(err).Warn("Failed to get combined status; running all presubmits")
-	} else if combinedStatus != nil {
-		for _, status := range combinedStatus.Statuses {
-			if status.State == github.StatusSuccess {
-				successContexts.Insert(status.Context)
-			}
-		}
-	}
-	checkRunList, err := c.GitHubClient.ListCheckRuns(org, repo, pr.Head.SHA)
-	if err != nil {
-		c.Logger.WithError(err).Warn("Failed to list check runs; some passing checks may be re-triggered")
-	} else if checkRunList != nil {
-		for _, cr := range checkRunList.CheckRuns {
-			if strings.EqualFold(cr.Conclusion, "success") || strings.EqualFold(cr.Conclusion, "neutral") {
-				successContexts.Insert(cr.Name)
-			}
-		}
-	}
-
 	var filter pjutil.Filter
-	if successContexts.Len() > 0 {
-		filter = pjutil.NewTestAllWithExistingStatusFilter(successContexts)
+	if skipPassing {
+		successContexts := sets.New[string]()
+		combinedStatus, err := c.GitHubClient.GetCombinedStatus(org, repo, pr.Head.SHA)
+		if err != nil {
+			c.Logger.WithError(err).Warn("Failed to get combined status; running all presubmits")
+		} else if combinedStatus != nil {
+			for _, status := range combinedStatus.Statuses {
+				if status.State == github.StatusSuccess {
+					successContexts.Insert(status.Context)
+				}
+			}
+		}
+		if successContexts.Len() > 0 {
+			filter = pjutil.NewTestAllWithExistingStatusFilter(successContexts)
+		} else {
+			filter = pjutil.NewTestAllFilter()
+		}
 	} else {
 		filter = pjutil.NewTestAllFilter()
 	}
