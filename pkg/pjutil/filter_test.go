@@ -465,12 +465,12 @@ func TestPresubmitFilter(t *testing.T) {
 		},
 	}}
 	var testCases = []struct {
-		name                 string
-		honorOkToTest        bool
-		body, org, repo, ref string
-		presubmits           []config.Presubmit
-		expected             [][]bool
-		statusErr, expectErr bool
+		name                  string
+		honorOkToTest         bool
+		body, org, repo, ref  string
+		presubmits            []config.Presubmit
+		expected              [][]bool
+		statusErr, expectErr  bool
 	}{
 		{
 			name: "test all comment selects all tests that don't need an explicit trigger",
@@ -751,6 +751,58 @@ func TestPresubmitFilter(t *testing.T) {
 				},
 			},
 			expected: [][]bool{{false, false, false}, {false, false, false}, {false, false, false}, {true, false, true}, {true, false, false}},
+		},
+		{
+			name: "test-manual-required triggers only required manual jobs without file conditions",
+			body: "/test-manual-required",
+			org:  "org",
+			repo: "repo",
+			ref:  "ref",
+			presubmits: []config.Presubmit{
+				{
+					JobBase:      config.JobBase{Name: "manual-required"},
+					Reporter:     config.Reporter{Context: "manual-required"},
+					Trigger:      `(?m)^/test (?:.*? )?manual(?: .*?)?$`,
+					RerunCommand: "/test manual",
+				},
+				{
+					JobBase:      config.JobBase{Name: "manual-optional"},
+					Optional:     true,
+					Reporter:     config.Reporter{Context: "manual-optional"},
+					Trigger:      `(?m)^/test (?:.*? )?manual-optional(?: .*?)?$`,
+					RerunCommand: "/test manual-optional",
+				},
+				{
+					JobBase:   config.JobBase{Name: "always-runs"},
+					AlwaysRun: true,
+					Reporter:  config.Reporter{Context: "always-runs"},
+				},
+				{
+					JobBase:      config.JobBase{Name: "run-if-changed"},
+					Reporter:     config.Reporter{Context: "run-if-changed"},
+					Trigger:      `(?m)^/test (?:.*? )?conditional(?: .*?)?$`,
+					RerunCommand: "/test conditional",
+					RegexpChangeMatcher: config.RegexpChangeMatcher{
+						RunIfChanged: "sometimes",
+					},
+				},
+				{
+					JobBase:      config.JobBase{Name: "skip-if-only-changed"},
+					Reporter:     config.Reporter{Context: "skip-if-only-changed"},
+					Trigger:      `(?m)^/test (?:.*? )?skip(?: .*?)?$`,
+					RerunCommand: "/test skip",
+					RegexpChangeMatcher: config.RegexpChangeMatcher{
+						SkipIfOnlyChanged: "sometimes",
+					},
+				},
+			},
+			expected: [][]bool{
+				{true, true, false},
+				{false, false, false},
+				{false, false, false},
+				{false, false, false},
+				{false, false, false},
+			},
 		},
 		{
 			name: "explicit test command filters for jobs that match",

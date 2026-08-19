@@ -596,6 +596,88 @@ func TestHandleGenericComment(t *testing.T) {
 			PruneHelp: true,
 		},
 		{
+			name:   "Test-Manual-Required triggers missing required manual job",
+			Author: "trusted-member",
+			Body:   "/test-manual-required",
+			State:  "open",
+			IsPR:   true,
+			Presubmits: map[string][]config.Presubmit{
+				"org/repo": {
+					{
+						JobBase: config.JobBase{
+							Name: "jab",
+						},
+						Reporter: config.Reporter{
+							Context: "pull-jab",
+						},
+						Trigger:      `(?m)^/test (?:.*? )?jab(?: .*?)?$`,
+						RerunCommand: `/test jab`,
+					},
+				},
+			},
+			ShouldBuild:   true,
+			StartsExactly: "pull-jab",
+			PruneHelp:     true,
+		},
+		{
+			name:   "Test-Manual-Required doesn't trigger missing optional job",
+			Author: "trusted-member",
+			Body:   "/test-manual-required",
+			State:  "open",
+			IsPR:   true,
+			Presubmits: map[string][]config.Presubmit{
+				"org/repo": {
+					{
+						JobBase: config.JobBase{
+							Name: "jab",
+						},
+						Optional: true,
+						Reporter: config.Reporter{
+							Context: "pull-jab",
+						},
+						Trigger:      `(?m)^/test (?:.*? )?jab(?: .*?)?$`,
+						RerunCommand: `/test jab`,
+					},
+				},
+			},
+			PruneHelp: true,
+		},
+		{
+			name:   "Test-Manual-Required does not trigger always_run or conditional jobs",
+			Author: "trusted-member",
+			Body:   "/test-manual-required",
+			State:  "open",
+			IsPR:   true,
+			Presubmits: map[string][]config.Presubmit{
+				"org/repo": {
+					{
+						JobBase: config.JobBase{
+							Name: "always-run",
+						},
+						AlwaysRun: true,
+						Reporter: config.Reporter{
+							Context: "pull-always-run",
+						},
+						Trigger:      `(?m)^/test (?:.*? )?always-run(?: .*?)?$`,
+						RerunCommand: `/test always-run`,
+					},
+					{
+						JobBase: config.JobBase{
+							Name: "conditional",
+						},
+						RegexpChangeMatcher: config.RegexpChangeMatcher{RunIfChanged: "CHANGED"},
+						Reporter: config.Reporter{
+							Context: "pull-conditional",
+						},
+						Trigger:      `(?m)^/test (?:.*? )?conditional(?: .*?)?$`,
+						RerunCommand: `/test conditional`,
+					},
+				},
+			},
+			ShouldBuild: false,
+			PruneHelp:   true,
+		},
+		{
 			name:   "Retest of run_if_changed job that failed. Changes do not require the job",
 			Author: "trusted-member",
 			Body:   "/retest",
