@@ -218,7 +218,7 @@ type TeamClient interface {
 	ListTeams(org string) ([]Team, error)
 	UpdateTeamMembershipBySlug(org, teamSlug, user string, maintainer bool) (*TeamMembership, error)
 	RemoveTeamMembershipBySlug(org, teamSlug, user string) error
-	ListTeamMembers(org string, id int, role string) ([]TeamMember, error)
+	ListTeamMembersByID(org string, id int, role string) ([]TeamMember, error)
 	ListTeamMembersBySlug(org, teamSlug, role string) ([]TeamMember, error)
 	ListTeamReposBySlug(org, teamSlug string) ([]Repo, error)
 	UpdateTeamRepoBySlug(org, teamSlug, repo string, permission TeamPermission) error
@@ -3999,22 +3999,20 @@ func (c *client) RemoveTeamMembershipBySlug(org, teamSlug, user string) error {
 	return err
 }
 
-// ListTeamMembers gets a list of team members for the given team id
+// ListTeamMembersByID gets a list of team members for the given team id
 //
 // Role options are "all", "maintainer" and "member"
 //
 // https://developer.github.com/v3/teams/members/#list-team-members
-// Deprecated: please use ListTeamMembersBySlug
-func (c *client) ListTeamMembers(org string, id int, role string) ([]TeamMember, error) {
-	c.logger.WithField("methodName", "ListTeamMembers").
-		Warn("method is deprecated, please use ListTeamMembersBySlug")
-	durationLogger := c.log("ListTeamMembers", id, role)
+// Note: the API accepts both team_id and team_slug, but not fully documented
+func (c *client) ListTeamMembersByID(org string, id int, role string) ([]TeamMember, error) {
+	durationLogger := c.log("ListTeamMembersByID", id, role)
 	defer durationLogger()
 
 	if c.fake {
 		return nil, nil
 	}
-	path := fmt.Sprintf("/teams/%d/members", id)
+	path := fmt.Sprintf("/orgs/%s/team/%d/members", org, id)
 	var teamMembers []TeamMember
 	err := c.readPaginatedResultsWithValues(
 		path,
@@ -5078,7 +5076,7 @@ func (c *client) TeamHasMember(org string, teamID int, memberLogin string) (bool
 	durationLogger := c.log("TeamHasMember", teamID, memberLogin)
 	defer durationLogger()
 
-	projectMaintainers, err := c.ListTeamMembers(org, teamID, RoleAll)
+	projectMaintainers, err := c.ListTeamMembersByID(org, teamID, RoleAll)
 	if err != nil {
 		return false, err
 	}
