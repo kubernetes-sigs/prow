@@ -1298,21 +1298,21 @@ func TestVerifyOwnersPresence(t *testing.T) {
 			cfg:         &plugins.Configuration{Plugins: plugins.OldToNewPlugins(map[string][]string{"org": {"blunderbuss"}})},
 			gh:          fakeGH{files: fakeGHContent{"org": {"repo": {"NOOWNERS": true}}}},
 			expected: "the following orgs or repos enable at least one" +
-				" plugin that uses OWNERS files (approve, blunderbuss, owners-label), but" +
+				" plugin that uses OWNERS files (approve, blunderbuss, rifle, owners-label), but" +
 				" its master branch does not contain a root level OWNERS file: [org/repo]",
 		}, {
 			description: "org with approve enable contains a repo without OWNERS (legacy config)",
 			cfg:         &plugins.Configuration{Plugins: plugins.OldToNewPlugins(map[string][]string{"org": {"approve"}})},
 			gh:          fakeGH{files: fakeGHContent{"org": {"repo": {"NOOWNERS": true}}}},
 			expected: "the following orgs or repos enable at least one" +
-				" plugin that uses OWNERS files (approve, blunderbuss, owners-label), but" +
+				" plugin that uses OWNERS files (approve, blunderbuss, rifle, owners-label), but" +
 				" its master branch does not contain a root level OWNERS file: [org/repo]",
 		}, {
 			description: "org with owners-label enabled contains a repo without OWNERS (legacy config)",
 			cfg:         &plugins.Configuration{Plugins: plugins.OldToNewPlugins(map[string][]string{"org": {"owners-label"}})},
 			gh:          fakeGH{files: fakeGHContent{"org": {"repo": {"NOOWNERS": true}}}},
 			expected: "the following orgs or repos enable at least one" +
-				" plugin that uses OWNERS files (approve, blunderbuss, owners-label), but" +
+				" plugin that uses OWNERS files (approve, blunderbuss, rifle, owners-label), but" +
 				" its master branch does not contain a root level OWNERS file: [org/repo]",
 		}, {
 			description: "org with owners-label enabled contains an *archived* repo without OWNERS (legacy config)",
@@ -1327,7 +1327,7 @@ func TestVerifyOwnersPresence(t *testing.T) {
 			cfg:         &plugins.Configuration{Plugins: plugins.OldToNewPlugins(map[string][]string{"org": {"owners-label"}})},
 			gh:          fakeGH{files: fakeGHContent{"org": {"repo": {"NOOWNERS": true}}}},
 			expected: "the following orgs or repos enable at least one" +
-				" plugin that uses OWNERS files (approve, blunderbuss, owners-label), but" +
+				" plugin that uses OWNERS files (approve, blunderbuss, rifle, owners-label), but" +
 				" its master branch does not contain a root level OWNERS file: [org/repo]",
 		}, {
 			description: "org with owners-label enabled contains only repos with OWNERS (legacy config)",
@@ -1349,14 +1349,14 @@ func TestVerifyOwnersPresence(t *testing.T) {
 			cfg:         &plugins.Configuration{Plugins: plugins.Plugins{"org": {Plugins: []string{"blunderbuss"}}}},
 			gh:          fakeGH{files: fakeGHContent{"org": {"repo": {"NOOWNERS": true}}}},
 			expected: "the following orgs or repos enable at least one" +
-				" plugin that uses OWNERS files (approve, blunderbuss, owners-label), but" +
+				" plugin that uses OWNERS files (approve, blunderbuss, rifle, owners-label), but" +
 				" its master branch does not contain a root level OWNERS file: [org/repo]",
 		}, {
 			description: "org with approve enable contains a repo without OWNERS",
 			cfg:         &plugins.Configuration{Plugins: plugins.Plugins{"org": {Plugins: []string{"approve"}}}},
 			gh:          fakeGH{files: fakeGHContent{"org": {"repo": {"NOOWNERS": true}}}},
 			expected: "the following orgs or repos enable at least one" +
-				" plugin that uses OWNERS files (approve, blunderbuss, owners-label), but" +
+				" plugin that uses OWNERS files (approve, blunderbuss, rifle, owners-label), but" +
 				" its master branch does not contain a root level OWNERS file: [org/repo]",
 		}, {
 			description: "org with approve excluded contains a repo without OWNERS",
@@ -1377,14 +1377,14 @@ func TestVerifyOwnersPresence(t *testing.T) {
 			}},
 			gh: fakeGH{files: fakeGHContent{"org": {"repo": {"NOOWNERS": true}}}},
 			expected: "the following orgs or repos enable at least one" +
-				" plugin that uses OWNERS files (approve, blunderbuss, owners-label), but" +
+				" plugin that uses OWNERS files (approve, blunderbuss, rifle, owners-label), but" +
 				" its master branch does not contain a root level OWNERS file: [org/repo]",
 		}, {
 			description: "org with owners-label enabled contains a repo without OWNERS",
 			cfg:         &plugins.Configuration{Plugins: plugins.Plugins{"org": {Plugins: []string{"owners-label"}}}},
 			gh:          fakeGH{files: fakeGHContent{"org": {"repo": {"NOOWNERS": true}}}},
 			expected: "the following orgs or repos enable at least one" +
-				" plugin that uses OWNERS files (approve, blunderbuss, owners-label), but" +
+				" plugin that uses OWNERS files (approve, blunderbuss, rifle, owners-label), but" +
 				" its master branch does not contain a root level OWNERS file: [org/repo]",
 		}, {
 			description: "org with owners-label enabled contains an *archived* repo without OWNERS",
@@ -1399,7 +1399,7 @@ func TestVerifyOwnersPresence(t *testing.T) {
 			cfg:         &plugins.Configuration{Plugins: plugins.Plugins{"org/repo": {Plugins: []string{"owners-label"}}}},
 			gh:          fakeGH{files: fakeGHContent{"org": {"repo": {"NOOWNERS": true}}}},
 			expected: "the following orgs or repos enable at least one" +
-				" plugin that uses OWNERS files (approve, blunderbuss, owners-label), but" +
+				" plugin that uses OWNERS files (approve, blunderbuss, rifle, owners-label), but" +
 				" its master branch does not contain a root level OWNERS file: [org/repo]",
 		}, {
 			description: "org with owners-label enabled contains only repos with OWNERS",

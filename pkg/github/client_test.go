@@ -929,6 +929,26 @@ func TestGetSingleCommit(t *testing.T) {
 	}
 }
 
+func TestGetMergeBase(t *testing.T) {
+	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Errorf("Bad method: %s", r.Method)
+		}
+		if r.URL.Path != "/repos/k8s/kuber/compare/main...abcdef" {
+			t.Errorf("Bad request path: %s", r.URL.Path)
+		}
+		fmt.Fprint(w, `{"merge_base_commit": {"sha": "deadbeef"}}`)
+	}))
+	defer ts.Close()
+	c := getClient(ts.URL)
+	sha, err := c.GetMergeBase("k8s", "kuber", "main", "abcdef")
+	if err != nil {
+		t.Errorf("Didn't expect error: %v", err)
+	} else if sha != "deadbeef" {
+		t.Errorf("Wrong merge-base SHA: %s", sha)
+	}
+}
+
 func TestCreateStatus(t *testing.T) {
 	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {

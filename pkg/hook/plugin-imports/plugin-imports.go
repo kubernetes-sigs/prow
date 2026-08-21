@@ -56,6 +56,7 @@ import (
 	_ "sigs.k8s.io/prow/pkg/plugins/releasenote"
 	_ "sigs.k8s.io/prow/pkg/plugins/require-matching-label"
 	_ "sigs.k8s.io/prow/pkg/plugins/retitle"
+	_ "sigs.k8s.io/prow/pkg/plugins/rifle"
 	_ "sigs.k8s.io/prow/pkg/plugins/shrug"
 	_ "sigs.k8s.io/prow/pkg/plugins/sigmention"
 	_ "sigs.k8s.io/prow/pkg/plugins/size"
