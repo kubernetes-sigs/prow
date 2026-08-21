@@ -131,8 +131,7 @@ func main() {
 	cfg := configAgent.Config
 	// Subscribe before initializing clients so changes during startup also
 	// trigger a restart.
-	configChanges := make(chan config.Delta, 1)
-	configAgent.Subscribe(configChanges)
+	configChanges := configAgent.Subscribe()
 	o.kubernetes.SetDisabledClusters(sets.New(cfg().DisabledClusters...))
 	clusterWatcher := disabledClustersWatcher{
 		changes:   configChanges,
