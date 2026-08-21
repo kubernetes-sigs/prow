@@ -1436,6 +1436,87 @@ func TestControllerRunRecoversDroppedDelta(t *testing.T) {
 	checkTriggerer(t, fpjt, expected)
 }
 
+// TestControllerRunDoesNotWedgeOnFailure verifies that a persistently-failing
+// ("poison") config transition is retried a bounded number of times and then
+// skipped, so that later config changes are not blocked behind it forever.
+func TestControllerRunDoesNotWedgeOnFailure(t *testing.T) {
+	baseConfigData := `presubmits:
+  "org/repo":
+  - name: existing-job
+    context: existing-job
+    always_run: true`
+	withNewJobData := `presubmits:
+  "org/repo":
+  - name: existing-job
+    context: existing-job
+    always_run: true
+  - name: new-required-job
+    context: new-required-context
+    always_run: true`
+
+	mustConfig := func(data string) config.Config {
+		var c config.Config
+		if err := yaml.Unmarshal([]byte(data), &c); err != nil {
+			t.Fatalf("could not unmarshal config: %v", err)
+		}
+		for _, presubmits := range c.PresubmitsStatic {
+			if err := config.SetPresubmitRegexes(presubmits); err != nil {
+				t.Fatalf("could not set presubmit regexes: %v", err)
+			}
+		}
+		return c
+	}
+	base := mustConfig(baseConfigData)
+	withNewJob := mustConfig(withNewJobData)
+
+	org, repo := "org", "repo"
+	orgRepoKey := orgRepo{org: org, repo: repo}
+
+	fpjt := newfakeProwJobTriggerer()
+	fghc := newFakeGitHubClient(orgRepoKey)
+	// GetPullRequests always fails for this repo, so triggering the added
+	// blocking presubmit can never succeed - a poison transition.
+	fghc.prErrors = orgRepoSet{orgRepoKey: nil}
+	fsm := newFakeMigrator(orgRepoKey)
+	ftc := newFakeTrustedChecker(orgRepoKey)
+
+	changes := make(chan config.Delta)
+	saves := make(chan struct{}, 8)
+	controller := Controller{
+		continueOnError:        true,
+		addedPresubmitDenylist: sets.New[string](),
+		maxReconcileAttempts:   2,
+		reconcileRetryDelay:    time.Millisecond,
+		prowJobTriggerer:       &fpjt,
+		githubClient:           &fghc,
+		statusMigrator:         &fsm,
+		trustedChecker:         &ftc,
+		statusClient:           &fakeStatusClient{changes: changes, saves: saves},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go controller.Run(ctx)
+
+	waitForSave := func(what string) {
+		select {
+		case <-saves:
+		case <-time.After(10 * time.Second):
+			t.Fatalf("timed out waiting for %s reconcile to complete", what)
+		}
+	}
+
+	// The poison transition (adds a blocking presubmit whose triggering always
+	// fails) must still complete - retried, then skipped - and advance.
+	changes <- config.Delta{Before: base, After: withNewJob}
+	waitForSave("poison")
+
+	// A subsequent transition must still be processed rather than being wedged
+	// behind the failed one. This no-op diff touches no GitHub API.
+	changes <- config.Delta{Before: withNewJob, After: withNewJob}
+	waitForSave("subsequent")
+}
+
 func logrusEntry() *logrus.Entry {
 	return logrus.NewEntry(logrus.StandardLogger())
 }
