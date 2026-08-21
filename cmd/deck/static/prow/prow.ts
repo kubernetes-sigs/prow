@@ -10,7 +10,6 @@ import {JobHistogram, JobSample} from './histogram';
 declare const allBuilds: ProwJobList;
 declare const spyglass: boolean;
 declare const rerunCreatesJob: boolean;
-declare const csrfToken: string;
 
 function genShortRefKey(baseRef: string, pulls: Pull[] = []) {
   return [baseRef, ...pulls.map((p) => p.number)].filter((n) => n).join(",");
@@ -735,13 +734,13 @@ function redraw(fz: FuzzySearch, pushState = true): void {
 
 function createAbortCell(modal: HTMLElement, modalContent: Element, job: string, state: ProwJobState, prowjob: string): HTMLTableCellElement {
   const c = document.createElement("td");
-  c.appendChild(createAbortProwJobIcon(modal, modalContent, job, state, prowjob, csrfToken));
+  c.appendChild(createAbortProwJobIcon(modal, modalContent, job, state, prowjob));
   return c;
 }
 
 function createRerunCell(modal: HTMLElement, rerunElement: Element, prowjob: string): HTMLTableDataCellElement {
   const c = document.createElement("td");
-  c.appendChild(createRerunProwJobIcon(modal, rerunElement, prowjob, rerunCreatesJob, csrfToken));
+  c.appendChild(createRerunProwJobIcon(modal, rerunElement, prowjob, rerunCreatesJob));
   return c;
 }
 

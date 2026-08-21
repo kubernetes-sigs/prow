@@ -38,7 +38,7 @@ The following steps will show you how to set up an OAuth app.
     - repo
     ```
     
-3. Create another secret file for the cookie store. This cookie secret will also be used for CSRF protection.
+3. Create another secret file for the OAuth cookie store.
   The file should contain a random 32-byte length base64 key. For example, you can use `openssl` to generate the key
     
     ```
