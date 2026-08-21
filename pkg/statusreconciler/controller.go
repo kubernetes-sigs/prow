@@ -165,14 +165,59 @@ func (c *Controller) Run(ctx context.Context) {
 		return
 	}
 
+	// Coalesce pending updates so reconciliation can catch up without blocking delivery.
+	latest := make(chan config.Config, 1)
+	push := func(after config.Config) {
+		// A single producer can replace the pending config without blocking.
+		select {
+		case <-latest:
+		default:
+		}
+		latest <- after
+	}
+
+	// The first delta starts from the saved config, or an empty config on first start.
+	var lastReconciled *config.Config
+	select {
+	case delta := <-changes:
+		before := delta.Before
+		lastReconciled = &before
+		push(delta.After)
+	case <-ctx.Done():
+		logrus.Info("status-reconciler is shutting down...")
+		return
+	}
+
+	// Drain updates independently so reconciliation cannot cause delivery timeouts.
+	go func() {
+		for {
+			select {
+			case delta := <-changes:
+				push(delta.After)
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
 	for {
 		select {
-		case change := <-changes:
-			start := time.Now()
-			log := logrus.WithField("old_config_revision", change.Before.ConfigVersionSHA).WithField("config_revision", change.After.ConfigVersionSHA)
-			if err := c.reconcile(change, log); err != nil {
-				log.WithError(err).Error("Error reconciling statuses.")
+		case after := <-latest:
+			// Empty revisions cannot identify duplicate configs.
+			if lastReconciled.ConfigVersionSHA != "" && after.ConfigVersionSHA == lastReconciled.ConfigVersionSHA {
+				continue
 			}
+			start := time.Now()
+			// A delta's Before may include changes we missed (kubernetes-sigs/prow#848).
+			delta := config.Delta{Before: *lastReconciled, After: after}
+			log := logrus.WithField("old_config_revision", delta.Before.ConfigVersionSHA).WithField("config_revision", delta.After.ConfigVersionSHA)
+			if err := c.reconcile(delta, log); err != nil {
+				// Keep the baseline so a later config retries this failed transition.
+				log.WithError(err).Error("Error reconciling statuses.")
+				continue
+			}
+			reconciled := after
+			lastReconciled = &reconciled
 			log.WithField("duration", fmt.Sprintf("%v", time.Since(start))).Info("Statuses reconciled")
 			c.statusClient.Save()
 		case <-ctx.Done():
