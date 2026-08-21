@@ -168,6 +168,7 @@ type CommitClient interface {
 	CreateCheckRun(org, repo string, checkRun CheckRun) (int64, error)
 	UpdateCheckRun(org, repo string, checkRunId int64, checkRun CheckRun) error
 	GetBlame(org, repo, ref, path string) ([]BlameRange, error)
+	GetMergeBase(org, repo, base, head string) (string, error)
 }
 
 // RepositoryClient interface for repository related API actions
@@ -4484,6 +4485,37 @@ func (c *client) GetBlame(org, repo, ref, path string) ([]BlameRange, error) {
 		})
 	}
 	return ranges, nil
+}
+
+// GetMergeBase returns the SHA of the merge-base commit of base and head.
+//
+// See https://docs.github.com/en/rest/commits/commits#compare-two-commits
+func (c *client) GetMergeBase(org, repo, base, head string) (string, error) {
+	durationLogger := c.log("GetMergeBase", org, repo, base, head)
+	defer durationLogger()
+
+	if c.fake {
+		return "", nil
+	}
+
+	var resp struct {
+		MergeBaseCommit struct {
+			SHA string `json:"sha"`
+		} `json:"merge_base_commit"`
+	}
+	_, err := c.request(&request{
+		method:    http.MethodGet,
+		path:      fmt.Sprintf("/repos/%s/%s/compare/%s...%s", org, repo, base, head),
+		org:       org,
+		exitCodes: []int{200},
+	}, &resp)
+	if err != nil {
+		return "", err
+	}
+	if resp.MergeBaseCommit.SHA == "" {
+		return "", fmt.Errorf("no merge base found for %s...%s", base, head)
+	}
+	return resp.MergeBaseCommit.SHA, nil
 }
 
 // AddCollaborator adds a user as a collaborator to a repository with the specified permission level.

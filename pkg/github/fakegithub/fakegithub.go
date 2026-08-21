@@ -63,6 +63,7 @@ type FakeClient struct {
 	IssueEvents                map[int][]github.ListedIssueEvent
 	Commits                    map[string]github.RepositoryCommit
 	BlameData                  map[string][]github.BlameRange
+	MergeBaseSHA               string
 
 	// All Labels That Exist In The Repo
 	RepoLabelsExisting []string
@@ -546,6 +547,11 @@ func (f *FakeClient) GetBlame(org, repo, ref, path string) ([]github.BlameRange,
 		return f.BlameData[path], nil
 	}
 	return nil, nil
+}
+
+// GetMergeBase returns MergeBaseSHA if configured, or an empty string.
+func (f *FakeClient) GetMergeBase(org, repo, base, head string) (string, error) {
+	return f.MergeBaseSHA, nil
 }
 
 // GetSingleCommit returns a single commit.

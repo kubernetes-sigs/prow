@@ -50,6 +50,7 @@ func init() {
 type rifleGitHubClient interface {
 	reviewer.GitHubClient
 	GetBlame(org, repo, ref, path string) ([]github.BlameRange, error)
+	GetMergeBase(org, repo, base, head string) (string, error)
 }
 
 func helpProvider(config *plugins.Configuration, _ []config.OrgRepo) (*pluginhelp.PluginHelp, error) {
@@ -272,11 +273,23 @@ func handle(ghc rifleGitHubClient, roc reviewer.RepoOwnersClient, log *logrus.En
 		allApproverCandidates = allApproverCandidates.Union(oc.Approvers(file.Filename).Set())
 	}
 
+	// PR file patches are three-dot diffs: old-side hunk line numbers refer to
+	// the merge-base of head and base, not the current tip of the base branch.
+	ref := pr.Base.Ref
+	if pr.Head.SHA != "" {
+		mergeBase, err := ghc.GetMergeBase(repo.Owner.Login, repo.Name, pr.Base.Ref, pr.Head.SHA)
+		if err != nil {
+			log.WithError(err).Warn("Failed to resolve merge-base for blame; falling back to base ref")
+		} else if mergeBase != "" {
+			ref = mergeBase
+		}
+	}
+
 	scorer := &reviewerScorer{
 		ghc:       ghc,
 		org:       repo.Owner.Login,
 		repo:      repo.Name,
-		ref:       pr.Base.Ref,
+		ref:       ref,
 		approvers: allApproverCandidates,
 		reviewers: allReviewerCandidates,
 		now:       time.Now(),

@@ -200,14 +200,25 @@ func (foc *fakeOwnersClient) Filenames() ownersconfig.Filenames {
 
 type fakeRifleClient struct {
 	*fakeGitHubClient
-	blames map[string][]github.BlameRange
+	blames       map[string][]github.BlameRange
+	mergeBase    string
+	mergeBaseErr error
+	blameRefs    []string
 }
 
 func (c *fakeRifleClient) GetBlame(org, repo, ref, path string) ([]github.BlameRange, error) {
+	c.blameRefs = append(c.blameRefs, ref)
 	if c.blames != nil {
 		return c.blames[path], nil
 	}
 	return nil, nil
+}
+
+func (c *fakeRifleClient) GetMergeBase(org, repo, base, head string) (string, error) {
+	if c.mergeBaseErr != nil {
+		return "", c.mergeBaseErr
+	}
+	return c.mergeBase, nil
 }
 
 func TestSelectBestReviewer(t *testing.T) {
@@ -472,7 +483,8 @@ func TestHandleRifleWithBlameScoring(t *testing.T) {
 						},
 					},
 				},
-				blames: tc.blames,
+				blames:    tc.blames,
+				mergeBase: "mergebaseSHA",
 			}
 
 			if err := handle(
@@ -486,6 +498,100 @@ func TestHandleRifleWithBlameScoring(t *testing.T) {
 			sort.Strings(tc.expectedRequested)
 			if !reflect.DeepEqual(fghc.requested, tc.expectedRequested) {
 				t.Errorf("expected %v, got %v", tc.expectedRequested, fghc.requested)
+			}
+			for _, ref := range fghc.blameRefs {
+				if ref != "mergebaseSHA" {
+					t.Errorf("GetBlame ref = %q, want merge-base SHA %q (not branch tip)", ref, "mergebaseSHA")
+				}
+			}
+		})
+	}
+}
+
+func TestHandleRifleBlamesMergeBase(t *testing.T) {
+	froc := &fakeRepoownersClient{
+		foc: &fakeOwnersClient{
+			owners: map[string]string{
+				"pkg/foo/a.go": "1",
+			},
+			approvers: map[string]layeredsets.String{},
+			leafReviewers: map[string]sets.Set[string]{
+				"pkg/foo/a.go": sets.New[string]("alice"),
+			},
+			reviewers: map[string]layeredsets.String{
+				"pkg/foo/a.go": layeredsets.NewString("alice"),
+			},
+		},
+	}
+
+	now := time.Now()
+	pr := github.PullRequest{
+		Number: 5,
+		User:   github.User{Login: "author"},
+		Base:   github.PullRequestBranch{Ref: "main"},
+		Head:   github.PullRequestBranch{SHA: "abc123"},
+	}
+	repo := github.Repo{Owner: github.User{Login: "org"}, Name: "repo"}
+	reviewerCount := 1
+	blames := map[string][]github.BlameRange{
+		"pkg/foo/a.go": {
+			{StartingLine: 1, EndingLine: 10, AuthorLogin: "alice", Date: now.Add(-24 * time.Hour)},
+		},
+	}
+	changes := []github.PullRequestChange{
+		{
+			Filename: "pkg/foo/a.go",
+			Status:   "modified",
+			Patch:    "@@ -1,10 +1,12 @@ package foo",
+			SHA:      "abc123",
+		},
+	}
+
+	tests := []struct {
+		name         string
+		mergeBase    string
+		mergeBaseErr error
+		wantBlameRef string
+	}{
+		{
+			name:         "blames at merge-base SHA",
+			mergeBase:    "deadbeef",
+			wantBlameRef: "deadbeef",
+		},
+		{
+			name:         "falls back to base ref when merge-base lookup fails",
+			mergeBaseErr: errors.New("compare API error"),
+			wantBlameRef: "main",
+		},
+		{
+			name:         "falls back to base ref when merge-base is empty",
+			wantBlameRef: "main",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			fghc := &fakeRifleClient{
+				fakeGitHubClient: &fakeGitHubClient{pr: &pr, changes: changes},
+				blames:           blames,
+				mergeBase:        tc.mergeBase,
+				mergeBaseErr:     tc.mergeBaseErr,
+			}
+
+			if err := handle(
+				fghc, froc, logrus.WithField("plugin", PluginName),
+				&reviewerCount, 0, true, false, &repo, &pr,
+			); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if len(fghc.blameRefs) == 0 {
+				t.Fatal("expected GetBlame to be called")
+			}
+			for _, ref := range fghc.blameRefs {
+				if ref != tc.wantBlameRef {
+					t.Errorf("GetBlame ref = %q, want %q", ref, tc.wantBlameRef)
+				}
 			}
 		})
 	}
