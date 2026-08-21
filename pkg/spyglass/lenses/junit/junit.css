@@ -96,6 +96,19 @@ table.flaky-layout tbody tr.flaky-text:hover {
   vertical-align: middle;
 }
 
+.copy-test-name {
+  cursor: pointer;
+  font-size: 1em;
+  vertical-align: middle;
+  /* Kept in the layout at all times so revealing it doesn't shift the row. */
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+tr:hover .copy-test-name {
+  opacity: 1;
+}
+
 .group-header {
   margin: 20px 0 5px 16px;
   color: #e8e8e8;
