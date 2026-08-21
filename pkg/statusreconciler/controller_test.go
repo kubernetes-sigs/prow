@@ -17,8 +17,10 @@ limitations under the License.
 package statusreconciler
 
 import (
+	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -1316,6 +1318,203 @@ func TestControllerReconcile(t *testing.T) {
 			check(t)
 		})
 	}
+}
+
+type fakeStatusClient struct {
+	changes chan config.Delta
+	saves   chan struct{}
+}
+
+func (f *fakeStatusClient) Load() (chan config.Delta, error) { return f.changes, nil }
+
+func (f *fakeStatusClient) Save() error {
+	if f.saves != nil {
+		f.saves <- struct{}{}
+	}
+	return nil
+}
+
+// TestControllerRunRecoversDroppedDelta reproduces kubernetes-sigs/prow#848: a
+// config delta that adds a blocking presubmit is dropped while the controller is
+// busy, and the controller must still trigger the new presubmit when the next
+// delta arrives, by reconciling from the last config it actually processed
+// rather than trusting the dropped-through Before value.
+func TestControllerRunRecoversDroppedDelta(t *testing.T) {
+	baseConfigData := `presubmits:
+  "org/repo":
+  - name: existing-job
+    context: existing-job
+    always_run: true`
+	withNewJobData := `presubmits:
+  "org/repo":
+  - name: existing-job
+    context: existing-job
+    always_run: true
+  - name: new-required-job
+    context: new-required-context
+    always_run: true`
+
+	mustConfig := func(data string) config.Config {
+		var c config.Config
+		if err := yaml.Unmarshal([]byte(data), &c); err != nil {
+			t.Fatalf("could not unmarshal config: %v", err)
+		}
+		for _, presubmits := range c.PresubmitsStatic {
+			if err := config.SetPresubmitRegexes(presubmits); err != nil {
+				t.Fatalf("could not set presubmit regexes: %v", err)
+			}
+		}
+		return c
+	}
+	// v1 == v2 (no blocking change); new-required-job is introduced in the
+	// v2->v3 transition (whose delta is dropped) and remains in v4.
+	v1 := mustConfig(baseConfigData)
+	v2 := mustConfig(baseConfigData)
+	v3 := mustConfig(withNewJobData)
+	v4 := mustConfig(withNewJobData)
+
+	org, repo := "org", "repo"
+	orgRepoKey := orgRepo{org: org, repo: repo}
+	author := "user"
+	prNumber := 1
+	pr := github.PullRequest{
+		User:   github.User{Login: author},
+		Number: prNumber,
+		Base: github.PullRequestBranch{
+			Repo: github.Repo{Owner: github.User{Login: org}, Name: repo},
+			Ref:  "base",
+		},
+		Head: github.PullRequestBranch{SHA: "prsha"},
+	}
+
+	fpjt := newfakeProwJobTriggerer()
+	fghc := newFakeGitHubClient(orgRepoKey)
+	fghc.prs[orgRepoKey] = []github.PullRequest{pr}
+	fghc.refs[orgRepoKey]["heads/"+pr.Base.Ref] = "abc"
+	fsm := newFakeMigrator(orgRepoKey)
+	ftc := newFakeTrustedChecker(orgRepoKey)
+	ftc.trusted[orgRepoKey][prAuthor{author: author, pr: prNumber}] = true
+
+	changes := make(chan config.Delta)
+	saves := make(chan struct{}, 8)
+	controller := Controller{
+		continueOnError:        true,
+		addedPresubmitDenylist: sets.New[string](),
+		prowJobTriggerer:       &fpjt,
+		githubClient:           &fghc,
+		statusMigrator:         &fsm,
+		trustedChecker:         &ftc,
+		statusClient:           &fakeStatusClient{changes: changes, saves: saves},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go controller.Run(ctx)
+
+	waitForSave := func(what string) {
+		select {
+		case <-saves:
+		case <-time.After(10 * time.Second):
+			t.Fatalf("timed out waiting for %s reconcile to complete", what)
+		}
+	}
+
+	// First delta v1->v2 establishes lastReconciled == v2 (no new presubmit).
+	changes <- config.Delta{Before: v1, After: v2}
+	waitForSave("first")
+
+	// v2->v3 is dropped (never delivered). Deliver v3->v4; its Before (v3)
+	// already contains new-required-job, so trusting it would skip the trigger.
+	changes <- config.Delta{Before: v3, After: v4}
+	waitForSave("second")
+
+	cancel()
+
+	expected := map[prKey]sets.Set[string]{
+		{org: org, repo: repo, num: prNumber}: sets.New[string]("new-required-job"),
+	}
+	checkTriggerer(t, fpjt, expected)
+}
+
+// TestControllerRunDoesNotWedgeOnFailure verifies that a persistently-failing
+// ("poison") config transition is retried a bounded number of times and then
+// skipped, so that later config changes are not blocked behind it forever.
+func TestControllerRunDoesNotWedgeOnFailure(t *testing.T) {
+	baseConfigData := `presubmits:
+  "org/repo":
+  - name: existing-job
+    context: existing-job
+    always_run: true`
+	withNewJobData := `presubmits:
+  "org/repo":
+  - name: existing-job
+    context: existing-job
+    always_run: true
+  - name: new-required-job
+    context: new-required-context
+    always_run: true`
+
+	mustConfig := func(data string) config.Config {
+		var c config.Config
+		if err := yaml.Unmarshal([]byte(data), &c); err != nil {
+			t.Fatalf("could not unmarshal config: %v", err)
+		}
+		for _, presubmits := range c.PresubmitsStatic {
+			if err := config.SetPresubmitRegexes(presubmits); err != nil {
+				t.Fatalf("could not set presubmit regexes: %v", err)
+			}
+		}
+		return c
+	}
+	base := mustConfig(baseConfigData)
+	withNewJob := mustConfig(withNewJobData)
+
+	org, repo := "org", "repo"
+	orgRepoKey := orgRepo{org: org, repo: repo}
+
+	fpjt := newfakeProwJobTriggerer()
+	fghc := newFakeGitHubClient(orgRepoKey)
+	// GetPullRequests always fails for this repo, so triggering the added
+	// blocking presubmit can never succeed - a poison transition.
+	fghc.prErrors = orgRepoSet{orgRepoKey: nil}
+	fsm := newFakeMigrator(orgRepoKey)
+	ftc := newFakeTrustedChecker(orgRepoKey)
+
+	changes := make(chan config.Delta)
+	saves := make(chan struct{}, 8)
+	controller := Controller{
+		continueOnError:        true,
+		addedPresubmitDenylist: sets.New[string](),
+		maxReconcileAttempts:   2,
+		reconcileRetryDelay:    time.Millisecond,
+		prowJobTriggerer:       &fpjt,
+		githubClient:           &fghc,
+		statusMigrator:         &fsm,
+		trustedChecker:         &ftc,
+		statusClient:           &fakeStatusClient{changes: changes, saves: saves},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go controller.Run(ctx)
+
+	waitForSave := func(what string) {
+		select {
+		case <-saves:
+		case <-time.After(10 * time.Second):
+			t.Fatalf("timed out waiting for %s reconcile to complete", what)
+		}
+	}
+
+	// The poison transition (adds a blocking presubmit whose triggering always
+	// fails) must still complete - retried, then skipped - and advance.
+	changes <- config.Delta{Before: base, After: withNewJob}
+	waitForSave("poison")
+
+	// A subsequent transition must still be processed rather than being wedged
+	// behind the failed one. This no-op diff touches no GitHub API.
+	changes <- config.Delta{Before: withNewJob, After: withNewJob}
+	waitForSave("subsequent")
 }
 
 func logrusEntry() *logrus.Entry {
