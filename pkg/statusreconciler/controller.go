@@ -165,14 +165,65 @@ func (c *Controller) Run(ctx context.Context) {
 		return
 	}
 
+	// We reconcile from the last config we successfully reconciled to the most
+	// recent one we know about, rather than trusting an incoming delta's Before
+	// value. A dedicated goroutine drains the delta channel immediately and keeps
+	// only the latest After, so the config agent's sender never blocks (its
+	// delivery times out and drops the delta after a minute) and no config change
+	// is missed while we are busy reconciling. See kubernetes-sigs/prow#848.
+	latest := make(chan config.Config, 1)
+	push := func(after config.Config) {
+		// Single producer: drop any stale pending value and keep only the latest.
+		select {
+		case <-latest:
+		default:
+		}
+		latest <- after
+	}
+
+	// Seed from the first delta's Before: the config loaded from stored state, or
+	// the empty config on a fresh start.
+	var lastReconciled *config.Config
+	select {
+	case delta := <-changes:
+		before := delta.Before
+		lastReconciled = &before
+		push(delta.After)
+	case <-ctx.Done():
+		logrus.Info("status-reconciler is shutting down...")
+		return
+	}
+
+	go func() {
+		for {
+			select {
+			case delta := <-changes:
+				push(delta.After)
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
 	for {
 		select {
-		case change := <-changes:
-			start := time.Now()
-			log := logrus.WithField("old_config_revision", change.Before.ConfigVersionSHA).WithField("config_revision", change.After.ConfigVersionSHA)
-			if err := c.reconcile(change, log); err != nil {
-				log.WithError(err).Error("Error reconciling statuses.")
+		case after := <-latest:
+			// Skip unchanged wakeups; ConfigVersionSHA is empty in some setups
+			// (e.g. tests), so only trust it when populated.
+			if lastReconciled.ConfigVersionSHA != "" && after.ConfigVersionSHA == lastReconciled.ConfigVersionSHA {
+				continue
 			}
+			start := time.Now()
+			delta := config.Delta{Before: *lastReconciled, After: after}
+			log := logrus.WithField("old_config_revision", delta.Before.ConfigVersionSHA).WithField("config_revision", delta.After.ConfigVersionSHA)
+			if err := c.reconcile(delta, log); err != nil {
+				// Leave lastReconciled untouched so the skipped transition is
+				// retried against the next config we are told about.
+				log.WithError(err).Error("Error reconciling statuses.")
+				continue
+			}
+			reconciled := after
+			lastReconciled = &reconciled
 			log.WithField("duration", fmt.Sprintf("%v", time.Since(start))).Info("Statuses reconciled")
 			c.statusClient.Save()
 		case <-ctx.Done():
