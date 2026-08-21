@@ -179,6 +179,45 @@ func TestEnsureValidConfiguration(t *testing.T) {
 	}
 }
 
+func TestEnsureLabelPluginEnabled(t *testing.T) {
+	var testCases = []struct {
+		name                      string
+		tideSubSet, pluginsSubSet *orgRepoConfig
+		expectedErr               bool
+	}{
+		{
+			name:          "query forbids label, plugin enabled: no error",
+			tideSubSet:    newOrgRepoConfig(nil, sets.New[string]("org/repo")),
+			pluginsSubSet: newOrgRepoConfig(nil, sets.New[string]("org/repo")),
+			expectedErr:   false,
+		},
+		{
+			name:          "query forbids label, plugin not enabled: error",
+			tideSubSet:    newOrgRepoConfig(nil, sets.New[string]("org/repo")),
+			pluginsSubSet: newOrgRepoConfig(nil, nil),
+			expectedErr:   true,
+		},
+		{
+			name:          "plugin enabled without query forbidding label: no error (unlike the two-directional check)",
+			tideSubSet:    newOrgRepoConfig(nil, nil),
+			pluginsSubSet: newOrgRepoConfig(nil, sets.New[string]("org/repo")),
+			expectedErr:   false,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			err := ensureLabelPluginEnabled("plugin", "label", "verb", testCase.tideSubSet, testCase.pluginsSubSet)
+			if testCase.expectedErr && err == nil {
+				t.Errorf("%s: expected an error but got none", testCase.name)
+			}
+			if !testCase.expectedErr && err != nil {
+				t.Errorf("%s: expected no error but got one: %v", testCase.name, err)
+			}
+		})
+	}
+}
+
 func TestOrgRepoDifference(t *testing.T) {
 	testCases := []struct {
 		name           string
