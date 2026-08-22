@@ -129,6 +129,7 @@ func main() {
 	}
 	defer interrupts.WaitForGracefulShutdown()
 	health := pjutil.NewHealth()
+	health.ServeLive()
 	kubeCfg, err := o.kubernetes.InfrastructureClusterConfig(o.dryRun)
 	if err != nil {
 		logrus.WithError(err).Fatal("Error getting kubeconfig")
