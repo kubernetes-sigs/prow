@@ -35,7 +35,7 @@ require (
 	github.com/go-test/deep v1.1.1
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/golang/glog v1.2.5
-	github.com/gomodule/redigo v1.8.5
+	github.com/gomodule/redigo v1.9.3
 	github.com/google/go-cmp v0.7.0
 	github.com/google/gofuzz v1.2.1-0.20210504230335-f78f29fc09ea
 	github.com/google/uuid v1.6.0
