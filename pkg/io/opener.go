@@ -107,7 +107,9 @@ type opener struct {
 // credentialsFile may also be empty
 // For local paths it has to be empty
 // In all other cases gocloud auto-discovery is used to detect credentials, if credentialsFile is empty.
-// For more details about the possible content of the credentialsFile see prow/io/providers.GetBucket
+// An explicitly configured GCS credentials file may contain any supported Google credentials type,
+// but SignedURL requires service_account credentials.
+// For more details about the possible content of the S3 credentials file see prow/io/providers.GetBucket.
 func NewOpener(ctx context.Context, gcsCredentialsFile, s3CredentialsFile string) (Opener, error) {
 	gcsClient, err := createGCSClient(ctx, gcsCredentialsFile)
 	if err != nil {
@@ -137,9 +139,13 @@ func NewGCSOpener(gcsClient *storage.Client) Opener {
 }
 
 func createGCSClient(ctx context.Context, gcsCredentialsFile string) (storageClient, error) {
-	// if gcsCredentialsFile is set, we have to be able to create storage.Client withCredentialsFile
+	// If gcsCredentialsFile is set, use it to create the storage client.
 	if gcsCredentialsFile != "" {
-		return storage.NewClient(ctx, option.WithCredentialsFile(gcsCredentialsFile))
+		opt, err := GoogleCredentialsFileOption(gcsCredentialsFile, storage.ScopeFullControl)
+		if err != nil {
+			return nil, err
+		}
+		return storage.NewClient(ctx, opt)
 	}
 
 	// if gcsCredentialsFile is unset, first try to use the default credentials

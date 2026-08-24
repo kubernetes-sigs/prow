@@ -28,7 +28,19 @@ import (
 
 	"cloud.google.com/go/storage"
 	"google.golang.org/api/googleapi"
+
+	"sigs.k8s.io/prow/pkg/testutil"
 )
+
+func TestCreateGCSClientAcceptsAuthorizedUserCredentials(t *testing.T) {
+	client, err := createGCSClient(context.Background(), testutil.WriteAuthorizedUserCredentialsFile(t))
+	if err != nil {
+		t.Fatalf("createGCSClient() returned an error for authorized_user credentials: %v", err)
+	}
+	if err := client.(*storage.Client).Close(); err != nil {
+		t.Errorf("close GCS client: %v", err)
+	}
+}
 
 func Test_opener_SignedURL(t *testing.T) {
 	// This fake key is revoked and thus worthless but still make its contents less obvious

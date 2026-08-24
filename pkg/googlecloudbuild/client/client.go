@@ -27,6 +27,8 @@ import (
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	"k8s.io/apimachinery/pkg/util/wait"
+
+	prowio "sigs.k8s.io/prow/pkg/io"
 )
 
 const (
@@ -86,12 +88,16 @@ type Client struct {
 	interactor *cloudbuild.Client
 }
 
-// NewClient creates a new Client, with optional credentialFile.
+// NewClient creates a new Client, with an optional credentialFile.
 func NewClient(ctx context.Context, credentialFile string) (*Client, error) {
 	var opts []option.ClientOption
-	// Authenticating with key file if it's provided.
+	// Authenticating with credentials file if it's provided.
 	if len(credentialFile) > 0 {
-		opts = append(opts, option.WithCredentialsFile(credentialFile))
+		opt, err := prowio.GoogleCredentialsFileOption(credentialFile, cloudbuild.DefaultAuthScopes()...)
+		if err != nil {
+			return nil, err
+		}
+		opts = append(opts, opt)
 	}
 
 	cbClient, err := cloudbuild.NewClient(ctx, opts...)
