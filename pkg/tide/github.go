@@ -95,7 +95,7 @@ func (gi *GitHubProvider) blockers() (blockers.Blockers, error) {
 		orgs = append(orgs, org)
 	}
 	orgRepoQuery := orgRepoQueryStrings(orgs, repos.UnsortedList(), orgExcepts)
-	return blockers.FindAll(gi.ghc, gi.logger, label, orgRepoQuery, gi.usesGitHubAppsAuth)
+	return blockers.FindAll(gi.ghc, gi.logger, label, orgRepoQuery, true)
 }
 
 // Query gets all open PRs based on tide configuration.
@@ -106,11 +106,11 @@ func (gi *GitHubProvider) Query() (map[string]CodeReviewCommon, error) {
 	var errs []error
 	for i, query := range gi.cfg().Tide.Queries {
 
-		// Use org-sharded queries only when GitHub apps auth is in use
-		var queries map[string]string
-		if gi.usesGitHubAppsAuth {
-			queries = query.OrgQueries()
-		} else {
+		// ISSUE_ADVANCED treats spaces between org:/repo: qualifiers as AND,
+		// so we always shard queries by org to avoid multi-org AND conflicts.
+		// Fall back to a single unscoped query when no orgs/repos are configured.
+		queries := query.OrgQueries()
+		if len(queries) == 0 {
 			queries = map[string]string{"": query.Query()}
 		}
 

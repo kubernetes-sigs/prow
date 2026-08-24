@@ -645,20 +645,9 @@ func (sc *statusController) search() []CodeReviewCommon {
 
 	orgExceptions, repos := rawQueries.OrgExceptionsAndRepos()
 	orgs := sets.KeySet[string](orgExceptions)
+	// ISSUE_ADVANCED treats spaces between org:/repo: qualifiers as AND,
+	// so we must always shard queries by org.
 	queries := openPRsQueries(sets.List(orgs), sets.List(repos), orgExceptions)
-	if !sc.usesGitHubAppsAuth {
-		//The queries for each org need to have their order maintained, otherwise it may be falsely flagged for changing
-		var orgs []string
-		for org := range queries {
-			orgs = append(orgs, org)
-		}
-		sort.Strings(orgs)
-		var query strings.Builder
-		for _, org := range orgs {
-			query.WriteString(" " + queries[org])
-		}
-		queries = map[string]string{"": query.String()}
-	}
 
 	if sc.storedState == nil {
 		sc.storedState = map[string]storedState{}
