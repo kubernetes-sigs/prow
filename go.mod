@@ -29,7 +29,7 @@ require (
 	github.com/djherbis/atime v1.1.0
 	github.com/evanphx/json-patch v5.9.0+incompatible
 	github.com/felixge/fgprof v0.9.5
-	github.com/fsnotify/fsnotify v1.9.0
+	github.com/fsnotify/fsnotify v1.10.1
 	github.com/fsouza/fake-gcs-server v1.19.4
 	github.com/go-git/go-git/v5 v5.19.2
 	github.com/go-test/deep v1.1.1
