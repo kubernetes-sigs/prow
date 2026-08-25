@@ -73,7 +73,7 @@ require (
 	google.golang.org/genproto v0.0.0-20260519071638-aa98bba5eb94
 	google.golang.org/genproto/googleapis/api v0.0.0-20260630182238-925bb5da69e7
 	google.golang.org/grpc v1.82.1
-	google.golang.org/protobuf v1.36.12-0.20260120151049-f2248ac996af
+	google.golang.org/protobuf v1.36.12
 	gopkg.in/fsnotify.v1 v1.4.7
 	gopkg.in/ini.v1 v1.67.3
 	k8s.io/api v0.36.4
