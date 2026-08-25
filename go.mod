@@ -28,7 +28,7 @@ require (
 	github.com/denormal/go-gitignore v0.0.0-20180930084346-ae8ad1d07817
 	github.com/djherbis/atime v1.0.0
 	github.com/evanphx/json-patch v5.9.0+incompatible
-	github.com/felixge/fgprof v0.9.1
+	github.com/felixge/fgprof v0.9.5
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/fsouza/fake-gcs-server v1.19.4
 	github.com/go-git/go-git/v5 v5.19.2
