@@ -42,7 +42,7 @@ require (
 	github.com/gorilla/csrf v1.7.3
 	github.com/gorilla/mux v1.8.1
 	github.com/gorilla/securecookie v1.1.2
-	github.com/gorilla/sessions v1.2.0
+	github.com/gorilla/sessions v1.4.0
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/hashicorp/go-retryablehttp v0.7.8
 	github.com/hashicorp/golang-lru/v2 v2.0.7
