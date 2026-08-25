@@ -9,7 +9,7 @@ require (
 	github.com/google/ko v0.18.1
 	github.com/sirupsen/logrus v1.10.1
 	github.com/spf13/pflag v1.0.10
-	google.golang.org/protobuf v1.36.12-0.20260120151049-f2248ac996af
+	google.golang.org/protobuf v1.36.12
 	gotest.tools/gotestsum v1.13.0
 	k8s.io/code-generator v0.36.4
 	sigs.k8s.io/controller-tools v0.21.0
