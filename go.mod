@@ -59,7 +59,7 @@ require (
 	github.com/tektoncd/pipeline v1.15.0
 	github.com/yuin/goldmark v1.8.5
 	go.uber.org/zap v1.28.0
-	go.yaml.in/yaml/v3 v3.0.4
+	go.yaml.in/yaml/v3 v3.0.5
 	go4.org v0.0.0-20201209231011-d4a079459e60
 	gocloud.dev v0.46.0
 	golang.org/x/lint v0.0.0-20241112194109-818c5a804067
