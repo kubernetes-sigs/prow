@@ -5,7 +5,7 @@ go 1.26.4
 require (
 	cloud.google.com/go/auth v0.20.0
 	cloud.google.com/go/cloudbuild v1.33.0
-	cloud.google.com/go/pubsub/v2 v2.6.0
+	cloud.google.com/go/pubsub/v2 v2.6.2
 	cloud.google.com/go/secretmanager v1.20.0
 	cloud.google.com/go/storage v1.65.0
 	github.com/GoogleCloudPlatform/testgrid v0.0.123
@@ -220,7 +220,6 @@ require (
 	github.com/prometheus/otlptranslator v1.0.0 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.8.1 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
-	go.einride.tech/aip v0.83.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/detectors/gcp v1.43.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc v1.44.0 // indirect
