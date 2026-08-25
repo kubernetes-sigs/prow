@@ -472,11 +472,15 @@ func TestRerun(t *testing.T) {
 			lastErr = nil
 			res, err := http.DefaultClient.Do(req)
 			if err != nil {
+				// res is nil on a transport-level error (e.g. a pooled
+				// connection to the ingress closed under us; Go does not
+				// auto-retry POSTs), so there is no body to close. Retry
+				// like any other transient failure.
 				lastErr = fmt.Errorf("could not make post request %v", err)
-				res.Body.Close()
-				break
+				waitDur *= 2
+				time.Sleep(waitDur)
+				continue
 			}
-			// The only retry condition is status not ok
 			if res.StatusCode != http.StatusOK {
 				lastErr = fmt.Errorf("status not expected: %d", res.StatusCode)
 				res.Body.Close()
