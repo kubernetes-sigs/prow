@@ -22,6 +22,7 @@ import (
 	"os"
 	"path"
 	"strconv"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -87,7 +88,7 @@ func TestOptions_Run(t *testing.T) {
 			args:           []string{"bash", "-c", "trap 'sleep 10' EXIT; sleep 10"},
 			timeout:        1 * time.Second,
 			gracePeriod:    1 * time.Second,
-			expectedLog:    "level=error msg=\"Process did not finish before 1s timeout\"\nlevel=error msg=\"Process did not exit before 1s grace period\"\n",
+			expectedLog:    "level=error msg=\"Process did not finish before 1s timeout\"\nlevel=error msg=\"Process did not exit before 1s grace period\"\nlevel=error msg=\"Process did not terminate after SIGKILL; a child process may be holding the log pipe open\"\n",
 			expectedMarker: strconv.Itoa(InternalErrorCode),
 			expectedCode:   InternalErrorCode,
 		},
@@ -137,18 +138,15 @@ func TestOptions_Run(t *testing.T) {
 			name:      "interrupt, propagate child error",
 			interrupt: true,
 			propagate: true,
-			args: []string{"bash", "-c", `function cleanup() {
-CHILDREN=$(jobs -p)
-if test -n "${CHILDREN}"
-then
-kill ${CHILDREN} && wait
-fi
-exit 3
-}
-trap cleanup SIGINT SIGTERM EXIT
+			// entrypoint sends SIGINT *and* the signal it received, so this
+			// trap can fire more than once. Keep the handler trivial and keep
+			// the process free of background children: a backgrounded job
+			// inherits the stdout/stderr pipe, and if it outlives the shell
+			// the pipe never reaches EOF, so exec.Cmd.Wait blocks for the
+			// whole grace period. Neither of those is what these cases test.
+			args: []string{"bash", "-c", `trap "exit 3" SIGINT SIGTERM
 echo process started
-sleep 9999 &
-wait`},
+while true; do sleep 0.1; done`},
 			expectedLog:    "process started\nlevel=error msg=\"Entrypoint received interrupt: terminated\"\nlevel=error msg=\"Process gracefully exited before 15s grace period\"\n",
 			expectedMarker: "3",
 			expectedCode:   3,
@@ -156,18 +154,15 @@ wait`},
 		{
 			name:      "interrupt, do not propagate child error",
 			interrupt: true,
-			args: []string{"bash", "-c", `function cleanup() {
-CHILDREN=$(jobs -p)
-if test -n "${CHILDREN}"
-then
-kill ${CHILDREN} && wait
-fi
-exit 3
-}
-trap cleanup SIGINT SIGTERM EXIT
+			// entrypoint sends SIGINT *and* the signal it received, so this
+			// trap can fire more than once. Keep the handler trivial and keep
+			// the process free of background children: a backgrounded job
+			// inherits the stdout/stderr pipe, and if it outlives the shell
+			// the pipe never reaches EOF, so exec.Cmd.Wait blocks for the
+			// whole grace period. Neither of those is what these cases test.
+			args: []string{"bash", "-c", `trap "exit 3" SIGINT SIGTERM
 echo process started
-sleep 9999 &
-wait`},
+while true; do sleep 0.1; done`},
 			expectedLog:    "process started\nlevel=error msg=\"Entrypoint received interrupt: terminated\"\nlevel=error msg=\"Process gracefully exited before 15s grace period\"\n",
 			expectedMarker: "130",
 			expectedCode:   130,
@@ -262,12 +257,151 @@ func waitForFileToBeWritten(ctx context.Context, file string) error {
 	for {
 		select {
 		case <-ticker.C:
-			fileInfo, _ := os.Stat(file)
-			if fileInfo.Size() != 0 {
+			fileInfo, err := os.Stat(file)
+			if err == nil && fileInfo.Size() != 0 {
 				return nil
 			}
 		case <-ctx.Done():
 			return fmt.Errorf("cancelled while waiting for file %s to exist", file)
 		}
+	}
+}
+
+// TestExecuteProcess_SignalForwarding pins the contract established in
+// "entrypoint: forward the signal we were sent": on the abort path the wrapped
+// process is sent an unconditional SIGINT *and* the signal entrypoint itself
+// received. Wrapped jobs still rely on the SIGINT for backwards compatibility.
+//
+// Each case ignores one of the two signals, so exiting cleanly proves the other
+// one was actually delivered; if it was not, the process keeps running until
+// the grace period expires and is SIGKILLed instead.
+func TestExecuteProcess_SignalForwarding(t *testing.T) {
+	var testCases = []struct {
+		name   string
+		script string
+	}{
+		{
+			name: "unconditional SIGINT is delivered",
+			script: `trap "" SIGTERM
+trap "exit 3" SIGINT
+echo process started
+while true; do sleep 0.1; done`,
+		},
+		{
+			name: "received SIGTERM is forwarded",
+			script: `trap "" SIGINT
+trap "exit 3" SIGTERM
+echo process started
+while true; do sleep 0.1; done`,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			options := Options{
+				// propagate so that a SIGKILLed process is distinguishable
+				// from one that handled the signal and exited 3
+				PropagateErrorCode: true,
+				// keep this short so a regression fails fast instead of
+				// waiting out DefaultGracePeriod
+				GracePeriod: 2 * time.Second,
+				Options: &wrapper.Options{
+					Args:       []string{"bash", "-c", testCase.script},
+					ProcessLog: path.Join(tmpDir, "process-log.txt"),
+					MarkerFile: path.Join(tmpDir, "marker-file.txt"),
+				},
+			}
+
+			interrupt := make(chan os.Signal, 1)
+			go func() {
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				// sync with ExecuteProcess func to ensure that process has already started
+				if err := waitForFileToBeWritten(ctx, options.ProcessLog); err != nil {
+					t.Errorf("failed to wait for file: %v", err)
+				}
+				time.Sleep(200 * time.Millisecond)
+				interrupt <- syscall.SIGTERM
+			}()
+
+			if code := options.internalRun(interrupt); code != 3 {
+				t.Errorf("%s: expected the wrapped process to handle the signal and exit 3, got %d", testCase.name, code)
+			}
+		})
+	}
+}
+
+// TestExecuteProcess_KillPath covers the abort path where the wrapped process
+// ignores every signal, survives the grace period, and is SIGKILLed. With
+// PropagateErrorCode set, the propagated code must deterministically be -1 —
+// what ExitCode() reports for a signal-killed process — whether or not the
+// post-kill Wait completed before the marker was written.
+func TestExecuteProcess_KillPath(t *testing.T) {
+	var testCases = []struct {
+		name        string
+		script      string
+		expectedLog string
+	}{
+		{
+			// The only pipe holder besides the shell is a <=0.1s sleep, so
+			// Wait returns promptly after the kill and the drain succeeds.
+			name: "kill path propagates a deterministic code",
+			script: `trap "" SIGINT SIGTERM
+echo process started
+while true; do sleep 0.1; done`,
+		},
+		{
+			// The backgrounded sleep inherits the log pipe and outlives the
+			// SIGKILL, so Wait cannot return before the drain gives up.
+			name: "kill path when a child holds the log pipe",
+			script: `trap "" SIGINT SIGTERM
+sleep 3 &
+echo process started
+while true; do sleep 0.1; done`,
+			expectedLog: "Process did not terminate after SIGKILL",
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			options := Options{
+				PropagateErrorCode: true,
+				GracePeriod:        1 * time.Second,
+				Options: &wrapper.Options{
+					Args:       []string{"bash", "-c", testCase.script},
+					ProcessLog: path.Join(tmpDir, "process-log.txt"),
+					MarkerFile: path.Join(tmpDir, "marker-file.txt"),
+				},
+			}
+
+			interrupt := make(chan os.Signal, 1)
+			go func() {
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				// sync with ExecuteProcess func to ensure that process has already started
+				if err := waitForFileToBeWritten(ctx, options.ProcessLog); err != nil {
+					t.Errorf("failed to wait for file: %v", err)
+				}
+				time.Sleep(200 * time.Millisecond)
+				interrupt <- syscall.SIGTERM
+			}()
+
+			if code := options.internalRun(interrupt); code != -1 {
+				t.Errorf("%s: expected the SIGKILLed process to propagate -1, got %d", testCase.name, code)
+			}
+			compareFileContents(testCase.name, options.MarkerFile, "-1", t)
+
+			if testCase.expectedLog != "" {
+				data, err := os.ReadFile(options.ProcessLog)
+				if err != nil {
+					t.Fatalf("%s: could not read process log: %v", testCase.name, err)
+				}
+				if !strings.Contains(string(data), testCase.expectedLog) {
+					t.Errorf("%s: expected process log to contain %q, got %q", testCase.name, testCase.expectedLog, data)
+				}
+			}
+		})
 	}
 }
