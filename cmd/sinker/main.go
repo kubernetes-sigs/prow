@@ -37,6 +37,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/cluster"
 	ctrlruntimelog "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -144,6 +145,7 @@ func main() {
 			DefaultNamespaces: map[string]cache.Config{
 				cfg().ProwJobNamespace: {},
 			},
+			DefaultTransform: pjutil.TrimCachedProwJob,
 		},
 		Metrics: metricsserver.Options{
 			BindAddress: "0",
@@ -182,6 +184,9 @@ func main() {
 		// binary if a build cluster can be connected later .
 		callBack,
 		cfg().PodNamespace,
+		func(o *cluster.Options) {
+			o.Cache.DefaultTransform = pjutil.TrimCachedPod
+		},
 	)
 	if err != nil {
 		logrus.WithError(err).Error("Failed to construct build clusters. Is there a bad entry in the kubeconfig secret?")

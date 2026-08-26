@@ -96,7 +96,12 @@ func main() {
 	if err != nil {
 		logrus.WithError(err).Fatal("Failed to create prowjob client set")
 	}
-	informerFactory := prowjobinformer.NewSharedInformerFactoryWithOptions(pjClientset, 0, prowjobinformer.WithNamespace(cfg().ProwJobNamespace))
+	informerFactory := prowjobinformer.NewSharedInformerFactoryWithOptions(
+		pjClientset,
+		0,
+		prowjobinformer.WithNamespace(cfg().ProwJobNamespace),
+		prowjobinformer.WithTransform(pjutil.TrimCachedProwJob),
+	)
 	pjLister := informerFactory.Prow().V1().ProwJobs().Lister()
 
 	go informerFactory.Start(interrupts.Context().Done())

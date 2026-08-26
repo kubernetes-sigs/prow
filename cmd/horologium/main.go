@@ -109,6 +109,7 @@ func main() {
 		o.Cache.DefaultNamespaces = map[string]cache.Config{
 			configAgent.Config().ProwJobNamespace: {},
 		}
+		o.Cache.DefaultTransform = pjutil.TrimCachedProwJob
 	})
 	if err != nil {
 		logrus.WithError(err).Fatal("Failed to construct prowjob client")

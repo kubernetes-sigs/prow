@@ -362,6 +362,10 @@ func main() {
 				DefaultNamespaces: map[string]cache.Config{
 					cfg().ProwJobNamespace: {},
 				},
+				// Deck serves cached ProwJobs close to verbatim, so it cannot
+				// use pjutil.TrimCachedProwJob. Managed fields it does strip
+				// from every response already.
+				DefaultTransform: cache.TransformStripManagedFields(),
 			},
 			Metrics: metricsserver.Options{
 				BindAddress: "0",
