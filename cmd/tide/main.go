@@ -39,6 +39,7 @@ import (
 	"sigs.k8s.io/prow/pkg/interrupts"
 	"sigs.k8s.io/prow/pkg/logrusutil"
 	"sigs.k8s.io/prow/pkg/metrics"
+	"sigs.k8s.io/prow/pkg/pjutil"
 	"sigs.k8s.io/prow/pkg/tide"
 )
 
@@ -163,6 +164,7 @@ func main() {
 			DefaultNamespaces: map[string]cache.Config{
 				cfg().ProwJobNamespace: {},
 			},
+			DefaultTransform: pjutil.TrimCachedProwJob,
 		},
 		Metrics: metricsserver.Options{
 			BindAddress: "0",
