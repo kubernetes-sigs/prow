@@ -29,6 +29,12 @@ import (
 // must be given explicitly because the returned credentials bypass the
 // client's default scopes.
 func GoogleCredentialsFileOption(file string, scopes ...string) (option.ClientOption, error) {
+	// CredentialsFile is deprecated, but no set date for removal.
+	// The credential-type-specific loaders that replace CredentialsFile each
+	// accept exactly one type, and callers here legitimately pass any of them.
+	// The deprecation guards against credential configs from untrusted sources;
+	// this path is fed by an operator-supplied flag, so the risk does not apply.
+	//nolint:staticcheck
 	creds, err := credentials.DetectDefault(&credentials.DetectOptions{
 		CredentialsFile: file,
 		Scopes:          scopes,
