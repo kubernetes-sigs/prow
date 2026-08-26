@@ -227,17 +227,31 @@ func getSpecs(pjs *prowjobv1.ProwJobList) []prowjobv1.ProwJobSpec {
 func TestDeck(t *testing.T) {
 	t.Parallel()
 
-	resp, err := http.Get("http://localhost/deck")
-	if err != nil {
-		t.Fatalf("Failed getting deck front end %v", err)
+	// Deck can be transiently unavailable while this test runs: it has a
+	// single replica, and tests running in parallel (TestRerun) restart it
+	// to pick up job-config changes, during which the ingress answers with
+	// a 5xx. Retry until deck serves the front page.
+	var body []byte
+	scraper := func(ctx context.Context) (bool, error) {
+		resp, err := http.Get("http://localhost/deck")
+		if err != nil {
+			t.Logf("Failed getting deck front end: %v", err)
+			return false, nil
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Logf("Expected response status code %d, got %d", http.StatusOK, resp.StatusCode)
+			return false, nil
+		}
+		body, err = io.ReadAll(resp.Body)
+		if err != nil {
+			t.Logf("Failed getting deck body response content: %v", err)
+			return false, nil
+		}
+		return true, nil
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("Expected response status code %d, got %d, ", http.StatusOK, resp.StatusCode)
-	}
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatalf("Failed getting deck body response content %v", err)
+	if waitErr := wait.PollUntilContextTimeout(context.Background(), 1*time.Second, 180*time.Second, true, scraper); waitErr != nil {
+		t.Fatalf("Timed out waiting for deck front end: %v", waitErr)
 	}
 	if got, want := string(body), "<title>Prow Status</title>"; !strings.Contains(got, want) {
 		firstLines := strings.Join(strings.SplitN(strings.TrimSpace(got), "\n", 30), "\n")
@@ -458,11 +472,15 @@ func TestRerun(t *testing.T) {
 			lastErr = nil
 			res, err := http.DefaultClient.Do(req)
 			if err != nil {
+				// res is nil on a transport-level error (e.g. a pooled
+				// connection to the ingress closed under us; Go does not
+				// auto-retry POSTs), so there is no body to close. Retry
+				// like any other transient failure.
 				lastErr = fmt.Errorf("could not make post request %v", err)
-				res.Body.Close()
-				break
+				waitDur *= 2
+				time.Sleep(waitDur)
+				continue
 			}
-			// The only retry condition is status not ok
 			if res.StatusCode != http.StatusOK {
 				lastErr = fmt.Errorf("status not expected: %d", res.StatusCode)
 				res.Body.Close()
