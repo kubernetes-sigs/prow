@@ -10,7 +10,7 @@ require (
 	cloud.google.com/go/storage v1.65.0
 	github.com/GoogleCloudPlatform/testgrid v0.0.176
 	github.com/NYTimes/gziphandler v1.1.1
-	github.com/andygrunwald/go-gerrit v1.1.1
+	github.com/andygrunwald/go-gerrit v1.2.0
 	github.com/andygrunwald/go-jira v1.17.0
 	github.com/aws/aws-sdk-go-v2 v1.43.7
 	github.com/aws/aws-sdk-go-v2/config v1.32.38
@@ -121,7 +121,7 @@ require (
 	github.com/google/btree v1.1.3 // indirect
 	github.com/google/cel-go v0.29.2 // indirect
 	github.com/google/gnostic-models v0.7.0 // indirect
-	github.com/google/go-querystring v1.1.0 // indirect
+	github.com/google/go-querystring v1.2.0 // indirect
 	github.com/google/pprof v0.0.0-20250403155104-27863c87afa6 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/google/wire v0.7.0 // indirect
