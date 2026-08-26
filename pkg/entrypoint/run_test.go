@@ -22,6 +22,7 @@ import (
 	"os"
 	"path"
 	"strconv"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -87,7 +88,7 @@ func TestOptions_Run(t *testing.T) {
 			args:           []string{"bash", "-c", "trap 'sleep 10' EXIT; sleep 10"},
 			timeout:        1 * time.Second,
 			gracePeriod:    1 * time.Second,
-			expectedLog:    "level=error msg=\"Process did not finish before 1s timeout\"\nlevel=error msg=\"Process did not exit before 1s grace period\"\n",
+			expectedLog:    "level=error msg=\"Process did not finish before 1s timeout\"\nlevel=error msg=\"Process did not exit before 1s grace period\"\nlevel=error msg=\"Process did not terminate after SIGKILL; a child process may be holding the log pipe open\"\n",
 			expectedMarker: strconv.Itoa(InternalErrorCode),
 			expectedCode:   InternalErrorCode,
 		},
@@ -326,6 +327,80 @@ while true; do sleep 0.1; done`,
 
 			if code := options.internalRun(interrupt); code != 3 {
 				t.Errorf("%s: expected the wrapped process to handle the signal and exit 3, got %d", testCase.name, code)
+			}
+		})
+	}
+}
+
+// TestExecuteProcess_KillPath covers the abort path where the wrapped process
+// ignores every signal, survives the grace period, and is SIGKILLed. With
+// PropagateErrorCode set, the propagated code must deterministically be -1 —
+// what ExitCode() reports for a signal-killed process — whether or not the
+// post-kill Wait completed before the marker was written.
+func TestExecuteProcess_KillPath(t *testing.T) {
+	var testCases = []struct {
+		name        string
+		script      string
+		expectedLog string
+	}{
+		{
+			// The only pipe holder besides the shell is a <=0.1s sleep, so
+			// Wait returns promptly after the kill and the drain succeeds.
+			name: "kill path propagates a deterministic code",
+			script: `trap "" SIGINT SIGTERM
+echo process started
+while true; do sleep 0.1; done`,
+		},
+		{
+			// The backgrounded sleep inherits the log pipe and outlives the
+			// SIGKILL, so Wait cannot return before the drain gives up.
+			name: "kill path when a child holds the log pipe",
+			script: `trap "" SIGINT SIGTERM
+sleep 3 &
+echo process started
+while true; do sleep 0.1; done`,
+			expectedLog: "Process did not terminate after SIGKILL",
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			options := Options{
+				PropagateErrorCode: true,
+				GracePeriod:        1 * time.Second,
+				Options: &wrapper.Options{
+					Args:       []string{"bash", "-c", testCase.script},
+					ProcessLog: path.Join(tmpDir, "process-log.txt"),
+					MarkerFile: path.Join(tmpDir, "marker-file.txt"),
+				},
+			}
+
+			interrupt := make(chan os.Signal, 1)
+			go func() {
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				// sync with ExecuteProcess func to ensure that process has already started
+				if err := waitForFileToBeWritten(ctx, options.ProcessLog); err != nil {
+					t.Errorf("failed to wait for file: %v", err)
+				}
+				time.Sleep(200 * time.Millisecond)
+				interrupt <- syscall.SIGTERM
+			}()
+
+			if code := options.internalRun(interrupt); code != -1 {
+				t.Errorf("%s: expected the SIGKILLed process to propagate -1, got %d", testCase.name, code)
+			}
+			compareFileContents(testCase.name, options.MarkerFile, "-1", t)
+
+			if testCase.expectedLog != "" {
+				data, err := os.ReadFile(options.ProcessLog)
+				if err != nil {
+					t.Fatalf("%s: could not read process log: %v", testCase.name, err)
+				}
+				if !strings.Contains(string(data), testCase.expectedLog) {
+					t.Errorf("%s: expected process log to contain %q, got %q", testCase.name, testCase.expectedLog, data)
+				}
 			}
 		})
 	}

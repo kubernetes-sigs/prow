@@ -60,6 +60,12 @@ const (
 	// DefaultGracePeriod is the default timeout for the test
 	// process after SIGINT is sent before SIGKILL is sent
 	DefaultGracePeriod = 15 * time.Second
+
+	// sigkillDrainTimeout bounds how long we wait for Wait to return
+	// after SIGKILL. Death and reap of the killed process are
+	// near-instant; if this expires, an orphaned descendant is holding
+	// the log pipe open and Wait may block arbitrarily long.
+	sigkillDrainTimeout = 1 * time.Second
 )
 
 var (
@@ -157,23 +163,26 @@ func (o Options) ExecuteProcess(signaledInterrupt chan os.Signal) (int, error) {
 	timeout := optionOrDefault(o.Timeout, DefaultTimeout)
 	gracePeriod := optionOrDefault(o.GracePeriod, DefaultGracePeriod)
 	var commandErr error
-	cancelled, aborted := false, false
-	done := make(chan error)
+	cancelled, aborted, exited := false, false, false
+	// buffered so the Wait goroutine can always complete its send and
+	// never leaks if we stop receiving after the grace period expires
+	done := make(chan error, 1)
 	go func() {
 		done <- command.Wait()
 	}()
 	select {
 	case err := <-done:
 		commandErr = err
+		exited = true
 	case <-time.After(timeout):
 		logrus.Errorf("Process did not finish before %s timeout", timeout)
 		cancelled = true
-		gracefullyTerminate(command, done, gracePeriod, nil)
+		exited = gracefullyTerminate(command, done, gracePeriod, nil)
 	case s := <-interrupt:
 		logrus.Errorf("Entrypoint received interrupt: %v", s)
 		cancelled = true
 		aborted = true
-		gracefullyTerminate(command, done, gracePeriod, &s)
+		exited = gracefullyTerminate(command, done, gracePeriod, &s)
 	}
 
 	var returnCode int
@@ -181,14 +190,14 @@ func (o Options) ExecuteProcess(signaledInterrupt chan os.Signal) (int, error) {
 		if aborted {
 			commandErr = errAborted
 			if o.PropagateErrorCode {
-				returnCode = command.ProcessState.ExitCode()
+				returnCode = propagatedExitCode(command, exited)
 			} else {
 				returnCode = AbortedErrorCode
 			}
 		} else {
 			commandErr = errTimedOut
 			if o.PropagateErrorCode {
-				returnCode = command.ProcessState.ExitCode()
+				returnCode = propagatedExitCode(command, exited)
 			} else {
 				returnCode = InternalErrorCode
 			}
@@ -250,7 +259,22 @@ func optionOrDefault(option, defaultValue time.Duration) time.Duration {
 	return option
 }
 
-func gracefullyTerminate(command *exec.Cmd, done <-chan error, gracePeriod time.Duration, signal *os.Signal) {
+// propagatedExitCode returns the exit code to propagate for a cancelled
+// process. Only a receive from done (exited) synchronizes with the Wait
+// goroutine's write to ProcessState; without it the read would be a data
+// race, so report -1 directly — the same value ExitCode() yields for a
+// signal-killed process.
+func propagatedExitCode(command *exec.Cmd, exited bool) int {
+	if !exited {
+		return -1
+	}
+	return command.ProcessState.ExitCode()
+}
+
+// gracefullyTerminate interrupts the process and waits for it to exit,
+// killing it once the grace period expires. It returns true iff it received
+// the Wait result, meaning command.ProcessState is safe to read.
+func gracefullyTerminate(command *exec.Cmd, done <-chan error, gracePeriod time.Duration, signal *os.Signal) bool {
 	if err := command.Process.Signal(os.Interrupt); err != nil {
 		logrus.WithError(err).Error("Could not interrupt process after timeout")
 	}
@@ -263,10 +287,21 @@ func gracefullyTerminate(command *exec.Cmd, done <-chan error, gracePeriod time.
 	case <-done:
 		logrus.Errorf("Process gracefully exited before %s grace period", gracePeriod)
 		// but we ignore the output error as we will want errTimedOut
+		return true
 	case <-time.After(gracePeriod):
 		logrus.Errorf("Process did not exit before %s grace period", gracePeriod)
 		if err := command.Process.Kill(); err != nil {
 			logrus.WithError(err).Error("Could not kill process after grace period")
+		}
+		// Wait also waits for the stdout/stderr copy goroutines, which
+		// only finish once every process holding the pipe has exited, so
+		// even after SIGKILL it may not return promptly.
+		select {
+		case <-done:
+			return true
+		case <-time.After(sigkillDrainTimeout):
+			logrus.Error("Process did not terminate after SIGKILL; a child process may be holding the log pipe open")
+			return false
 		}
 	}
 }
