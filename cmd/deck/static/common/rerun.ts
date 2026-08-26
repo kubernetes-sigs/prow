@@ -1,7 +1,7 @@
 import {copyToClipboard, icon, showAlert, showToast} from "./common";
 import {relativeURL} from "./urls";
 
-export function createRerunProwJobIcon(modal: HTMLElement, parentEl: Element, prowjob: string, showRerunButton: boolean, csrfToken: string): HTMLElement {
+export function createRerunProwJobIcon(modal: HTMLElement, parentEl: Element, prowjob: string, showRerunButton: boolean): HTMLElement {
   const LATEST_JOB = 'latest';
   const ORIGINAL_JOB = 'original';
   const inrepoconfigURL = 'https://docs.prow.k8s.io/docs/inrepoconfig/';
@@ -136,7 +136,6 @@ export function createRerunProwJobIcon(modal: HTMLElement, parentEl: Element, pr
           const result = await fetch(commandURL, {
             headers: {
               "Content-type": "application/x-www-form-urlencoded; charset=UTF-8",
-              "X-CSRF-Token": csrfToken,
             },
             method: 'post',
           });

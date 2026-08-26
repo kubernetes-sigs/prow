@@ -12,30 +12,18 @@ and performing one of these protected actions on their behalf.
 
 ## Protection
 
-If `--cookie-secret` is 32 or more bytes long, CSRF protection is automatically enabled.
-If `--rerun-creates-job` is specified, CSRF protection is required, and accordingly, 
-`--cookie-secret` must be 32 bytes long. 
+CSRF protection is always enabled in Deck using Go's standard library
+[`net/http.CrossOriginProtection`](https://pkg.go.dev/net/http#CrossOriginProtection), which validates
+the `Sec-Fetch-Site` and `Origin` headers on incoming requests. No configuration is required.
 
-We protect against CSRF attacks using the [gorilla CSRF](https://github.com/gorilla/csrf) library, implemented 
-in [#13323](https://github.com/kubernetes/test-infra/pull/13323). Broadly, this protection works by ensuring that 
-any `POST` request originates from our site, rather than from an outside link. 
-We do so by requiring that every `POST` request made to Deck includes a secret token either in the request header 
-or in the form itself as a hidden input. 
+This protection works by ensuring that any `POST` request originates from the same origin as Deck,
+rather than from a cross-origin site. Safe methods (`GET`, `HEAD`, `OPTIONS`) are always allowed.
+Non-browser requests (those without `Sec-Fetch-Site` or `Origin` headers) are also allowed, so API
+clients like `curl` and CI scripts continue to work.
 
-We cryptographically generate the CSRF token using the `--cookie-secret` and a user session value and 
-include it as a header in every `POST` request made from Deck. 
-If you are adding a new `POST` request, you must include the CSRF token as described in the gorilla 
-[documentation](https://github.com/gorilla/csrf).
-
-The gorilla library expects a 32-byte CSRF token. If `--cookie-secret` is sufficiently long, 
-direct job reruns will be enabled via the `/rerun` endpoint. Otherwise, if `--cookie-secret` is less 
-than 32 bytes and `--rerun-creates-job` is enabled, Deck will refuse to start. Longer values will 
-work but should be truncated. 
-
-By default, gorilla CSRF requires that all `POST` requests are made over HTTPS. If developing locally
-over HTTP, you must specify `--allow-insecure` to Deck, which will configure both gorilla CSRF 
-and GitHub oauth to allow HTTP requests. 
+If you are adding a new `POST` endpoint, no additional CSRF handling is needed — the middleware
+protects all routes automatically.
 
 CSRF can also be executed by tricking a user into making a state-mutating `GET` request. All 
-state-mutating requests must therefore be `POST` requests, as gorilla CSRF does not secure `GET`
-requests.
+state-mutating requests must therefore be `POST` requests, as the CSRF middleware does not restrict
+`GET` requests.

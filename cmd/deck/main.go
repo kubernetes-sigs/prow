@@ -19,7 +19,6 @@ package main
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -42,7 +41,6 @@ import (
 	"sigs.k8s.io/prow/pkg/tide"
 
 	"github.com/NYTimes/gziphandler"
-	"github.com/gorilla/csrf"
 	"github.com/gorilla/sessions"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
@@ -185,7 +183,7 @@ func gatherOptions(fs *flag.FlagSet, args ...string) options {
 	fs.StringVar(&o.templateFilesLocation, "template-files-location", fmt.Sprintf("%s%s", os.Getenv("KO_DATA_PATH"), defaultTemplateFilesLocation), "Path to the template files")
 	fs.BoolVar(&o.gcsCookieAuth, "gcs-cookie-auth", false, "Use storage.cloud.google.com instead of signed URLs")
 	fs.BoolVar(&o.rerunCreatesJob, "rerun-creates-job", false, "Change the re-run option in Deck to actually create the job. **WARNING:** Only use this with non-public deck instances, otherwise strangers can DOS your Prow instance")
-	fs.BoolVar(&o.allowInsecure, "allow-insecure", false, "Allows insecure requests for CSRF and GitHub oauth.")
+	fs.BoolVar(&o.allowInsecure, "allow-insecure", false, "Allows insecure requests for GitHub oauth.")
 	fs.BoolVar(&o.dryRun, "dry-run", false, "Whether or not to make mutating API calls to GitHub.")
 	fs.Var(&o.tenantIDs, "tenant-id", "The tenantID(s) used by the ProwJobs that should be displayed by this instance of Deck. This flag can be repeated.")
 	o.config.AddFlags(fs)
@@ -470,50 +468,8 @@ func main() {
 		mux = prodOnlyMain(cfg, pluginAgent, authCfgGetter, githubClient, o, mux)
 	}
 
-	// cookie secret will be used for CSRF protection and should be exactly 32 bytes
-	// we sometimes accept different lengths to stay backwards compatible
-	var csrfToken []byte
-	if o.cookieSecretFile != "" {
-		cookieSecretRaw, err := loadToken(o.cookieSecretFile)
-		if err != nil {
-			logrus.WithError(err).Fatal("Could not read cookie secret file")
-		}
-		decodedSecret, err := base64.StdEncoding.DecodeString(string(cookieSecretRaw))
-		if err != nil {
-			logrus.WithError(err).Fatal("Error decoding cookie secret")
-		}
-		if len(decodedSecret) == 32 {
-			csrfToken = decodedSecret
-		}
-		if len(decodedSecret) > 32 {
-			logrus.Warning("Cookie secret should be exactly 32 bytes. Consider truncating the existing cookie to that length")
-			hash := sha256.Sum256(decodedSecret)
-			csrfToken = hash[:]
-		}
-		if len(decodedSecret) < 32 {
-			if o.rerunCreatesJob {
-				logrus.Fatal("Cookie secret must be exactly 32 bytes")
-				return
-			}
-			logrus.Warning("Cookie secret should be exactly 32 bytes")
-		}
-	}
-
-	// if we allow direct reruns, we must protect against CSRF in all post requests using the cookie secret as a token
-	// for more information about CSRF, see https://docs.prow.k8s.io/docs/components/core/deck/csrf/
-	empty := prowapi.ProwJobSpec{}
-	if o.rerunCreatesJob && csrfToken == nil && !authCfgGetter(&empty).IsAllowAnyone() {
-		logrus.Fatal("Rerun creates job cannot be enabled without CSRF protection, which requires --cookie-secret to be exactly 32 bytes")
-		return
-	}
-
-	var server *http.Server
-	if csrfToken != nil {
-		CSRF := csrf.Protect(csrfToken, csrf.Path("/"), csrf.Secure(!o.allowInsecure))
-		server = &http.Server{Addr: ":8080", Handler: CSRF(traceHandler(mux))}
-	} else {
-		server = &http.Server{Addr: ":8080", Handler: traceHandler(mux)}
-	}
+	cop := http.NewCrossOriginProtection()
+	server := &http.Server{Addr: ":8080", Handler: cop.Handler(traceHandler(mux))}
 
 	health.ServeReady()
 	interrupts.ListenAndServe(server, 5*time.Second)
@@ -1032,8 +988,7 @@ func handleRequestJobViews(sg *spyglass.Spyglass, cfg config.Getter, o options, 
 		setHeadersNoCaching(w)
 		src := strings.TrimPrefix(r.URL.Path, "/view/")
 
-		csrfToken := csrf.Token(r)
-		page, err := renderSpyglass(r.Context(), sg, cfg, src, o, csrfToken, log)
+		page, err := renderSpyglass(r.Context(), sg, cfg, src, o, log)
 		if err != nil {
 			msg := fmt.Sprintf("error rendering spyglass page: %v", err)
 			if shouldLogHTTPErrors(err) {
@@ -1054,7 +1009,7 @@ func handleRequestJobViews(sg *spyglass.Spyglass, cfg config.Getter, o options, 
 }
 
 // renderSpyglass returns a pre-rendered Spyglass page from the given source string
-func renderSpyglass(ctx context.Context, sg *spyglass.Spyglass, cfg config.Getter, src string, o options, csrfToken string, log *logrus.Entry) (string, error) {
+func renderSpyglass(ctx context.Context, sg *spyglass.Spyglass, cfg config.Getter, src string, o options, log *logrus.Entry) (string, error) {
 	renderStart := time.Now()
 
 	src = strings.TrimSuffix(src, "/")
@@ -1246,7 +1201,7 @@ lensesLoop:
 	}
 	t := template.New("spyglass.html")
 
-	if _, err := prepareBaseTemplate(o, cfg, csrfToken, t); err != nil {
+	if _, err := prepareBaseTemplate(o, cfg, t); err != nil {
 		return "", fmt.Errorf("error preparing base template: %w", err)
 	}
 	t, err = t.ParseFiles(path.Join(o.templateFilesLocation, "spyglass.html"))
