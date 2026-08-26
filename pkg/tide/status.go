@@ -23,7 +23,6 @@ import (
 	stdio "io"
 	"net/url"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -197,7 +196,7 @@ func requirementDiff(pr *PullRequest, q *config.TideQuery, cc contextChecker, me
 	}
 	diff += len(missingLabels)
 	if desc == "" && len(missingLabels) > 0 {
-		sort.Strings(missingLabels)
+		slices.Sort(missingLabels)
 		trunced := truncate(missingLabels)
 		if len(trunced) == 1 {
 			desc = fmt.Sprintf(" Needs %s label.", trunced[0])
@@ -217,7 +216,7 @@ func requirementDiff(pr *PullRequest, q *config.TideQuery, cc contextChecker, me
 	}
 	diff += len(presentLabels)
 	if desc == "" && len(presentLabels) > 0 {
-		sort.Strings(presentLabels)
+		slices.Sort(presentLabels)
 		trunced := truncate(presentLabels)
 		if len(trunced) == 1 {
 			desc = fmt.Sprintf(" Should not have %s label.", trunced[0])
@@ -244,7 +243,7 @@ func requirementDiff(pr *PullRequest, q *config.TideQuery, cc contextChecker, me
 	}
 	diff += len(contexts)
 	if desc == "" && len(contexts) > 0 {
-		sort.Strings(contexts)
+		slices.Sort(contexts)
 		contexts = slices.Compact(contexts)
 		trunced := truncate(contexts)
 		if len(trunced) == 1 {
@@ -385,7 +384,7 @@ func poolStatus(pr *PullRequest, mergeBlocksPolicy config.GitHubMergeBlocksPolic
 }
 
 func retestingStatus(retested []string) string {
-	sort.Strings(retested)
+	slices.Sort(retested)
 	all := fmt.Sprintf(statusNotInPool, fmt.Sprintf(" Retesting: %s", strings.Join(retested, " ")))
 	if len(all) > maxStatusDescriptionLength {
 		s := ""
@@ -652,7 +651,7 @@ func (sc *statusController) search() []CodeReviewCommon {
 		for org := range queries {
 			orgs = append(orgs, org)
 		}
-		sort.Strings(orgs)
+		slices.Sort(orgs)
 		var query strings.Builder
 		for _, org := range orgs {
 			query.WriteString(" " + queries[org])

@@ -19,12 +19,13 @@ limitations under the License.
 package history
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
 	stdio "io"
 	"net/http"
-	"sort"
+	"slices"
 	"sync"
 	"time"
 
@@ -148,7 +149,7 @@ func New(maxRecordsPerKey int, opener io.Opener, path string) (*History, error) 
 // Record appends an entry to the recordlog specified by the poolKey.
 func (h *History) Record(poolKey, action, baseSHA, err string, targets []prowapi.Pull, tenantIDs []string) {
 	t := now()
-	sort.Sort(ByNum(targets))
+	slices.SortFunc(targets, func(a, b prowapi.Pull) int { return cmp.Compare(a.Number, b.Number) })
 	h.addRecord(
 		poolKey,
 		&Record{
@@ -259,10 +260,3 @@ func (rl *recordLog) toSlice() []*Record {
 	rl.cachedSlice = res
 	return res
 }
-
-// ByNum implements sort.Interface for []PRMeta to sort by ascending PR number.
-type ByNum []prowapi.Pull
-
-func (prs ByNum) Len() int           { return len(prs) }
-func (prs ByNum) Swap(i, j int)      { prs[i], prs[j] = prs[j], prs[i] }
-func (prs ByNum) Less(i, j int) bool { return prs[i].Number < prs[j].Number }

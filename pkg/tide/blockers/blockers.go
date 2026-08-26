@@ -17,10 +17,11 @@ limitations under the License.
 package blockers
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"regexp"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -87,8 +88,8 @@ func (b Blockers) GetApplicable(org, repo, branch string) []Blocker {
 	res = append(res, b.Repo[OrgRepo{Org: org, Repo: repo}]...)
 	res = append(res, b.Branch[OrgRepoBranch{Org: org, Repo: repo, Branch: branch}]...)
 
-	sort.Slice(res, func(i, j int) bool {
-		return res[i].Number < res[j].Number
+	slices.SortFunc(res, func(a, b Blocker) int {
+		return cmp.Compare(a.Number, b.Number)
 	})
 	return res
 }
