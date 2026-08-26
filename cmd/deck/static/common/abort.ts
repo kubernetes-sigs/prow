@@ -1,7 +1,7 @@
 import {ProwJobState} from "../api/prow";
 import {showAlert, showToast, State} from "./common";
 
-export function createAbortProwJobIcon(modal: HTMLElement, parentEl: Element, job: string, state: ProwJobState, prowjob: string, csrfToken: string): HTMLElement {
+export function createAbortProwJobIcon(modal: HTMLElement, parentEl: Element, job: string, state: ProwJobState, prowjob: string): HTMLElement {
   const url = `${location.protocol}//${location.host}/abort?prowjob=${prowjob}`;
   const abortButton = document.createElement('button');
   abortButton.classList.add('mdl-button', 'mdl-js-button', 'mdl-button--icon');
@@ -55,7 +55,6 @@ export function createAbortProwJobIcon(modal: HTMLElement, parentEl: Element, jo
         const result = await fetch(url, {
           headers: {
             'Content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
-            'X-CSRF-Token': csrfToken,
           },
           method: 'post',
         });

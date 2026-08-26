@@ -9,7 +9,6 @@ import {parseQuery, relativeURL} from "../common/urls";
 
 declare const tideData: TideData;
 declare const allBuilds: ProwJobList;
-declare const csrfToken: string;
 
 type UnifiedState = ProwJobState | "expected";
 
@@ -122,7 +121,6 @@ function createXMLHTTPRequest(fulfillFn: (request: XMLHttpRequest) => any, error
   request.withCredentials = true;
   request.open("POST", url, true);
   request.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
-  request.setRequestHeader("X-CSRF-Token", csrfToken);
 
   return request;
 }
