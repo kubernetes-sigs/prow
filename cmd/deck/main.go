@@ -92,10 +92,10 @@ import (
 	_ "sigs.k8s.io/prow/pkg/spyglass/lenses/html"
 	_ "sigs.k8s.io/prow/pkg/spyglass/lenses/junit"
 	_ "sigs.k8s.io/prow/pkg/spyglass/lenses/links"
+	_ "sigs.k8s.io/prow/pkg/spyglass/lenses/markdown"
 	_ "sigs.k8s.io/prow/pkg/spyglass/lenses/metadata"
 	_ "sigs.k8s.io/prow/pkg/spyglass/lenses/podinfo"
 	_ "sigs.k8s.io/prow/pkg/spyglass/lenses/restcoverage"
-	_ "sigs.k8s.io/prow/pkg/spyglass/lenses/markdown"
 )
 
 // Omittable ProwJob fields.
