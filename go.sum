@@ -179,8 +179,8 @@ github.com/chzyer/test v0.0.0-20180213035817-a1ea475d72b1/go.mod h1:Q3SI9o4m/ZMn
 github.com/chzyer/test v1.0.0/go.mod h1:2JlltgoNkt4TW/z9V/IzDdFaMTM2JPIi26O1pF38GC8=
 github.com/cjwagner/httpcache v0.0.0-20230907212505-d4841bbad466 h1:eUjwn08FDjbj8vBM31026tjBraJCu+qpDvo/q0EAvQk=
 github.com/cjwagner/httpcache v0.0.0-20230907212505-d4841bbad466/go.mod h1:f7xZ2fRr8CqTp834KCxLW2pOXC/raqwhTbEvtxu/lRo=
-github.com/clarketm/json v1.13.4 h1:0JketcMdLC16WGnRGJiNmTXuQznDEQaiknxSPRBxg+k=
-github.com/clarketm/json v1.13.4/go.mod h1:ynr2LRfb0fQU34l07csRNBTcivjySLLiY1YzQqKVfdo=
+github.com/clarketm/json v1.17.1 h1:U1IxjqJkJ7bRK4L6dyphmoO840P6bdhPdbbLySourqI=
+github.com/clarketm/json v1.17.1/go.mod h1:ynr2LRfb0fQU34l07csRNBTcivjySLLiY1YzQqKVfdo=
 github.com/client9/misspell v0.3.4/go.mod h1:qj6jICC3Q7zFZvVWo7KLAzC3yx5G7kyvSDkc90ppPyw=
 github.com/cloudevents/sdk-go/v2 v2.16.2 h1:ZYDFrYke4FD+jM8TZTJJO6JhKHzOQl2oqpFK1D+NnQM=
 github.com/cloudevents/sdk-go/v2 v2.16.2/go.mod h1:laOcGImm4nVJEU+PHnUrKL56CKmRL65RlQF0kRmW/kg=
