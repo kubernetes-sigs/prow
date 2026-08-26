@@ -85,21 +85,27 @@ func TestMain(m *testing.M) {
 	}
 	fakeGCSServer = fakestorage.NewServer([]fakestorage.Object{
 		{
-			BucketName: "test-bucket",
-			Name:       "logs/example-ci-run/403/build-log.txt",
-			Content:    []byte("Oh wow\nlogs\nthis is\ncrazy"),
-			Metadata: map[string]string{
-				"foo": "bar",
+			ObjectAttrs: fakestorage.ObjectAttrs{
+				BucketName: "test-bucket",
+				Name:       "logs/example-ci-run/403/build-log.txt",
+				Metadata: map[string]string{
+					"foo": "bar",
+				},
 			},
+			Content: []byte("Oh wow\nlogs\nthis is\ncrazy"),
 		},
 		{
-			BucketName: "test-bucket",
-			Name:       "logs/example-ci-run/403/long-log.txt",
-			Content:    []byte(longLog.String()),
+			ObjectAttrs: fakestorage.ObjectAttrs{
+				BucketName: "test-bucket",
+				Name:       "logs/example-ci-run/403/long-log.txt",
+			},
+			Content: []byte(longLog.String()),
 		},
 		{
-			BucketName: "test-bucket",
-			Name:       "logs/example-ci-run/403/junit_01.xml",
+			ObjectAttrs: fakestorage.ObjectAttrs{
+				BucketName: "test-bucket",
+				Name:       "logs/example-ci-run/403/junit_01.xml",
+			},
 			Content: []byte(`<testsuite tests="1017" failures="1017" time="0.016981535">
 <testcase name="BeforeSuite" classname="Kubernetes e2e suite" time="0.006343795">
 <failure type="Failure">
@@ -109,8 +115,10 @@ test/e2e/e2e.go:137 BeforeSuite on Node 1 failed test/e2e/e2e.go:137
 </testsuite>`),
 		},
 		{
-			BucketName: "test-bucket",
-			Name:       "logs/example-ci-run/403/started.json",
+			ObjectAttrs: fakestorage.ObjectAttrs{
+				BucketName: "test-bucket",
+				Name:       "logs/example-ci-run/403/started.json",
+			},
 			Content: []byte(`{
 						  "node": "gke-prow-default-pool-3c8994a8-qfhg",
 						  "repo-version": "v1.12.0-alpha.0.985+e6f64d0a79243c",
@@ -126,8 +134,10 @@ test/e2e/e2e.go:137 BeforeSuite on Node 1 failed test/e2e/e2e.go:137
 						}`),
 		},
 		{
-			BucketName: "test-bucket",
-			Name:       "logs/example-ci-run/403/finished.json",
+			ObjectAttrs: fakestorage.ObjectAttrs{
+				BucketName: "test-bucket",
+				Name:       "logs/example-ci-run/403/finished.json",
+			},
 			Content: []byte(`{
 						  "timestamp": 1528742943,
 						  "version": "v1.12.0-alpha.0.985+e6f64d0a79243c",
@@ -147,14 +157,18 @@ test/e2e/e2e.go:137 BeforeSuite on Node 1 failed test/e2e/e2e.go:137
 						},`),
 		},
 		{
-			BucketName: "test-bucket",
-			Name:       "logs/symlink-party/123.txt",
-			Content:    []byte(`gs://test-bucket/logs/the-actual-place/123`),
+			ObjectAttrs: fakestorage.ObjectAttrs{
+				BucketName: "test-bucket",
+				Name:       "logs/symlink-party/123.txt",
+			},
+			Content: []byte(`gs://test-bucket/logs/the-actual-place/123`),
 		},
 		{
-			BucketName: "multi-container-one-log",
-			Name:       "logs/job/123/test-1-build-log.txt",
-			Content:    []byte("this log exists in gcs!"),
+			ObjectAttrs: fakestorage.ObjectAttrs{
+				BucketName: "multi-container-one-log",
+				Name:       "logs/job/123/test-1-build-log.txt",
+			},
+			Content: []byte("this log exists in gcs!"),
 		},
 	})
 	defer fakeGCSServer.Stop()
@@ -1595,9 +1609,11 @@ func TestExtraLinks(t *testing.T) {
 			if tc.content != "" {
 				objects = []fakestorage.Object{
 					{
-						BucketName: "test-bucket",
-						Name:       "logs/some-job/42/started.json",
-						Content:    []byte(tc.content),
+						ObjectAttrs: fakestorage.ObjectAttrs{
+							BucketName: "test-bucket",
+							Name:       "logs/some-job/42/started.json",
+						},
+						Content: []byte(tc.content),
 					},
 				}
 			}

@@ -551,24 +551,32 @@ func Test_getPRHistory(t *testing.T) {
 	}
 	objects := []fakestorage.Object{
 		{
-			BucketName: "kubernetes-jenkins",
-			Name:       "pr-logs/pull/test-infra/17183/pull-test-infra-bazel/1254406011708510210/started.json",
-			Content:    []byte("{\"timestamp\": 1587908709,\"pull\": \"17183\",\"repos\": {\"kubernetes/test-infra\": \"master:48192e9a938ed25edb646de2ee9b4ec096c02732,17183:664ba002bc2155e7438b810a1bb7473c55dc1c6a\"},\"metadata\": {\"resultstore\": \"https://source.cloud.google.com/results/invocations/8edcebc7-11f3-4c4e-a7c3-cae6d26bd117/targets/test\"},\"repo-version\": \"a31d10b2924182638acad0f4b759f53e73b5f817\",\"Pending\": false}"),
+			ObjectAttrs: fakestorage.ObjectAttrs{
+				BucketName: "kubernetes-jenkins",
+				Name:       "pr-logs/pull/test-infra/17183/pull-test-infra-bazel/1254406011708510210/started.json",
+			},
+			Content: []byte("{\"timestamp\": 1587908709,\"pull\": \"17183\",\"repos\": {\"kubernetes/test-infra\": \"master:48192e9a938ed25edb646de2ee9b4ec096c02732,17183:664ba002bc2155e7438b810a1bb7473c55dc1c6a\"},\"metadata\": {\"resultstore\": \"https://source.cloud.google.com/results/invocations/8edcebc7-11f3-4c4e-a7c3-cae6d26bd117/targets/test\"},\"repo-version\": \"a31d10b2924182638acad0f4b759f53e73b5f817\",\"Pending\": false}"),
 		},
 		{
-			BucketName: "kubernetes-jenkins",
-			Name:       "pr-logs/pull/test-infra/17183/pull-test-infra-bazel/1254406011708510210/finished.json",
-			Content:    []byte("{\"timestamp\": 1587909145,\"passed\": true,\"result\": \"SUCCESS\",\"revision\": \"664ba002bc2155e7438b810a1bb7473c55dc1c6a\"}"),
+			ObjectAttrs: fakestorage.ObjectAttrs{
+				BucketName: "kubernetes-jenkins",
+				Name:       "pr-logs/pull/test-infra/17183/pull-test-infra-bazel/1254406011708510210/finished.json",
+			},
+			Content: []byte("{\"timestamp\": 1587909145,\"passed\": true,\"result\": \"SUCCESS\",\"revision\": \"664ba002bc2155e7438b810a1bb7473c55dc1c6a\"}"),
 		},
 		{
-			BucketName: "kubernetes-jenkins",
-			Name:       "pr-logs/pull/test-infra/17183/pull-test-infra-yamllint/1254406011708510208/started.json",
-			Content:    []byte("{\"timestamp\": 1587908749,\"pull\": \"17183\",\"repos\": {\"kubernetes/test-infra\": \"master:48192e9a938ed25edb646de2ee9b4ec096c02732,17183:664ba002bc2155e7438b810a1bb7473c55dc1c6a\"},\"metadata\": {\"resultstore\": \"https://source.cloud.google.com/results/invocations/af70141d-0990-4e63-9ebf-db874391865e/targets/test\"},\"repo-version\": \"a31d10b2924182638acad0f4b759f53e73b5f817\",\"Pending\": false}"),
+			ObjectAttrs: fakestorage.ObjectAttrs{
+				BucketName: "kubernetes-jenkins",
+				Name:       "pr-logs/pull/test-infra/17183/pull-test-infra-yamllint/1254406011708510208/started.json",
+			},
+			Content: []byte("{\"timestamp\": 1587908749,\"pull\": \"17183\",\"repos\": {\"kubernetes/test-infra\": \"master:48192e9a938ed25edb646de2ee9b4ec096c02732,17183:664ba002bc2155e7438b810a1bb7473c55dc1c6a\"},\"metadata\": {\"resultstore\": \"https://source.cloud.google.com/results/invocations/af70141d-0990-4e63-9ebf-db874391865e/targets/test\"},\"repo-version\": \"a31d10b2924182638acad0f4b759f53e73b5f817\",\"Pending\": false}"),
 		},
 		{
-			BucketName: "kubernetes-jenkins",
-			Name:       "pr-logs/pull/test-infra/17183/pull-test-infra-yamllint/1254406011708510208/finished.json",
-			Content:    []byte("{\"timestamp\": 1587908767,\"passed\": true,\"result\": \"SUCCESS\",\"revision\": \"664ba002bc2155e7438b810a1bb7473c55dc1c6a\"}"),
+			ObjectAttrs: fakestorage.ObjectAttrs{
+				BucketName: "kubernetes-jenkins",
+				Name:       "pr-logs/pull/test-infra/17183/pull-test-infra-yamllint/1254406011708510208/finished.json",
+			},
+			Content: []byte("{\"timestamp\": 1587908767,\"passed\": true,\"result\": \"SUCCESS\",\"revision\": \"664ba002bc2155e7438b810a1bb7473c55dc1c6a\"}"),
 		},
 	}
 	gcsServer := fakestorage.NewServer(objects)

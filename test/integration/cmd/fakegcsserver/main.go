@@ -117,9 +117,11 @@ func getInitialObjects(o *options) (*[]fakestorage.Object, error) {
 	for _, ddc := range ddcs {
 		logrus.Infof("detected bucket %q from configuration", ddc.Config.GCSConfiguration.Bucket)
 		initialObjects = append(initialObjects, fakestorage.Object{
-			BucketName: ddc.Config.GCSConfiguration.Bucket,
-			Name:       "placeholder",
-			Content:    []byte("This file is here so that we can create the parent directory."),
+			ObjectAttrs: fakestorage.ObjectAttrs{
+				BucketName: ddc.Config.GCSConfiguration.Bucket,
+				Name:       "placeholder",
+			},
+			Content: []byte("This file is here so that we can create the parent directory."),
 		})
 	}
 
