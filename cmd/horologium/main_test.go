@@ -25,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -617,5 +618,97 @@ func newCreateTrackingClient(objs []client.Object) *createTrackingClient {
 	return &createTrackingClient{
 		Client:  fakectrlruntimeclient.NewClientBuilder().WithObjects(objs...).Build(),
 		created: make([]ctrlruntimeclient.Object, 0),
+	}
+}
+
+func TestTrimCachedProwJob(t *testing.T) {
+	now := metav1.NewTime(time.Now().Truncate(time.Second))
+	full := func() *prowapi.ProwJob {
+		return &prowapi.ProwJob{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:            "some-job",
+				Labels:          map[string]string{kube.ReRunLabel: "2"},
+				ManagedFields:   []metav1.ManagedFieldsEntry{{Manager: "prow"}},
+				OwnerReferences: []metav1.OwnerReference{{Name: "owner"}},
+			},
+			Spec: prowapi.ProwJobSpec{
+				Type:    prowapi.PeriodicJob,
+				Job:     "some-periodic",
+				PodSpec: &corev1.PodSpec{Containers: []corev1.Container{{Image: "img"}}},
+				DecorationConfig: &prowapi.DecorationConfig{
+					GCSConfiguration: &prowapi.GCSConfiguration{Bucket: "bucket"},
+				},
+				TektonPipelineRunSpec: &prowapi.TektonPipelineRunSpec{},
+				ExtraRefs:             []prowapi.Refs{{Org: "org"}},
+				RerunAuthConfig:       &prowapi.RerunAuthConfig{AllowAnyone: true},
+				RerunCommand:          "/test all",
+			},
+			Status: prowapi.ProwJobStatus{
+				State:            prowapi.SuccessState,
+				StartTime:        now,
+				CompletionTime:   &now,
+				PrevReportStates: map[string]prowapi.ProwJobState{"gcsk8sreporter": prowapi.SuccessState},
+			},
+		}
+	}
+
+	trimmed, err := trimCachedProwJob(full())
+	if err != nil {
+		t.Fatalf("trimCachedProwJob failed: %v", err)
+	}
+	pj, ok := trimmed.(*prowapi.ProwJob)
+	if !ok {
+		t.Fatalf("expected a *prowapi.ProwJob, got %T", trimmed)
+	}
+
+	// Kept: everything sync() and shouldTriggerFailedRun() read.
+	original := full()
+	if pj.Name != original.Name {
+		t.Errorf("name was dropped: %q", pj.Name)
+	}
+	if !reflect.DeepEqual(pj.Labels, original.Labels) {
+		t.Errorf("labels were changed: %v", pj.Labels)
+	}
+	if pj.Spec.Type != original.Spec.Type || pj.Spec.Job != original.Spec.Job {
+		t.Errorf("spec.type/spec.job were changed: %v/%v", pj.Spec.Type, pj.Spec.Job)
+	}
+	if !pj.Status.StartTime.Equal(&original.Status.StartTime) || pj.Status.CompletionTime == nil {
+		t.Error("status timestamps were dropped")
+	}
+	if pj.Status.State != original.Status.State {
+		t.Errorf("status.state was changed: %v", pj.Status.State)
+	}
+
+	// Dropped:
+	if pj.ManagedFields != nil || pj.OwnerReferences != nil {
+		t.Error("metadata was not trimmed")
+	}
+	if pj.Spec.PodSpec != nil || pj.Spec.DecorationConfig != nil || pj.Spec.TektonPipelineRunSpec != nil {
+		t.Error("spec was not trimmed")
+	}
+	if pj.Spec.ExtraRefs != nil || pj.Spec.RerunAuthConfig != nil || pj.Spec.RerunCommand != "" {
+		t.Error("spec was not trimmed")
+	}
+	if pj.Status.PrevReportStates != nil {
+		t.Error("status.prev_report_states was not trimmed")
+	}
+
+	// Must be idempotent.
+	retrimmed, err := trimCachedProwJob(pj)
+	if err != nil {
+		t.Fatalf("trimCachedProwJob failed on an already trimmed job: %v", err)
+	}
+	if !reflect.DeepEqual(retrimmed, pj) {
+		t.Error("trimCachedProwJob is not idempotent")
+	}
+
+	// Non-ProwJobs pass through.
+	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "some-pod"}}
+	out, err := trimCachedProwJob(pod)
+	if err != nil {
+		t.Fatalf("trimCachedProwJob failed on a pod: %v", err)
+	}
+	if !reflect.DeepEqual(out, pod) {
+		t.Error("a non-ProwJob was modified")
 	}
 }

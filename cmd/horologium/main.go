@@ -109,6 +109,7 @@ func main() {
 		o.Cache.DefaultNamespaces = map[string]cache.Config{
 			configAgent.Config().ProwJobNamespace: {},
 		}
+		o.Cache.DefaultTransform = trimCachedProwJob
 	})
 	if err != nil {
 		logrus.WithError(err).Fatal("Failed to construct prowjob client")
@@ -148,6 +149,32 @@ func main() {
 		}
 		logrus.WithField("duration", time.Since(start)).Info("Synced periodic jobs")
 	}, tickInterval)
+}
+
+// trimCachedProwJob drops what horologium never reads off a ProwJob before it
+// enters the cache: it only needs the job name and type, the rerun label and a
+// few Status timestamps. Must stay idempotent, DeltaFIFO can hand back objects
+// that already went through it.
+func trimCachedProwJob(obj any) (any, error) {
+	pj, ok := obj.(*prowapi.ProwJob)
+	if !ok {
+		return obj, nil
+	}
+
+	pj.ManagedFields = nil
+	pj.OwnerReferences = nil
+
+	pj.Spec.PodSpec = nil
+	pj.Spec.DecorationConfig = nil
+	pj.Spec.PipelineRunSpec = nil
+	pj.Spec.TektonPipelineRunSpec = nil
+	pj.Spec.ExtraRefs = nil
+	pj.Spec.RerunAuthConfig = nil
+	pj.Spec.RerunCommand = ""
+
+	pj.Status.PrevReportStates = nil
+
+	return pj, nil
 }
 
 type cronClient interface {
