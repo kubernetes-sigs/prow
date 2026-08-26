@@ -8,7 +8,7 @@ require (
 	cloud.google.com/go/pubsub/v2 v2.6.2
 	cloud.google.com/go/secretmanager v1.21.0
 	cloud.google.com/go/storage v1.65.0
-	github.com/GoogleCloudPlatform/testgrid v0.0.123
+	github.com/GoogleCloudPlatform/testgrid v0.0.176
 	github.com/NYTimes/gziphandler v1.1.1
 	github.com/andygrunwald/go-gerrit v1.1.1
 	github.com/andygrunwald/go-jira v1.17.0
@@ -86,7 +86,7 @@ require (
 )
 
 require (
-	bitbucket.org/creachadair/stringset v0.0.9 // indirect
+	bitbucket.org/creachadair/stringset v0.0.11 // indirect
 	cloud.google.com/go v0.123.0 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
@@ -107,7 +107,7 @@ require (
 	github.com/evanphx/json-patch/v5 v5.9.11 // indirect
 	github.com/fatih/structs v1.1.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
-	github.com/fvbommel/sortorder v1.0.1 // indirect
+	github.com/fvbommel/sortorder v1.1.0 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
 	github.com/go-git/go-billy/v5 v5.9.0 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
