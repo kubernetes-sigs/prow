@@ -19,7 +19,7 @@ require (
 	github.com/bazelbuild/buildtools v0.0.0-20200922170545-10384511ce98
 	github.com/blang/semver/v4 v4.0.0
 	github.com/bombsimon/logrusr/v4 v4.1.0
-	github.com/bwmarrin/snowflake v0.0.0
+	github.com/bwmarrin/snowflake v0.3.0
 	// Upstream is unmaintained. This fork introduces two important changes:
 	// * We log an error if writing a cache key fails (e.g. because disk is full)
 	// * We inject a header that allows ghproxy to detect if the response was revalidated or a cache miss
