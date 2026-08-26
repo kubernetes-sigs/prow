@@ -4569,6 +4569,42 @@ func TestNonFailedBatchByBaseAndPullsIndexFunc(t *testing.T) {
 	}
 }
 
+// TestNonFailedBatchByNameBaseAndPullsIndexKeyDoesNotMutateRefs verifies that
+// computing the index key leaves its input alone. The index func is handed the
+// ProwJob that lives in the cache, so sorting the pulls in place would mutate
+// shared state underneath every other reader of that cache.
+func TestNonFailedBatchByNameBaseAndPullsIndexKeyDoesNotMutateRefs(t *testing.T) {
+	unsorted := []prowapi.Pull{{Number: 3, SHA: "three"}, {Number: 1, SHA: "one"}, {Number: 2, SHA: "two"}}
+	refs := &prowapi.Refs{
+		Org:     "org",
+		Repo:    "repo",
+		BaseRef: "master",
+		BaseSHA: "base-sha",
+		Pulls:   slices.Clone(unsorted),
+	}
+
+	key := nonFailedBatchByNameBaseAndPullsIndexKey("some-job", refs)
+
+	// The key is still sorted by pull number, ...
+	if expected := "some-job|org|repo|master|base-sha|1|one|2|two|3|three"; key != expected {
+		t.Errorf("expected key %q, got %q", expected, key)
+	}
+	// ... but the refs we got handed are untouched.
+	if diff := cmp.Diff(unsorted, refs.Pulls); diff != "" {
+		t.Errorf("the pulls were reordered in place: %s", diff)
+	}
+
+	// The same must hold when it is reached through the index func.
+	pj := getProwJob(prowapi.BatchJob, "org", "repo", "master", "base-sha", prowapi.SuccessState, slices.Clone(unsorted))
+	pj.Spec.Job = "some-job"
+	if result := nonFailedBatchByNameBaseAndPullsIndexFunc(pj); !slices.Equal(result, []string{key}) {
+		t.Errorf("expected the index func to yield %v, got %v", []string{key}, result)
+	}
+	if diff := cmp.Diff(unsorted, pj.Spec.Refs.Pulls); diff != "" {
+		t.Errorf("the index func reordered the pulls of the indexed prowjob in place: %s", diff)
+	}
+}
+
 func TestCheckRunNodesToContexts(t *testing.T) {
 	t.Parallel()
 	testCases := []struct {

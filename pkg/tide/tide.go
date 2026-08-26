@@ -2180,13 +2180,16 @@ const nonFailedBatchByNameBaseAndPullsIndexName = "tide-non-failed-jobs-by-name-
 // the batch job, and returns a string contain all of them. This is used only by
 // nonFailedBatchByNameBaseAndPullsIndexFunc.
 func nonFailedBatchByNameBaseAndPullsIndexKey(jobName string, refs *prowapi.Refs) string {
-	// sort the pulls to make sure this is deterministic
-	sort.Slice(refs.Pulls, func(i, j int) bool {
-		return refs.Pulls[i].Number < refs.Pulls[j].Number
+	// sort the pulls to make sure this is determinististic, but make a copy
+	// to avoid mutating the input, it can point to a cache-backed object
+	pulls := make([]prowapi.Pull, len(refs.Pulls))
+	copy(pulls, refs.Pulls)
+	sort.Slice(pulls, func(i, j int) bool {
+		return pulls[i].Number < pulls[j].Number
 	})
 
 	keys := []string{jobName, refs.Org, refs.Repo, refs.BaseRef, refs.BaseSHA}
-	for _, pull := range refs.Pulls {
+	for _, pull := range pulls {
 		keys = append(keys, strconv.Itoa(pull.Number), pull.SHA)
 	}
 
