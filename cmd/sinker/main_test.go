@@ -41,9 +41,11 @@ import (
 
 	prowv1 "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 	"sigs.k8s.io/prow/pkg/config"
+	kubernetesreporterapi "sigs.k8s.io/prow/pkg/crier/reporters/gcs/kubernetes/api"
 	"sigs.k8s.io/prow/pkg/flagutil"
 	configflagutil "sigs.k8s.io/prow/pkg/flagutil/config"
 	"sigs.k8s.io/prow/pkg/kube"
+	"sigs.k8s.io/prow/pkg/pjutil"
 )
 
 const (
@@ -1124,5 +1126,68 @@ func TestGetConfigMapDirs(t *testing.T) {
 
 	if diff := cmp.Diff(dirs, expectedToplevelOnly); diff != "" {
 		t.Fatal(diff)
+	}
+}
+
+func fullCachedPod() *corev1api.Pod {
+	// Fixed times: the fake client round-trips through JSON, truncating to seconds.
+	created := metav1.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	started := metav1.Date(2024, 1, 1, 0, 1, 0, 0, time.UTC)
+	return &corev1api.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              "some-pod",
+			Namespace:         "ns",
+			CreationTimestamp: created,
+			Labels: map[string]string{
+				kube.CreatedByProw:  "true",
+				kube.ProwJobIDLabel: "some-job",
+			},
+			Finalizers:      []string{kubernetesreporterapi.FinalizerName},
+			ManagedFields:   []metav1.ManagedFieldsEntry{{Manager: "plank"}},
+			OwnerReferences: []metav1.OwnerReference{{Name: "owner"}},
+		},
+		Spec: corev1api.PodSpec{
+			Containers: []corev1api.Container{{Name: "test", Image: "img"}},
+		},
+		Status: corev1api.PodStatus{
+			Phase:             corev1api.PodSucceeded,
+			StartTime:         &started,
+			ContainerStatuses: []corev1api.ContainerStatus{{Name: "test"}},
+		},
+	}
+}
+
+// TestCleanupKubernetesFinalizerOnTrimmedPod verifies that patching a pod from a
+// trimmed cache does not wipe the dropped fields: the MergeFrom patch is
+// computed between two trimmed copies.
+func TestCleanupKubernetesFinalizerOnTrimmedPod(t *testing.T) {
+	stored := fullCachedPod()
+	// The fake client rejects managed fields without an operation.
+	stored.ManagedFields = nil
+	client := fakectrlruntimeclient.NewClientBuilder().WithRuntimeObjects(stored).Build()
+
+	trimmed, err := pjutil.TrimCachedPod(fullCachedPod())
+	if err != nil {
+		t.Fatalf("pjutil.TrimCachedPod failed: %v", err)
+	}
+
+	c := &controller{ctx: context.Background()}
+	if err := c.cleanupKubernetesFinalizer(trimmed.(*corev1api.Pod), client); err != nil {
+		t.Fatalf("cleanupKubernetesFinalizer failed: %v", err)
+	}
+
+	var got corev1api.Pod
+	name := types.NamespacedName{Namespace: stored.Namespace, Name: stored.Name}
+	if err := client.Get(context.Background(), name, &got); err != nil {
+		t.Fatalf("failed to get pod: %v", err)
+	}
+	if len(got.Finalizers) != 0 {
+		t.Errorf("finalizer was not removed: %v", got.Finalizers)
+	}
+	if diff := cmp.Diff(stored.Spec, got.Spec); diff != "" {
+		t.Errorf("patch clobbered the pod spec: %s", diff)
+	}
+	if diff := cmp.Diff(stored.Status, got.Status); diff != "" {
+		t.Errorf("patch clobbered the pod status: %s", diff)
 	}
 }
