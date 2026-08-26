@@ -38,7 +38,7 @@ linters:
       - linters:
           - staticcheck
         # TODO: Is this really supposed to be deprecated? Ref https://github.com/kubernetes/test-infra/issues/14875
-        text: "SA1019: t.*.TrustedOrg is deprecated: TrustedOrg functionality is deprecated and will be removed in January 2020"
+        text: "SA1019: .*TrustedOrg is deprecated"
   enable: # golangci-lint help linters
     - govet
     - unused

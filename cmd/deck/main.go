@@ -1364,10 +1364,10 @@ func handleRemoteLens(lens config.LensFileConfig, w http.ResponseWriter, r *http
 	}
 
 	(&httputil.ReverseProxy{
-		Director: func(r *http.Request) {
-			r.URL = lens.RemoteConfig.ParsedEndpoint
-			r.ContentLength = int64(len(serializedRequest))
-			r.Body = stdio.NopCloser(bytes.NewBuffer(serializedRequest))
+		Rewrite: func(pr *httputil.ProxyRequest) {
+			pr.Out.URL = lens.RemoteConfig.ParsedEndpoint
+			pr.Out.ContentLength = int64(len(serializedRequest))
+			pr.Out.Body = stdio.NopCloser(bytes.NewBuffer(serializedRequest))
 		},
 	}).ServeHTTP(w, r)
 }
