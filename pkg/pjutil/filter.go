@@ -155,6 +155,30 @@ func (tf *TestAllFilter) Name() string {
 	return "test-all-filter"
 }
 
+// TestAllWithExistingStatusFilter is like TestAllFilter but also skips
+// presubmits whose context already has a successful GitHub status.
+type TestAllWithExistingStatusFilter struct {
+	successContexts sets.Set[string]
+}
+
+func NewTestAllWithExistingStatusFilter(successContexts sets.Set[string]) *TestAllWithExistingStatusFilter {
+	return &TestAllWithExistingStatusFilter{successContexts: successContexts}
+}
+
+func (f *TestAllWithExistingStatusFilter) ShouldRun(p config.Presubmit) (bool, bool, bool) {
+	if p.NeedsExplicitTrigger() {
+		return false, false, false
+	}
+	if f.successContexts.Has(p.Context) {
+		return false, false, false
+	}
+	return true, false, false
+}
+
+func (f *TestAllWithExistingStatusFilter) Name() string {
+	return "test-all-with-existing-status-filter"
+}
+
 // AggregateFilter builds a filter that evaluates the child filters in order
 // and returns the first match
 type AggregateFilter struct {
