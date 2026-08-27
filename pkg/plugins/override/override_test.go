@@ -21,17 +21,20 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	klabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	prowapi "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 	"sigs.k8s.io/prow/pkg/config"
 	"sigs.k8s.io/prow/pkg/github"
+	"sigs.k8s.io/prow/pkg/kube"
 	"sigs.k8s.io/prow/pkg/layeredsets"
 	"sigs.k8s.io/prow/pkg/plugins"
 	"sigs.k8s.io/prow/pkg/plugins/ownersconfig"
@@ -142,6 +145,7 @@ type fakeClient struct {
 	branchProtection *github.BranchProtection
 	ps               []config.Presubmit
 	jobs             sets.Set[string]
+	prowJobs         []prowapi.ProwJob
 	owners           ownersClient
 	checkruns        *github.CheckRunList
 	usesAppsAuth     bool
@@ -320,6 +324,34 @@ func (c *fakeClient) Create(_ context.Context, pj *prowapi.ProwJob, _ metav1.Cre
 	}
 	c.jobs.Insert(pj.Spec.Context)
 	return pj, nil
+}
+
+func (c *fakeClient) List(_ context.Context, opts metav1.ListOptions) (*prowapi.ProwJobList, error) {
+	selector := klabels.Everything()
+	if opts.LabelSelector != "" {
+		var err error
+		selector, err = klabels.Parse(opts.LabelSelector)
+		if err != nil {
+			return nil, err
+		}
+	}
+	var items []prowapi.ProwJob
+	for _, pj := range c.prowJobs {
+		if selector.Matches(klabels.Set(pj.Labels)) {
+			items = append(items, *pj.DeepCopy())
+		}
+	}
+	return &prowapi.ProwJobList{Items: items}, nil
+}
+
+func (c *fakeClient) Update(_ context.Context, pj *prowapi.ProwJob, _ metav1.UpdateOptions) (*prowapi.ProwJob, error) {
+	for i, existing := range c.prowJobs {
+		if existing.Name == pj.Name {
+			c.prowJobs[i] = *pj.DeepCopy()
+			return pj, nil
+		}
+	}
+	return nil, fmt.Errorf("prowjob %s not found", pj.Name)
 }
 
 func (c *fakeClient) LoadRepoOwners(org, repo, base string) (repoowners.RepoOwner, error) {
@@ -1622,5 +1654,149 @@ func TestStickyDescriptionFitsGitHubLimit(t *testing.T) {
 	}
 	if !strings.Contains(full, config.SkipRetestSentinel) {
 		t.Errorf("sticky description lost sentinel after ContextDescriptionWithBaseSha: %q", full)
+	}
+}
+
+func testPresubmitJob(name, context, sha string, state prowapi.ProwJobState, complete, report bool, pull int) prowapi.ProwJob {
+	pj := prowapi.ProwJob{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name + "-pj",
+			Labels: map[string]string{
+				kube.OrgLabel:         fakeOrg,
+				kube.RepoLabel:        fakeRepo,
+				kube.PullLabel:        strconv.Itoa(pull),
+				kube.ProwJobTypeLabel: string(prowapi.PresubmitJob),
+			},
+		},
+		Spec: prowapi.ProwJobSpec{
+			Type:    prowapi.PresubmitJob,
+			Job:     name,
+			Context: context,
+			Report:  report,
+			Refs: &prowapi.Refs{
+				Org:  fakeOrg,
+				Repo: fakeRepo,
+				Pulls: []prowapi.Pull{{
+					Number: pull,
+					SHA:    sha,
+				}},
+			},
+		},
+		Status: prowapi.ProwJobStatus{
+			State: state,
+		},
+	}
+	if complete {
+		now := metav1.Now()
+		pj.Status.CompletionTime = &now
+	}
+	return pj
+}
+
+func aborted(pj prowapi.ProwJob) prowapi.ProwJob {
+	pj.Spec.Report = false
+	pj.Status.State = prowapi.AbortedState
+	pj.Status.Description = abortedByOverrideDescription
+	return pj
+}
+
+func TestAbortJobsOnOverride(t *testing.T) {
+	log := logrus.WithField("plugin", pluginName)
+	jobPresubmit := config.Presubmit{
+		JobBase: config.JobBase{
+			Name: "job-a",
+		},
+		Reporter: config.Reporter{
+			Context: "job-a",
+		},
+	}
+
+	jobA := testPresubmitJob("job-a", "job-a", fakeSHA, prowapi.PendingState, false, true, fakePR)
+	jobB := testPresubmitJob("job-b", "job-b", fakeSHA, prowapi.PendingState, false, true, fakePR)
+	completeA := testPresubmitJob("job-a", "job-a", fakeSHA, prowapi.FailureState, true, true, fakePR)
+
+	cases := []struct {
+		name         string
+		body         string
+		prowJobs     []prowapi.ProwJob
+		wantProwJobs []prowapi.ProwJob
+	}{
+		{
+			name:         "aborts running job on /override",
+			body:         "/override job-a",
+			prowJobs:     []prowapi.ProwJob{jobA},
+			wantProwJobs: []prowapi.ProwJob{aborted(jobA)},
+		},
+		{
+			name:         "aborts running job on /override-sticky",
+			body:         "/override-sticky job-a",
+			prowJobs:     []prowapi.ProwJob{jobA},
+			wantProwJobs: []prowapi.ProwJob{aborted(jobA)},
+		},
+		{
+			name:         "leaves running job for a different context alone",
+			body:         "/override job-a",
+			prowJobs:     []prowapi.ProwJob{jobA, jobB},
+			wantProwJobs: []prowapi.ProwJob{aborted(jobA), jobB},
+		},
+		{
+			name:         "leaves already-complete matching job alone",
+			body:         "/override job-a",
+			prowJobs:     []prowapi.ProwJob{completeA},
+			wantProwJobs: []prowapi.ProwJob{completeA},
+		},
+		{
+			name: "no matching prowjob still overrides",
+			body: "/override job-a",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var prowJobs []prowapi.ProwJob
+			for _, pj := range tc.prowJobs {
+				prowJobs = append(prowJobs, *pj.DeepCopy())
+			}
+			fc := &fakeClient{
+				statuses: []github.Status{
+					{Context: "job-a", State: github.StatusFailure, Description: "Build failed"},
+				},
+				ps:       []config.Presubmit{jobPresubmit},
+				jobs:     sets.New[string](),
+				prowJobs: prowJobs,
+			}
+			event := github.GenericCommentEvent{
+				IsPR:       true,
+				IssueState: "open",
+				Action:     github.GenericCommentActionCreated,
+				Body:       tc.body,
+				Number:     fakePR,
+				User:       github.User{Login: adminUser},
+				Repo:       github.Repo{Owner: github.User{Login: fakeOrg}, Name: fakeRepo},
+			}
+
+			sticky := strings.Contains(tc.body, "/override-sticky")
+			if err := handle(fc, log, &event, plugins.Override{}, sticky); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			wantDesc := statusDescription(adminUser)
+			if sticky {
+				wantDesc = stickyStatusDescription(adminUser)
+			}
+			if diff := cmp.Diff([]github.Status{{
+				Context:     "job-a",
+				State:       github.StatusSuccess,
+				Description: wantDesc,
+			}}, fc.statuses); diff != "" {
+				t.Errorf("statuses mismatch (-want +got):\n%s", diff)
+			}
+			if diff := cmp.Diff(sets.New("job-a"), fc.jobs); diff != "" {
+				t.Errorf("created jobs mismatch (-want +got):\n%s", diff)
+			}
+			if diff := cmp.Diff(tc.wantProwJobs, fc.prowJobs); diff != "" {
+				t.Errorf("prowjobs mismatch (-want +got):\n%s", diff)
+			}
+		})
 	}
 }
