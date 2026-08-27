@@ -676,22 +676,12 @@ func validateTideRequirements(cfg *config.Config, pcfg *plugins.Configuration, i
 		// using the matcher
 		config *orgRepoConfig
 	}
-	// configs list relationships between tide config and plugin enablement
-	// that we want to validate in both directions: the plugin must be
-	// enabled wherever tide honors the label, and tide must honor the label
-	// wherever the plugin is enabled.
+	// configs list relationships between tide config
+	// and plugin enablement that we want to validate
 	configs := []plugin{
 		{name: lgtm.PluginName, label: labels.LGTM, matcher: requires},
 		{name: approve.PluginName, label: labels.Approved, matcher: requires},
 	}
-	// needsRebaseConfig is validated in one direction only: a query that
-	// forbids the needs-rebase label must have the plugin enabled. The
-	// reverse is not checked, since enabling the plugin without forbidding
-	// the label in tide is not a misconfiguration -- tide already refuses
-	// to merge any PR with a merge conflict regardless of the query (see
-	// mergeChecker.isAllowedToMerge in pkg/tide/github.go), so requiring
-	// the query to also forbid the label would be redundant.
-	needsRebaseConfig := plugin{name: needsrebase.PluginName, label: labels.NeedsRebase, external: true, matcher: forbids}
 	if includeForbidden {
 		configs = append(configs,
 			plugin{name: hold.PluginName, label: labels.Hold, matcher: forbids},
@@ -701,25 +691,20 @@ func validateTideRequirements(cfg *config.Config, pcfg *plugins.Configuration, i
 			plugin{name: releasenote.PluginName, label: labels.ReleaseNoteLabelNeeded, matcher: forbids},
 			plugin{name: cherrypickunapproved.PluginName, label: labels.CpUnapproved, matcher: forbids},
 			plugin{name: blockade.PluginName, label: labels.BlockedPaths, matcher: forbids},
+			plugin{name: needsrebase.PluginName, label: labels.NeedsRebase, external: true, matcher: forbids},
 		)
 	}
 
-	populateConfig := func(p *plugin) {
+	for i := range configs {
 		// For each plugin determine the subset of tide queries that match and then
 		// the orgs and repos that the subset matches.
 		var matchingQueries config.TideQueries
 		for _, query := range cfg.Tide.Queries {
-			if p.matcher.matches(p.label, query) {
+			if configs[i].matcher.matches(configs[i].label, query) {
 				matchingQueries = append(matchingQueries, query)
 			}
 		}
-		p.config = newOrgRepoConfig(matchingQueries.OrgExceptionsAndRepos())
-	}
-	for i := range configs {
-		populateConfig(&configs[i])
-	}
-	if includeForbidden {
-		populateConfig(&needsRebaseConfig)
+		configs[i].config = newOrgRepoConfig(matchingQueries.OrgExceptionsAndRepos())
 	}
 
 	overallTideConfig := newOrgRepoConfig(cfg.Tide.Queries.OrgExceptionsAndRepos())
@@ -736,15 +721,6 @@ func validateTideRequirements(cfg *config.Config, pcfg *plugins.Configuration, i
 			enabledOrgReposForPlugin(pcfg, pluginConfig.name, pluginConfig.external),
 		)
 		validationErrs = append(validationErrs, err)
-	}
-	if includeForbidden {
-		validationErrs = append(validationErrs, ensureLabelPluginEnabled(
-			needsRebaseConfig.name,
-			needsRebaseConfig.label,
-			needsRebaseConfig.matcher.verb,
-			needsRebaseConfig.config,
-			enabledOrgReposForPlugin(pcfg, needsRebaseConfig.name, needsRebaseConfig.external),
-		))
 	}
 
 	return utilerrors.NewAggregate(validationErrs)
@@ -927,28 +903,18 @@ func enabledOrgReposForPlugin(c *plugins.Configuration, plugin string, external 
 //     plugins as are configured. If the repository has LGTM and approve enabled, the tide query
 //     must require both labels
 func ensureValidConfiguration(plugin, label, verb string, tideSubSet, tideSuperSet, pluginsSubSet *orgRepoConfig) error {
-	var configErrors []error
-	if err := ensureLabelPluginEnabled(plugin, label, verb, tideSubSet, pluginsSubSet); err != nil {
-		configErrors = append(configErrors, err)
-	}
-
+	notEnabled := tideSubSet.difference(pluginsSubSet).items()
 	notRequired := pluginsSubSet.intersection(tideSuperSet).difference(tideSubSet).items()
+
+	var configErrors []error
+	if len(notEnabled) > 0 {
+		configErrors = append(configErrors, fmt.Errorf("the following orgs or repos %s the %s label for merging but do not enable the %s plugin: %v", verb, label, plugin, notEnabled))
+	}
 	if len(notRequired) > 0 {
 		configErrors = append(configErrors, fmt.Errorf("the following orgs or repos enable the %s plugin but do not %s the %s label for merging: %v", plugin, verb, label, notRequired))
 	}
 
 	return utilerrors.NewAggregate(configErrors)
-}
-
-// ensureLabelPluginEnabled checks that every org or repo for which tide
-// honors the label (per tideSubSet) also has the corresponding plugin
-// enabled.
-func ensureLabelPluginEnabled(plugin, label, verb string, tideSubSet, pluginsSubSet *orgRepoConfig) error {
-	notEnabled := tideSubSet.difference(pluginsSubSet).items()
-	if len(notEnabled) > 0 {
-		return fmt.Errorf("the following orgs or repos %s the %s label for merging but do not enable the %s plugin: %v", verb, label, plugin, notEnabled)
-	}
-	return nil
 }
 
 func validateDecoratedJobs(cfg *config.Config) error {
