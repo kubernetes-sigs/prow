@@ -55,7 +55,7 @@ require (
 	github.com/sirupsen/logrus v1.10.1
 	github.com/spf13/pflag v1.0.10
 	github.com/stretchr/testify v1.12.1
-	github.com/tektoncd/pipeline v1.15.0
+	github.com/tektoncd/pipeline v1.15.1
 	github.com/yuin/goldmark v1.8.5
 	go.uber.org/zap v1.28.0
 	go.yaml.in/yaml/v3 v3.0.5
