@@ -22,23 +22,30 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/sirupsen/logrus"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	klabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	prowapi "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 	"sigs.k8s.io/prow/pkg/config"
 	"sigs.k8s.io/prow/pkg/git/v2"
 	"sigs.k8s.io/prow/pkg/github"
+	"sigs.k8s.io/prow/pkg/kube"
 	"sigs.k8s.io/prow/pkg/pjutil"
 	"sigs.k8s.io/prow/pkg/pluginhelp"
 	"sigs.k8s.io/prow/pkg/plugins"
 	"sigs.k8s.io/prow/pkg/repoowners"
 )
 
-const pluginName = "override"
+const (
+	pluginName                   = "override"
+	abortedByOverrideDescription = "Aborted by /override."
+)
 
 var (
 	overrideStickyRe = regexp.MustCompile(`(?mi)^/override-sticky( ([^\r\n]+))?[\r\n]?$`)
@@ -69,6 +76,8 @@ type githubClient interface {
 
 type prowJobClient interface {
 	Create(context.Context, *prowapi.ProwJob, metav1.CreateOptions) (*prowapi.ProwJob, error)
+	List(context.Context, metav1.ListOptions) (*prowapi.ProwJobList, error)
+	Update(context.Context, *prowapi.ProwJob, metav1.UpdateOptions) (*prowapi.ProwJob, error)
 }
 
 type ownersClient interface {
@@ -135,6 +144,14 @@ func (c client) Create(ctx context.Context, pj *prowapi.ProwJob, o metav1.Create
 	return c.prowJobClient.Create(ctx, pj, o)
 }
 
+func (c client) List(ctx context.Context, opts metav1.ListOptions) (*prowapi.ProwJobList, error) {
+	return c.prowJobClient.List(ctx, opts)
+}
+
+func (c client) Update(ctx context.Context, pj *prowapi.ProwJob, o metav1.UpdateOptions) (*prowapi.ProwJob, error) {
+	return c.prowJobClient.Update(ctx, pj, o)
+}
+
 func (c client) presubmits(org, repo string, baseSHAGetter config.RefGetter, headSHA string) ([]config.Presubmit, error) {
 	headSHAGetter := func() (string, error) {
 		return headSHA, nil
@@ -153,6 +170,50 @@ func presubmitForContext(presubmits []config.Presubmit, context string) *config.
 		}
 	}
 	return nil
+}
+
+func prowJobSelectorForPR(org, repo string, number int) (klabels.Selector, error) {
+	set := klabels.Set{
+		kube.OrgLabel:         org,
+		kube.RepoLabel:        repo,
+		kube.PullLabel:        strconv.Itoa(number),
+		kube.ProwJobTypeLabel: string(prowapi.PresubmitJob),
+	}
+	selector := klabels.SelectorFromSet(set)
+	if selector.Empty() {
+		return nil, fmt.Errorf("got back empty selector")
+	}
+	return selector, nil
+}
+
+// abortActiveJob silences reporting on ProwJobs named jobName and aborts any that are
+// still running so Plank can tear down the workload without crier clobbering
+// the override status. It sets AbortedState but does not SetComplete: Plank (or
+// Jenkins) reacts to the aborted state by deleting the pod/build and then
+// completing the ProwJob. Completing here would skip that handover and leak the
+// running workload.
+func abortActiveJob(oc overrideClient, log *logrus.Entry, org, repo string, number int, jobName string) {
+	selector, err := prowJobSelectorForPR(org, repo, number)
+	if err != nil {
+		log.WithError(err).Warn("Cannot construct prowjob selector to abort jobs for override")
+		return
+	}
+	jobs, err := oc.List(context.Background(), metav1.ListOptions{LabelSelector: selector.String()})
+	if err != nil {
+		log.WithError(err).Warn("Cannot list prowjobs to abort for override")
+		return
+	}
+	for _, job := range jobs.Items {
+		if job.Spec.Job != jobName || job.Complete() {
+			continue
+		}
+		job.Spec.Report = false
+		job.Status.State = prowapi.AbortedState
+		job.Status.Description = abortedByOverrideDescription
+		if _, err := oc.Update(context.Background(), &job, metav1.UpdateOptions{}); err != nil && !apierrors.IsConflict(err) {
+			log.WithError(err).WithFields(pjutil.ProwJobFields(&job)).Warn("Failed to abort prowjob for override")
+		}
+	}
 }
 
 func (c client) LoadRepoOwners(org, repo, base string) (repoowners.RepoOwner, error) {
@@ -559,6 +620,7 @@ If you are trying to override a checkrun that has a space in it, you must put a 
 				return oc.CreateComment(org, repo, number, plugins.FormatResponseRaw(e.Body, e.HTMLURL, user, resp))
 			}
 			contextsWithCreatedJobs.Insert(status.Context)
+			abortActiveJob(oc, log, org, repo, number, pre.Name)
 		}
 		status.State = github.StatusSuccess
 		status.Description = config.ContextDescriptionWithBaseSha(descFn(user), baseSHA)
