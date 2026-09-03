@@ -259,6 +259,7 @@ func main() {
 	})
 
 	health := pjutil.NewHealthOnPort(o.instrumentationOptions.HealthPort)
+	health.ServeLive()
 
 	hookMux := http.NewServeMux()
 	// TODO remove this health endpoint when the migration to health endpoint is done

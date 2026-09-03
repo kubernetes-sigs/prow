@@ -33,6 +33,8 @@ type Health struct {
 	healthMux *http.ServeMux
 }
 
+type LivenessCheck func() bool
+
 // NewHealth creates a new health request multiplexer and starts serving the liveness endpoint
 // on the default port
 func NewHealth() *Health {
@@ -43,7 +45,6 @@ func NewHealth() *Health {
 // on the given port
 func NewHealthOnPort(port int) *Health {
 	healthMux := http.NewServeMux()
-	healthMux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, "OK") })
 	server := &http.Server{Addr: ":" + strconv.Itoa(port), Handler: healthMux}
 	interrupts.ListenAndServe(server, 5*time.Second)
 	return &Health{
@@ -52,6 +53,21 @@ func NewHealthOnPort(port int) *Health {
 }
 
 type ReadinessCheck func() bool
+
+// ServeLive configures optional liveness checks for /healthz.
+// If no checks are provided, /healthz continues to return OK.
+func (h *Health) ServeLive(livenessChecks ...LivenessCheck) {
+	h.healthMux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		for _, livenessCheck := range livenessChecks {
+			if !livenessCheck() {
+				w.WriteHeader(http.StatusServiceUnavailable)
+				fmt.Fprint(w, "LivenessCheck failed")
+				return
+			}
+		}
+		fmt.Fprint(w, "OK")
+	})
+}
 
 // ServeReady starts serving the readiness endpoint
 func (h *Health) ServeReady(readinessChecks ...ReadinessCheck) {
