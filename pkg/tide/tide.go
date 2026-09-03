@@ -217,6 +217,14 @@ var (
 		// Per controller
 		syncHeartbeat *prometheus.CounterVec
 
+		// Query observability
+		queryDuration         *prometheus.HistogramVec
+		queryPRsReturned      *prometheus.HistogramVec
+		queryErrors           *prometheus.CounterVec
+		queryPartialResults   *prometheus.CounterVec
+		syncQueryShards       *prometheus.GaugeVec
+		poolCompletenessRatio *prometheus.GaugeVec
+
 		// Retesting metrics
 		retests             *prometheus.CounterVec
 		poolMissingPRs      *prometheus.GaugeVec
@@ -287,6 +295,51 @@ var (
 		}, []string{
 			"controller",
 		}),
+		queryDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:    "tide_query_duration_seconds",
+			Help:    "Duration of individual Tide GitHub search queries per shard.",
+			Buckets: []float64{0.5, 1, 2, 5, 10, 20, 30, 45, 60, 90, 120, 180, 300, 450, 600},
+		}, []string{
+			"controller",
+			"result",
+		}),
+		queryPRsReturned: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:    "tide_query_prs_returned",
+			Help:    "Number of PRs returned per Tide query shard.",
+			Buckets: []float64{0, 1, 5, 10, 25, 50, 100, 250, 500, 1000, 2500},
+		}, []string{
+			"controller",
+		}),
+		queryErrors: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "tide_query_errors_total",
+			Help: "Count of Tide query errors per shard.",
+		}, []string{
+			"controller",
+			"query_id",
+			"org_shard",
+			"error_class",
+		}),
+		queryPartialResults: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "tide_query_partial_results_total",
+			Help: "Count of Tide queries that returned partial results.",
+		}, []string{
+			"controller",
+			"query_id",
+			"org_shard",
+		}),
+		syncQueryShards: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "tide_sync_query_shards",
+			Help: "Number of query shards in the most recent sync cycle by outcome.",
+		}, []string{
+			"controller",
+			"result",
+		}),
+		poolCompletenessRatio: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "tide_pool_completeness_ratio",
+			Help: "Fraction of query shards that completed fully.",
+		}, []string{
+			"controller",
+		}),
 		retests: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "tide_retests_total",
 			Help: "Total number of test retriggers by org, repo, branch, and action. Incremented when Tide triggers tests for PRs that need retesting. Action is either TRIGGER (serial) or TRIGGER_BATCH (batch).",
@@ -340,6 +393,12 @@ func init() {
 	prometheus.MustRegister(tideMetrics.syncHeartbeat)
 	prometheus.MustRegister(tideMetrics.poolErrors)
 	prometheus.MustRegister(tideMetrics.queryResults)
+	prometheus.MustRegister(tideMetrics.queryDuration)
+	prometheus.MustRegister(tideMetrics.queryPRsReturned)
+	prometheus.MustRegister(tideMetrics.queryErrors)
+	prometheus.MustRegister(tideMetrics.queryPartialResults)
+	prometheus.MustRegister(tideMetrics.syncQueryShards)
+	prometheus.MustRegister(tideMetrics.poolCompletenessRatio)
 	prometheus.MustRegister(tideMetrics.retests)
 	prometheus.MustRegister(tideMetrics.poolMissingPRs)
 	prometheus.MustRegister(tideMetrics.poolPendingPRs)
@@ -543,7 +602,7 @@ func (c *syncController) Sync() error {
 	var queryErrors []error
 	prs, err := c.provider.Query()
 	if err != nil {
-		c.logger.WithError(err).Debug("failed to query GitHub for some prs")
+		c.logger.WithError(err).Error("failed to query GitHub for some prs")
 		queryErrors = append(queryErrors, err)
 	}
 	c.logger.WithFields(logrus.Fields{
