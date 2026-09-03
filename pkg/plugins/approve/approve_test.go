@@ -1400,6 +1400,10 @@ func (fro fakeRepoOwners) RequiredReviewers(path string) sets.Set[string] {
 	return sets.New[string]()
 }
 
+func (fro fakeRepoOwners) AdvisoryApprovers(path string) sets.Set[string] {
+	return sets.New[string]()
+}
+
 func TestHandleGenericComment(t *testing.T) {
 	tests := []struct {
 		name              string

@@ -69,6 +69,9 @@ func (foc *fakeOwnersClient) Filenames() ownersconfig.Filenames   { return owner
 func (foc *fakeOwnersClient) AllOwners() sets.Set[string]         { return nil }
 func (foc *fakeOwnersClient) AllApprovers() sets.Set[string]      { return nil }
 func (foc *fakeOwnersClient) AllReviewers() sets.Set[string]      { return nil }
+func (foc *fakeOwnersClient) AdvisoryApprovers(path string) sets.Set[string] {
+	return nil
+}
 
 // fakeRepoownersClient implements ownersClient.
 // It wraps fakeOwnersClient and returns it from LoadRepoOwners.

@@ -90,6 +90,10 @@ func (f *fakeRepoOwners) AllReviewers() sets.Set[string] {
 	return sets.Set[string]{}
 }
 
+func (f *fakeRepoOwners) AdvisoryApprovers(path string) sets.Set[string] {
+	return sets.Set[string]{}
+}
+
 func (f *fakeRepoOwners) Filenames() ownersconfig.Filenames {
 	return ownersconfig.FakeFilenames
 }
