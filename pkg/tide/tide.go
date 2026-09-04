@@ -20,13 +20,14 @@ limitations under the License.
 package tide
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
 	"net/http"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -523,7 +524,7 @@ func contextsToStrings(contexts []Context) []string {
 		names = append(names, string(c.Context))
 	}
 	// Sorting names improves readability of logs and simplifies unit tests.
-	sort.Strings(names)
+	slices.Sort(names)
 	return names
 }
 
@@ -1207,7 +1208,7 @@ func (c *syncController) pickBatch(sp subpool, cc map[int]contextChecker, newBat
 	}
 
 	// we must choose the oldest PRs for the batch
-	sort.Slice(sp.prs, func(i, j int) bool { return sp.prs[i].Number < sp.prs[j].Number })
+	slices.SortFunc(sp.prs, func(a, b CodeReviewCommon) int { return cmp.Compare(a.Number, b.Number) })
 
 	var candidates []CodeReviewCommon
 	for _, pr := range sp.prs {
@@ -1878,18 +1879,16 @@ func prMeta(prs ...CodeReviewCommon) []prowapi.Pull {
 }
 
 func sortPools(pools []Pool) {
-	sort.Slice(pools, func(i, j int) bool {
-		if string(pools[i].Org) != string(pools[j].Org) {
-			return string(pools[i].Org) < string(pools[j].Org)
-		}
-		if string(pools[i].Repo) != string(pools[j].Repo) {
-			return string(pools[i].Repo) < string(pools[j].Repo)
-		}
-		return string(pools[i].Branch) < string(pools[j].Branch)
+	slices.SortFunc(pools, func(a, b Pool) int {
+		return cmp.Or(
+			cmp.Compare(a.Org, b.Org),
+			cmp.Compare(a.Repo, b.Repo),
+			cmp.Compare(a.Branch, b.Branch),
+		)
 	})
 
 	sortPRs := func(prs []CodeReviewCommon) {
-		sort.Slice(prs, func(i, j int) bool { return int(prs[i].Number) < int(prs[j].Number) })
+		slices.SortFunc(prs, func(a, b CodeReviewCommon) int { return cmp.Compare(a.Number, b.Number) })
 	}
 	for i := range pools {
 		sortPRs(pools[i].SuccessPRs)
@@ -2180,13 +2179,13 @@ const nonFailedBatchByNameBaseAndPullsIndexName = "tide-non-failed-jobs-by-name-
 // the batch job, and returns a string contain all of them. This is used only by
 // nonFailedBatchByNameBaseAndPullsIndexFunc.
 func nonFailedBatchByNameBaseAndPullsIndexKey(jobName string, refs *prowapi.Refs) string {
-	// sort the pulls to make sure this is deterministic
-	sort.Slice(refs.Pulls, func(i, j int) bool {
-		return refs.Pulls[i].Number < refs.Pulls[j].Number
-	})
+	// sort the pulls to make sure this is determinististic, but make a copy
+	// to avoid mutating the input, it can point to a cache-backed object
+	pulls := slices.Clone(refs.Pulls)
+	slices.SortFunc(pulls, func(a, b prowapi.Pull) int { return cmp.Compare(a.Number, b.Number) })
 
 	keys := []string{jobName, refs.Org, refs.Repo, refs.BaseRef, refs.BaseSHA}
-	for _, pull := range refs.Pulls {
+	for _, pull := range pulls {
 		keys = append(keys, strconv.Itoa(pull.Number), pull.SHA)
 	}
 
