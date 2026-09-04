@@ -132,16 +132,17 @@ func (froc fakeRepoownersClient) LoadRepoOwners(org, repo, base string) (repoown
 }
 
 type fakeOwnersClient struct {
-	owners        map[string]string
-	approvers     map[string]layeredsets.String
-	leafApprovers map[string]sets.Set[string]
-	reviewers     map[string]layeredsets.String
-	leafReviewers map[string]sets.Set[string]
-	allOwners     sets.Set[string]
+	owners            map[string]string
+	approvers         map[string]layeredsets.String
+	leafApprovers     map[string]sets.Set[string]
+	reviewers         map[string]layeredsets.String
+	requiredReviewers map[string]sets.Set[string]
+	leafReviewers     map[string]sets.Set[string]
+	allOwners         sets.Set[string]
 }
 
-func (foc *fakeOwnersClient) AllApprovers() sets.Set[string]    { return sets.Set[string]{} }
-func (foc *fakeOwnersClient) AllReviewers() sets.Set[string]    { return sets.Set[string]{} }
+func (foc *fakeOwnersClient) AllApprovers() sets.Set[string]      { return sets.Set[string]{} }
+func (foc *fakeOwnersClient) AllReviewers() sets.Set[string]      { return sets.Set[string]{} }
 func (foc *fakeOwnersClient) TopLevelApprovers() sets.Set[string] { return sets.Set[string]{} }
 
 func (foc *fakeOwnersClient) AllOwners() sets.Set[string] {
@@ -168,7 +169,7 @@ func (foc *fakeOwnersClient) Reviewers(path string) layeredsets.String {
 }
 
 func (foc *fakeOwnersClient) RequiredReviewers(path string) sets.Set[string] {
-	return sets.Set[string]{}
+	return foc.requiredReviewers[path]
 }
 
 func (foc *fakeOwnersClient) LeafReviewers(path string) sets.Set[string] {
@@ -183,7 +184,7 @@ func (foc *fakeOwnersClient) FindLabelsForFile(path string) sets.Set[string] {
 	return sets.Set[string]{}
 }
 
-func (foc *fakeOwnersClient) IsNoParentOwners(path string) bool              { return false }
+func (foc *fakeOwnersClient) IsNoParentOwners(path string) bool               { return false }
 func (foc *fakeOwnersClient) IsAutoApproveUnownedSubfolders(path string) bool { return false }
 
 func (foc *fakeOwnersClient) ParseSimpleConfig(path string) (repoowners.SimpleConfig, error) {
@@ -505,6 +506,249 @@ func TestHandleRifleWithBlameScoring(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestHandleRifleWithExistingRequestedReviewers(t *testing.T) {
+	froc := &fakeRepoownersClient{
+		foc: &fakeOwnersClient{
+			owners: map[string]string{
+				"a.go": "1",
+				"r.go": "2",
+			},
+			approvers: map[string]layeredsets.String{
+				"a.go": layeredsets.NewString("adam"),
+				"r.go": layeredsets.NewString("adam"),
+			},
+			leafApprovers: map[string]sets.Set[string]{
+				"a.go": sets.New[string]("adam"),
+				"r.go": sets.New[string]("adam"),
+			},
+			reviewers: map[string]layeredsets.String{
+				"a.go": layeredsets.NewString("bob", "christoph", "david"),
+				"r.go": layeredsets.NewString("bob", "christoph", "david"),
+			},
+			leafReviewers: map[string]sets.Set[string]{
+				"a.go": sets.New[string]("bob", "christoph", "david"),
+				"r.go": sets.New[string]("bob", "christoph", "david"),
+			},
+			requiredReviewers: map[string]sets.Set[string]{
+				"r.go": sets.New[string]("rachel"),
+			},
+		},
+	}
+
+	testcases := []struct {
+		name               string
+		filesChanged       []string
+		requestedReviewers []string
+		reviewerCount      int
+		maxReviewerCount   int
+		excludeApprovers   bool
+		expectedCount      int
+		allowedRequested   []string
+		mustRequest        []string
+		mustNotRequest     []string
+	}{
+		{
+			name:               "eligible existing reviewer counts toward the quota",
+			filesChanged:       []string{"a.go"},
+			requestedReviewers: []string{"christoph"},
+			reviewerCount:      2,
+			excludeApprovers:   true,
+			expectedCount:      1,
+			allowedRequested:   []string{"bob", "david"},
+			mustNotRequest:     []string{"christoph"},
+		},
+		{
+			name:               "quota fully satisfied by existing eligible reviewers",
+			filesChanged:       []string{"a.go"},
+			requestedReviewers: []string{"christoph", "bob"},
+			reviewerCount:      2,
+			excludeApprovers:   true,
+			expectedCount:      0,
+		},
+		{
+			name:               "ineligible existing reviewer does not count",
+			filesChanged:       []string{"a.go"},
+			requestedReviewers: []string{"stranger"},
+			reviewerCount:      2,
+			excludeApprovers:   true,
+			expectedCount:      2,
+			allowedRequested:   []string{"bob", "christoph", "david"},
+		},
+		{
+			name:               "requested login case differs from OWNERS entry",
+			filesChanged:       []string{"a.go"},
+			requestedReviewers: []string{"Christoph"},
+			reviewerCount:      2,
+			excludeApprovers:   true,
+			expectedCount:      1,
+			allowedRequested:   []string{"bob", "david"},
+			mustNotRequest:     []string{"christoph", "Christoph"},
+		},
+		{
+			name:               "quota satisfied but required reviewers still requested",
+			filesChanged:       []string{"r.go"},
+			requestedReviewers: []string{"christoph", "bob"},
+			reviewerCount:      2,
+			excludeApprovers:   true,
+			expectedCount:      1,
+			allowedRequested:   []string{"rachel"},
+			mustRequest:        []string{"rachel"},
+		},
+		{
+			name:               "maxReviewerCount accounts for existing eligible reviewers",
+			filesChanged:       []string{"a.go"},
+			requestedReviewers: []string{"christoph"},
+			reviewerCount:      3,
+			maxReviewerCount:   2,
+			excludeApprovers:   true,
+			expectedCount:      1,
+			allowedRequested:   []string{"bob", "david"},
+			mustNotRequest:     []string{"christoph"},
+		},
+		{
+			name:               "approver-only existing reviewer counts when approvers are not excluded",
+			filesChanged:       []string{"a.go"},
+			requestedReviewers: []string{"adam"},
+			reviewerCount:      1,
+			excludeApprovers:   false,
+			expectedCount:      0,
+		},
+		{
+			name:               "approver-only existing reviewer does not count when approvers are excluded",
+			filesChanged:       []string{"a.go"},
+			requestedReviewers: []string{"adam"},
+			reviewerCount:      1,
+			excludeApprovers:   true,
+			expectedCount:      1,
+			allowedRequested:   []string{"bob", "christoph", "david"},
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			pr := github.PullRequest{
+				Number: 5,
+				User:   github.User{Login: "alice"},
+				Base:   github.PullRequestBranch{Ref: "main"},
+			}
+			for _, login := range tc.requestedReviewers {
+				pr.RequestedReviewers = append(pr.RequestedReviewers, github.User{Login: login})
+			}
+			repo := github.Repo{Owner: github.User{Login: "org"}, Name: "repo"}
+			fghc := &fakeRifleClient{
+				fakeGitHubClient: newFakeGitHubClient(&pr, tc.filesChanged),
+			}
+
+			if err := handle(
+				fghc, froc, logrusEntry(),
+				&tc.reviewerCount, tc.maxReviewerCount, tc.excludeApprovers, false, &repo, &pr,
+			); err != nil {
+				t.Fatalf("unexpected error from handle: %v", err)
+			}
+
+			if len(fghc.requested) != tc.expectedCount {
+				t.Fatalf("expected %d newly requested reviewers, got %d: %v", tc.expectedCount, len(fghc.requested), fghc.requested)
+			}
+			allowed := sets.New[string](tc.allowedRequested...)
+			requested := sets.New[string](fghc.requested...)
+			for _, login := range fghc.requested {
+				if !allowed.Has(login) {
+					t.Errorf("requested reviewer %q is not in the allowed set %v", login, sets.List(allowed))
+				}
+			}
+			for _, login := range tc.mustRequest {
+				if !requested.Has(login) {
+					t.Errorf("expected reviewer %q to be requested, got %v", login, fghc.requested)
+				}
+			}
+			for _, login := range tc.mustNotRequest {
+				if requested.Has(login) {
+					t.Errorf("reviewer %q must not be requested again, got %v", login, fghc.requested)
+				}
+			}
+		})
+	}
+}
+
+// TestHandleRifleFallbackExcludesExistingRequestedReviewers drives the git-blame
+// fallback branch (rifle-only) and asserts that an already-requested eligible
+// reviewer is not re-requested through it.
+func TestHandleRifleFallbackExcludesExistingRequestedReviewers(t *testing.T) {
+	froc := &fakeRepoownersClient{
+		foc: &fakeOwnersClient{
+			owners: map[string]string{
+				"pkg/foo/a.go": "1",
+			},
+			approvers: map[string]layeredsets.String{},
+			reviewers: map[string]layeredsets.String{
+				"pkg/foo/a.go": layeredsets.NewString("alice", "bob"),
+			},
+			leafReviewers: map[string]sets.Set[string]{
+				"pkg/foo/a.go": sets.New[string]("alice", "bob"),
+			},
+			// charlie owns code elsewhere in the repo, and so is only reachable
+			// through the broader fallback scope.
+			allOwners: sets.New[string]("alice", "bob", "charlie"),
+		},
+	}
+
+	now := time.Now()
+	pr := github.PullRequest{
+		Number:             5,
+		User:               github.User{Login: "author"},
+		Base:               github.PullRequestBranch{Ref: "main"},
+		Head:               github.PullRequestBranch{SHA: "abc123"},
+		RequestedReviewers: []github.User{{Login: "alice"}},
+	}
+	repo := github.Repo{Owner: github.User{Login: "org"}, Name: "repo"}
+
+	fghc := &fakeRifleClient{
+		fakeGitHubClient: &fakeGitHubClient{
+			pr: &pr,
+			changes: []github.PullRequestChange{
+				{
+					Filename: "pkg/foo/a.go",
+					Status:   "modified",
+					Patch:    "@@ -1,10 +1,12 @@ package foo",
+					SHA:      "abc123",
+				},
+			},
+		},
+		blames: map[string][]github.BlameRange{
+			"pkg/foo/a.go": {
+				{StartingLine: 1, EndingLine: 10, AuthorLogin: "alice", Date: now.Add(-24 * time.Hour)},
+				{StartingLine: 1, EndingLine: 8, AuthorLogin: "bob", Date: now.Add(-24 * time.Hour)},
+				{StartingLine: 1, EndingLine: 4, AuthorLogin: "charlie", Date: now.Add(-48 * time.Hour)},
+			},
+		},
+		mergeBase: "mergebaseSHA",
+	}
+
+	// alice is already requested and eligible, so only 3 more reviewers are
+	// needed. The OWNERS pool can supply just bob, leaving 2 missing and forcing
+	// the fallback over allOwners.
+	reviewerCount := 4
+	if err := handle(
+		fghc, froc, logrusEntry(),
+		&reviewerCount, 0, true, false, &repo, &pr,
+	); err != nil {
+		t.Fatalf("unexpected error from handle: %v", err)
+	}
+
+	got := append([]string(nil), fghc.requested...)
+	sort.Strings(got)
+	want := []string{"bob", "charlie"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("expected fallback to request %v, got %v", want, got)
+	}
+	// Without the existingEligible union in excludeFromFallback, alice would be
+	// re-requested here: the fallback needs 2 reviewers and only alice and
+	// charlie would remain eligible.
+	if sets.New[string](got...).Has("alice") {
+		t.Errorf("already requested reviewer %q must not be re-requested via the blame fallback, got %v", "alice", got)
 	}
 }
 
