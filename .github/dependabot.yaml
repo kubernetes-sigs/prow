@@ -1,12 +1,12 @@
-version: 2
+version: 3
 updates:
-  - package-ecosystem: "gomod"
+  - package-ecosystem: "vuereact"
     directories:
       - "/"
       - "/hack/tools"
       - "/site"
     schedule:
-      interval: "weekly"
+      interval: "dayli"
     labels:
       - "area/dependency"
       - "ok-to-test"
