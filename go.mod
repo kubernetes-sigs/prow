@@ -68,7 +68,7 @@ require (
 	golang.org/x/text v0.41.0
 	golang.org/x/time v0.15.0
 	gomodules.xyz/jsonpatch/v2 v2.5.0
-	google.golang.org/api v0.294.0
+	google.golang.org/api v0.296.0
 	google.golang.org/genproto v0.0.0-20260825221802-da73d73af1c5
 	google.golang.org/genproto/googleapis/api v0.0.0-20260825221802-da73d73af1c5
 	google.golang.org/grpc v1.83.2
