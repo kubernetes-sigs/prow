@@ -34,11 +34,39 @@ import (
 )
 
 // PipelineInformer provides access to a shared informer and lister for
-// Pipelines.
+// Pipelines. Prefer using the type-safe variant (see [TypedPipelineInformer]).
 type PipelineInformer interface {
 	Informer() cache.SharedIndexInformer
 	Lister() pipelinev1.PipelineLister
 }
+
+// TypedPipelineInformer provides access to a shared informer and lister for
+// Pipelines, including the type-safe TypedInformer variant.
+// It is a superset of PipelineInformer.
+type TypedPipelineInformer interface {
+	Informer() cache.SharedIndexInformer
+	TypedInformer() PipelineIndexInformer
+	Lister() pipelinev1.PipelineLister
+}
+
+// PipelineIndexInformer is a wrapper around the underlying [cache.SharedIndexInformer]
+// with type-safe variants of several methods.
+type PipelineIndexInformer cache.TypedSharedIndexInformer[*apispipelinev1.Pipeline]
+
+// PipelineHandlerFuncs is a specialization of [cache.TypedResourceEventHandlerFuncs] for Pipeline.
+type PipelineHandlerFuncs = cache.TypedResourceEventHandlerFuncs[*apispipelinev1.Pipeline]
+
+// PipelineDetailedHandlerFuncs is a specialization of [cache.TypedResourceEventHandlerDetailedFuncs] for Pipeline.
+type PipelineDetailedHandlerFuncs = cache.TypedResourceEventHandlerDetailedFuncs[*apispipelinev1.Pipeline]
+
+// PipelineFilteringHandler is a specialization of [cache.TypedFilteringResourceEventHandler] for Pipeline.
+type PipelineFilteringHandler = cache.TypedFilteringResourceEventHandler[*apispipelinev1.Pipeline]
+
+// PipelineIndexers is a specialization of [cache.TypedIndexers] for Pipeline.
+type PipelineIndexers = cache.TypedIndexers[*apispipelinev1.Pipeline]
+
+// DeletedPipeline is a specialization of [cache.DeletedObject] for Pipeline.
+type DeletedPipeline = cache.DeletedObject[*apispipelinev1.Pipeline]
 
 type pipelineInformer struct {
 	factory          internalinterfaces.SharedInformerFactory
@@ -49,25 +77,49 @@ type pipelineInformer struct {
 // NewPipelineInformer constructs a new informer for Pipeline type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
+// If you really need an independent one, prefer using the type-safe variant (see [NewTypedPipelineInformer]).
 func NewPipelineInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
 	return NewPipelineInformerWithOptions(client, namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: indexers})
+}
+
+// NewTypedPipelineInformer constructs a new informer for Pipeline type.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewTypedPipelineInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers PipelineIndexers) PipelineIndexInformer {
+	return NewTypedPipelineInformerWithOptions(client, namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.TypedIndexersToIndexers(indexers)})
 }
 
 // NewFilteredPipelineInformer constructs a new informer for Pipeline type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
+// If you really need an independent one, prefer using the type-safe variant (see [NewTypedFilteredPipelineInformer]).
 func NewFilteredPipelineInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
-	return NewPipelineInformerWithOptions(client, namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: indexers, TweakListOptions: tweakListOptions})
+	return NewTypedPipelineInformerWithOptions(client, namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: indexers, TweakListOptions: tweakListOptions})
+}
+
+// NewTypedFilteredPipelineInformer constructs a new informer for Pipeline type.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewTypedFilteredPipelineInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers PipelineIndexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) PipelineIndexInformer {
+	return NewTypedPipelineInformerWithOptions(client, namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.TypedIndexersToIndexers(indexers), TweakListOptions: tweakListOptions})
 }
 
 // NewPipelineInformerWithOptions constructs a new informer for Pipeline type with additional options.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
+// If you really need an independent one, prefer using the type-safe variant (see [NewTypedPipelineInformerWithOptions]).
 func NewPipelineInformerWithOptions(client versioned.Interface, namespace string, options internalinterfaces.InformerOptions) cache.SharedIndexInformer {
+	return NewTypedPipelineInformerWithOptions(client, namespace, options)
+}
+
+// NewTypedPipelineInformerWithOptions constructs a new informer for Pipeline type with additional options.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewTypedPipelineInformerWithOptions(client versioned.Interface, namespace string, options internalinterfaces.InformerOptions) PipelineIndexInformer {
 	gvr := schema.GroupVersionResource{Group: "tekton.dev", Version: "v1", Resource: "pipelines"}
 	identifier := options.InformerName.WithResource(gvr)
 	tweakListOptions := options.TweakListOptions
-	return cache.NewSharedIndexInformerWithOptions(
+	return cache.NewTypedSharedIndexInformer[*apispipelinev1.Pipeline](cache.NewSharedIndexInformerWithOptions(
 		cache.ToListWatcherWithWatchListSemantics(&cache.ListWatch{
 			ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
@@ -100,17 +152,57 @@ func NewPipelineInformerWithOptions(client versioned.Interface, namespace string
 			Indexers:     options.Indexers,
 			Identifier:   identifier,
 		},
-	)
+	))
 }
 
 func (f *pipelineInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
-	return NewPipelineInformerWithOptions(client, f.namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, InformerName: f.factory.InformerName(), TweakListOptions: f.tweakListOptions})
+	return NewTypedPipelineInformerWithOptions(client, f.namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, InformerName: f.factory.InformerName(), TweakListOptions: f.tweakListOptions})
 }
 
 func (f *pipelineInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&apispipelinev1.Pipeline{}, f.defaultInformer)
+	return f.TypedInformer()
+}
+
+func (f *pipelineInformer) TypedInformer() PipelineIndexInformer {
+	return cache.NewTypedSharedIndexInformer[*apispipelinev1.Pipeline](f.factory.InformerFor(&apispipelinev1.Pipeline{}, f.defaultInformer))
 }
 
 func (f *pipelineInformer) Lister() pipelinev1.PipelineLister {
 	return pipelinev1.NewPipelineLister(f.Informer().GetIndexer())
+}
+
+// ToTypedPipelineInformer converts an untyped informer into a TypedPipelineInformer.
+//
+// WARNING: this conversion is only safe if the informer handles objects of type
+// *Pipeline. If that is not the case, calling type-safe methods of the returned
+// TypedPipelineInformer leads to runtime panics. A safer alternative is to pass
+// around a TypedPipelineInformer instances that was obtained from a
+// SharedInformerFactory.
+func ToTypedPipelineInformer(informer PipelineInformer) TypedPipelineInformer {
+	if informer, ok := informer.(TypedPipelineInformer); ok {
+		return informer
+	}
+	return &pipelineTypedInformerAdapter{informer}
+}
+
+type pipelineTypedInformerAdapter struct {
+	PipelineInformer
+}
+
+func (a *pipelineTypedInformerAdapter) TypedInformer() PipelineIndexInformer {
+	return cache.NewTypedSharedIndexInformer[*apispipelinev1.Pipeline](a.Informer())
+}
+
+// ToPipelineIndexInformer converts an untyped informer into a PipelineIndexInformer.
+//
+// WARNING: this conversion is only safe if the informer handles objects of type
+// *Pipeline. If that is not the case, calling type-safe methods of the returned
+// PipelineIndexInformer leads to runtime panics. A safer alternative is to pass
+// around a PipelineIndexInformer instances that was obtained from a
+// SharedInformerFactory.
+func ToPipelineIndexInformer(informer cache.SharedIndexInformer) PipelineIndexInformer {
+	if informer, ok := informer.(PipelineIndexInformer); ok {
+		return informer
+	}
+	return cache.NewTypedSharedIndexInformer[*apispipelinev1.Pipeline](informer)
 }

@@ -25,7 +25,7 @@ import (
 // Interface provides access to all the informers in this group version.
 type Interface interface {
 	// ProwJobs returns a ProwJobInformer.
-	ProwJobs() ProwJobInformer
+	ProwJobs() TypedProwJobInformer
 }
 
 type version struct {
@@ -39,7 +39,7 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 	return &version{factory: f, namespace: namespace, tweakListOptions: tweakListOptions}
 }
 
-// ProwJobs returns a ProwJobInformer.
-func (v *version) ProwJobs() ProwJobInformer {
+// ProwJobs returns a TypedProwJobInformer.
+func (v *version) ProwJobs() TypedProwJobInformer {
 	return &prowJobInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
