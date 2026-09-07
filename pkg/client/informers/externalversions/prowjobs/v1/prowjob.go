@@ -34,11 +34,39 @@ import (
 )
 
 // ProwJobInformer provides access to a shared informer and lister for
-// ProwJobs.
+// ProwJobs. Prefer using the type-safe variant (see [TypedProwJobInformer]).
 type ProwJobInformer interface {
 	Informer() cache.SharedIndexInformer
 	Lister() prowjobsv1.ProwJobLister
 }
+
+// TypedProwJobInformer provides access to a shared informer and lister for
+// ProwJobs, including the type-safe TypedInformer variant.
+// It is a superset of ProwJobInformer.
+type TypedProwJobInformer interface {
+	Informer() cache.SharedIndexInformer
+	TypedInformer() ProwJobIndexInformer
+	Lister() prowjobsv1.ProwJobLister
+}
+
+// ProwJobIndexInformer is a wrapper around the underlying [cache.SharedIndexInformer]
+// with type-safe variants of several methods.
+type ProwJobIndexInformer cache.TypedSharedIndexInformer[*apisprowjobsv1.ProwJob]
+
+// ProwJobHandlerFuncs is a specialization of [cache.TypedResourceEventHandlerFuncs] for ProwJob.
+type ProwJobHandlerFuncs = cache.TypedResourceEventHandlerFuncs[*apisprowjobsv1.ProwJob]
+
+// ProwJobDetailedHandlerFuncs is a specialization of [cache.TypedResourceEventHandlerDetailedFuncs] for ProwJob.
+type ProwJobDetailedHandlerFuncs = cache.TypedResourceEventHandlerDetailedFuncs[*apisprowjobsv1.ProwJob]
+
+// ProwJobFilteringHandler is a specialization of [cache.TypedFilteringResourceEventHandler] for ProwJob.
+type ProwJobFilteringHandler = cache.TypedFilteringResourceEventHandler[*apisprowjobsv1.ProwJob]
+
+// ProwJobIndexers is a specialization of [cache.TypedIndexers] for ProwJob.
+type ProwJobIndexers = cache.TypedIndexers[*apisprowjobsv1.ProwJob]
+
+// DeletedProwJob is a specialization of [cache.DeletedObject] for ProwJob.
+type DeletedProwJob = cache.DeletedObject[*apisprowjobsv1.ProwJob]
 
 type prowJobInformer struct {
 	factory          internalinterfaces.SharedInformerFactory
@@ -49,25 +77,49 @@ type prowJobInformer struct {
 // NewProwJobInformer constructs a new informer for ProwJob type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
+// If you really need an independent one, prefer using the type-safe variant (see [NewTypedProwJobInformer]).
 func NewProwJobInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
 	return NewProwJobInformerWithOptions(client, namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: indexers})
+}
+
+// NewTypedProwJobInformer constructs a new informer for ProwJob type.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewTypedProwJobInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers ProwJobIndexers) ProwJobIndexInformer {
+	return NewTypedProwJobInformerWithOptions(client, namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.TypedIndexersToIndexers(indexers)})
 }
 
 // NewFilteredProwJobInformer constructs a new informer for ProwJob type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
+// If you really need an independent one, prefer using the type-safe variant (see [NewTypedFilteredProwJobInformer]).
 func NewFilteredProwJobInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
-	return NewProwJobInformerWithOptions(client, namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: indexers, TweakListOptions: tweakListOptions})
+	return NewTypedProwJobInformerWithOptions(client, namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: indexers, TweakListOptions: tweakListOptions})
+}
+
+// NewTypedFilteredProwJobInformer constructs a new informer for ProwJob type.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewTypedFilteredProwJobInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers ProwJobIndexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) ProwJobIndexInformer {
+	return NewTypedProwJobInformerWithOptions(client, namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.TypedIndexersToIndexers(indexers), TweakListOptions: tweakListOptions})
 }
 
 // NewProwJobInformerWithOptions constructs a new informer for ProwJob type with additional options.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
+// If you really need an independent one, prefer using the type-safe variant (see [NewTypedProwJobInformerWithOptions]).
 func NewProwJobInformerWithOptions(client versioned.Interface, namespace string, options internalinterfaces.InformerOptions) cache.SharedIndexInformer {
+	return NewTypedProwJobInformerWithOptions(client, namespace, options)
+}
+
+// NewTypedProwJobInformerWithOptions constructs a new informer for ProwJob type with additional options.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewTypedProwJobInformerWithOptions(client versioned.Interface, namespace string, options internalinterfaces.InformerOptions) ProwJobIndexInformer {
 	gvr := schema.GroupVersionResource{Group: "prow.k8s.io", Version: "v1", Resource: "prowjobs"}
 	identifier := options.InformerName.WithResource(gvr)
 	tweakListOptions := options.TweakListOptions
-	return cache.NewSharedIndexInformerWithOptions(
+	return cache.NewTypedSharedIndexInformer[*apisprowjobsv1.ProwJob](cache.NewSharedIndexInformerWithOptions(
 		cache.ToListWatcherWithWatchListSemantics(&cache.ListWatch{
 			ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
@@ -100,17 +152,57 @@ func NewProwJobInformerWithOptions(client versioned.Interface, namespace string,
 			Indexers:     options.Indexers,
 			Identifier:   identifier,
 		},
-	)
+	))
 }
 
 func (f *prowJobInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
-	return NewProwJobInformerWithOptions(client, f.namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, InformerName: f.factory.InformerName(), TweakListOptions: f.tweakListOptions})
+	return NewTypedProwJobInformerWithOptions(client, f.namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, InformerName: f.factory.InformerName(), TweakListOptions: f.tweakListOptions})
 }
 
 func (f *prowJobInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&apisprowjobsv1.ProwJob{}, f.defaultInformer)
+	return f.TypedInformer()
+}
+
+func (f *prowJobInformer) TypedInformer() ProwJobIndexInformer {
+	return cache.NewTypedSharedIndexInformer[*apisprowjobsv1.ProwJob](f.factory.InformerFor(&apisprowjobsv1.ProwJob{}, f.defaultInformer))
 }
 
 func (f *prowJobInformer) Lister() prowjobsv1.ProwJobLister {
 	return prowjobsv1.NewProwJobLister(f.Informer().GetIndexer())
+}
+
+// ToTypedProwJobInformer converts an untyped informer into a TypedProwJobInformer.
+//
+// WARNING: this conversion is only safe if the informer handles objects of type
+// *ProwJob. If that is not the case, calling type-safe methods of the returned
+// TypedProwJobInformer leads to runtime panics. A safer alternative is to pass
+// around a TypedProwJobInformer instances that was obtained from a
+// SharedInformerFactory.
+func ToTypedProwJobInformer(informer ProwJobInformer) TypedProwJobInformer {
+	if informer, ok := informer.(TypedProwJobInformer); ok {
+		return informer
+	}
+	return &prowJobTypedInformerAdapter{informer}
+}
+
+type prowJobTypedInformerAdapter struct {
+	ProwJobInformer
+}
+
+func (a *prowJobTypedInformerAdapter) TypedInformer() ProwJobIndexInformer {
+	return cache.NewTypedSharedIndexInformer[*apisprowjobsv1.ProwJob](a.Informer())
+}
+
+// ToProwJobIndexInformer converts an untyped informer into a ProwJobIndexInformer.
+//
+// WARNING: this conversion is only safe if the informer handles objects of type
+// *ProwJob. If that is not the case, calling type-safe methods of the returned
+// ProwJobIndexInformer leads to runtime panics. A safer alternative is to pass
+// around a ProwJobIndexInformer instances that was obtained from a
+// SharedInformerFactory.
+func ToProwJobIndexInformer(informer cache.SharedIndexInformer) ProwJobIndexInformer {
+	if informer, ok := informer.(ProwJobIndexInformer); ok {
+		return informer
+	}
+	return cache.NewTypedSharedIndexInformer[*apisprowjobsv1.ProwJob](informer)
 }

@@ -25,13 +25,13 @@ import (
 // Interface provides access to all the informers in this group version.
 type Interface interface {
 	// Pipelines returns a PipelineInformer.
-	Pipelines() PipelineInformer
+	Pipelines() TypedPipelineInformer
 	// PipelineRuns returns a PipelineRunInformer.
-	PipelineRuns() PipelineRunInformer
+	PipelineRuns() TypedPipelineRunInformer
 	// Tasks returns a TaskInformer.
-	Tasks() TaskInformer
+	Tasks() TypedTaskInformer
 	// TaskRuns returns a TaskRunInformer.
-	TaskRuns() TaskRunInformer
+	TaskRuns() TypedTaskRunInformer
 }
 
 type version struct {
@@ -45,22 +45,22 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 	return &version{factory: f, namespace: namespace, tweakListOptions: tweakListOptions}
 }
 
-// Pipelines returns a PipelineInformer.
-func (v *version) Pipelines() PipelineInformer {
+// Pipelines returns a TypedPipelineInformer.
+func (v *version) Pipelines() TypedPipelineInformer {
 	return &pipelineInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
-// PipelineRuns returns a PipelineRunInformer.
-func (v *version) PipelineRuns() PipelineRunInformer {
+// PipelineRuns returns a TypedPipelineRunInformer.
+func (v *version) PipelineRuns() TypedPipelineRunInformer {
 	return &pipelineRunInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
-// Tasks returns a TaskInformer.
-func (v *version) Tasks() TaskInformer {
+// Tasks returns a TypedTaskInformer.
+func (v *version) Tasks() TypedTaskInformer {
 	return &taskInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
-// TaskRuns returns a TaskRunInformer.
-func (v *version) TaskRuns() TaskRunInformer {
+// TaskRuns returns a TypedTaskRunInformer.
+func (v *version) TaskRuns() TypedTaskRunInformer {
 	return &taskRunInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }

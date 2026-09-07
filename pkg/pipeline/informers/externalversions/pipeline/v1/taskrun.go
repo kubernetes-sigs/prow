@@ -34,11 +34,39 @@ import (
 )
 
 // TaskRunInformer provides access to a shared informer and lister for
-// TaskRuns.
+// TaskRuns. Prefer using the type-safe variant (see [TypedTaskRunInformer]).
 type TaskRunInformer interface {
 	Informer() cache.SharedIndexInformer
 	Lister() pipelinev1.TaskRunLister
 }
+
+// TypedTaskRunInformer provides access to a shared informer and lister for
+// TaskRuns, including the type-safe TypedInformer variant.
+// It is a superset of TaskRunInformer.
+type TypedTaskRunInformer interface {
+	Informer() cache.SharedIndexInformer
+	TypedInformer() TaskRunIndexInformer
+	Lister() pipelinev1.TaskRunLister
+}
+
+// TaskRunIndexInformer is a wrapper around the underlying [cache.SharedIndexInformer]
+// with type-safe variants of several methods.
+type TaskRunIndexInformer cache.TypedSharedIndexInformer[*apispipelinev1.TaskRun]
+
+// TaskRunHandlerFuncs is a specialization of [cache.TypedResourceEventHandlerFuncs] for TaskRun.
+type TaskRunHandlerFuncs = cache.TypedResourceEventHandlerFuncs[*apispipelinev1.TaskRun]
+
+// TaskRunDetailedHandlerFuncs is a specialization of [cache.TypedResourceEventHandlerDetailedFuncs] for TaskRun.
+type TaskRunDetailedHandlerFuncs = cache.TypedResourceEventHandlerDetailedFuncs[*apispipelinev1.TaskRun]
+
+// TaskRunFilteringHandler is a specialization of [cache.TypedFilteringResourceEventHandler] for TaskRun.
+type TaskRunFilteringHandler = cache.TypedFilteringResourceEventHandler[*apispipelinev1.TaskRun]
+
+// TaskRunIndexers is a specialization of [cache.TypedIndexers] for TaskRun.
+type TaskRunIndexers = cache.TypedIndexers[*apispipelinev1.TaskRun]
+
+// DeletedTaskRun is a specialization of [cache.DeletedObject] for TaskRun.
+type DeletedTaskRun = cache.DeletedObject[*apispipelinev1.TaskRun]
 
 type taskRunInformer struct {
 	factory          internalinterfaces.SharedInformerFactory
@@ -49,25 +77,49 @@ type taskRunInformer struct {
 // NewTaskRunInformer constructs a new informer for TaskRun type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
+// If you really need an independent one, prefer using the type-safe variant (see [NewTypedTaskRunInformer]).
 func NewTaskRunInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
 	return NewTaskRunInformerWithOptions(client, namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: indexers})
+}
+
+// NewTypedTaskRunInformer constructs a new informer for TaskRun type.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewTypedTaskRunInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers TaskRunIndexers) TaskRunIndexInformer {
+	return NewTypedTaskRunInformerWithOptions(client, namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.TypedIndexersToIndexers(indexers)})
 }
 
 // NewFilteredTaskRunInformer constructs a new informer for TaskRun type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
+// If you really need an independent one, prefer using the type-safe variant (see [NewTypedFilteredTaskRunInformer]).
 func NewFilteredTaskRunInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
-	return NewTaskRunInformerWithOptions(client, namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: indexers, TweakListOptions: tweakListOptions})
+	return NewTypedTaskRunInformerWithOptions(client, namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: indexers, TweakListOptions: tweakListOptions})
+}
+
+// NewTypedFilteredTaskRunInformer constructs a new informer for TaskRun type.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewTypedFilteredTaskRunInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers TaskRunIndexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) TaskRunIndexInformer {
+	return NewTypedTaskRunInformerWithOptions(client, namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.TypedIndexersToIndexers(indexers), TweakListOptions: tweakListOptions})
 }
 
 // NewTaskRunInformerWithOptions constructs a new informer for TaskRun type with additional options.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
+// If you really need an independent one, prefer using the type-safe variant (see [NewTypedTaskRunInformerWithOptions]).
 func NewTaskRunInformerWithOptions(client versioned.Interface, namespace string, options internalinterfaces.InformerOptions) cache.SharedIndexInformer {
+	return NewTypedTaskRunInformerWithOptions(client, namespace, options)
+}
+
+// NewTypedTaskRunInformerWithOptions constructs a new informer for TaskRun type with additional options.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewTypedTaskRunInformerWithOptions(client versioned.Interface, namespace string, options internalinterfaces.InformerOptions) TaskRunIndexInformer {
 	gvr := schema.GroupVersionResource{Group: "tekton.dev", Version: "v1", Resource: "taskruns"}
 	identifier := options.InformerName.WithResource(gvr)
 	tweakListOptions := options.TweakListOptions
-	return cache.NewSharedIndexInformerWithOptions(
+	return cache.NewTypedSharedIndexInformer[*apispipelinev1.TaskRun](cache.NewSharedIndexInformerWithOptions(
 		cache.ToListWatcherWithWatchListSemantics(&cache.ListWatch{
 			ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
@@ -100,17 +152,57 @@ func NewTaskRunInformerWithOptions(client versioned.Interface, namespace string,
 			Indexers:     options.Indexers,
 			Identifier:   identifier,
 		},
-	)
+	))
 }
 
 func (f *taskRunInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
-	return NewTaskRunInformerWithOptions(client, f.namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, InformerName: f.factory.InformerName(), TweakListOptions: f.tweakListOptions})
+	return NewTypedTaskRunInformerWithOptions(client, f.namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, InformerName: f.factory.InformerName(), TweakListOptions: f.tweakListOptions})
 }
 
 func (f *taskRunInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&apispipelinev1.TaskRun{}, f.defaultInformer)
+	return f.TypedInformer()
+}
+
+func (f *taskRunInformer) TypedInformer() TaskRunIndexInformer {
+	return cache.NewTypedSharedIndexInformer[*apispipelinev1.TaskRun](f.factory.InformerFor(&apispipelinev1.TaskRun{}, f.defaultInformer))
 }
 
 func (f *taskRunInformer) Lister() pipelinev1.TaskRunLister {
 	return pipelinev1.NewTaskRunLister(f.Informer().GetIndexer())
+}
+
+// ToTypedTaskRunInformer converts an untyped informer into a TypedTaskRunInformer.
+//
+// WARNING: this conversion is only safe if the informer handles objects of type
+// *TaskRun. If that is not the case, calling type-safe methods of the returned
+// TypedTaskRunInformer leads to runtime panics. A safer alternative is to pass
+// around a TypedTaskRunInformer instances that was obtained from a
+// SharedInformerFactory.
+func ToTypedTaskRunInformer(informer TaskRunInformer) TypedTaskRunInformer {
+	if informer, ok := informer.(TypedTaskRunInformer); ok {
+		return informer
+	}
+	return &taskRunTypedInformerAdapter{informer}
+}
+
+type taskRunTypedInformerAdapter struct {
+	TaskRunInformer
+}
+
+func (a *taskRunTypedInformerAdapter) TypedInformer() TaskRunIndexInformer {
+	return cache.NewTypedSharedIndexInformer[*apispipelinev1.TaskRun](a.Informer())
+}
+
+// ToTaskRunIndexInformer converts an untyped informer into a TaskRunIndexInformer.
+//
+// WARNING: this conversion is only safe if the informer handles objects of type
+// *TaskRun. If that is not the case, calling type-safe methods of the returned
+// TaskRunIndexInformer leads to runtime panics. A safer alternative is to pass
+// around a TaskRunIndexInformer instances that was obtained from a
+// SharedInformerFactory.
+func ToTaskRunIndexInformer(informer cache.SharedIndexInformer) TaskRunIndexInformer {
+	if informer, ok := informer.(TaskRunIndexInformer); ok {
+		return informer
+	}
+	return cache.NewTypedSharedIndexInformer[*apispipelinev1.TaskRun](informer)
 }
