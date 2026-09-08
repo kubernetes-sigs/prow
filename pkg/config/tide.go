@@ -235,6 +235,11 @@ type Tide struct {
 	// controller to handle org/repo:branch pools. Defaults to 20. Needs to be a
 	// positive number.
 	MaxGoroutines int `json:"max_goroutines,omitempty"`
+	// MaxQueryConcurrency is the maximum number of GitHub search queries Tide
+	// will run concurrently. Tide runs one query per configured TideQuery per
+	// org shard, which at scale can be hundreds of simultaneous GraphQL requests.
+	// Defaults to 25.
+	MaxQueryConcurrency int `json:"max_query_concurrency,omitempty"`
 	// BatchSizeLimitMap is a key/value pair of an org or org/repo as the key and
 	// integer batch size limit as the value. Use "*" as key to set a global default.
 	// Special values:

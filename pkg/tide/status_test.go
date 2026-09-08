@@ -2187,6 +2187,154 @@ func TestOpenPRsQuery(t *testing.T) {
 	}
 }
 
+func TestShardQueries(t *testing.T) {
+	tests := []struct {
+		name     string
+		queries  map[string]string
+		maxRepos int
+		check    func(t *testing.T, result map[string]string)
+	}{
+		{
+			name: "under threshold unchanged",
+			queries: map[string]string{
+				"small-org": `is:pr state:open repo:"small-org/a" repo:"small-org/b"`,
+			},
+			maxRepos: 100,
+			check: func(t *testing.T, result map[string]string) {
+				if len(result) != 1 {
+					t.Fatalf("expected 1 entry, got %d", len(result))
+				}
+				if _, ok := result["small-org"]; !ok {
+					t.Error("expected key 'small-org'")
+				}
+			},
+		},
+		{
+			name: "large query is sharded",
+			queries: func() map[string]string {
+				var repos []string
+				for i := 0; i < 10; i++ {
+					repos = append(repos, fmt.Sprintf(`repo:"big-org/repo-%d"`, i))
+				}
+				return map[string]string{
+					"big-org": `is:pr state:open ` + strings.Join(repos, " "),
+				}
+			}(),
+			maxRepos: 3,
+			check: func(t *testing.T, result map[string]string) {
+				if len(result) != 4 { // ceil(10/3) = 4
+					t.Fatalf("expected 4 shards, got %d", len(result))
+				}
+				if _, ok := result["big-org"]; ok {
+					t.Error("original key should not exist when sharded")
+				}
+				for key := range result {
+					if !strings.HasPrefix(key, "big-org#") {
+						t.Errorf("unexpected key %q", key)
+					}
+				}
+			},
+		},
+		{
+			name: "all repos preserved across shards",
+			queries: map[string]string{
+				"org": `is:pr state:open repo:"org/a" repo:"org/b" repo:"org/c" repo:"org/d" repo:"org/e"`,
+			},
+			maxRepos: 2,
+			check: func(t *testing.T, result map[string]string) {
+				var allRepos []string
+				for _, q := range result {
+					for _, token := range strings.Fields(q) {
+						if strings.HasPrefix(token, `repo:"`) {
+							allRepos = append(allRepos, token)
+						}
+					}
+				}
+				sort.Strings(allRepos)
+				expected := []string{`repo:"org/a"`, `repo:"org/b"`, `repo:"org/c"`, `repo:"org/d"`, `repo:"org/e"`}
+				if diff := cmp.Diff(allRepos, expected); diff != "" {
+					t.Errorf("repos mismatch: %s", diff)
+				}
+			},
+		},
+		{
+			name: "prefix preserved in each shard",
+			queries: map[string]string{
+				"org": `is:pr state:open sort:updated-asc repo:"org/a" repo:"org/b" repo:"org/c"`,
+			},
+			maxRepos: 1,
+			check: func(t *testing.T, result map[string]string) {
+				for key, q := range result {
+					if !strings.Contains(q, "is:pr") || !strings.Contains(q, "state:open") || !strings.Contains(q, "sort:updated-asc") {
+						t.Errorf("shard %q missing prefix tokens: %s", key, q)
+					}
+				}
+			},
+		},
+		{
+			name: "repos per shard respects limit",
+			queries: func() map[string]string {
+				var repos []string
+				for i := 0; i < 7; i++ {
+					repos = append(repos, fmt.Sprintf(`repo:"org/r%d"`, i))
+				}
+				return map[string]string{
+					"org": `is:pr ` + strings.Join(repos, " "),
+				}
+			}(),
+			maxRepos: 3,
+			check: func(t *testing.T, result map[string]string) {
+				for key, q := range result {
+					count := 0
+					for _, token := range strings.Fields(q) {
+						if strings.HasPrefix(token, `repo:"`) {
+							count++
+						}
+					}
+					if count > 3 {
+						t.Errorf("shard %q has %d repos, max is 3", key, count)
+					}
+				}
+			},
+		},
+		{
+			name: "mixed orgs only large one sharded",
+			queries: func() map[string]string {
+				var repos []string
+				for i := 0; i < 10; i++ {
+					repos = append(repos, fmt.Sprintf(`repo:"big/r%d"`, i))
+				}
+				return map[string]string{
+					"small": `is:pr repo:"small/a"`,
+					"big":   `is:pr ` + strings.Join(repos, " "),
+				}
+			}(),
+			maxRepos: 3,
+			check: func(t *testing.T, result map[string]string) {
+				if _, ok := result["small"]; !ok {
+					t.Error("small org should be unchanged")
+				}
+				bigCount := 0
+				for key := range result {
+					if strings.HasPrefix(key, "big#") {
+						bigCount++
+					}
+				}
+				if bigCount < 2 {
+					t.Errorf("expected big org to be sharded, got %d shards", bigCount)
+				}
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := shardQueries(tc.queries, tc.maxRepos)
+			tc.check(t, result)
+		})
+	}
+}
+
 func TestIndexFuncPassingJobs(t *testing.T) {
 	testCases := []struct {
 		name     string
