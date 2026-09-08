@@ -26,6 +26,7 @@ import (
 
 func TestWriterOptionsFromFileName(t *testing.T) {
 	mime.AddExtensionType(".log", "text/plain")
+	mime.AddExtensionType(".tar", "application/x-tar")
 
 	testCases := []struct {
 		name             string
@@ -106,6 +107,30 @@ func TestWriterOptionsFromFileName(t *testing.T) {
 			expectedFileName: "journal.log",
 			expectedAttrs: io.WriterOptions{
 				ContentType: new("text/plain; charset=utf-8"),
+			},
+		},
+		{
+			name:             "tar",
+			filename:         "build-logs.tar",
+			expectedFileName: "build-logs.tar",
+			expectedAttrs: io.WriterOptions{
+				ContentType: new("application/x-tar"),
+			},
+		},
+		{
+			name:             "tar.gzip",
+			filename:         "build-logs.tar.gzip",
+			expectedFileName: "build-logs.tar.gzip",
+			expectedAttrs: io.WriterOptions{
+				ContentType: new("application/gzip"),
+			},
+		},
+		{
+			name:             "tar.gz",
+			filename:         "build-logs.tar.gz",
+			expectedFileName: "build-logs.tar.gz",
+			expectedAttrs: io.WriterOptions{
+				ContentType: new("application/gzip"),
 			},
 		},
 		{
