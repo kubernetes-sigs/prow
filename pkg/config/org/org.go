@@ -175,13 +175,24 @@ func (c *Config) ValidateRoles() error {
 		seenRoles[lower] = roleName
 	}
 
-	// Validate each role's team and user references
+	// Validate each role's team and user references.
+	//
+	// User membership is only validated when the config actually declares org
+	// membership (Members/Admins). --fix-org-roles requires --fix-teams but not
+	// --fix-org-members, so membership may be managed elsewhere; in that case we
+	// cannot know the full member set and skip the user check rather than
+	// rejecting valid configs. Team references are always validated because
+	// --fix-org-roles implies --fix-teams, so config teams are authoritative.
+	validateUsers := len(c.Members) > 0 || len(c.Admins) > 0
 	var errors []string
 	for roleName, role := range c.Roles {
 		for _, teamSlug := range role.Teams {
 			if !availableTeams[strings.ToLower(teamSlug)] {
 				errors = append(errors, fmt.Sprintf("role %q references undefined team %q", roleName, teamSlug))
 			}
+		}
+		if !validateUsers {
+			continue
 		}
 		for _, user := range role.Users {
 			if !availableUsers[github.NormLogin(user)] {

@@ -416,6 +416,41 @@ func TestValidateRoles(t *testing.T) {
 			expectError: true,
 			errorPart:   "role name collision",
 		},
+		{
+			name: "role user not validated when membership is not declared",
+			config: Config{
+				Teams: map[string]Team{
+					"security-team": {},
+				},
+				// No Members/Admins declared: org membership is managed elsewhere
+				// (--fix-org-roles requires --fix-teams, not --fix-org-members),
+				// so role user references cannot and must not be validated here.
+				Roles: map[string]Role{
+					"security-manager": {
+						Teams: []string{"security-team"},
+						Users: []string{"externally-managed-user"},
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "role team still validated when membership is not declared",
+			config: Config{
+				Teams: map[string]Team{
+					"security-team": {},
+				},
+				// No Members/Admins, but an undefined team must still fail.
+				Roles: map[string]Role{
+					"security-manager": {
+						Teams: []string{"missing-team"},
+						Users: []string{"externally-managed-user"},
+					},
+				},
+			},
+			expectError: true,
+			errorPart:   "missing-team",
+		},
 	}
 
 	for _, tc := range tests {

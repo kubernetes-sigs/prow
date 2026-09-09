@@ -2433,6 +2433,46 @@ func TestDumpOrgConfig(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:                  "role assignments exclude ignored enterprise teams",
+			ignoreEnterpriseTeams: true,
+			meta: github.Organization{
+				Name:                        "Hello",
+				DefaultRepositoryPermission: "write",
+			},
+			members: []string{"user1"},
+			admins:  []string{"admin"},
+			teams: []github.Team{
+				{ID: 1, Name: "Enterprise Team", Slug: "enterprise-team", Type: github.TeamTypeEnterprise},
+			},
+			roles: []github.OrganizationRole{
+				{ID: 1, Name: "security-manager"},
+			},
+			teamsWithRole: map[int][]github.OrganizationRoleAssignment{
+				// The only assignment is to an ignored enterprise team, so the role
+				// must not appear in the dump (rather than leaking the raw slug).
+				1: {{ID: 1, Slug: "enterprise-team"}},
+			},
+			usersWithRole: map[int][]github.OrganizationRoleAssignment{},
+			expected: org.Config{
+				Metadata: org.Metadata{
+					Name:                         &hello,
+					BillingEmail:                 &empty,
+					Company:                      &empty,
+					Email:                        &empty,
+					Description:                  &empty,
+					Location:                     &empty,
+					HasOrganizationProjects:      &no,
+					HasRepositoryProjects:        &no,
+					DefaultRepositoryPermission:  &perm,
+					MembersCanCreateRepositories: &no,
+				},
+				Members: []string{"user1"},
+				Admins:  []string{"admin"},
+				Teams:   map[string]org.Team{},
+				Repos:   map[string]org.Repo{},
+			},
+		},
 	}
 
 	for _, tc := range cases {
@@ -4614,8 +4654,10 @@ func TestConfigureOrgRoles(t *testing.T) {
 		}
 	})
 
-	t.Run("removes assignments for roles not in config", func(t *testing.T) {
-		// Config has NO roles - but GitHub has a role with assignments
+	t.Run("leaves assignments for roles not in config untouched", func(t *testing.T) {
+		// Config has NO roles - GitHub has a role with assignments. peribolos must
+		// not touch roles it was not asked to manage (including GitHub built-in
+		// predefined roles).
 		orgConfig := org.Config{
 			Admins: []string{"admin-user"},
 			Roles:  map[string]org.Role{}, // Empty - no roles configured
@@ -4641,15 +4683,13 @@ func TestConfigureOrgRoles(t *testing.T) {
 			t.Errorf("Unexpected error: %v", err)
 		}
 
-		// Verify the orphaned assignments were removed
-		if len(client.removedTeamRoles) != 1 {
-			t.Errorf("Expected 1 team role removal, got %d: %v", len(client.removedTeamRoles), client.removedTeamRoles)
+		// Nothing should be removed or assigned for roles absent from config.
+		if len(client.removedTeamRoles) != 0 {
+			t.Errorf("Expected no team role removals, got %d: %v", len(client.removedTeamRoles), client.removedTeamRoles)
 		}
-		if len(client.removedUserRoles) != 1 {
-			t.Errorf("Expected 1 user role removal, got %d: %v", len(client.removedUserRoles), client.removedUserRoles)
+		if len(client.removedUserRoles) != 0 {
+			t.Errorf("Expected no user role removals, got %d: %v", len(client.removedUserRoles), client.removedUserRoles)
 		}
-
-		// Verify no new assignments were made
 		if len(client.assignedTeamRoles) != 0 {
 			t.Errorf("Expected no team assignments, got %d: %v", len(client.assignedTeamRoles), client.assignedTeamRoles)
 		}
@@ -4658,29 +4698,31 @@ func TestConfigureOrgRoles(t *testing.T) {
 		}
 	})
 
-	t.Run("cleans up role when removed from config but keeps others", func(t *testing.T) {
-		// Config has only one role, but GitHub has two roles with assignments
+	t.Run("syncs configured roles and leaves unconfigured roles untouched", func(t *testing.T) {
+		// Config declares only billing-manager; GitHub has two roles. The
+		// unconfigured security-manager must be left entirely untouched, while
+		// billing-manager is synced to the desired state.
 		orgConfig := org.Config{
 			Admins: []string{"admin-user"},
 			Roles: map[string]org.Role{
 				"billing-manager": {
-					Users: []string{"admin-user"}, // Keep this role
+					Users: []string{"admin-user"}, // Sync this role
 				},
 			},
 		}
 
 		client := &fakeOrgRolesClient{
 			roles: []github.OrganizationRole{
-				{ID: 1, Name: "security-manager"}, // Not in config - should be cleaned up
-				{ID: 2, Name: "billing-manager"},  // In config - should be synced
+				{ID: 1, Name: "security-manager"}, // Not in config - must be left alone
+				{ID: 2, Name: "billing-manager"},  // In config - must be synced
 			},
 			teamsWithRole: map[int][]github.OrganizationRoleAssignment{
-				1: {{ID: 10, Slug: "security-team"}}, // Should be removed
-				2: {},                                              // No teams
+				1: {{ID: 10, Slug: "security-team"}}, // Must NOT be removed
+				2: {},                                // No teams
 			},
 			usersWithRole: map[int][]github.OrganizationRoleAssignment{
-				1: {{ID: 5, Login: "security-admin"}}, // Should be removed
-				2: {},                                               // No users yet
+				1: {{ID: 5, Login: "security-admin"}}, // Must NOT be removed
+				2: {},                                 // No users yet
 			},
 		}
 
@@ -4692,27 +4734,19 @@ func TestConfigureOrgRoles(t *testing.T) {
 			t.Errorf("Unexpected error: %v", err)
 		}
 
-		// Verify security-manager assignments were removed (role ID 1)
-		foundSecurityTeamRemoval := false
-		foundSecurityUserRemoval := false
+		// security-manager (role ID 1) must not be touched at all.
 		for _, removal := range client.removedTeamRoles {
-			if strings.Contains(removal, "/1") { // roleID 1
-				foundSecurityTeamRemoval = true
+			if strings.Contains(removal, "/1") {
+				t.Errorf("Did not expect security-manager team assignment to be removed, removals: %v", client.removedTeamRoles)
 			}
 		}
 		for _, removal := range client.removedUserRoles {
-			if strings.Contains(removal, "/1") { // roleID 1
-				foundSecurityUserRemoval = true
+			if strings.Contains(removal, "/1") {
+				t.Errorf("Did not expect security-manager user assignment to be removed, removals: %v", client.removedUserRoles)
 			}
 		}
-		if !foundSecurityTeamRemoval {
-			t.Errorf("Expected security-manager team assignment to be removed, removals: %v", client.removedTeamRoles)
-		}
-		if !foundSecurityUserRemoval {
-			t.Errorf("Expected security-manager user assignment to be removed, removals: %v", client.removedUserRoles)
-		}
 
-		// Verify billing-manager was assigned (role ID 2)
+		// billing-manager (role ID 2) must get admin-user assigned.
 		foundBillingUserAssignment := false
 		for _, assignment := range client.assignedUserRoles {
 			if strings.Contains(assignment, "/2") { // roleID 2

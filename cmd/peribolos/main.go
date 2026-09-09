@@ -285,16 +285,22 @@ func dumpOrgConfig(client dumpClient, orgName string, ignoreSecretTeams bool, ig
 	children := map[int][]int{} // what children does it have
 	var tops []int              // what are the top-level teams
 	slugToName := map[string]string{}
+	// Slugs of teams intentionally excluded from the dump (secret/enterprise per
+	// ignore flags). Used to keep such teams out of dumped role assignments so we
+	// do not leak ignored teams as raw slugs.
+	ignoredTeamSlugs := sets.New[string]()
 
 	for _, t := range teams {
 		logger := logrus.WithFields(logrus.Fields{"id": t.ID, "name": t.Name})
 		if ignoreEnterpriseTeams && t.Type == github.TeamTypeEnterprise {
 			logger.Debug("Skipping enterprise team.")
+			ignoredTeamSlugs.Insert(t.Slug)
 			continue
 		}
 		p := org.Privacy(t.Privacy)
 		if ignoreSecretTeams && p == org.Secret {
 			logger.Debug("Ignoring secret team.")
+			ignoredTeamSlugs.Insert(t.Slug)
 			continue
 		}
 		slugToName[t.Slug] = t.Name
@@ -407,10 +413,14 @@ func dumpOrgConfig(client dumpClient, orgName string, ignoreSecretTeams bool, ig
 		out.Repos[full.Name] = repoConfig
 	}
 
-	// Dump organization roles
+	// Dump organization roles. Listing roles requires org-roles read scope;
+	// tokens without it (or orgs where the API is unavailable) should still be
+	// able to dump everything else, so failures here are logged and skipped
+	// rather than aborting the whole dump.
 	roles, err := client.ListOrganizationRoles(orgName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list organization roles: %w", err)
+		logrus.WithError(err).Warn("Failed to list organization roles; omitting roles from dump")
+		roles = nil
 	}
 	logrus.Debugf("Found %d organization roles", len(roles))
 	for _, role := range roles {
@@ -419,22 +429,27 @@ func dumpOrgConfig(client dumpClient, orgName string, ignoreSecretTeams bool, ig
 		// Get teams with this role
 		teamsWithRole, err := client.ListTeamsWithRole(orgName, role.ID)
 		if err != nil {
-			return nil, fmt.Errorf("failed to list teams with role %s: %w", role.Name, err)
+			logrus.WithError(err).Warnf("Failed to list teams with role %s; skipping role in dump", role.Name)
+			continue
 		}
 
 		// Get users with this role
 		usersWithRole, err := client.ListUsersWithRole(orgName, role.ID)
 		if err != nil {
-			return nil, fmt.Errorf("failed to list users with role %s: %w", role.Name, err)
+			logrus.WithError(err).Warnf("Failed to list users with role %s; skipping role in dump", role.Name)
+			continue
 		}
 
-		// Build team list, filtering out secret teams when --ignore-secret-teams is set
+		// Build team list. Teams that were intentionally excluded from the dump
+		// (secret/enterprise per ignore flags) are skipped so we do not leak them
+		// as raw slugs and produce a config that fails ValidateRoles on re-apply.
 		var teamNames []string
 		for _, team := range teamsWithRole {
-			// Only include teams that are in slugToName (secret teams are excluded from this map)
 			if name, ok := slugToName[team.Slug]; ok {
 				teamNames = append(teamNames, name)
-			} else if !ignoreSecretTeams {
+			} else if ignoredTeamSlugs.Has(team.Slug) {
+				logrus.WithField("team", team.Slug).Debug("Skipping role team assignment for intentionally ignored team.")
+			} else {
 				teamNames = append(teamNames, team.Slug)
 			}
 		}
@@ -1649,61 +1664,26 @@ func configureOrgRoles(client orgRolesClient, orgName string, orgConfig org.Conf
 		}
 	}
 
-	// Create a set of configured role names (lowercase) for quick lookup
-	configuredRoleNames := make(map[string]bool, len(orgConfig.Roles))
-	for roleName := range orgConfig.Roles {
-		configuredRoleNames[strings.ToLower(roleName)] = true
-	}
-
-	var configuredCount, unconfiguredCount int
-	for _, role := range roles {
-		if configuredRoleNames[strings.ToLower(role.Name)] {
-			configuredCount++
-		} else {
-			unconfiguredCount++
-		}
-	}
-	logrus.Debugf("Processing %d organization roles (%d configured, %d unconfigured to check for cleanup)",
-		len(roles), configuredCount, unconfiguredCount)
+	logrus.Debugf("Processing %d configured organization roles (of %d total in org)", len(orgConfig.Roles), len(roles))
 
 	var allErrors []error
 
-	// Iterate over ALL GitHub roles to handle both configured and unconfigured roles
-	for _, role := range roles {
-		roleNameLower := strings.ToLower(role.Name)
-
-		if configuredRoleNames[roleNameLower] {
-			// Role is in config - sync to match desired state
-			roleConfig := orgConfig.Roles[findOriginalRoleName(orgConfig.Roles, roleNameLower)]
-			if err := configureRoleTeamAssignments(client, orgName, role.Name, role.ID, roleConfig.Teams, githubTeams); err != nil {
-				allErrors = append(allErrors, fmt.Errorf("failed to configure team assignments for role %s: %w", role.Name, err))
-			}
-			if err := configureRoleUserAssignments(client, orgName, role.Name, role.ID, roleConfig.Users, invitees); err != nil {
-				allErrors = append(allErrors, fmt.Errorf("failed to configure user assignments for role %s: %w", role.Name, err))
-			}
-		} else {
-			// Role is NOT in config - remove all assignments (clean up orphaned assignments)
-			logrus.Debugf("Role %q not in config, checking for assignments to clean up", role.Name)
-			if err := configureRoleTeamAssignments(client, orgName, role.Name, role.ID, []string{}, githubTeams); err != nil {
-				allErrors = append(allErrors, fmt.Errorf("failed to remove team assignments for unconfigured role %s: %w", role.Name, err))
-			}
-			if err := configureRoleUserAssignments(client, orgName, role.Name, role.ID, []string{}, invitees); err != nil {
-				allErrors = append(allErrors, fmt.Errorf("failed to remove user assignments for unconfigured role %s: %w", role.Name, err))
-			}
+	// Only manage roles that are explicitly declared in config. Roles absent
+	// from config - including GitHub's built-in predefined roles and any roles
+	// managed out-of-band - are left untouched. To empty a role, declare it in
+	// config with no teams/users. (This mirrors how peribolos avoids mutating
+	// resources it was not asked to manage.)
+	for roleName, roleConfig := range orgConfig.Roles {
+		role := githubRolesByName[strings.ToLower(roleName)]
+		if err := configureRoleTeamAssignments(client, orgName, role.Name, role.ID, roleConfig.Teams, githubTeams); err != nil {
+			allErrors = append(allErrors, fmt.Errorf("failed to configure team assignments for role %s: %w", role.Name, err))
+		}
+		if err := configureRoleUserAssignments(client, orgName, role.Name, role.ID, roleConfig.Users, invitees); err != nil {
+			allErrors = append(allErrors, fmt.Errorf("failed to configure user assignments for role %s: %w", role.Name, err))
 		}
 	}
 
 	return utilerrors.NewAggregate(allErrors)
-}
-
-// findOriginalRoleName returns the original-cased key from the roles map that matches the lowercase name.
-func findOriginalRoleName(roles map[string]org.Role, lowerName string) string {
-	for name := range roles {
-		if strings.ToLower(name) == lowerName {
-			return name
-		}
-	}
-	return lowerName
 }
 
 // configureRoleTeamAssignments configures team assignments for a specific role
