@@ -62,7 +62,7 @@ func helpProvider(config *plugins.Configuration, _ []config.OrgRepo) (*pluginhel
 		logrus.WithError(err).Warnf("cannot generate comments for %s plugin", PluginName)
 	}
 	pluginHelp := &pluginhelp.PluginHelp{
-		Description: "The blunderbuss plugin automatically requests reviews from reviewers when a new PR is created. The reviewers are selected randomly from the OWNERS files that apply to the files modified by the PR.",
+		Description: "The blunderbuss plugin automatically requests reviews from reviewers when a new PR is created. The reviewers are selected randomly from the OWNERS files that apply to the files modified by the PR. Reviewers that are already requested on the PR and present in those OWNERS files count toward the configured reviewer count.",
 		Config: map[string]string{
 			"": reviewer.ConfigString(PluginName, reviewCount),
 		},
@@ -256,6 +256,8 @@ func handle(ghc reviewer.GitHubClient, roc reviewer.RepoOwnersClient, log *logru
 		return fmt.Errorf("error getting PR changes: %w", err)
 	}
 
+	existingEligible := reviewer.EligibleRequestedReviewers(oc, pr, changes, !excludeApprovers)
+
 	busyReviewers := sets.New[string]()
 	selector := func(candidates *layeredsets.String) string {
 		return reviewer.FindReviewer(ghc, log, useStatusAvailability, &busyReviewers, candidates)
@@ -264,34 +266,51 @@ func handle(ghc reviewer.GitHubClient, roc reviewer.RepoOwnersClient, log *logru
 	var reviewers []string
 	var requiredReviewers []string
 	if reviewerCount != nil {
-		reviewers, requiredReviewers, err = reviewer.GetReviewers(oc, selector, log, pr.User.Login, changes, *reviewerCount)
-		if err != nil {
-			return err
+		neededReviewers := max(*reviewerCount-existingEligible.Len(), 0)
+		if existingEligible.Len() > 0 {
+			log.Infof("Counting %d already requested reviewer(s) from the OWNERS files toward the reviewer count. %d additional reviewer(s) needed.", existingEligible.Len(), neededReviewers)
 		}
-		if missing := *reviewerCount - len(reviewers); missing > 0 {
-			if !excludeApprovers {
-				frc := reviewer.FallbackReviewersClient{OwnersClient: oc}
-				approvers, _, err := reviewer.GetReviewers(frc, selector, log, pr.User.Login, changes, *reviewerCount)
-				if err != nil {
-					return err
-				}
-				var added int
-				combinedReviewers := sets.New[string](reviewers...)
-				for _, approver := range approvers {
-					if !combinedReviewers.Has(approver) {
-						reviewers = append(reviewers, approver)
-						combinedReviewers.Insert(approver)
-						added++
-					}
-				}
-				log.Infof("Added %d approvers as reviewers. %d/%d reviewers found.", added, combinedReviewers.Len(), *reviewerCount)
+		if neededReviewers > 0 {
+			reviewers, requiredReviewers, err = reviewer.GetReviewers(oc, selector, log, pr.User.Login, changes, neededReviewers, existingEligible)
+			if err != nil {
+				return err
 			}
+			if missing := neededReviewers - len(reviewers); missing > 0 {
+				if !excludeApprovers {
+					frc := reviewer.FallbackReviewersClient{OwnersClient: oc}
+					approvers, _, err := reviewer.GetReviewers(frc, selector, log, pr.User.Login, changes, neededReviewers, existingEligible)
+					if err != nil {
+						return err
+					}
+					var added int
+					combinedReviewers := sets.New[string](reviewers...)
+					for _, approver := range approvers {
+						if !combinedReviewers.Has(approver) {
+							reviewers = append(reviewers, approver)
+							combinedReviewers.Insert(approver)
+							added++
+						}
+					}
+					log.Infof("Added %d approvers as reviewers. %d/%d reviewers found.", added, combinedReviewers.Len(), neededReviewers)
+				}
+			}
+		} else if *reviewerCount > 0 {
+			// The reviewer quota is already met by existing requested reviewers, but
+			// required reviewers must still be requested.
+			required := sets.New[string]()
+			for _, change := range changes {
+				required = required.Union(oc.RequiredReviewers(change.Filename))
+			}
+			requiredReviewers = sets.List(required)
 		}
 	}
 
-	if maxReviewers > 0 && len(reviewers) > maxReviewers {
-		log.Infof("Limiting request of %d reviewers to %d maxReviewers.", len(reviewers), maxReviewers)
-		reviewers = reviewers[:maxReviewers]
+	if maxReviewers > 0 {
+		maxNewReviewers := max(maxReviewers-existingEligible.Len(), 0)
+		if len(reviewers) > maxNewReviewers {
+			log.Infof("Limiting request to %d new reviewer(s) (maxReviewers=%d, counting %d already requested reviewer(s)).", maxNewReviewers, maxReviewers, existingEligible.Len())
+			reviewers = reviewers[:maxNewReviewers]
+		}
 	}
 
 	reviewers = append(reviewers, requiredReviewers...)

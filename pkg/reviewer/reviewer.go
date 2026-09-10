@@ -89,8 +89,8 @@ func ConfigString(pluginName string, reviewCount int) string {
 	return fmt.Sprintf("%s is currently configured to request reviews from %d reviewer%s.", pluginName, reviewCount, pluralSuffix)
 }
 
-func GetReviewers(rc ReviewersClient, selector ReviewerSelector, log *logrus.Entry, author string, files []github.PullRequestChange, minReviewers int) ([]string, []string, error) {
-	authorSet := sets.New[string](github.NormLogin(author))
+func GetReviewers(rc ReviewersClient, selector ReviewerSelector, log *logrus.Entry, author string, files []github.PullRequestChange, minReviewers int, excluded sets.Set[string]) ([]string, []string, error) {
+	nonCandidates := sets.New[string](github.NormLogin(author)).Union(excluded)
 	reviewers := layeredsets.NewString()
 	requiredReviewers := sets.New[string]()
 	leafReviewers := layeredsets.NewString()
@@ -108,7 +108,7 @@ func GetReviewers(rc ReviewersClient, selector ReviewerSelector, log *logrus.Ent
 
 		requiredReviewers.Insert(rc.RequiredReviewers(file.Filename).UnsortedList()...)
 
-		fileUnusedLeaves := layeredsets.NewString(sets.List(rc.LeafReviewers(file.Filename))...).Difference(reviewers.Set()).Difference(authorSet)
+		fileUnusedLeaves := layeredsets.NewString(sets.List(rc.LeafReviewers(file.Filename))...).Difference(reviewers.Set()).Difference(nonCandidates)
 		if fileUnusedLeaves.Len() == 0 {
 			continue
 		}
@@ -129,7 +129,7 @@ func GetReviewers(rc ReviewersClient, selector ReviewerSelector, log *logrus.Ent
 		if reviewers.Len() >= minReviewers {
 			break
 		}
-		fileReviewers := rc.Reviewers(file.Filename).Difference(authorSet)
+		fileReviewers := rc.Reviewers(file.Filename).Difference(nonCandidates)
 		for reviewers.Len() < minReviewers && fileReviewers.Len() > 0 {
 			if r := selector(&fileReviewers); r != "" {
 				reviewers.Insert(2, r)
@@ -139,6 +139,27 @@ func GetReviewers(rc ReviewersClient, selector ReviewerSelector, log *logrus.Ent
 		}
 	}
 	return reviewers.List(), sets.List(requiredReviewers), nil
+}
+
+// EligibleRequestedReviewers returns the PR's currently requested reviewers that are
+// in the reviewer pool (and, when includeApprovers, the approver pool) of the OWNERS
+// files covering the changed files. Logins are normalized with github.NormLogin.
+func EligibleRequestedReviewers(oc OwnersClient, pr *github.PullRequest, files []github.PullRequestChange, includeApprovers bool) sets.Set[string] {
+	requested := sets.New[string]()
+	for _, user := range pr.RequestedReviewers {
+		requested.Insert(github.NormLogin(user.Login))
+	}
+	if requested.Len() == 0 {
+		return requested
+	}
+	pool := sets.New[string]()
+	for _, file := range files {
+		pool = pool.Union(oc.Reviewers(file.Filename).Set())
+		if includeApprovers {
+			pool = pool.Union(oc.Approvers(file.Filename).Set())
+		}
+	}
+	return requested.Intersection(pool)
 }
 
 func FindReviewer(ghc GitHubClient, log *logrus.Entry, useStatusAvailability bool, busyReviewers *sets.Set[string], targetSet *layeredsets.String) string {
