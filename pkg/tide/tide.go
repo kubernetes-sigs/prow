@@ -1681,7 +1681,8 @@ func refGetterFactory(ref string) config.RefGetter {
 }
 
 // presubmitsByPull creates a map pr -> requiredPresubmits and will filter out all PRs
-// where we failed to find out the required presubmits (can happen if inrepoconfig is enabled).
+// where we failed to find out the required presubmits (can happen if inrepoconfig is enabled
+// or if the changed files of the PR cannot be retrieved).
 func (c *syncController) presubmitsByPull(sp *subpool) (map[int][]config.Presubmit, error) {
 	presubmits := make(map[int][]config.Presubmit, len(sp.prs))
 
@@ -1696,9 +1697,9 @@ func (c *syncController) presubmitsByPull(sp *subpool) (map[int][]config.Presubm
 			log.WithError(err).Debug("Failed to get presubmits for PR, excluding from subpool")
 			continue
 		}
-		filteredPRs = append(filteredPRs, pr)
 		log.WithField("num_possible_presubmit", len(presubmitsForPull)).Debug("Found possible presubmits")
 
+		var changedFilesErr error
 		for _, ps := range presubmitsForPull {
 			if !c.provider.jobIsRequiredByTide(&ps, &pr) {
 				continue
@@ -1712,7 +1713,8 @@ func (c *syncController) presubmitsByPull(sp *subpool) (map[int][]config.Presubm
 			forceRun := (requireManuallyTriggeredJobs && ps.ContextRequired() && ps.NeedsExplicitTrigger()) || ps.RunBeforeMerge
 			shouldRun, err := ps.ShouldRun(sp.branch, c.changedFiles.prChanges(&pr), forceRun, false)
 			if err != nil {
-				return nil, err
+				changedFilesErr = err
+				break
 			}
 			if !shouldRun {
 				continue
@@ -1720,6 +1722,12 @@ func (c *syncController) presubmitsByPull(sp *subpool) (map[int][]config.Presubm
 
 			presubmits[pr.Number] = append(presubmits[pr.Number], ps)
 		}
+		if changedFilesErr != nil {
+			log.WithError(changedFilesErr).Warn("Failed to determine required presubmits for PR, excluding from subpool")
+			delete(presubmits, pr.Number)
+			continue
+		}
+		filteredPRs = append(filteredPRs, pr)
 		log.WithField("required-presubmit-count", len(presubmits[pr.Number])).Debug("Determined required presubmits for PR.")
 	}
 

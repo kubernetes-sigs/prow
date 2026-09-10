@@ -3306,9 +3306,11 @@ func TestPresubmitsByPull(t *testing.T) {
 		presubmits         []config.Presubmit
 		prs                []CodeReviewCommon
 		prowYAMLGetter     config.ProwYAMLGetter
+		ghc                githubClient
 
 		expectedPresubmits           map[int][]config.Presubmit
 		expectedChangeCache          map[changeCacheKey][]string
+		expectedPRs                  []int
 		requireManuallyTriggeredJobs bool
 		fromBranchProtection         bool
 	}{
@@ -3639,6 +3641,51 @@ func TestPresubmitsByPull(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "changed files error excludes only the affected PR from the subpool",
+			presubmits: []config.Presubmit{
+				{
+					Reporter:  config.Reporter{Context: "always"},
+					AlwaysRun: true,
+				},
+				{
+					Reporter: config.Reporter{Context: "presubmit"},
+					RegexpChangeMatcher: config.RegexpChangeMatcher{
+						RunIfChanged: "^CHANGE.$",
+					},
+				},
+			},
+			ghc: &ghcInterceptor{
+				c: &fgc{},
+				interceptors: githubClientFuncs{
+					GetPullRequestChanges: func(ghc githubClient, org, repo string, number int) ([]github.PullRequestChange, error) {
+						if number == 1 {
+							return nil, errors.New("return code not 2XX: 422 Unprocessable Entity")
+						}
+						return ghc.GetPullRequestChanges(org, repo, number)
+					},
+				},
+			},
+			prs: []CodeReviewCommon{
+				{Number: 1, HeadRefOID: "1"},
+			},
+			expectedPresubmits: map[int][]config.Presubmit{
+				100: {
+					{
+						Reporter:  config.Reporter{Context: "always"},
+						AlwaysRun: true,
+					},
+					{
+						Reporter: config.Reporter{Context: "presubmit"},
+						RegexpChangeMatcher: config.RegexpChangeMatcher{
+							RunIfChanged: "^CHANGE.$",
+						},
+					},
+				},
+			},
+			expectedChangeCache: map[changeCacheKey][]string{{number: 100, sha: "sha"}: {"CHANGED"}},
+			expectedPRs:         []int{100},
+		},
 	}
 
 	for _, tc := range testcases {
@@ -3685,7 +3732,11 @@ func TestPresubmitsByPull(t *testing.T) {
 				prs:    append(tc.prs, *CodeReviewCommonFromPullRequest(&samplePR)),
 			}
 			log := logrus.WithField("test", tc.name)
-			ghProvider := newGitHubProvider(log, &fgc{}, nil, cfgAgent.Config, newMergeChecker(cfgAgent.Config, &fgc{}), false)
+			var ghc githubClient = &fgc{}
+			if tc.ghc != nil {
+				ghc = tc.ghc
+			}
+			ghProvider := newGitHubProvider(log, ghc, nil, cfgAgent.Config, newMergeChecker(cfgAgent.Config, &fgc{}), false)
 			c := &syncController{
 				config:   cfgAgent.Config,
 				provider: ghProvider,
@@ -3710,6 +3761,15 @@ func TestPresubmitsByPull(t *testing.T) {
 			}
 			if got := c.changedFiles.changeCache; !reflect.DeepEqual(got, tc.expectedChangeCache) {
 				t.Errorf("got incorrect file change cache: %v", diff.Diff(tc.expectedChangeCache, got))
+			}
+			if tc.expectedPRs != nil {
+				var gotPRs []int
+				for _, pr := range sp.prs {
+					gotPRs = append(gotPRs, pr.Number)
+				}
+				if !reflect.DeepEqual(gotPRs, tc.expectedPRs) {
+					t.Errorf("got incorrect PRs in subpool: %v", diff.Diff(tc.expectedPRs, gotPRs))
+				}
 			}
 		})
 	}
