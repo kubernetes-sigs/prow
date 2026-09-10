@@ -58,6 +58,94 @@ import (
 	"sigs.k8s.io/prow/pkg/testutil"
 )
 
+func TestGetPodUnexpectedStopCause(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		pod      corev1.Pod
+		expected PodUnexpectedStopCause
+	}{
+		{
+			name: "termination by kubelet",
+			pod: corev1.Pod{Status: corev1.PodStatus{
+				Phase:  corev1.PodFailed,
+				Reason: Terminated,
+				Conditions: []corev1.PodCondition{
+					{
+						Type:   corev1.DisruptionTarget,
+						Status: corev1.ConditionTrue,
+						Reason: corev1.PodReasonTerminationByKubelet,
+					},
+				},
+			}},
+			expected: PodUnexpectedStopCauseTerminationByKubelet,
+		},
+		{
+			name: "inactive disruption target",
+			pod: corev1.Pod{Status: corev1.PodStatus{
+				Phase:  corev1.PodFailed,
+				Reason: Terminated,
+				Conditions: []corev1.PodCondition{
+					{
+						Type:   corev1.DisruptionTarget,
+						Status: corev1.ConditionFalse,
+						Reason: corev1.PodReasonTerminationByKubelet,
+					},
+				},
+			}},
+			expected: PodUnexpectedStopCauseNone,
+		},
+		{
+			name: "different disruption reason",
+			pod: corev1.Pod{Status: corev1.PodStatus{
+				Phase:  corev1.PodFailed,
+				Reason: Terminated,
+				Conditions: []corev1.PodCondition{
+					{
+						Type:   corev1.DisruptionTarget,
+						Status: corev1.ConditionTrue,
+						Reason: corev1.PodReasonPreemptionByScheduler,
+					},
+				},
+			}},
+			expected: PodUnexpectedStopCauseNone,
+		},
+		{
+			name: "terminated without disruption target",
+			pod: corev1.Pod{Status: corev1.PodStatus{
+				Phase:  corev1.PodFailed,
+				Reason: Terminated,
+			}},
+			expected: PodUnexpectedStopCauseNone,
+		},
+		{
+			name: "disruption target without terminated pod reason",
+			pod: corev1.Pod{Status: corev1.PodStatus{
+				Phase: corev1.PodRunning,
+				Conditions: []corev1.PodCondition{
+					{
+						Type:   corev1.DisruptionTarget,
+						Status: corev1.ConditionTrue,
+						Reason: corev1.PodReasonTerminationByKubelet,
+					},
+				},
+			}},
+			expected: PodUnexpectedStopCauseNone,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if actual := getPodUnexpectedStopCause(&tc.pod); actual != tc.expected {
+				t.Errorf("getPodUnexpectedStopCause() = %q, want %q", actual, tc.expected)
+			}
+		})
+	}
+}
+
 func TestAdd(t *testing.T) {
 	ctrlruntimelog.SetLogger(zap.New(zap.UseDevMode(true)))
 	const prowJobNamespace = "prowjobs"
