@@ -1820,3 +1820,20 @@ type BlameRange struct {
 	AuthorLogin  string
 	Date         time.Time
 }
+
+// OrganizationRole represents an organization role
+type OrganizationRole struct {
+	ID          int      `json:"id"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Permissions []string `json:"permissions"`
+}
+
+// OrganizationRoleAssignment represents a role assignment to a team or user.
+// For teams: id, slug, assignment are populated. For users: id, login, assignment are populated.
+type OrganizationRoleAssignment struct {
+	ID         int    `json:"id"`
+	Login      string `json:"login,omitempty"`
+	Slug       string `json:"slug,omitempty"`
+	Assignment string `json:"assignment,omitempty"` // "direct", "indirect", or "mixed"
+}

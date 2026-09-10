@@ -19,6 +19,7 @@ package org
 import (
 	"encoding/json"
 	"reflect"
+	"strings"
 	"testing"
 
 	"k8s.io/apimachinery/pkg/util/diff"
@@ -198,6 +199,273 @@ func TestRepoUnmarshalJSON(t *testing.T) {
 			}
 			if !reflect.DeepEqual(tc.expected, actual) {
 				t.Errorf("result differs from expected:\n%s", diff.Diff(tc.expected, actual))
+			}
+		})
+	}
+}
+
+func TestValidateRoles(t *testing.T) {
+	tests := []struct {
+		name        string
+		config      Config
+		expectError bool
+		errorPart   string
+	}{
+		{
+			name: "no roles - should pass",
+			config: Config{
+				Teams: map[string]Team{
+					"team1": {Members: []string{"user1"}},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "valid role with existing team",
+			config: Config{
+				Teams: map[string]Team{
+					"security-team": {Members: []string{"user1"}},
+				},
+				Admins: []string{"user1"},
+				Roles: map[string]Role{
+					"security-manager": {
+						Teams: []string{"security-team"},
+						Users: []string{"user1"},
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "invalid role with non-existent team",
+			config: Config{
+				Teams: map[string]Team{
+					"existing-team": {Members: []string{"user1"}},
+				},
+				Members: []string{"user1"},
+				Roles: map[string]Role{
+					"security-manager": {
+						Teams: []string{"non-existent-team"},
+					},
+				},
+			},
+			expectError: true,
+			errorPart:   "non-existent-team",
+		},
+		{
+			name: "multiple roles with mixed valid and invalid teams",
+			config: Config{
+				Teams: map[string]Team{
+					"valid-team": {Members: []string{"user1"}},
+				},
+				Members: []string{"user1"},
+				Roles: map[string]Role{
+					"role1": {
+						Teams: []string{"valid-team"},
+					},
+					"role2": {
+						Teams: []string{"invalid-team"},
+					},
+				},
+			},
+			expectError: true,
+			errorPart:   "invalid-team",
+		},
+		{
+			name: "role with nested team reference",
+			config: Config{
+				Teams: map[string]Team{
+					"parent-team": {
+						Members: []string{"user1"},
+						Children: map[string]Team{
+							"child-team": {
+								Members: []string{"user2"},
+							},
+						},
+					},
+				},
+				Members: []string{"user1", "user2"},
+				Roles: map[string]Role{
+					"security-manager": {
+						Teams: []string{"child-team"},
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "role with only users (no teams)",
+			config: Config{
+				Teams: map[string]Team{
+					"some-team": {Members: []string{"user1"}},
+				},
+				Admins:  []string{"user1"},
+				Members: []string{"user2"},
+				Roles: map[string]Role{
+					"security-manager": {
+						Users: []string{"user1", "user2"},
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "role references user who is not org member",
+			config: Config{
+				Admins:  []string{"admin-user"},
+				Members: []string{"member-user"},
+				Roles: map[string]Role{
+					"security-manager": {
+						Users: []string{"non-member-user"},
+					},
+				},
+			},
+			expectError: true,
+			errorPart:   "non-member-user",
+		},
+		{
+			name: "role references user with different casing - should pass",
+			config: Config{
+				Admins: []string{"AdminUser"},
+				Roles: map[string]Role{
+					"security-manager": {
+						Users: []string{"adminuser"}, // Different casing but same user
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "role with both valid and invalid users",
+			config: Config{
+				Admins: []string{"valid-user"},
+				Roles: map[string]Role{
+					"security-manager": {
+						Users: []string{"valid-user", "invalid-user"},
+					},
+				},
+			},
+			expectError: true,
+			errorPart:   "invalid-user",
+		},
+		{
+			name: "role with case-insensitive team matching",
+			config: Config{
+				Teams: map[string]Team{
+					"Security-Team": {Members: []string{"user1"}},
+				},
+				Admins: []string{"user1"},
+				Roles: map[string]Role{
+					"admin": {
+						Teams: []string{"security-team"}, // Different case
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "role with deeply nested teams",
+			config: Config{
+				Teams: map[string]Team{
+					"level1": {
+						Children: map[string]Team{
+							"level2": {
+								Children: map[string]Team{
+									"level3": {Members: []string{"user1"}},
+								},
+							},
+						},
+					},
+				},
+				Members: []string{"user1"},
+				Roles: map[string]Role{
+					"role1": {
+						Teams: []string{"level3"},
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "role with duplicate team references (should pass)",
+			config: Config{
+				Teams: map[string]Team{
+					"team1": {Members: []string{"user1"}},
+				},
+				Admins: []string{"user1"},
+				Roles: map[string]Role{
+					"role1": {
+						Teams: []string{"team1", "team1"},
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "case-insensitive role name collision",
+			config: Config{
+				Teams: map[string]Team{
+					"team1": {},
+				},
+				Admins: []string{"user1"},
+				Roles: map[string]Role{
+					"Security-Manager": {Teams: []string{"team1"}},
+					"security-manager": {Users: []string{"user1"}},
+				},
+			},
+			expectError: true,
+			errorPart:   "role name collision",
+		},
+		{
+			name: "role user not validated when membership is not declared",
+			config: Config{
+				Teams: map[string]Team{
+					"security-team": {},
+				},
+				// No Members/Admins declared: org membership is managed elsewhere
+				// (--fix-org-roles requires --fix-teams, not --fix-org-members),
+				// so role user references cannot and must not be validated here.
+				Roles: map[string]Role{
+					"security-manager": {
+						Teams: []string{"security-team"},
+						Users: []string{"externally-managed-user"},
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "role team still validated when membership is not declared",
+			config: Config{
+				Teams: map[string]Team{
+					"security-team": {},
+				},
+				// No Members/Admins, but an undefined team must still fail.
+				Roles: map[string]Role{
+					"security-manager": {
+						Teams: []string{"missing-team"},
+						Users: []string{"externally-managed-user"},
+					},
+				},
+			},
+			expectError: true,
+			errorPart:   "missing-team",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := tc.config.ValidateRoles()
+			if tc.expectError {
+				if err == nil {
+					t.Error("Expected error but got none")
+				} else if tc.errorPart != "" && !strings.Contains(err.Error(), tc.errorPart) {
+					t.Errorf("Expected error to contain %q, but got: %v", tc.errorPart, err)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Unexpected error: %v", err)
+				}
 			}
 		})
 	}

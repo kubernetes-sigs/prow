@@ -19,6 +19,7 @@ package org
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"sigs.k8s.io/prow/pkg/github"
@@ -122,6 +123,89 @@ type Config struct {
 	Members []string        `json:"members,omitempty"`
 	Admins  []string        `json:"admins,omitempty"`
 	Repos   map[string]Repo `json:"repos,omitempty"`
+	Roles   map[string]Role `json:"roles,omitempty"`
+}
+
+// Role declares an organization role and its assignments to teams and users
+//
+// See https://docs.github.com/en/rest/orgs/organization-roles#assign-an-organization-role-to-a-team
+// See https://docs.github.com/en/rest/orgs/organization-roles#assign-an-organization-role-to-a-user
+type Role struct {
+	// Teams is a list of team names (from config keys) that have this role assigned
+	Teams []string `json:"teams,omitempty"`
+	// Users is a list of usernames that have this role assigned
+	Users []string `json:"users,omitempty"`
+}
+
+// ValidateRoles checks that all teams and users referenced in role assignments exist in the configuration
+func (c *Config) ValidateRoles() error {
+	if len(c.Roles) == 0 {
+		return nil
+	}
+
+	// Build a set of all team slugs (including nested teams)
+	availableTeams := make(map[string]bool)
+	var collectTeams func(teams map[string]Team)
+	collectTeams = func(teams map[string]Team) {
+		for name, team := range teams {
+			availableTeams[strings.ToLower(name)] = true
+			if len(team.Children) > 0 {
+				collectTeams(team.Children)
+			}
+		}
+	}
+	collectTeams(c.Teams)
+
+	// Build a set of all org members (normalized)
+	availableUsers := make(map[string]bool)
+	for _, user := range c.Admins {
+		availableUsers[github.NormLogin(user)] = true
+	}
+	for _, user := range c.Members {
+		availableUsers[github.NormLogin(user)] = true
+	}
+
+	// Detect case-insensitive role name collisions
+	seenRoles := make(map[string]string) // lowercase -> original
+	for roleName := range c.Roles {
+		lower := strings.ToLower(roleName)
+		if existing, ok := seenRoles[lower]; ok {
+			return fmt.Errorf("role name collision: %q and %q differ only in case", existing, roleName)
+		}
+		seenRoles[lower] = roleName
+	}
+
+	// Validate each role's team and user references.
+	//
+	// User membership is only validated when the config actually declares org
+	// membership (Members/Admins). --fix-org-roles requires --fix-teams but not
+	// --fix-org-members, so membership may be managed elsewhere; in that case we
+	// cannot know the full member set and skip the user check rather than
+	// rejecting valid configs. Team references are always validated because
+	// --fix-org-roles implies --fix-teams, so config teams are authoritative.
+	validateUsers := len(c.Members) > 0 || len(c.Admins) > 0
+	var errors []string
+	for roleName, role := range c.Roles {
+		for _, teamSlug := range role.Teams {
+			if !availableTeams[strings.ToLower(teamSlug)] {
+				errors = append(errors, fmt.Sprintf("role %q references undefined team %q", roleName, teamSlug))
+			}
+		}
+		if !validateUsers {
+			continue
+		}
+		for _, user := range role.Users {
+			if !availableUsers[github.NormLogin(user)] {
+				errors = append(errors, fmt.Sprintf("role %q references user %q who is not an org member", roleName, user))
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return fmt.Errorf("role validation failed:\n  - %s", strings.Join(errors, "\n  - "))
+	}
+
+	return nil
 }
 
 // TeamMetadata declares metadata about the github team.
