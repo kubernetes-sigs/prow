@@ -104,8 +104,7 @@ func (mr *Moonraker) ServeGetInrepoconfig(w http.ResponseWriter, r *http.Request
 }
 
 func (mr *Moonraker) RunConfigWatcher(ctx context.Context) error {
-	configEvent := make(chan config.Delta, 2)
-	mr.ConfigAgent.Subscribe(configEvent)
+	configEvent := mr.ConfigAgent.Subscribe()
 
 	var err error
 	defer func() {

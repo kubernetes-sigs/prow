@@ -35,15 +35,18 @@ type Delta struct {
 	Before, After Config
 }
 
-// DeltaChan is a channel to receive config delta events when config changes.
-type DeltaChan = chan<- Delta
+// DeltaChan is a receive-only channel handed out by Subscribe to deliver config
+// delta events when config changes.
+type DeltaChan = <-chan Delta
 
 // Agent watches a path and automatically loads the config stored
 // therein.
 type Agent struct {
-	mut           sync.RWMutex // do not export Lock, etc methods
-	c             *Config
-	subscriptions []DeltaChan
+	mut sync.RWMutex // do not export Lock, etc methods
+	c   *Config
+	// subscriptions are single-slot buffered channels owned by the Agent; Set
+	// coalesces into them (see deliverDelta) and hands out a receive-only view.
+	subscriptions []chan Delta
 }
 
 // IsConfigMapMount determines whether the provided directory is a configmap mounted directory
@@ -378,14 +381,16 @@ func (ca *Agent) Start(prowConfig, jobConfig string, additionalProwConfigDirs []
 	return nil
 }
 
-// Subscribe registers the channel for messages on config reload.
-// The caller can expect a copy of the previous and current config
-// to be sent down the subscribed channel when a new configuration
-// is loaded.
-func (ca *Agent) Subscribe(subscription DeltaChan) {
+// Subscribe returns a channel that receives a copy of the previous and current
+// config whenever a new configuration is loaded. The Agent owns the channel: it
+// is single-slot buffered so Set can coalesce into it (see deliverDelta) rather
+// than block or drop when the subscriber is busy.
+func (ca *Agent) Subscribe() DeltaChan {
 	ca.mut.Lock()
 	defer ca.mut.Unlock()
+	subscription := make(chan Delta, 1)
 	ca.subscriptions = append(ca.subscriptions, subscription)
+	return subscription
 }
 
 // Getter returns the current Config in a thread-safe manner.
@@ -410,16 +415,34 @@ func (ca *Agent) Set(c *Config) {
 	delta := Delta{oldConfig, *c}
 	ca.c = c
 	for _, subscription := range ca.subscriptions {
-		go func(sub DeltaChan) { // wait a minute to send each event
-			end := time.NewTimer(time.Minute)
+		deliverDelta(subscription, delta)
+	}
+}
+
+// deliverDelta hands delta to a subscriber without blocking or dropping it.
+//
+// sub is a single-slot buffered channel. If the subscriber has not drained the
+// previous delta yet, we take it back and coalesce: the pending {Before, _} is
+// replaced with {Before, delta.After}, widening it to cover both transitions.
+// Deltas chain (each Before equals the previous After), so the merged delta is
+// exactly the transition the subscriber still owes -- letting a subscriber trust
+// Before even across changes it was too busy to observe individually.
+//
+// With a single producer (Set is serialized by ca.mut) and a single consumer
+// that only receives, this terminates in at most two iterations: once we take
+// the pending value back the slot is empty and nobody else can refill it.
+func deliverDelta(sub chan Delta, delta Delta) {
+	for {
+		select {
+		case sub <- delta:
+			return
+		default:
 			select {
-			case sub <- delta:
-			case <-end.C:
+			case pending := <-sub:
+				delta = Delta{Before: pending.Before, After: delta.After}
+			default:
 			}
-			if !end.Stop() { // prevent new events
-				<-end.C // drain the pending event
-			}
-		}(subscription)
+		}
 	}
 }
 
