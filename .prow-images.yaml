@@ -38,5 +38,6 @@ images:
     arch: all
   - dir: cmd/external-plugins/needs-rebase
   - dir: cmd/external-plugins/cherrypicker
+  - dir: cmd/external-plugins/netlify-preview
   - dir: cmd/external-plugins/refresh
   - dir: cmd/ghproxy
