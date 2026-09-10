@@ -369,3 +369,179 @@ func TestHandleRedirectWithValidState(t *testing.T) {
 		t.Errorf("Incorrect final redirect URL. Actual path: %s, Expected path: /%s", path, dest+"?rerun="+rerunStatus)
 	}
 }
+
+func TestHandleRedirectWithStaleCookie(t *testing.T) {
+	gob.Register(&oauth2.Token{})
+
+	oldKey := []byte("old-secret-key-for-signing-cookies")
+	newKey := []byte("new-secret-key-after-rotation!!!!")
+
+	oldStore := sessions.NewCookieStore(oldKey)
+	newStore := sessions.NewCookieStore(newKey)
+
+	mockConfig := getMockConfig(newStore)
+	mockLogger := logrus.WithField("uni-test", "githuboauth")
+	mockAgent := NewAgent(mockConfig, mockLogger)
+	mockLogin := "foo_name"
+	mockOAuthClient := mockOAuthClient{}
+	mockStateToken := createMockStateToken(mockConfig)
+
+	// Simulate a stale token cookie signed with the old key: create a session
+	// using the old store, save it to a recorder, then extract the Set-Cookie
+	// header to inject into the new request.
+	staleReq := httptest.NewRequest(http.MethodGet, "/", nil)
+	staleResp := httptest.NewRecorder()
+	staleSession, _ := oldStore.New(staleReq, tokenSession)
+	staleSession.Values[tokenKey] = &oauth2.Token{AccessToken: "expired-token"}
+	if err := staleSession.Save(staleReq, staleResp); err != nil {
+		t.Fatalf("Failed to save stale session: %v", err)
+	}
+	var staleCookie *http.Cookie
+	for _, c := range staleResp.Result().Cookies() {
+		if c.Name == tokenSession {
+			staleCookie = c
+			break
+		}
+	}
+	if staleCookie == nil {
+		t.Fatal("Failed to create stale cookie")
+	}
+
+	dest := "somewhere"
+	mockRequest := httptest.NewRequest(http.MethodGet, "/mock-login?dest="+dest, nil)
+	// Attach the stale cookie -- this is what causes "the value is not valid"
+	mockRequest.AddCookie(staleCookie)
+	mockResponse := httptest.NewRecorder()
+	query := mockRequest.URL.Query()
+	query.Add("state", mockStateToken)
+	mockRequest.URL.RawQuery = query.Encode()
+
+	// Set up a valid OAuth state session using the new store
+	mockSession, err := sessions.GetRegistry(mockRequest).Get(newStore, oauthSessionCookie)
+	if err != nil {
+		t.Fatalf("Error with getting mock session: %v", err)
+	}
+	mockSession.Values[stateKey] = mockStateToken
+
+	handleRedirectFn := mockAgent.HandleRedirect(mockOAuthClient, &fakeAuthenticatedUserIdentifier{mockLogin}, false)
+	handleRedirectFn.ServeHTTP(mockResponse, mockRequest)
+	result := mockResponse.Result()
+
+	if result.StatusCode != http.StatusFound {
+		t.Errorf("Expected redirect (302) despite stale cookie, got %v", result.StatusCode)
+	}
+
+	// Verify a new valid token cookie was issued
+	var newTokenCookie *http.Cookie
+	for _, c := range result.Cookies() {
+		if c.Name == tokenSession {
+			newTokenCookie = c
+			break
+		}
+	}
+	if newTokenCookie == nil {
+		t.Fatal("Expected a new token session cookie to be issued")
+	}
+	decodedCookie := make(map[interface{}]interface{})
+	if err := securecookie.DecodeMulti(newTokenCookie.Name, newTokenCookie.Value, &decodedCookie, newStore.Codecs...); err != nil {
+		t.Fatalf("Cannot decode new cookie with current key: %v", err)
+	}
+	accessToken, ok := decodedCookie[tokenKey].(*oauth2.Token)
+	if !ok {
+		t.Fatalf("Error with getting access token from new cookie: %v", decodedCookie)
+	}
+	if accessToken.AccessToken != mockAccessToken {
+		t.Errorf("Invalid access token. Got %v, expected %v", accessToken.AccessToken, mockAccessToken)
+	}
+}
+
+func TestHandleLoginWithStaleCookie(t *testing.T) {
+	oldKey := []byte("old-secret-key-for-signing-cookies")
+	newKey := []byte("new-secret-key-after-rotation!!!!")
+
+	oldStore := sessions.NewCookieStore(oldKey)
+	newStore := sessions.NewCookieStore(newKey)
+
+	mockConfig := getMockConfig(newStore)
+	mockLogger := logrus.WithField("uni-test", "githuboauth")
+	mockAgent := NewAgent(mockConfig, mockLogger)
+	mockOAuthClient := mockOAuthClient{}
+
+	// Create a stale oauth-session cookie signed with the old key
+	staleReq := httptest.NewRequest(http.MethodGet, "/", nil)
+	staleResp := httptest.NewRecorder()
+	staleSession, _ := oldStore.New(staleReq, oauthSessionCookie)
+	staleSession.Values[stateKey] = "old-state"
+	if err := staleSession.Save(staleReq, staleResp); err != nil {
+		t.Fatalf("Failed to save stale session: %v", err)
+	}
+	var staleCookie *http.Cookie
+	for _, c := range staleResp.Result().Cookies() {
+		if c.Name == oauthSessionCookie {
+			staleCookie = c
+			break
+		}
+	}
+	if staleCookie == nil {
+		t.Fatal("Failed to create stale cookie")
+	}
+
+	mockRequest := httptest.NewRequest(http.MethodGet, "/mock-login?dest=somewhere", nil)
+	mockRequest.AddCookie(staleCookie)
+	mockResponse := httptest.NewRecorder()
+
+	handleLoginFn := mockAgent.HandleLogin(mockOAuthClient, false)
+	handleLoginFn.ServeHTTP(mockResponse, mockRequest)
+	result := mockResponse.Result()
+
+	if result.StatusCode != http.StatusFound {
+		t.Errorf("Expected redirect (302) despite stale cookie, got %v", result.StatusCode)
+	}
+}
+
+func TestHandleRedirectWithStaleOAuthSessionCookie(t *testing.T) {
+	oldKey := []byte("old-secret-key-for-signing-cookies")
+	newKey := []byte("new-secret-key-after-rotation!!!!")
+
+	oldStore := sessions.NewCookieStore(oldKey)
+	newStore := sessions.NewCookieStore(newKey)
+
+	mockConfig := getMockConfig(newStore)
+	mockLogger := logrus.WithField("uni-test", "githuboauth")
+	mockAgent := NewAgent(mockConfig, mockLogger)
+	mockOAuthClient := mockOAuthClient{}
+	mockStateToken := createMockStateToken(mockConfig)
+
+	staleReq := httptest.NewRequest(http.MethodGet, "/", nil)
+	staleResp := httptest.NewRecorder()
+	staleSession, _ := oldStore.New(staleReq, oauthSessionCookie)
+	staleSession.Values[stateKey] = mockStateToken
+	if err := staleSession.Save(staleReq, staleResp); err != nil {
+		t.Fatalf("Failed to save stale session: %v", err)
+	}
+	var staleCookie *http.Cookie
+	for _, c := range staleResp.Result().Cookies() {
+		if c.Name == oauthSessionCookie {
+			staleCookie = c
+			break
+		}
+	}
+	if staleCookie == nil {
+		t.Fatal("Failed to create stale cookie")
+	}
+
+	mockRequest := httptest.NewRequest(http.MethodGet, "/mock-login", nil)
+	mockRequest.AddCookie(staleCookie)
+	query := mockRequest.URL.Query()
+	query.Add("state", mockStateToken)
+	mockRequest.URL.RawQuery = query.Encode()
+	mockResponse := httptest.NewRecorder()
+
+	handleRedirectFn := mockAgent.HandleRedirect(mockOAuthClient, &fakeAuthenticatedUserIdentifier{""}, false)
+	handleRedirectFn.ServeHTTP(mockResponse, mockRequest)
+	result := mockResponse.Result()
+
+	if result.StatusCode != http.StatusInternalServerError {
+		t.Errorf("Expected 500 when OAuth state cookie cannot be decoded, got %v", result.StatusCode)
+	}
+}
