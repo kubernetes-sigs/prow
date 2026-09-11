@@ -7,7 +7,7 @@ require (
 	github.com/golangci/golangci-lint/v2 v2.13.1
 	github.com/google/go-cmp v0.7.0
 	github.com/google/ko v0.19.1
-	github.com/sirupsen/logrus v1.10.1
+	github.com/sirupsen/logrus v1.10.2
 	github.com/spf13/pflag v1.0.10
 	google.golang.org/protobuf v1.36.12
 	gotest.tools/gotestsum v1.13.0
