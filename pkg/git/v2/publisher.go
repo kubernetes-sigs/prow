@@ -52,6 +52,9 @@ type publisher struct {
 // Commit adds all of the current content to the index and creates a commit
 func (p *publisher) Commit(title, body string) error {
 	p.logger.Infof("Committing changes with title %q", title)
+	if p.info == nil {
+		return fmt.Errorf("error committing %q: GitUser is not set", title)
+	}
 	name, email, err := p.info()
 	if err != nil {
 		return err
