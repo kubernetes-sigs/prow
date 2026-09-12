@@ -31,6 +31,7 @@ import (
 	_ "sigs.k8s.io/prow/pkg/plugins/cherrypickunapproved"
 	_ "sigs.k8s.io/prow/pkg/plugins/cla"
 	_ "sigs.k8s.io/prow/pkg/plugins/dco"
+	_ "sigs.k8s.io/prow/pkg/plugins/delete-spam-issue"
 	_ "sigs.k8s.io/prow/pkg/plugins/dog"
 	_ "sigs.k8s.io/prow/pkg/plugins/golint"
 	_ "sigs.k8s.io/prow/pkg/plugins/goose"
