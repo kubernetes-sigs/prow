@@ -3311,6 +3311,7 @@ func TestPresubmitsByPull(t *testing.T) {
 		expectedPresubmits           map[int][]config.Presubmit
 		expectedChangeCache          map[changeCacheKey][]string
 		expectedPRs                  []int
+		expectedExcluded             map[string]string
 		requireManuallyTriggeredJobs bool
 		fromBranchProtection         bool
 	}{
@@ -3685,6 +3686,9 @@ func TestPresubmitsByPull(t *testing.T) {
 			},
 			expectedChangeCache: map[changeCacheKey][]string{{number: 100, sha: "sha"}: {"CHANGED"}},
 			expectedPRs:         []int{100},
+			expectedExcluded: map[string]string{
+				"#1": "Could not determine required presubmits: error getting PR changes for #1: failed get PR changes: return code not 2XX: 422 Unprocessable Entity",
+			},
 		},
 	}
 
@@ -3771,7 +3775,117 @@ func TestPresubmitsByPull(t *testing.T) {
 					t.Errorf("got incorrect PRs in subpool: %v", diff.Diff(tc.expectedPRs, gotPRs))
 				}
 			}
+			if tc.expectedExcluded != nil && !reflect.DeepEqual(sp.excluded, tc.expectedExcluded) {
+				t.Errorf("got incorrect excluded PRs: %v", diff.Diff(tc.expectedExcluded, sp.excluded))
+			}
 		})
+	}
+}
+
+func TestInitSubpoolDataExcludesPRWithContextCheckerError(t *testing.T) {
+	// The context "conditional" is explicitly required through the tide
+	// context options, and the head of PR 1 additionally carries an
+	// inrepoconfig presubmit with the same context that only triggers
+	// conditionally, which makes it "required if present". The resulting
+	// TideContextPolicy is invalid for PR 1 only.
+	cfg := &config.Config{
+		ProwConfig: config.ProwConfig{
+			Tide: config.Tide{
+				MaxGoroutines: 1,
+				TideGitHubConfig: config.TideGitHubConfig{
+					ContextOptions: config.TideContextPolicyOptions{
+						TideContextPolicy: config.TideContextPolicy{
+							RequiredContexts: []string{"conditional"},
+						},
+					},
+				},
+			},
+		},
+	}
+	cfg.InRepoConfig.Enabled = map[string]*bool{"*": new(true)}
+	cfg.ProwYAMLGetterWithDefaults = prowYAMLGetterForHeadRefs([]string{"1"}, []config.Presubmit{
+		{
+			Reporter:  config.Reporter{Context: "always"},
+			AlwaysRun: true,
+		},
+		{
+			Reporter: config.Reporter{Context: "conditional"},
+			RegexpChangeMatcher: config.RegexpChangeMatcher{
+				RunIfChanged: "^CHANGE.$",
+			},
+		},
+	})
+	cfgAgent := &config.Agent{}
+	cfgAgent.Set(cfg)
+
+	prs := []CodeReviewCommon{
+		{Number: 1, HeadRefOID: "1", Org: "org", Repo: "repo", NameWithOwner: "org/repo"},
+		{Number: 2, HeadRefOID: "2", Org: "org", Repo: "repo", NameWithOwner: "org/repo"},
+	}
+	sp := &subpool{
+		log:    logrus.WithField("test", t.Name()),
+		org:    "org",
+		repo:   "repo",
+		branch: defaultBranch,
+		sha:    "master-sha",
+		prs:    prs,
+	}
+	ghProvider := newGitHubProvider(sp.log, &fgc{}, nil, cfgAgent.Config, newMergeChecker(cfgAgent.Config, &fgc{}), false)
+	c := &syncController{
+		config:   cfgAgent.Config,
+		provider: ghProvider,
+		changedFiles: &changedFilesAgent{
+			provider:        ghProvider,
+			changeCache:     map[changeCacheKey][]string{},
+			nextChangeCache: map[changeCacheKey][]string{},
+		},
+		logger: sp.log,
+	}
+
+	if err := c.initSubpoolData(sp); err != nil {
+		t.Fatalf("unexpected error from initSubpoolData: %v", err)
+	}
+
+	var gotPRs []int
+	for _, pr := range sp.prs {
+		gotPRs = append(gotPRs, pr.Number)
+	}
+	if want := []int{2}; !reflect.DeepEqual(gotPRs, want) {
+		t.Errorf("got incorrect PRs in subpool: %v", diff.Diff(want, gotPRs))
+	}
+	if _, ok := sp.cc[1]; ok {
+		t.Errorf("expected no context checker for the excluded PR 1, got %v", sp.cc[1])
+	}
+	if _, ok := sp.cc[2]; !ok {
+		t.Errorf("expected a context checker for PR 2")
+	}
+	if _, ok := sp.presubmits[1]; ok {
+		t.Errorf("expected no presubmits for the excluded PR 1, got %v", sp.presubmits[1])
+	}
+	wantExcluded := map[string]string{
+		"org/repo#1": "Could not determine merge requirements: contexts conditional are defined as required and required if present",
+	}
+	if !reflect.DeepEqual(sp.excluded, wantExcluded) {
+		t.Errorf("got incorrect excluded PRs: %v", diff.Diff(wantExcluded, sp.excluded))
+	}
+
+	// A subpool whose only PR is excluded is dropped by filterSubpools, but
+	// the exclusion must still reach the status controller.
+	sp = &subpool{
+		log:    sp.log,
+		org:    "org",
+		repo:   "repo",
+		branch: defaultBranch,
+		sha:    "master-sha",
+		prs:    prs[:1],
+	}
+	raw := map[string]*subpool{poolKey(sp.org, sp.repo, sp.branch): sp}
+	filtered := c.filterSubpools(func(*CodeReviewCommon) (string, error) { return "", nil }, raw)
+	if len(filtered) != 0 {
+		t.Errorf("expected the subpool to be dropped, got %v", filtered)
+	}
+	if got := excludedPRMap(raw); !reflect.DeepEqual(got, wantExcluded) {
+		t.Errorf("got incorrect excluded PRs from raw subpools: %v", diff.Diff(wantExcluded, got))
 	}
 }
 

@@ -583,6 +583,7 @@ func (c *syncController) Sync() error {
 	c.statusUpdate.poolPRs = poolPRMap(filteredPools)
 	c.statusUpdate.baseSHAs = baseSHAMap(filteredPools)
 	c.statusUpdate.requiredContexts = requiredContextsMap(filteredPools)
+	c.statusUpdate.excluded = excludedPRMap(rawPools)
 	select {
 	case c.statusUpdate.newPoolPending <- true:
 		c.statusUpdate.dontUpdateStatus.reset()
@@ -691,6 +692,8 @@ func (c *syncController) filterSubpools(mergeAllowed func(*CodeReviewCommon) (st
 }
 
 // initSubpoolData fetches presubmit jobs and context checkers for the subpool.
+// PRs for which the context checker cannot be set up are excluded from the
+// subpool and recorded in sp.excluded together with the reason.
 func (c *syncController) initSubpoolData(sp *subpool) error {
 	var err error
 	sp.presubmits, err = c.presubmitsByPull(sp)
@@ -713,12 +716,19 @@ func (c *syncController) initSubpoolData(sp *subpool) error {
 	sp.cloneURI = cloneURI
 
 	sp.cc = make(map[int]contextChecker, len(sp.prs))
+	var filteredPRs []CodeReviewCommon
 	for _, pr := range sp.prs {
-		sp.cc[pr.Number], err = c.provider.GetTideContextPolicy(sp.org, sp.repo, sp.branch, refGetterFactory(string(sp.sha)), &pr)
+		cc, err := c.provider.GetTideContextPolicy(sp.org, sp.repo, sp.branch, refGetterFactory(string(sp.sha)), &pr)
 		if err != nil {
-			return fmt.Errorf("error setting up context checker for pr %d: %w", pr.Number, err)
+			sp.log.WithFields(pr.logFields()).WithError(err).Warn("Failed to set up context checker for PR, excluding from subpool")
+			sp.excludePR(&pr, fmt.Sprintf("Could not determine merge requirements: %v", err))
+			delete(sp.presubmits, pr.Number)
+			continue
 		}
+		sp.cc[pr.Number] = cc
+		filteredPRs = append(filteredPRs, pr)
 	}
+	sp.prs = filteredPRs
 	return nil
 }
 
@@ -824,6 +834,18 @@ func requiredContextsMap(subpoolMap map[string]*subpool) map[string][]string {
 		}
 	}
 	return requiredContextsMap
+}
+
+// excludedPRMap collects the PRs that were excluded from a subpool because
+// their merge requirements could not be determined, mapped to the reason.
+// It must be built from the unfiltered subpools: a subpool whose PRs were all
+// excluded does not survive filterSubpools.
+func excludedPRMap(subpoolMap map[string]*subpool) map[string]string {
+	excluded := map[string]string{}
+	for _, sp := range subpoolMap {
+		maps.Copy(excluded, sp.excluded)
+	}
+	return excluded
 }
 
 type simpleState string
@@ -1725,6 +1747,7 @@ func (c *syncController) presubmitsByPull(sp *subpool) (map[int][]config.Presubm
 		if changedFilesErr != nil {
 			log.WithError(changedFilesErr).Warn("Failed to determine required presubmits for PR, excluding from subpool")
 			delete(presubmits, pr.Number)
+			sp.excludePR(&pr, fmt.Sprintf("Could not determine required presubmits: %v", changedFilesErr))
 			continue
 		}
 		filteredPRs = append(filteredPRs, pr)
@@ -1924,6 +1947,19 @@ type subpool struct {
 	// presubmit contains all required presubmits for each PR
 	// in this subpool
 	presubmits map[int][]config.Presubmit
+	// excluded contains the PRs (keyed like poolPRMap) that were removed from
+	// this subpool because their merge requirements could not be determined,
+	// mapped to the reason. The status controller reports the reason on the
+	// tide status context of these PRs.
+	excluded map[string]string
+}
+
+// excludePR records that pr was removed from the subpool and why.
+func (sp *subpool) excludePR(pr *CodeReviewCommon, reason string) {
+	if sp.excluded == nil {
+		sp.excluded = map[string]string{}
+	}
+	sp.excluded[prKey(pr)] = reason
 }
 
 func (sp subpool) TenantIDs() []string {
