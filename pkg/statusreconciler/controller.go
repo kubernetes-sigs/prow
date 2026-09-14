@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -46,7 +47,7 @@ func NewController(continueOnError bool, addedPresubmitDenylist, addedPresubmitD
 		configOpts: configOpts,
 	}
 
-	return &Controller{
+	controller := &Controller{
 		continueOnError:           continueOnError,
 		addedPresubmitDenylist:    addedPresubmitDenylist,
 		addedPresubmitDenylistAll: addedPresubmitDenylistAll,
@@ -67,6 +68,9 @@ func NewController(continueOnError bool, addedPresubmitDenylist, addedPresubmitD
 		},
 		statusClient: sc,
 	}
+	controller.setHealthy(true)
+	sc.onConfigLoadError = controller.onConfigLoadError
+	return controller
 }
 
 type statusMigrator interface {
@@ -154,6 +158,8 @@ type Controller struct {
 	statusMigrator            statusMigrator
 	trustedChecker            trustedChecker
 	statusClient              statusClient
+
+	healthy uint32
 }
 
 // Run monitors the incoming configuration changes to determine when statuses need to be
@@ -161,13 +167,17 @@ type Controller struct {
 func (c *Controller) Run(ctx context.Context) {
 	changes, err := c.statusClient.Load()
 	if err != nil {
+		c.setHealthy(false)
 		logrus.WithError(err).Error("Error loading saved status.")
 		return
 	}
+	c.setHealthy(true)
 
 	for {
 		select {
 		case change := <-changes:
+			c.setHealthy(true)
+			statusReconcilerMetrics.loadedPresubmitCount.Set(float64(countLoadedPresubmits(change.After.PresubmitsStatic)))
 			start := time.Now()
 			log := logrus.WithField("old_config_revision", change.Before.ConfigVersionSHA).WithField("config_revision", change.After.ConfigVersionSHA)
 			if err := c.reconcile(change, log); err != nil {
@@ -180,6 +190,37 @@ func (c *Controller) Run(ctx context.Context) {
 			return
 		}
 	}
+}
+
+// Healthy reports whether status-reconciler currently considers itself live.
+func (c *Controller) Healthy() bool {
+	return atomic.LoadUint32(&c.healthy) == 1
+}
+
+func (c *Controller) setHealthy(healthy bool) {
+	atomic.StoreUint32(&c.healthy, boolToUint32(healthy))
+}
+
+func (c *Controller) onConfigLoadError(err error) {
+	if err != nil {
+		logrus.WithError(err).Error("Config load failed; marking status-reconciler unhealthy.")
+	}
+	c.setHealthy(false)
+}
+
+func boolToUint32(value bool) uint32 {
+	if value {
+		return 1
+	}
+	return 0
+}
+
+func countLoadedPresubmits(presubmits map[string][]config.Presubmit) int {
+	total := 0
+	for _, jobs := range presubmits {
+		total += len(jobs)
+	}
+	return total
 }
 
 func (c *Controller) reconcile(delta config.Delta, log *logrus.Entry) error {
@@ -316,6 +357,7 @@ func (c *Controller) retireRemovedContexts(retiredPresubmits map[string][]config
 				}
 				return err
 			}
+			statusReconcilerMetrics.contextsRetiredTotal.WithLabelValues(org, repo).Inc()
 		}
 	}
 	return utilerrors.NewAggregate(retireErrors)
