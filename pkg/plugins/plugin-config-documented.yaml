@@ -23,6 +23,21 @@ approve:
       # RequireSelfApproval disables automatic approval from PR authors with approval rights.
       # Otherwise the plugin assumes the author of the PR with approval rights approves the changes in the PR.
       require_self_approval: false
+assign:
+    "":
+        # Action controls what happens when a non-org-member tries to use
+        # /assign on an issue without an exempt label.
+        # Valid values: "warn" (default), "block".
+        action: ' '
+        # ExemptLabels is a list of labels that exempt an issue from the
+        # OnlyOrgMembers restriction, allowing anyone to self-assign.
+        # For example, setting this to ["good first issue"] lets non-members
+        # assign themselves to issues labeled "good first issue" while still
+        # blocking drive-by assigns on other issues.
+        exempt_labels:
+            - ""
+        # OnlyOrgMembers restricts issue/PR assignment to only org members.
+        only_org_members: true
 blockades:
     - # BlockRegexps are regular expressions matching the file paths to block.
       blockregexps:
