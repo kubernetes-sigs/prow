@@ -415,6 +415,9 @@ func (ca *Agent) Set(c *Config) {
 			select {
 			case sub <- delta:
 			case <-end.C:
+				logrus.WithField("old_config_revision", delta.Before.ConfigVersionSHA).
+					WithField("config_revision", delta.After.ConfigVersionSHA).
+					Warn("Timed out delivering config delta to a subscriber; the delta was dropped")
 			}
 			if !end.Stop() { // prevent new events
 				<-end.C // drain the pending event
