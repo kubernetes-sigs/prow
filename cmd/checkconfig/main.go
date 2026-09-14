@@ -126,6 +126,7 @@ const (
 	requiredJobAnnotationsWarning                  = "required-job-annotations"
 	periodicDefaultCloneWarning                    = "periodic-default-clone-config"
 	validateConfigUpdaterACLsWarning               = "validate-config-updater-acls"
+	validateLockedTrustedAppsWarning                = "validate-locked-trusted-apps"
 
 	defaultHourlyTokens = 3000
 	defaultAllowedBurst = 100
@@ -164,6 +165,7 @@ var optionalWarnings = []string{
 	// https://github.com/kubernetes/test-infra/pull/21075#issuecomment-862550510
 	unknownFieldsAllWarning,
 	validateGitHubAppInstallationWarning,
+	validateLockedTrustedAppsWarning,
 }
 
 var throttlerDefaults = flagutil.ThrottlerDefaults(defaultHourlyTokens, defaultAllowedBurst)
@@ -443,6 +445,11 @@ func validate(o options) error {
 
 	if pcfg != nil && o.warningEnabled(validateConfigUpdaterACLsWarning) {
 		if err := validateConfigUpdaterACLs(pcfg); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	if pcfg != nil && o.warningEnabled(validateLockedTrustedAppsWarning) {
+		if err := pcfg.ValidateLockedTrustedApps(); err != nil {
 			errs = append(errs, err)
 		}
 	}
