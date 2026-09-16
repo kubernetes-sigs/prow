@@ -34,6 +34,17 @@
   <script type="text/javascript" src="/static/extensions/script.js?v={{deckVersion}}"></script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/material-design-lite/1.3.0/material.min.js"></script>
   {{block "scripts" .Arguments}}{{end}}
+  {{if eq .PageName "index"}}
+  <script type="text/javascript">
+    (function() {
+      var theme = localStorage.getItem('prow-theme');
+      var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      if (theme === 'dark' || (!theme && prefersDark)) {
+        document.documentElement.classList.add('dark-mode');
+      }
+    })();
+  </script>
+  {{end}}
 </head>
 {{ $defaultLogo := "/static/logo-light.png" }}
 {{- if .DarkMode -}}
@@ -45,8 +56,14 @@
   <header class="mdl-layout__header"{{if branding.HeaderColor}} style="background-color: {{branding.HeaderColor}};"{{end}}>
     <div id="header-title" class="mdl-layout__header-row">
       <a href="/"
-         class="logo"><img src="{{or branding.Logo $defaultLogo}}?v={{deckVersion}}" alt="kubernetes logo" class="logo"/></a>
+         class="logo"><img id="header-logo" data-custom-logo="{{if branding.Logo}}true{{else}}false{{end}}" src="{{or branding.Logo $defaultLogo}}?v={{deckVersion}}" alt="kubernetes logo" class="logo"/></a>
       <span class="mdl-layout-title header-title">{{block "pageTitle" .Arguments}}{{template "title" .}}{{end}}</span>
+      {{if eq .PageName "index"}}
+      <div class="mdl-layout-spacer"></div>
+      <button id="theme-toggle" class="mdl-button mdl-js-button mdl-button--icon" title="Toggle dark mode">
+        <i id="theme-toggle-icon" class="material-icons">brightness_2</i>
+      </button>
+      {{end}}
     </div>
   </header>
   <div class="mdl-layout__drawer">
@@ -83,6 +100,90 @@
   <div class="mdl-snackbar__text"></div>
   <button class="mdl-snackbar__action" type="button"></button>
 </div>
+{{if eq .PageName "index"}}
+<script type="text/javascript">
+(function() {
+  var toggleBtn = document.getElementById('theme-toggle');
+  var toggleIcon = document.getElementById('theme-toggle-icon');
+  var logo = document.getElementById('header-logo');
+  var hasCustomLogo = logo && logo.getAttribute('data-custom-logo') === 'true';
+
+  function updateThemeUI(isDark) {
+    if (isDark) {
+      document.documentElement.classList.add('dark-mode');
+      if (document.body) {
+        document.body.classList.add('dark-mode');
+      }
+      if (toggleIcon) {
+        toggleIcon.textContent = 'brightness_7';
+      }
+      if (toggleBtn) {
+        toggleBtn.title = 'Switch to light mode';
+      }
+      if (logo && !hasCustomLogo) {
+        logo.src = '/static/logo-dark.png?v={{deckVersion}}';
+      }
+    } else {
+      document.documentElement.classList.remove('dark-mode');
+      if (document.body) {
+        document.body.classList.remove('dark-mode');
+      }
+      if (toggleIcon) {
+        toggleIcon.textContent = 'brightness_2';
+      }
+      if (toggleBtn) {
+        toggleBtn.title = 'Switch to dark mode';
+      }
+      if (logo && !hasCustomLogo) {
+        logo.src = '/static/logo-light.png?v={{deckVersion}}';
+      }
+    }
+  }
+
+  function getEffectiveTheme() {
+    var stored = localStorage.getItem('prow-theme');
+    if (stored === 'dark' || stored === 'light') {
+      return stored;
+    }
+    return (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+  }
+
+  function initTheme() {
+    var current = getEffectiveTheme();
+    updateThemeUI(current === 'dark');
+
+    if (toggleBtn) {
+      toggleBtn.addEventListener('click', function() {
+        var isCurrentlyDark = document.documentElement.classList.contains('dark-mode');
+        var nextTheme = isCurrentlyDark ? 'light' : 'dark';
+        localStorage.setItem('prow-theme', nextTheme);
+        updateThemeUI(nextTheme === 'dark');
+      });
+    }
+
+    if (window.matchMedia) {
+      var mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      var listener = function(e) {
+        if (!localStorage.getItem('prow-theme')) {
+          updateThemeUI(e.matches);
+        }
+      };
+      if (mediaQuery.addEventListener) {
+        mediaQuery.addEventListener('change', listener);
+      } else if (mediaQuery.addListener) {
+        mediaQuery.addListener(listener);
+      }
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initTheme);
+  } else {
+    initTheme();
+  }
+})();
+</script>
+{{end}}
 </body>
 </html>
 {{end}}

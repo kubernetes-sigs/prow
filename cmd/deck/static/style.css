@@ -137,7 +137,7 @@ table#job-histogram {
     padding-left: 24px;
 }
 
-..mdl-data-table th:last-of-type, .mdl-data-table td:last-of-type {
+.mdl-data-table th:last-of-type, .mdl-data-table td:last-of-type {
     padding-right: 24px;
 }
 
@@ -1145,3 +1145,268 @@ pre.prettyprint code.job-definition {
           -ms-user-select: none; /* Internet Explorer/Edge */
               user-select: none; /* Non-prefixed version */
 }
+
+/**
+ * Dark Mode for Main Prow Status Dashboard (body#index)
+ */
+html.dark-mode body#index,
+body#index.dark-mode {
+    background: #121212 !important;
+    color: #e0e0e0;
+}
+
+html.dark-mode body#index .mdl-layout__header,
+body#index.dark-mode .mdl-layout__header {
+    background-color: #212121 !important;
+}
+
+html.dark-mode body#index .header-title,
+body#index.dark-mode .header-title {
+    color: #ffffff;
+}
+
+html.dark-mode body#index #theme-toggle,
+body#index.dark-mode #theme-toggle {
+    color: #ffffff;
+}
+
+html.dark-mode body#index .mdl-layout__drawer,
+body#index.dark-mode .mdl-layout__drawer {
+    background-color: #1e1e1e;
+    border-right: 1px solid #2d2d2d;
+    color: #e0e0e0;
+}
+
+html.dark-mode body#index .mdl-layout__drawer .mdl-layout-title,
+body#index.dark-mode .mdl-layout__drawer .mdl-layout-title {
+    color: #ffffff;
+    border-bottom: 1px solid #333333;
+}
+
+html.dark-mode body#index .mdl-layout__drawer .mdl-navigation__link,
+body#index.dark-mode .mdl-layout__drawer .mdl-navigation__link {
+    color: #cccccc !important;
+}
+
+html.dark-mode body#index .mdl-layout__drawer .mdl-navigation__link:hover,
+body#index.dark-mode .mdl-layout__drawer .mdl-navigation__link:hover {
+    background-color: #2a2a2a;
+    color: #ffffff !important;
+}
+
+html.dark-mode body#index .mdl-layout__drawer .mdl-navigation__link--current,
+body#index.dark-mode .mdl-layout__drawer .mdl-navigation__link--current {
+    background-color: #2d2d2d;
+    color: #ffffff !important;
+}
+
+html.dark-mode body#index .mdl-layout__drawer footer,
+body#index.dark-mode .mdl-layout__drawer footer {
+    color: #888888;
+}
+
+/* Filter card box and controls */
+html.dark-mode body#index #filter-box.card-box,
+body#index.dark-mode #filter-box.card-box {
+    background-color: #1e1e1e;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    color: #e0e0e0;
+}
+
+html.dark-mode body#index #filter-list li,
+body#index.dark-mode #filter-list li,
+html.dark-mode body#index #job-count,
+body#index.dark-mode #job-count {
+    color: #b0b0b0;
+}
+
+html.dark-mode body#index select,
+body#index.dark-mode select {
+    color: #e0e0e0;
+    background-color: #1e1e1e;
+    border-bottom: 1px solid #555555;
+}
+
+html.dark-mode body#index select option,
+body#index.dark-mode select option {
+    background-color: #1e1e1e;
+    color: #e0e0e0;
+}
+
+html.dark-mode body#index .fuzzy-search-input,
+body#index.dark-mode .fuzzy-search-input {
+    background-color: transparent;
+    color: #e0e0e0;
+    border-bottom: 1px solid #555555;
+}
+
+html.dark-mode body#index .fuzzy-search-input::placeholder,
+body#index.dark-mode .fuzzy-search-input::placeholder {
+    color: #777777;
+}
+
+html.dark-mode body#index .fuzzy-search-list,
+body#index.dark-mode .fuzzy-search-list {
+    background-color: #222222;
+    border: 1px solid #383838;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.6);
+    color: #e0e0e0;
+}
+
+html.dark-mode body#index #job-list li,
+body#index.dark-mode #job-list li {
+    color: #e0e0e0;
+}
+
+html.dark-mode body#index #job-list li:hover,
+body#index.dark-mode #job-list li:hover,
+html.dark-mode body#index .job-selected,
+body#index.dark-mode .job-selected {
+    background-color: #383838 !important;
+    color: #ffffff;
+}
+
+/* Histogram */
+html.dark-mode body#index table#job-histogram,
+body#index.dark-mode table#job-histogram {
+    background: #1e1e1e;
+    box-shadow: 0 0 4px rgba(0,0,0,0.6);
+}
+
+html.dark-mode body#index #job-histogram-labels > span,
+body#index.dark-mode #job-histogram-labels > span,
+html.dark-mode body#index #job-histogram-labels-y-max,
+body#index.dark-mode #job-histogram-labels-y-max {
+    color: #aaaaaa;
+}
+
+html.dark-mode body#index #job-histogram-labels-y-mid,
+body#index.dark-mode #job-histogram-labels-y-mid {
+    color: #777777;
+}
+
+/* Builds data table */
+html.dark-mode body#index .mdl-data-table,
+body#index.dark-mode .mdl-data-table {
+    background-color: #1e1e1e !important;
+    color: #e0e0e0;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+}
+
+html.dark-mode body#index .mdl-data-table th,
+body#index.dark-mode .mdl-data-table th {
+    color: #b0b0b0;
+    border-top: 1px solid #333333;
+    border-bottom: 1px solid #333333;
+    background-color: #1e1e1e;
+}
+
+html.dark-mode body#index .mdl-data-table td,
+body#index.dark-mode .mdl-data-table td {
+    color: #e0e0e0;
+}
+
+html.dark-mode body#index .mdl-data-table tr,
+body#index.dark-mode .mdl-data-table tr {
+    border-top: 1px solid #2d2d2d;
+    background-color: transparent;
+}
+
+html.dark-mode body#index .mdl-data-table tbody tr:hover,
+body#index.dark-mode .mdl-data-table tbody tr:hover {
+    background-color: #282828 !important;
+}
+
+html.dark-mode body#index .mdl-data-table tr.changed,
+body#index.dark-mode .mdl-data-table tr.changed {
+    border-top: 1px solid #555555;
+}
+
+/* Links and action buttons in dark mode */
+html.dark-mode body#index a:link,
+body#index.dark-mode a:link,
+html.dark-mode body#index a:visited,
+body#index.dark-mode a:visited {
+    color: #82B1FF;
+}
+
+html.dark-mode body#index a:hover,
+body#index.dark-mode a:hover {
+    color: #B388FF;
+}
+
+html.dark-mode body#index .icon-button,
+body#index.dark-mode .icon-button {
+    color: #b0b0b0;
+}
+
+html.dark-mode body#index .icon-button:hover,
+body#index.dark-mode .icon-button:hover {
+    color: #ffffff;
+}
+
+html.dark-mode body#index #top-navigator,
+body#index.dark-mode #top-navigator {
+    background-color: #333333;
+    color: #e0e0e0;
+}
+
+/* Modals */
+html.dark-mode body#index #rerun,
+body#index.dark-mode #rerun {
+    background-color: rgba(0,0,0,0.7);
+}
+
+html.dark-mode body#index .rerun-content,
+body#index.dark-mode .rerun-content,
+html.dark-mode body#index .abort-content,
+body#index.dark-mode .abort-content {
+    background-color: #1e1e1e;
+    color: #e0e0e0;
+    border: 1px solid #444444;
+    box-shadow: 0px 20px 80px 0px rgba(0,0,0,0.8);
+}
+
+html.dark-mode body#index .rerunModal-title,
+body#index.dark-mode .rerunModal-title,
+html.dark-mode body#index .abortModal-title,
+body#index.dark-mode .abortModal-title {
+    color: #ffffff;
+}
+
+html.dark-mode body#index .rerunModal-description,
+body#index.dark-mode .rerunModal-description,
+html.dark-mode body#index .abortModal-description,
+body#index.dark-mode .abortModal-description {
+    color: #cccccc;
+}
+
+html.dark-mode body#index .rerunModal-radioLabel,
+body#index.dark-mode .rerunModal-radioLabel {
+    color: #e0e0e0;
+}
+
+html.dark-mode body#index .rerunModal-accordionButton,
+body#index.dark-mode .rerunModal-accordionButton {
+    background-color: #2d2d2d;
+    color: #e0e0e0;
+}
+
+html.dark-mode body#index .rerunModal-accordionPanel,
+body#index.dark-mode .rerunModal-accordionPanel {
+    background-color: #242424;
+}
+
+html.dark-mode body#index .rerunModal-accordionPanel code,
+body#index.dark-mode .rerunModal-accordionPanel code,
+html.dark-mode body#index code,
+body#index.dark-mode code {
+    background-color: #2d2d2d;
+    color: #e0e0e0;
+}
+
+html.dark-mode body#index .mdl-button,
+body#index.dark-mode .mdl-button {
+    color: #e0e0e0;
+}
+
