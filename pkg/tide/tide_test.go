@@ -38,6 +38,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	fuzz "github.com/google/gofuzz"
+	promtestutil "github.com/prometheus/client_golang/prometheus/testutil"
 	githubql "github.com/shurcooL/githubv4"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
@@ -4929,6 +4930,37 @@ func TestQueryShardsByOrgWhenAppsAuthIsEnabledOnly(t *testing.T) {
 				t.Errorf("expectedNumberOfApiCallsByOrg differs from actual: %s", diff)
 			}
 		})
+	}
+}
+
+func TestQueryIgnoresMergedPRs(t *testing.T) {
+	open := testPR("org", "repo", "A", 1, githubql.MergeableStateMergeable)
+	merged := testPR("org", "repo", "A", 2, githubql.MergeableStateMergeable)
+	merged.Merged = true
+	provider := &GitHubProvider{
+		cfg: func() *config.Config {
+			return &config.Config{ProwConfig: config.ProwConfig{Tide: config.Tide{
+				TideGitHubConfig: config.TideGitHubConfig{Queries: []config.TideQuery{{Orgs: []string{"org"}}}}}}}
+		},
+		ghc:    &fgc{prs: map[string][]PullRequest{"": {*open, *merged}}},
+		logger: logrus.WithField("test", t.Name()),
+	}
+
+	counter := tideMetrics.searchMerged.WithLabelValues("org", "repo")
+	before := promtestutil.ToFloat64(counter)
+	prs, err := provider.Query()
+	if err != nil {
+		t.Fatalf("Query() failed: %v", err)
+	}
+	var numbers []int
+	for _, pr := range prs {
+		numbers = append(numbers, pr.Number)
+	}
+	if diff := cmp.Diff([]int{1}, numbers); diff != "" {
+		t.Errorf("merged PR was not kept out of the pool: %s", diff)
+	}
+	if got := promtestutil.ToFloat64(counter) - before; got != 1 {
+		t.Errorf("expected the merged PR to be counted once, got %v", got)
 	}
 }
 
