@@ -1080,25 +1080,22 @@ func TestAdvisoryApprovers(t *testing.T) {
 	}
 
 	tests := []struct {
-		name                     string
-		filePath                 string
-		expectedLeafApprovers    sets.Set[string]
-		expectedAllApprovers     sets.Set[string]
-		expectedAdvisoryForPath  sets.Set[string]
+		name                  string
+		filePath              string
+		expectedLeafApprovers sets.Set[string]
+		expectedAllApprovers  sets.Set[string]
 	}{
 		{
-			name:                    "Base dir: leaf approvers exclude advisory",
-			filePath:                filepath.Join(baseDir, "testFile.go"),
-			expectedLeafApprovers:   sets.New[string]("alice", "bob"),
-			expectedAllApprovers:    sets.New[string]("alice", "bob", "anna"),
-			expectedAdvisoryForPath: sets.New[string]("anna"),
+			name:                  "Base dir: leaf approvers exclude advisory",
+			filePath:              filepath.Join(baseDir, "testFile.go"),
+			expectedLeafApprovers: sets.New[string]("alice", "bob"),
+			expectedAllApprovers:  sets.New[string]("alice", "bob", "anna"),
 		},
 		{
-			name:                    "Leaf dir: leaf approvers exclude advisory",
-			filePath:                filepath.Join(leafDir, "testFile.go"),
-			expectedLeafApprovers:   sets.New[string]("carl", "dave"),
-			expectedAllApprovers:    sets.New[string]("alice", "bob", "anna", "carl", "dave", "dan"),
-			expectedAdvisoryForPath: sets.New[string]("anna", "dan"),
+			name:                  "Leaf dir: leaf approvers exclude advisory",
+			filePath:              filepath.Join(leafDir, "testFile.go"),
+			expectedLeafApprovers: sets.New[string]("carl", "dave"),
+			expectedAllApprovers:  sets.New[string]("alice", "bob", "anna", "carl", "dave", "dan"),
 		},
 	}
 
@@ -1112,11 +1109,6 @@ func TestAdvisoryApprovers(t *testing.T) {
 			allApprovers := ro.Approvers(test.filePath).Set()
 			if !allApprovers.Equal(test.expectedAllApprovers) {
 				t.Errorf("Approvers: expected %v, got %v", test.expectedAllApprovers, allApprovers)
-			}
-
-			advisory := ro.AdvisoryApprovers(test.filePath)
-			if !advisory.Equal(test.expectedAdvisoryForPath) {
-				t.Errorf("AdvisoryApprovers: expected %v, got %v", test.expectedAdvisoryForPath, advisory)
 			}
 		})
 	}

@@ -73,10 +73,6 @@ func (f *fakeRepoOwners) AllReviewers() sets.Set[string] {
 	return ownersBySha[f.sha]
 }
 
-func (f *fakeRepoOwners) AdvisoryApprovers(path string) sets.Set[string] {
-	return sets.Set[string]{}
-}
-
 var ownersBySha = map[string]sets.Set[string]{
 	"base":         sets.New[string]("alice", "bob"),
 	"add cole":     sets.New[string]("alice", "bob", "cole"),

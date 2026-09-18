@@ -248,7 +248,6 @@ type RepoOwner interface {
 	IsAutoApproveUnownedSubfolders(directory string) bool
 	LeafApprovers(path string) sets.Set[string]
 	Approvers(path string) layeredsets.String
-	AdvisoryApprovers(path string) sets.Set[string]
 	LeafReviewers(path string) sets.Set[string]
 	Reviewers(path string) layeredsets.String
 	RequiredReviewers(path string) sets.Set[string]
@@ -267,12 +266,12 @@ var _ RepoOwner = &RepoOwners{}
 type RepoOwners struct {
 	RepoAliases
 
-	approvers          map[string]map[*regexp.Regexp]sets.Set[string]
-	reviewers          map[string]map[*regexp.Regexp]sets.Set[string]
-	requiredReviewers  map[string]map[*regexp.Regexp]sets.Set[string]
-	advisoryApprovers  map[string]map[*regexp.Regexp]sets.Set[string]
-	labels             map[string]map[*regexp.Regexp]sets.Set[string]
-	options            map[string]dirOptions
+	approvers         map[string]map[*regexp.Regexp]sets.Set[string]
+	reviewers         map[string]map[*regexp.Regexp]sets.Set[string]
+	requiredReviewers map[string]map[*regexp.Regexp]sets.Set[string]
+	advisoryApprovers map[string]map[*regexp.Regexp]sets.Set[string]
+	labels            map[string]map[*regexp.Regexp]sets.Set[string]
+	options           map[string]dirOptions
 
 	baseDir      string
 	enableMDYAML bool
@@ -765,7 +764,7 @@ func (o *RepoOwners) applyConfigToPath(path string, re *regexp.Regexp, config *C
 		if existing, ok := o.approvers[path][re]; ok {
 			o.approvers[path][re] = existing.Union(advisorySet)
 		} else {
-			o.approvers[path][re] = advisorySet.Union(sets.New[string]())
+			o.approvers[path][re] = advisorySet
 		}
 	}
 	if len(config.Labels) > 0 {
@@ -906,12 +905,6 @@ func (o *RepoOwners) LeafApprovers(path string) sets.Set[string] {
 	all := o.entriesForFile(path, o.approvers, true).Set()
 	advisory := o.entriesForFile(path, o.advisoryApprovers, true).Set()
 	return all.Difference(advisory)
-}
-
-// AdvisoryApprovers returns the set of advisory approvers for the requested
-// file. These users retain approval power but are excluded from auto-assignment.
-func (o *RepoOwners) AdvisoryApprovers(path string) sets.Set[string] {
-	return o.entriesForFile(path, o.advisoryApprovers, false).Set()
 }
 
 // Approvers returns ALL of the users who are approvers for the
