@@ -862,6 +862,7 @@ func TestSyncPendingJob(t *testing.T) {
 		ExpectedPodRunningTimeout     *metav1.Duration
 		ExpectedPodPendingTimeout     *metav1.Duration
 		ExpectedPodUnscheduledTimeout *metav1.Duration
+		ExpectError                   bool
 	}
 	testcases := []testCase{
 		{
@@ -1336,6 +1337,52 @@ func TestSyncPendingJob(t *testing.T) {
 			ExpectedURL:      "jose/error",
 		},
 		{
+			Name: "build cluster unreachable, pending timeout exceeded",
+			PJ: prowapi.ProwJob{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "cluster-down",
+					Namespace: "prowjobs",
+				},
+				Spec: prowapi.ProwJobSpec{
+					Job:     "boop",
+					Type:    prowapi.PostsubmitJob,
+					PodSpec: &v1.PodSpec{Containers: []v1.Container{{Name: "test-name", Env: []v1.EnvVar{}}}},
+					Refs:    &prowapi.Refs{Org: "fejtaverse"},
+				},
+				Status: prowapi.ProwJobStatus{
+					State:       prowapi.PendingState,
+					PendingTime: startTime(time.Now().Add(-2 * time.Hour)),
+				},
+			},
+			Err:              errors.New("connection refused"),
+			ExpectedState:    prowapi.ErrorState,
+			ExpectedComplete: true,
+			ExpectedNumPods:  0,
+		},
+		{
+			Name: "build cluster unreachable, pending timeout not yet exceeded",
+			PJ: prowapi.ProwJob{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "cluster-down-fresh",
+					Namespace: "prowjobs",
+				},
+				Spec: prowapi.ProwJobSpec{
+					Job:     "boop",
+					Type:    prowapi.PostsubmitJob,
+					PodSpec: &v1.PodSpec{Containers: []v1.Container{{Name: "test-name", Env: []v1.EnvVar{}}}},
+					Refs:    &prowapi.Refs{Org: "fejtaverse"},
+				},
+				Status: prowapi.ProwJobStatus{
+					State:       prowapi.PendingState,
+					PendingTime: startTime(time.Now().Add(-time.Minute)),
+				},
+			},
+			Err:             errors.New("connection refused"),
+			ExpectError:     true,
+			ExpectedState:   prowapi.PendingState,
+			ExpectedNumPods: 0,
+		},
+		{
 			Name: "stale pending prow job",
 			PJ: prowapi.ProwJob{
 				ObjectMeta: metav1.ObjectMeta{
@@ -1765,8 +1812,15 @@ func TestSyncPendingJob(t *testing.T) {
 				clock:        clock.RealClock{},
 			}
 			reconcileResult, err := r.syncPendingJob(ctx, &tc.PJ)
+			if (err != nil) != tc.ExpectError {
+				if tc.ExpectError {
+					t.Fatalf("expected an error from syncPendingJob, but got none")
+				} else {
+					t.Fatalf("syncPendingJob failed: %v", err)
+				}
+			}
 			if err != nil {
-				t.Fatalf("syncPendingJob failed: %v", err)
+				return
 			}
 			if reconcileResult != nil {
 				// Round this to minutes so we can compare the value without risking flaky tests
