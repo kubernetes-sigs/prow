@@ -36,6 +36,7 @@ type storedState struct {
 type statusClient interface {
 	Load() (chan config.Delta, error)
 	Save() error
+	Config() *config.Config
 }
 
 // opener has methods to read and write paths
