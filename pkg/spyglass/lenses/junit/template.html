@@ -3,6 +3,9 @@
 <script type="text/javascript" src="script_bundle.min.js"></script>
 {{end}}
 
+{{/* Renders a test's name plus a widget that copies the bare test name to the clipboard. */}}
+{{define "testname"}}{{.ClassName}}: {{.Name}}&nbsp;<i class="icon-button material-icons copy-test-name noselect" data-test-name="{{.Name}}" title="Copy test name">content_copy</i>{{end}}
+
 {{define "body"}}
 {{$numF := len .Failed}}
 {{$numFlk := len .Flaky}}
@@ -29,7 +32,7 @@
         <td colspan="2" style="padding: 0;">
           <table class="failed-layout">
             <tr class="failure-name">
-              <td class="mdl-data-table__cell--non-numeric test-name">{{$firstTest.ClassName}}: {{$firstTest.Name}}&nbsp;<i class="icon-button material-icons arrow-icon">expand_more</i></td>
+              <td class="mdl-data-table__cell--non-numeric test-name">{{template "testname" $firstTest}}&nbsp;<i class="icon-button material-icons arrow-icon">expand_more</i></td>
               <td class="mdl-data-table__cell--non-numeric" style="text-align: right;">{{$firstTest.Duration}}</td>
             </tr>
             <tr class="hidden failure-text">
@@ -53,7 +56,7 @@
         <td colspan="2" style="padding: 0;">
           <table class="failed-layout">
             <tr class="failure-name">
-              <td class="mdl-data-table__cell--non-numeric test-name">{{$firstTest.ClassName}}: {{$firstTest.Name}}&nbsp;<i class="icon-button material-icons arrow-icon">expand_more</i></td>
+              <td class="mdl-data-table__cell--non-numeric test-name">{{template "testname" $firstTest}}&nbsp;<i class="icon-button material-icons arrow-icon">expand_more</i></td>
             </tr>
             <tr class="hidden">
               <td>
@@ -105,7 +108,7 @@
         <td colspan="2" style="padding: 0;">
           <table class="flaky-layout">
             <tr class="flaky-name">
-              <td class="mdl-data-table__cell--non-numeric test-name">{{$firstTest.ClassName}}: {{$firstTest.Name}}&nbsp;<i class="icon-button material-icons arrow-icon">expand_more</i></td>
+              <td class="mdl-data-table__cell--non-numeric test-name">{{template "testname" $firstTest}}&nbsp;<i class="icon-button material-icons arrow-icon">expand_more</i></td>
             </tr>
             <tr class="hidden">
               <td>
@@ -153,7 +156,7 @@
       {{range .Passed}}
         {{$firstTest := index .Junit 0}}
         <tr>
-          <td class="mdl-data-table__cell--non-numeric test-name">{{$firstTest.ClassName}}: {{$firstTest.Name}}</td>
+          <td class="mdl-data-table__cell--non-numeric test-name">{{template "testname" $firstTest}}</td>
           <td class="mdl-data-table__cell--non-numeric">{{$firstTest.Duration}}</td>
         </tr>
       {{end}}
@@ -169,9 +172,9 @@
         {{$firstTest := index .Junit 0}}
         <tr>
 	   {{if eq $firstTest.SkippedReason "" }}
-	   <td class="mdl-data-table__cell--non-numeric test-name">{{$firstTest.ClassName}}: {{$firstTest.Name}}</td>
+	   <td class="mdl-data-table__cell--non-numeric test-name">{{template "testname" $firstTest}}</td>
 	   {{else}}
-	   <td class="mdl-data-table__cell--non-numeric test-name">{{$firstTest.ClassName}}: {{$firstTest.Name}}</br> </br><b>Reason:</b> {{$firstTest.SkippedReason}}</td>
+	   <td class="mdl-data-table__cell--non-numeric test-name">{{template "testname" $firstTest}}</br> </br><b>Reason:</b> {{$firstTest.SkippedReason}}</td>
 	   {{end}}
           <td class="mdl-data-table__cell--non-numeric">{{$firstTest.Duration}}</td>
         </tr>
@@ -201,7 +204,7 @@
         <td colspan="2" style="padding: 0;">
           <table class="group-layout">
             <tr class="group-name">
-              <td class="mdl-data-table__cell--non-numeric test-name">{{$firstTest.ClassName}}: {{$firstTest.Name}}&nbsp;<i class="icon-button material-icons arrow-icon">expand_more</i></td>
+              <td class="mdl-data-table__cell--non-numeric test-name">{{template "testname" $firstTest}}&nbsp;<i class="icon-button material-icons arrow-icon">expand_more</i></td>
               <td class="mdl-data-table__cell--non-numeric" style="text-align: right;">{{$firstTest.Duration}}</td>
             </tr>
             <tr class="hidden group-text">
@@ -225,7 +228,7 @@
         <td colspan="2" style="padding: 0;">
           <table class="group-layout">
             <tr class="group-name">
-              <td class="mdl-data-table__cell--non-numeric test-name">{{$firstTest.ClassName}}: {{$firstTest.Name}}&nbsp;<i class="icon-button material-icons arrow-icon">expand_more</i></td>
+              <td class="mdl-data-table__cell--non-numeric test-name">{{template "testname" $firstTest}}&nbsp;<i class="icon-button material-icons arrow-icon">expand_more</i></td>
             </tr>
             <tr class="hidden">
               <td>
@@ -277,7 +280,7 @@
         <td colspan="2" style="padding: 0;">
           <table class="group-layout">
             <tr class="group-name">
-              <td class="mdl-data-table__cell--non-numeric test-name">{{$firstTest.ClassName}}: {{$firstTest.Name}}&nbsp;<i class="icon-button material-icons arrow-icon">expand_more</i></td>
+              <td class="mdl-data-table__cell--non-numeric test-name">{{template "testname" $firstTest}}&nbsp;<i class="icon-button material-icons arrow-icon">expand_more</i></td>
             </tr>
             <tr class="hidden">
               <td>
@@ -325,7 +328,7 @@
       {{range $group.Passed}}
         {{$firstTest := index .Junit 0}}
         <tr>
-          <td class="mdl-data-table__cell--non-numeric test-name">{{$firstTest.ClassName}}: {{$firstTest.Name}}</td>
+          <td class="mdl-data-table__cell--non-numeric test-name">{{template "testname" $firstTest}}</td>
           <td class="mdl-data-table__cell--non-numeric">{{$firstTest.Duration}}</td>
         </tr>
       {{end}}
@@ -341,9 +344,9 @@
         {{$firstTest := index .Junit 0}}
         <tr>
 	   {{if eq $firstTest.SkippedReason "" }}
-	   <td class="mdl-data-table__cell--non-numeric test-name">{{$firstTest.ClassName}}: {{$firstTest.Name}}</td>
+	   <td class="mdl-data-table__cell--non-numeric test-name">{{template "testname" $firstTest}}</td>
 	   {{else}}
-	   <td class="mdl-data-table__cell--non-numeric test-name">{{$firstTest.ClassName}}: {{$firstTest.Name}}</br> </br><b>Reason:</b> {{$firstTest.SkippedReason}}</td>
+	   <td class="mdl-data-table__cell--non-numeric test-name">{{template "testname" $firstTest}}</br> </br><b>Reason:</b> {{$firstTest.SkippedReason}}</td>
 	   {{end}}
           <td class="mdl-data-table__cell--non-numeric">{{$firstTest.Duration}}</td>
         </tr>
