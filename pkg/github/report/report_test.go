@@ -321,6 +321,14 @@ func TestReportStatus(t *testing.T) {
 			expectedStatuses: []string{"pending"},
 		},
 		{
+			name: "Scheduling presubmit job with report true should set pending status",
+
+			state:            prowapi.SchedulingState,
+			report:           true,
+			pjType:           prowapi.PresubmitJob,
+			expectedStatuses: []string{"pending"},
+		},
+		{
 			name: "really long description is truncated",
 
 			state:            prowapi.TriggeredState,

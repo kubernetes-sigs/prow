@@ -55,6 +55,8 @@ type GitHubClient interface {
 // https://developer.github.com/v3/repos/statuses/#create-a-status
 func prowjobStateToGitHubStatus(pjState prowapi.ProwJobState) (string, error) {
 	switch pjState {
+	case prowapi.SchedulingState:
+		return github.StatusPending, nil
 	case prowapi.TriggeredState:
 		return github.StatusPending, nil
 	case prowapi.PendingState:
