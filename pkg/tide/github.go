@@ -140,6 +140,12 @@ func (gi *GitHubProvider) Query() (map[string]CodeReviewCommon, error) {
 
 				for _, pr := range results {
 					crc := CodeReviewCommonFromPullRequest(&pr)
+					// The search index can lag behind a merge and still match "state:open".
+					if pr.Merged {
+						gi.logger.WithFields(crc.logFields()).Warn("Search returned an already merged PR, ignoring it.")
+						tideMetrics.searchMerged.WithLabelValues(crc.Org, crc.Repo).Inc()
+						continue
+					}
 					prs[prKey(crc)] = *crc
 				}
 			}()

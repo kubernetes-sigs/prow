@@ -210,6 +210,7 @@ var (
 		merges       *prometheus.HistogramVec
 		poolErrors   *prometheus.CounterVec
 		queryResults *prometheus.CounterVec
+		searchMerged *prometheus.CounterVec
 
 		// Singleton
 		syncDuration         prometheus.Gauge
@@ -268,6 +269,14 @@ var (
 			"query_index",
 			"org_shard",
 			"result",
+		}),
+
+		searchMerged: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "tide_search_merged_prs_total",
+			Help: "Count of already merged PRs returned by the open PR search and kept out of the Tide pool, which happens when the search index lags behind a merge.",
+		}, []string{
+			"org",
+			"repo",
 		}),
 
 		// Use the sync heartbeat counter to monitor for liveness. Use the duration
@@ -341,6 +350,7 @@ func init() {
 	prometheus.MustRegister(tideMetrics.syncHeartbeat)
 	prometheus.MustRegister(tideMetrics.poolErrors)
 	prometheus.MustRegister(tideMetrics.queryResults)
+	prometheus.MustRegister(tideMetrics.searchMerged)
 	prometheus.MustRegister(tideMetrics.retests)
 	prometheus.MustRegister(tideMetrics.poolMissingPRs)
 	prometheus.MustRegister(tideMetrics.poolPendingPRs)
@@ -2009,6 +2019,7 @@ type PullRequest struct {
 	HeadRefName      githubql.String `graphql:"headRefName"`
 	HeadRefOID       githubql.String `graphql:"headRefOid"`
 	Mergeable        githubql.MergeableState
+	Merged           githubql.Boolean `graphql:"merged"`
 	MergeStateStatus githubql.String  `graphql:"mergeStateStatus"`
 	CanBeRebased     githubql.Boolean `graphql:"canBeRebased"`
 	Repository       struct {
