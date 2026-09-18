@@ -285,7 +285,10 @@ func main() {
 	pprof.Instrument(o.instrumentation)
 
 	// setup config agent, pod log clients etc.
-	configAgent, err := o.config.ConfigAgentWithAdditionals(&config.Agent{}, []func(*config.Config) error{spglassConfigDefaulting})
+	configAgent, err := o.config.ConfigAgent(
+		configflagutil.WithReuseAgent(&config.Agent{}),
+		configflagutil.WithAdditionals(spglassConfigDefaulting),
+	)
 	if err != nil {
 		logrus.WithError(err).Fatal("Error starting config agent.")
 	}
@@ -308,6 +311,7 @@ func main() {
 	// this needs to be in a separate port as we don't start the
 	// main server with the main mux until we're ready
 	health := pjutil.NewHealthOnPort(o.instrumentation.HealthPort)
+	health.ServeLive()
 
 	mux := http.NewServeMux()
 	// setup common handlers for local and deployed runs

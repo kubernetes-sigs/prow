@@ -283,6 +283,7 @@ func main() {
 
 	pprof.Instrument(o.instrumentationOptions)
 	health := pjutil.NewHealthOnPort(o.instrumentationOptions.HealthPort)
+	health.ServeLive()
 
 	s, err := newStore(o.storagePath)
 	if err != nil {

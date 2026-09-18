@@ -98,12 +98,14 @@ func TestLoad(t *testing.T) {
 	}
 
 	testCases := []struct {
-		name               string
-		existingStatusFile bool
-		savedNamespace     string
-		savedPresubmits    []string
-		newNamespace       string
-		newPresubmits      []string
+		name                string
+		existingStatusFile  bool
+		corruptedStatusFile bool
+		expectLoadError     bool
+		savedNamespace      string
+		savedPresubmits     []string
+		newNamespace        string
+		newPresubmits       []string
 	}{
 		{
 			name:          "no status file should not cause any errors",
@@ -118,12 +120,24 @@ func TestLoad(t *testing.T) {
 			newNamespace:       "foo",
 			newPresubmits:      []string{"presubmit-bar", "presubmit-foo"},
 		},
+		{
+			name:                "with a corrupted status file, load should fail",
+			corruptedStatusFile: true,
+			expectLoadError:     true,
+		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			statusURI := ""
-			if tc.existingStatusFile {
+			if tc.corruptedStatusFile {
+				statusFile, cleanupStatusFile := getConfigFile(t, config.Config{})
+				defer cleanupStatusFile()
+				if err := os.WriteFile(statusFile, []byte("{not-valid-yaml"), 0o600); err != nil {
+					t.Fatalf("%s: failed to write corrupted status file: %v", tc.name, err)
+				}
+				statusURI = statusFile
+			} else if tc.existingStatusFile {
 				statusFile, cleanupStatusFile := getConfigFile(t, savedConfig)
 				defer cleanupStatusFile()
 				statusURI = statusFile
@@ -145,6 +159,12 @@ func TestLoad(t *testing.T) {
 				},
 			}
 			changes, err := sc.Load()
+			if tc.expectLoadError {
+				if err == nil {
+					t.Fatalf("%s: expected load error but got none", tc.name)
+				}
+				return
+			}
 			if err != nil {
 				t.Fatalf("%s: unexpected error %v", tc.name, err)
 			}
