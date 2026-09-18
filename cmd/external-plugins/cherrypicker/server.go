@@ -62,6 +62,7 @@ type githubClient interface {
 	GetRepo(owner, name string) (github.FullRepo, error)
 	IsMember(org, user string) (bool, error)
 	ListIssueComments(org, repo string, number int) ([]github.IssueComment, error)
+	ListIssueEvents(org, repo string, number int) ([]github.ListedIssueEvent, error)
 	GetIssueLabels(org, repo string, number int) ([]github.Label, error)
 	ListOrgMembers(org, role string) ([]github.TeamMember, error)
 }
@@ -356,20 +357,35 @@ func (s *Server) handlePullRequestLabelAdded(log logrus.FieldLogger, pre github.
 		github.PrLogField:   num,
 	})
 	prAuthor := pr.User.Login
+	labeler := pre.Sender
 
+	membership := map[string]bool{}
 	if !s.allowAll {
-		// Only org members should be able to do cherry-picks.
-		ok, err := s.ghc.IsMember(org, prAuthor)
-		if err != nil {
-			return log, err
-		}
-		if !ok {
-			resp := fmt.Sprintf(notOrgMemberMessageTemplate, org, org, org, prAuthor)
-			if err := s.createComment(log, org, repo, num, nil, resp); err != nil {
-				log.WithError(err).WithField("response", resp).Error("Failed to create comment.")
+		for _, user := range []string{prAuthor, labeler.Login} {
+			if _, done := membership[user]; done || user == "" {
+				continue
 			}
-			return log, nil
+			ok, err := s.ghc.IsMember(org, user)
+			if err != nil {
+				return log, err
+			}
+			membership[user] = ok
 		}
+	}
+	requester, allowed := s.labelRequester(prAuthor, labeler, func(user string) bool {
+		return s.allowAll || membership[user]
+	})
+	if !allowed {
+		// Only org members should be able to do cherry-picks.
+		rejected := prAuthor
+		if labeler.Login != "" {
+			rejected = labeler.Login
+		}
+		resp := fmt.Sprintf(notOrgMemberMessageTemplate, org, org, org, rejected)
+		if err := s.createComment(log, org, repo, num, nil, resp); err != nil {
+			log.WithError(err).WithField("response", resp).Error("Failed to create comment.")
+		}
+		return log, nil
 	}
 	if targetBranch == baseBranch {
 		resp := fmt.Sprintf("base branch (%s) needs to differ from target branch (%s)", baseBranch, targetBranch)
@@ -380,7 +396,7 @@ func (s *Server) handlePullRequestLabelAdded(log logrus.FieldLogger, pre github.
 	if !pr.Merged {
 		resp := fmt.Sprintf(
 			"@%s once the present PR merges, I will cherry-pick it on top of `%s` in a new PR and assign it to you.",
-			prAuthor,
+			requester,
 			targetBranch,
 		)
 		return log, s.createComment(log, org, repo, num, nil, resp)
@@ -388,10 +404,10 @@ func (s *Server) handlePullRequestLabelAdded(log logrus.FieldLogger, pre github.
 
 	return log, s.handle(
 		log.WithFields(logrus.Fields{
-			"requester":     prAuthor,
+			"requester":     requester,
 			"target_branch": targetBranch,
 		}),
-		prAuthor,
+		requester,
 		nil,
 		org,
 		repo,
@@ -458,32 +474,59 @@ func (s *Server) handlePullRequestClosed(log logrus.FieldLogger, pre github.Pull
 	if err != nil {
 		return log, fmt.Errorf("failed to get issue labels: %w", err)
 	}
+	var cherrypickLabels []string
 	for _, label := range labels {
 		if strings.HasPrefix(label.Name, s.labelPrefix) {
-			if requesterToComments[pr.User.Login] == nil {
-				requesterToComments[pr.User.Login] = make(map[string]*github.IssueComment)
-			}
-			requesterToComments[pr.User.Login][label.Name[len(s.labelPrefix):]] = nil // leave this nil which indicates a label-initiated cherry-pick
+			cherrypickLabels = append(cherrypickLabels, label.Name)
 		}
 	}
-	if len(requesterToComments) == 0 {
+	if len(requesterToComments) == 0 && len(cherrypickLabels) == 0 {
 		return log, nil
 	}
 	// Figure out membership.
+	isMember := func(string) bool { return true }
 	if !s.allowAll {
 		// TODO: Possibly cache this.
 		members, err := s.ghc.ListOrgMembers(org, "all")
 		if err != nil {
 			return log, err
 		}
-		for requester := range requesterToComments {
-			isMember := slices.ContainsFunc(members, func(member github.TeamMember) bool {
-				return requester == member.Login
+		isMember = func(user string) bool {
+			return slices.ContainsFunc(members, func(member github.TeamMember) bool {
+				return user == member.Login
 			})
-			if !isMember {
+		}
+		for requester := range requesterToComments {
+			if !isMember(requester) {
 				delete(requesterToComments, requester)
 			}
 		}
+	}
+	// Labels are attributed to whoever added them, falling back to the PR author.
+	labelers := map[string]github.User{}
+	if len(cherrypickLabels) > 0 {
+		events, err := s.ghc.ListIssueEvents(org, repo, num)
+		if err != nil {
+			log.WithError(err).Warn("Failed to list issue events, attributing cherrypick labels to the PR author.")
+		}
+		for _, event := range events {
+			if event.Event == github.IssueActionLabeled && strings.HasPrefix(event.Label.Name, s.labelPrefix) {
+				labelers[event.Label.Name] = event.Actor
+			}
+		}
+	}
+	for _, label := range cherrypickLabels {
+		requester, allowed := s.labelRequester(pr.User.Login, labelers[label], isMember)
+		if !allowed {
+			continue
+		}
+		if requesterToComments[requester] == nil {
+			requesterToComments[requester] = make(map[string]*github.IssueComment)
+		}
+		requesterToComments[requester][label[len(s.labelPrefix):]] = nil // leave this nil which indicates a label-initiated cherry-pick
+	}
+	if len(requesterToComments) == 0 {
+		return log, nil
 	}
 
 	// Handle multiple comments serially. Make sure to filter out
@@ -517,6 +560,26 @@ func (s *Server) handlePullRequestClosed(log logrus.FieldLogger, pre github.Pull
 		}
 	}
 	return log, utilerrors.NewAggregate(errs)
+}
+
+// labelRequester returns the user a label-initiated cherry-pick is attributed to
+// (and assigned to) and whether the request is allowed. The user who added the
+// label is preferred when they are an org member and not a bot; otherwise the PR
+// author is used. The request is allowed if either of them is an org member, as
+// adding a label already requires write access to the repo.
+func (s *Server) labelRequester(prAuthor string, labeler github.User, isMember func(string) bool) (string, bool) {
+	labelerOK := labeler.Login != "" && isMember(labeler.Login)
+	if labelerOK && !s.isBot(labeler) {
+		return labeler.Login, true
+	}
+	return prAuthor, labelerOK || isMember(prAuthor)
+}
+
+func (s *Server) isBot(u github.User) bool {
+	if u.Type == github.UserTypeBot {
+		return true
+	}
+	return s.botUser != nil && github.NormLogin(u.Login) == github.NormLogin(s.botUser.Login)
 }
 
 var cherryPickBranchFmt = "cherry-pick-%d-to-%s"
