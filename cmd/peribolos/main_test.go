@@ -3834,7 +3834,7 @@ func (f *fakeCollaboratorClient) ListDirectCollaboratorsWithPermissions(org, rep
 	}
 
 	// For testing, return the same as the regular collaborators
-	// In real usage, this would only return direct collaborators via GraphQL
+	// In real usage, this would only return direct collaborators (explicitly added)
 	return f.collaborators, nil
 }
 

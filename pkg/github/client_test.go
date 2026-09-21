@@ -2408,22 +2408,40 @@ func TestListCollaborators(t *testing.T) {
 }
 
 func TestListDirectCollaboratorsWithPermissions(t *testing.T) {
-	var gotAffiliation string
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/repos/org/repo/collaborators" {
-			t.Errorf("Unexpected path: %s", r.URL.Path)
+	// Serve two pages so the pagination path is actually exercised: a truncated
+	// list would feed configureCollaborators, which removes collaborators not in
+	// config.
+	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Errorf("Bad method: %s", r.Method)
 		}
-		gotAffiliation = r.URL.Query().Get("affiliation")
-		b, err := json.Marshal([]User{
-			{Login: "reader", Permissions: RepoPermissions{Pull: true}},
-			{Login: "writer", Permissions: RepoPermissions{Pull: true, Push: true}},
-			{Login: "boss", Permissions: RepoPermissions{Pull: true, Push: true, Admin: true}},
-		})
-		if err != nil {
-			t.Fatalf("Marshal error: %v", err)
-		}
-		if _, err := w.Write(b); err != nil {
-			t.Fatalf("Write error: %v", err)
+		switch r.URL.Path {
+		case "/repos/org/repo/collaborators":
+			if got := r.URL.Query().Get("affiliation"); got != "direct" {
+				t.Errorf("Expected affiliation=direct, got %q", got)
+			}
+			if got := r.URL.Query().Get("per_page"); got != "100" {
+				t.Errorf("Expected per_page=100, got %q", got)
+			}
+			b, err := json.Marshal([]User{
+				{Login: "reader", Permissions: RepoPermissions{Pull: true}},
+			})
+			if err != nil {
+				t.Fatalf("Marshal error: %v", err)
+			}
+			w.Header().Set("Link", fmt.Sprintf(`<blorp>; rel="first", <https://%s/page2>; rel="next"`, r.Host))
+			fmt.Fprint(w, string(b))
+		case "/page2":
+			b, err := json.Marshal([]User{
+				{Login: "writer", Permissions: RepoPermissions{Pull: true, Push: true}},
+				{Login: "boss", Permissions: RepoPermissions{Pull: true, Push: true, Admin: true}},
+			})
+			if err != nil {
+				t.Fatalf("Marshal error: %v", err)
+			}
+			fmt.Fprint(w, string(b))
+		default:
+			t.Errorf("Bad request path: %s", r.URL.Path)
 		}
 	}))
 	defer ts.Close()
@@ -2431,9 +2449,6 @@ func TestListDirectCollaboratorsWithPermissions(t *testing.T) {
 	perms, err := c.ListDirectCollaboratorsWithPermissions("org", "repo")
 	if err != nil {
 		t.Fatalf("Didn't expect error: %v", err)
-	}
-	if gotAffiliation != "direct" {
-		t.Errorf("Expected affiliation=direct, got %q", gotAffiliation)
 	}
 	expected := map[string]RepoPermissionLevel{
 		"reader": Read,
