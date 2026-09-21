@@ -17,7 +17,7 @@ metrics are not directly related to a specific prow-component.
 | prow_job_runtime_seconds     | Histogram     | `job_name`=&lt;prow_job-name&gt; <br> `job_namespace`=&lt;prow_job-namespace&gt; <br> `type`=&lt;prow_job-type&gt; <br> `last_state`=&lt;last-state&gt; <br> `state`=&lt;state&gt; <br> `org`=&lt;org&gt; <br> `repo`=&lt;repo&gt; <br> `base_ref`=&lt;base_ref&gt; <br>  |
 
 For example, the metric `prow_job_labels` is similar to `kube_pod_labels` defined
-in [kubernetes/kube-state-metrics](https://github.com/kubernetes/kube-state-metrics/blob/master/docs/pod-metrics.md).
+in [kubernetes/kube-state-metrics](https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/workload/pod-metrics.md).
 A typical usage of `prow_job_labels` is to [join](https://github.com/kubernetes/kube-state-metrics/tree/master/docs#join-metrics)
 it with other metrics using a [Prometheus matching operator](https://prometheus.io/docs/prometheus/latest/querying/operators/#vector-matching).
 

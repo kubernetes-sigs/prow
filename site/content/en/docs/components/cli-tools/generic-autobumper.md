@@ -20,9 +20,9 @@ The cluster admins can upgrade the version of images by approving the PR.
 Define Prow jobs to utilize this tool:
 
 * Periodic job for the above workflow: Periodically generate PRs for bumping the version,
-    e.g., [ci-test-infra-autobump-prow](https://github.com/kubernetes/test-infra/blob/master/config/jobs/kubernetes/test-infra/test-infra-trusted.yaml#L527).
+    e.g., [ci-test-infra-autobump-prow](https://github.com/kubernetes/test-infra/blob/master/config/jobs/kubernetes/sig-k8s-infra/trusted/sig-k8s-infra-prow.yaml).
 * Postsubmit job for auto-deployment: In order to make the changes effective in Prow-cluster,
-a postsubmit job, e.g., [`post-test-infra-deploy-prow`](https://github.com/kubernetes/test-infra/blob/master/config/jobs/kubernetes/test-infra/test-infra-trusted.yaml#L84)
+a postsubmit job, e.g., [`post-k8sio-deploy-prow-build-trusted-resources`](https://github.com/kubernetes/test-infra/blob/master/config/jobs/kubernetes/sig-k8s-infra/trusted/sig-k8s-infra-prow.yaml)
     for [prow.k8s.io](https://prow.k8s.io/) is defined for deploying the yaml files.
 
 ### Requirement

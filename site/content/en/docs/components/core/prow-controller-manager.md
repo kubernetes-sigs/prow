@@ -30,7 +30,7 @@ $ go run ./cmd/prow-controller-manager --help
 
 ### Configuration
 
-* [Deployment manifest](https://github.com/kubernetes/test-infra/blob/master/config/prow/cluster/prow_controller_manager_deployment.yaml)
+* [Deployment manifest](https://github.com/kubernetes/k8s.io/blob/main/kubernetes/gke-prow/prow/prow-controller-manager.yaml)
 * [RBAC manifest](https://github.com/kubernetes/test-infra/blob/master/config/prow/cluster/prow_controller_manager_rbac.yaml)
 
 [Plank]: /docs/components/deprecated/plank/
