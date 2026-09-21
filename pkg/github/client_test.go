@@ -2407,6 +2407,44 @@ func TestListCollaborators(t *testing.T) {
 	}
 }
 
+func TestListDirectCollaboratorsWithPermissions(t *testing.T) {
+	var gotAffiliation string
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/repos/org/repo/collaborators" {
+			t.Errorf("Unexpected path: %s", r.URL.Path)
+		}
+		gotAffiliation = r.URL.Query().Get("affiliation")
+		b, err := json.Marshal([]User{
+			{Login: "reader", Permissions: RepoPermissions{Pull: true}},
+			{Login: "writer", Permissions: RepoPermissions{Pull: true, Push: true}},
+			{Login: "boss", Permissions: RepoPermissions{Pull: true, Push: true, Admin: true}},
+		})
+		if err != nil {
+			t.Fatalf("Marshal error: %v", err)
+		}
+		if _, err := w.Write(b); err != nil {
+			t.Fatalf("Write error: %v", err)
+		}
+	}))
+	defer ts.Close()
+	c := getClient(ts.URL)
+	perms, err := c.ListDirectCollaboratorsWithPermissions("org", "repo")
+	if err != nil {
+		t.Fatalf("Didn't expect error: %v", err)
+	}
+	if gotAffiliation != "direct" {
+		t.Errorf("Expected affiliation=direct, got %q", gotAffiliation)
+	}
+	expected := map[string]RepoPermissionLevel{
+		"reader": Read,
+		"writer": Write,
+		"boss":   Admin,
+	}
+	if !reflect.DeepEqual(perms, expected) {
+		t.Errorf("Wrong permissions map.\n got: %v\nwant: %v", perms, expected)
+	}
+}
+
 func TestListRepoTeams(t *testing.T) {
 	expectedTeams := []Team{
 		{ID: 1, Slug: "foo", Permission: RepoPull},

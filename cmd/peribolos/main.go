@@ -387,7 +387,7 @@ func dumpOrgConfig(client dumpClient, orgName string, ignoreSecretTeams bool, ig
 			// Collaborators will be set conditionally below
 		})
 
-		// Get direct collaborators (explicitly added) via GraphQL
+		// Get direct collaborators (explicitly added)
 		if directCollabs, err := client.ListDirectCollaboratorsWithPermissions(orgName, repo.Name); err != nil {
 			logrus.WithError(err).Warnf("Failed to list direct collaborators for %s/%s", orgName, repo.Name)
 		} else if len(directCollabs) > 0 {
@@ -1230,7 +1230,7 @@ type collaboratorClient interface {
 }
 
 // configureCollaborators updates the list of repository collaborators when necessary
-// This function uses GraphQL to get only direct collaborators (explicitly added) and manages them
+// This function gets only direct collaborators (explicitly added) and manages them
 // according to the configuration. Org members with inherited access are not affected.
 func configureCollaborators(client collaboratorClient, orgName, repoName string, repo org.Repo) error {
 	want := repo.Collaborators
@@ -1238,7 +1238,7 @@ func configureCollaborators(client collaboratorClient, orgName, repoName string,
 		want = map[string]github.RepoPermissionLevel{}
 	}
 
-	// Get current direct collaborators (only explicitly added ones) with their permissions via GraphQL
+	// Get current direct collaborators (only explicitly added ones) with their permissions
 	currentCollaboratorsRaw, err := client.ListDirectCollaboratorsWithPermissions(orgName, repoName)
 	if err != nil {
 		return fmt.Errorf("failed to list direct collaborators for %s/%s: %w", orgName, repoName, err)
@@ -1303,7 +1303,7 @@ func configureCollaborators(client collaboratorClient, orgName, repoName string,
 	}
 
 	// Remove direct collaborators not in our config (including those with pending invitations)
-	// Since we only get direct collaborators via GraphQL, we can safely remove anyone not in config
+	// Since we only get direct collaborators, we can safely remove anyone not in config
 	for normalizedCurrentUser := range combinedCollaborators.collaborators {
 		// Check if this user (normalized) is in our wanted config
 		if _, exists := wantedCollaborators.collaborators[normalizedCurrentUser]; !exists {
