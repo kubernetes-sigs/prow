@@ -18,7 +18,7 @@ package trigger
 
 import (
 	"fmt"
-	"sync"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"sigs.k8s.io/prow/pkg/kube"
@@ -36,7 +36,7 @@ type commentPruner interface {
 	PruneComments(shouldPrune func(github.IssueComment) bool)
 }
 
-func handleGenericComment(c Client, cp commentPruner, trigger plugins.Trigger, gc github.GenericCommentEvent) error {
+func handleGenericComment(c Client, cp commentPruner, trigger plugins.Trigger, gc github.GenericCommentEvent, millisecondOverride ...time.Duration) error {
 	org := gc.Repo.Owner.Login
 	repo := gc.Repo.Name
 	number := gc.Number
@@ -146,12 +146,7 @@ func handleGenericComment(c Client, cp commentPruner, trigger plugins.Trigger, g
 
 	// Approve pending GitHub Actions workflow runs on /ok-to-test
 	if isOkToTest && trigger.TriggerGitHubWorkflows {
-		headSHA, err := refGetter.HeadSHA()
-		if err != nil {
-			c.Logger.Warnf("headSHA unavailable, cannot approve pending workflows: %v", err)
-		} else {
-			approveGitHubActionsWorkflowRuns(c, org, repo, pr.Head.Ref, headSHA)
-		}
+		approvePendingWorkflowRuns(c, trigger, org, repo, *pr, millisecondOverride...)
 	}
 
 	toTest, err := FilterPresubmits(HonorOkToTest(trigger), c.GitHubClient, gc.Body, pr, presubmits, c.Logger)
@@ -301,55 +296,4 @@ func addHelpComment(githubClient githubClient, body, org, repo, branch string, n
 
 	resp := pjutil.HelpMessage(org, repo, branch, note, testAllNames, optionalJobsCommands, requiredJobsCommands)
 	return githubClient.CreateComment(org, repo, number, plugins.FormatResponseRaw(body, HTMLURL, user, resp))
-}
-
-// approveGitHubActionsWorkflowRuns approves pending GitHub Actions workflow runs for a PR.
-// Returns a WaitGroup that completes when all approval goroutines finish.
-func approveGitHubActionsWorkflowRuns(c Client, org, repo, branchName, headSHA string) *sync.WaitGroup {
-	wg := &sync.WaitGroup{}
-
-	pendingRuns, err := c.GitHubClient.GetPendingApprovalActionRuns(org, repo, branchName, headSHA)
-	if err != nil {
-		c.Logger.Errorf("unable to get pending approval workflow runs for branch %v, SHA %v: %v", branchName, headSHA, err)
-		return wg
-	}
-
-	for _, run := range pendingRuns {
-		log := c.Logger.WithFields(logrus.Fields{
-			"runID":   run.ID,
-			"runName": run.Name,
-			"org":     org,
-			"repo":    repo,
-			"sha":     headSHA,
-		})
-		runID := run.ID
-		wg.Go(func() {
-			if err := c.GitHubClient.ApproveGitHubWorkflowRun(org, repo, runID); err != nil {
-				// Per GitHub API docs (https://docs.github.com/en/rest/actions/workflow-runs#approve-a-workflow-run-for-a-fork-pull-request):
-				// - 404: Workflow run doesn't exist or is not pending approval (already approved/completed)
-				// - 403: Permission denied or non-fork PR
-				// 404 is expected in race conditions where another actor approved the run.
-				// 403 can mean the approve endpoint doesn't apply (it only works for
-				// fork PRs). For same-repo PRs created by bots, fall back to
-				// rerunning the workflow which changes the triggering_actor to the
-				// API caller and bypasses the approval gate.
-				if github.IsNotFound(err) {
-					log.Infof("workflow run not pending approval (already approved or completed): %v", err)
-				} else if github.IsForbidden(err) {
-					log.Infof("approve endpoint returned 403 (likely non-fork PR), falling back to rerun: %v", err)
-					if rerunErr := c.GitHubClient.TriggerGitHubWorkflow(org, repo, runID); rerunErr != nil {
-						log.Errorf("failed to rerun workflow as fallback for approval: %v", rerunErr)
-					} else {
-						log.Infof("successfully reran workflow run as fallback for approval")
-					}
-				} else {
-					log.Errorf("failed to approve workflow run: %v", err)
-				}
-			} else {
-				log.Infof("successfully approved workflow run")
-			}
-		})
-	}
-
-	return wg
 }

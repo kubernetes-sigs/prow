@@ -155,6 +155,8 @@ type FakeClient struct {
 
 	// PendingApprovalRuns maps "org/repo/branch/sha" to workflow runs pending approval
 	PendingApprovalRuns map[string][]github.WorkflowRun
+	// WorkflowRuns maps "org/repo/branch/sha" to all the workflow runs of a pull request
+	WorkflowRuns map[string][]github.WorkflowRun
 	// ApprovedWorkflowRuns tracks approvals as "org/repo/runID"
 	ApprovedWorkflowRuns []string
 	// ApproveWorkflowRunErrors maps "org/repo/runID" to an error to return from ApproveGitHubWorkflowRun
@@ -1409,6 +1411,13 @@ func (f *FakeClient) GetPendingApprovalActionRuns(org, repo, branchName, headSHA
 		return runs, nil
 	}
 	return []github.WorkflowRun{}, nil
+}
+
+func (f *FakeClient) ListWorkflowRunsByHeadBranch(org, repo, branchName, headSHA string) ([]github.WorkflowRun, error) {
+	f.lock.RLock()
+	defer f.lock.RUnlock()
+
+	return f.WorkflowRuns[fmt.Sprintf("%s/%s/%s/%s", org, repo, branchName, headSHA)], nil
 }
 
 func (f *FakeClient) ApproveGitHubWorkflowRun(org, repo string, id int) error {
