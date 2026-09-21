@@ -4349,13 +4349,15 @@ func (c *client) ListCollaborators(org, repo string) ([]User, error) {
 	return users, nil
 }
 
-// ListDirectCollaboratorsWithPermissions gets direct repository collaborators with their permissions.
-// This only returns users who were explicitly added as collaborators, not those with inherited org/team access.
+// ListDirectCollaboratorsWithPermissions gets direct repository collaborators with their permissions,
+// meaning users with an explicit repository-level grant rather than access inherited through org or
+// team membership. The REST reference for affiliation=direct is loose (it cannot distinguish an
+// org-level grant from a repository-level one in the response), so this direct-only behaviour was
+// confirmed empirically: affiliation=direct returned the same set as the GraphQL
+// collaborators(affiliation: DIRECT) connection on a repository with 280 collaborators.
 //
-// It uses the REST collaborators endpoint with affiliation=direct rather than the GraphQL
-// collaborators(affiliation: DIRECT) connection: on repositories in large organizations the GraphQL
-// query exceeds GitHub's per-query resource budget ("Resource limits for this query exceeded") because
-// resolving the DIRECT affiliation is expensive, while the REST endpoint is not subject to that limit.
+// It uses REST rather than that GraphQL connection because the GraphQL query has been observed to fail
+// with "Resource limits for this query exceeded" on repositories in large organizations.
 //
 // See https://docs.github.com/en/rest/collaborators/collaborators#list-repository-collaborators
 func (c *client) ListDirectCollaboratorsWithPermissions(org, repo string) (map[string]RepoPermissionLevel, error) {

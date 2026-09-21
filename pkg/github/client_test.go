@@ -2408,56 +2408,86 @@ func TestListCollaborators(t *testing.T) {
 }
 
 func TestListDirectCollaboratorsWithPermissions(t *testing.T) {
-	// Serve two pages so the pagination path is actually exercised: a truncated
-	// list would feed configureCollaborators, which removes collaborators not in
-	// config.
-	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			t.Errorf("Bad method: %s", r.Method)
+	// Pages are raw JSON literals rather than json.Marshal([]User{...}) so a wrong
+	// struct tag on RepoPermissions is caught here instead of round-tripping through
+	// the same tags under test. The permission set spans all five levels because
+	// LevelFromPermissions is order-sensitive (Admin -> Maintain -> Push -> Triage ->
+	// Pull) and a real payload sets every bit up to the granted level.
+	const page1 = `[{"login":"reader","permissions":{"pull":true}}]`
+	const page2 = `[
+		{"login":"triager","permissions":{"pull":true,"triage":true}},
+		{"login":"writer","permissions":{"pull":true,"triage":true,"push":true}},
+		{"login":"maintainer","permissions":{"pull":true,"triage":true,"push":true,"maintain":true}},
+		{"login":"boss","permissions":{"pull":true,"triage":true,"push":true,"maintain":true,"admin":true}}
+	]`
+
+	t.Run("accumulates permissions across pages", func(t *testing.T) {
+		// Serve two pages so results are actually accumulated across pages. A truncated
+		// list would silently under-report current collaborators, so callers reconciling
+		// against a desired config would drift instead of converging.
+		ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodGet {
+				t.Errorf("Bad method: %s", r.Method)
+			}
+			switch r.URL.Path {
+			case "/repos/org/repo/collaborators":
+				if got := r.URL.Query().Get("affiliation"); got != "direct" {
+					t.Errorf("Expected affiliation=direct, got %q", got)
+				}
+				if got := r.URL.Query().Get("per_page"); got != "100" {
+					t.Errorf("Expected per_page=100, got %q", got)
+				}
+				w.Header().Set("Link", fmt.Sprintf(`<blorp>; rel="first", <https://%s/page2>; rel="next"`, r.Host))
+				fmt.Fprint(w, page1)
+			case "/page2":
+				fmt.Fprint(w, page2)
+			default:
+				t.Errorf("Bad request path: %s", r.URL.Path)
+			}
+		}))
+		defer ts.Close()
+		c := getClient(ts.URL)
+		perms, err := c.ListDirectCollaboratorsWithPermissions("org", "repo")
+		if err != nil {
+			t.Fatalf("Didn't expect error: %v", err)
 		}
-		switch r.URL.Path {
-		case "/repos/org/repo/collaborators":
-			if got := r.URL.Query().Get("affiliation"); got != "direct" {
-				t.Errorf("Expected affiliation=direct, got %q", got)
-			}
-			if got := r.URL.Query().Get("per_page"); got != "100" {
-				t.Errorf("Expected per_page=100, got %q", got)
-			}
-			b, err := json.Marshal([]User{
-				{Login: "reader", Permissions: RepoPermissions{Pull: true}},
-			})
-			if err != nil {
-				t.Fatalf("Marshal error: %v", err)
-			}
-			w.Header().Set("Link", fmt.Sprintf(`<blorp>; rel="first", <https://%s/page2>; rel="next"`, r.Host))
-			fmt.Fprint(w, string(b))
-		case "/page2":
-			b, err := json.Marshal([]User{
-				{Login: "writer", Permissions: RepoPermissions{Pull: true, Push: true}},
-				{Login: "boss", Permissions: RepoPermissions{Pull: true, Push: true, Admin: true}},
-			})
-			if err != nil {
-				t.Fatalf("Marshal error: %v", err)
-			}
-			fmt.Fprint(w, string(b))
-		default:
-			t.Errorf("Bad request path: %s", r.URL.Path)
+		expected := map[string]RepoPermissionLevel{
+			"reader":     Read,
+			"triager":    Triage,
+			"writer":     Write,
+			"maintainer": Maintain,
+			"boss":       Admin,
 		}
-	}))
-	defer ts.Close()
-	c := getClient(ts.URL)
-	perms, err := c.ListDirectCollaboratorsWithPermissions("org", "repo")
-	if err != nil {
-		t.Fatalf("Didn't expect error: %v", err)
-	}
-	expected := map[string]RepoPermissionLevel{
-		"reader": Read,
-		"writer": Write,
-		"boss":   Admin,
-	}
-	if !reflect.DeepEqual(perms, expected) {
-		t.Errorf("Wrong permissions map.\n got: %v\nwant: %v", perms, expected)
-	}
+		if !reflect.DeepEqual(perms, expected) {
+			t.Errorf("Wrong permissions map.\n got: %v\nwant: %v", perms, expected)
+		}
+	})
+
+	t.Run("error on a later page returns no partial map", func(t *testing.T) {
+		// A failure after the first page must not leak the partially accumulated map:
+		// callers treat the result as the complete current set, so a partial map would
+		// look like collaborators disappeared.
+		ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/repos/org/repo/collaborators":
+				w.Header().Set("Link", fmt.Sprintf(`<blorp>; rel="first", <https://%s/page2>; rel="next"`, r.Host))
+				fmt.Fprint(w, page1)
+			case "/page2":
+				w.WriteHeader(http.StatusInternalServerError)
+			default:
+				t.Errorf("Bad request path: %s", r.URL.Path)
+			}
+		}))
+		defer ts.Close()
+		c := getClient(ts.URL)
+		perms, err := c.ListDirectCollaboratorsWithPermissions("org", "repo")
+		if err == nil {
+			t.Fatalf("Expected an error when a later page fails, got nil (perms=%v)", perms)
+		}
+		if _, ok := perms["reader"]; ok {
+			t.Errorf("Expected no partial map on error, got %v", perms)
+		}
+	})
 }
 
 func TestListRepoTeams(t *testing.T) {
