@@ -106,6 +106,9 @@ update-spelling:
 .PHONY: verify-spelling
 verify-spelling:
 	hack/make-rules/verify/misspell.sh
+.PHONY: verify-links
+verify-links:
+	hack/make-rules/verify/links.sh
 .PHONY: update-codegen
 update-codegen:
 	hack/make-rules/update/codegen.sh

@@ -26,5 +26,13 @@ netlify-build: build
 netlify-deploy-preview:
 	hugo --enableGitInfo --buildFuture -b $(DEPLOY_PRIME_URL)
 
+HTMLTEST ?= htmltest
+
+# Check every link, internal and external. See hack/make-rules/verify/links.sh
+# for the self-contained variant that builds the site and the checker first.
 check-broken-links:
-	find ./public -name "*.html" -print0 | sort -z | xargs -0 ./check-broken-links.sh
+	$(HTMLTEST) -c .htmltest.yml
+
+# Check internal links only. Fast and deterministic, safe to gate a build on.
+check-broken-links-internal:
+	$(HTMLTEST) -s -c .htmltest.yml
