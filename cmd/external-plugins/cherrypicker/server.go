@@ -903,11 +903,11 @@ ORIGINAL_SHA=$(echo "$ORIGINAL_SHAS" | cut -d',' -f$COMMIT_NUM)
 if [ -n "$ORIGINAL_SHA" ]; then
     MSGFILE=$(mktemp)
     git log -1 --pretty=%%B > "$MSGFILE"
-    printf '\n(cherry picked from commit %s)\n' "$ORIGINAL_SHA" >> "$MSGFILE"
+    printf '\n(cherry picked from commit %%s)\n' "$ORIGINAL_SHA" >> "$MSGFILE"
     git commit --amend -F "$MSGFILE"
     rm -f "$MSGFILE"
 fi
-`, baseSHA, "%s")
+`, baseSHA)
 
 	tmpfile, err := os.CreateTemp("", "cherry-pick-exec-*.sh")
 	if err != nil {
