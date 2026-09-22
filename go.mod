@@ -55,7 +55,7 @@ require (
 	github.com/sirupsen/logrus v1.10.2
 	github.com/spf13/pflag v1.0.10
 	github.com/stretchr/testify v1.12.1
-	github.com/tektoncd/pipeline v1.15.1
+	github.com/tektoncd/pipeline v1.16.0
 	github.com/yuin/goldmark v1.8.5
 	go.uber.org/zap v1.28.0
 	go.yaml.in/yaml/v3 v3.0.5
@@ -118,7 +118,7 @@ require (
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/btree v1.1.3 // indirect
-	github.com/google/cel-go v0.29.2 // indirect
+	github.com/google/cel-go v0.31.0 // indirect
 	github.com/google/gnostic-models v0.7.0 // indirect
 	github.com/google/go-querystring v1.2.0 // indirect
 	github.com/google/pprof v0.0.0-20250403155104-27863c87afa6 // indirect
