@@ -835,9 +835,8 @@ func kindLabelsFromIssueLabels(labels []github.Label) []string {
 		}
 	}
 	return sets.List(kindSet)
-// extractOriginalSHA extracts the original commit SHA from a patch file.
-// Patch files contain lines like "From <SHA> Mon Sep 17 00:00:00 2001" at the start.
-func extractOriginalSHA(patchPath string) (string, error) {
+}
+
 // extractOriginalSHAs extracts all original commit SHAs from a patch file.
 // Each commit in a patch starts with: "From <SHA> Mon Sep 17 00:00:00 2001"
 func extractOriginalSHAs(patchPath string) ([]string, error) {
