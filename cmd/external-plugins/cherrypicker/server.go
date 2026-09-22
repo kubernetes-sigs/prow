@@ -893,18 +893,21 @@ func appendCherryPickMessages(repo git.RepoClient, originalSHAs []string) error 
 		return errors.New("failed to resolve base SHA: empty SHA returned")
 	}
 
-	// Helper script run after each commit during rebase
+	// Helper script run after each commit during rebase.
+	// Uses a temp file for the amended message to avoid shell quoting issues
+	// with commit messages that contain quotes, backticks, or newlines.
 	script := fmt.Sprintf(`#!/bin/sh
 set -e
 COMMIT_NUM=$(git rev-list --count %s..HEAD)
 ORIGINAL_SHA=$(echo "$ORIGINAL_SHAS" | cut -d',' -f$COMMIT_NUM)
 if [ -n "$ORIGINAL_SHA" ]; then
-    CURRENT_MSG=$(git log -1 --pretty=%%B)
-    git commit --amend -m "$CURRENT_MSG
-
-(cherry picked from commit $ORIGINAL_SHA)"
+    MSGFILE=$(mktemp)
+    git log -1 --pretty=%%B > "$MSGFILE"
+    printf '\n(cherry picked from commit %s)\n' "$ORIGINAL_SHA" >> "$MSGFILE"
+    git commit --amend -F "$MSGFILE"
+    rm -f "$MSGFILE"
 fi
-`, baseSHA)
+`, baseSHA, "%s")
 
 	tmpfile, err := os.CreateTemp("", "cherry-pick-exec-*.sh")
 	if err != nil {
