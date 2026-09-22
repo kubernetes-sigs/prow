@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"reflect"
 	"strings"
 	"sync"
@@ -1540,17 +1539,21 @@ From 3333333333333333333333333333333333333333 Mon Sep 17 00:00:00 2001`,
 func TestAppendCherryPickMessages_Empty(t *testing.T) {
 	t.Parallel()
 
-	err := appendCherryPickMessages(t.TempDir(), []string{})
-	require.NoError(t, err)
+	require.NoError(t, appendCherryPickMessages(nil, nil))
 }
 
-func TestAppendCherryPickMessages_NoGitRepo(t *testing.T) {
+func TestAppendCherryPickMessages_InvalidRevision(t *testing.T) {
 	t.Parallel()
 
-	err := appendCherryPickMessages(t.TempDir(), []string{
-		"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-	})
+	_, c := makeFakeRepoWithCommit(localgit.NewV2, t)
+	r, err := c.ClientFor("foo", "bar")
+	require.NoError(t, err)
 
+	err = appendCherryPickMessages(r, []string{
+		"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		"cccccccccccccccccccccccccccccccccccccccc",
+	})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to resolve base SHA")
 }
@@ -1558,46 +1561,17 @@ func TestAppendCherryPickMessages_NoGitRepo(t *testing.T) {
 func TestAppendCherryPickMessages_SingleCommit(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
+	lg, c := makeFakeRepoWithCommit(localgit.NewV2, t)
+	require.NoError(t, lg.AddCommit("foo", "bar", map[string][]byte{"file.txt": []byte("change-1")}))
+	r, err := c.ClientFor("foo", "bar")
+	require.NoError(t, err)
 
-	run := func(args ...string) {
-		t.Helper()
-
-		cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
-		cmd.Env = append(os.Environ(),
-			"GIT_SEQUENCE_EDITOR=true",
-			"GIT_EDITOR=true",
-		)
-
-		out, err := cmd.CombinedOutput()
-		require.NoError(t, err, string(out))
-	}
-
-	run("init")
-	run("config", "user.email", "test@test.com")
-	run("config", "user.name", "test")
-
-	require.NoError(t,
-		os.WriteFile(filepath.Join(dir, "file.txt"), []byte("base"), 0644),
-	)
-
-	run("add", ".")
-	run("commit", "-m", "base")
-
-	require.NoError(t,
-		os.WriteFile(filepath.Join(dir, "file.txt"), []byte("change-1"), 0644),
-	)
-
-	run("add", ".")
-	run("commit", "-m", "commit1")
-
-	err := appendCherryPickMessages(dir, []string{
+	err = appendCherryPickMessages(r, []string{
 		"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 	})
 	require.NoError(t, err)
 
-	cmd := exec.Command("git", "-C", dir, "log", "-1", "--pretty=%B")
-
+	cmd := exec.Command("git", "-C", r.Directory(), "log", "-1", "--pretty=%B")
 	out, err := cmd.Output()
 	require.NoError(t, err)
 
@@ -1611,47 +1585,13 @@ func TestAppendCherryPickMessages_SingleCommit(t *testing.T) {
 func TestAppendCherryPickMessages_MultiCommit(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
+	lg, c := makeFakeRepoWithCommit(localgit.NewV2, t)
+	require.NoError(t, lg.AddCommit("foo", "bar", map[string][]byte{"file.txt": []byte("one")}))
+	require.NoError(t, lg.AddCommit("foo", "bar", map[string][]byte{"file.txt": []byte("two")}))
+	r, err := c.ClientFor("foo", "bar")
+	require.NoError(t, err)
 
-	run := func(args ...string) {
-		t.Helper()
-
-		cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
-		cmd.Env = append(os.Environ(),
-			"GIT_SEQUENCE_EDITOR=true",
-			"GIT_EDITOR=true",
-		)
-
-		out, err := cmd.CombinedOutput()
-		require.NoError(t, err, string(out))
-	}
-
-	run("init")
-	run("config", "user.email", "test@test.com")
-	run("config", "user.name", "test")
-
-	require.NoError(t,
-		os.WriteFile(filepath.Join(dir, "file.txt"), []byte("base"), 0644),
-	)
-
-	run("add", ".")
-	run("commit", "-m", "base")
-
-	require.NoError(t,
-		os.WriteFile(filepath.Join(dir, "file.txt"), []byte("one"), 0644),
-	)
-
-	run("add", ".")
-	run("commit", "-m", "commit1")
-
-	require.NoError(t,
-		os.WriteFile(filepath.Join(dir, "file.txt"), []byte("two"), 0644),
-	)
-
-	run("add", ".")
-	run("commit", "-m", "commit2")
-
-	err := appendCherryPickMessages(dir, []string{
+	err = appendCherryPickMessages(r, []string{
 		"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
 	})
@@ -1660,7 +1600,7 @@ func TestAppendCherryPickMessages_MultiCommit(t *testing.T) {
 	cmd := exec.Command(
 		"git",
 		"-C",
-		dir,
+		r.Directory(),
 		"log",
 		"-2",
 		"--format=%B%x00",
@@ -1694,6 +1634,33 @@ func TestAppendCherryPickMessages_MultiCommit(t *testing.T) {
 	)
 
 	// Ensure original messages are preserved
-	require.Contains(t, got[0], "commit2")
-	require.Contains(t, got[1], "commit1")
+	require.Contains(t, got[0], "wow")
+	require.Contains(t, got[1], "wow")
+}
+
+func TestAppendCherryPickMessages_RebaseFailureRestoresHead(t *testing.T) {
+	t.Parallel()
+
+	lg, c := makeFakeRepoWithCommit(localgit.NewV2, t)
+	require.NoError(t, lg.AddCommit("foo", "bar", map[string][]byte{"file.txt": []byte("change")}))
+	r, err := c.ClientFor("foo", "bar")
+	require.NoError(t, err)
+
+	headBefore, err := r.RevParse("HEAD")
+	require.NoError(t, err)
+	require.NoError(t, r.Config("commit.gpgsign", "true"))
+	require.NoError(t, r.Config("user.signingkey", "invalid-signing-key"))
+
+	err = appendCherryPickMessages(r, []string{
+		"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "git rebase --exec failed")
+
+	headAfter, err := r.RevParse("HEAD")
+	require.NoError(t, err)
+	require.Equal(t, headBefore, headAfter)
+	dirty, err := r.IsDirty()
+	require.NoError(t, err)
+	require.False(t, dirty)
 }
