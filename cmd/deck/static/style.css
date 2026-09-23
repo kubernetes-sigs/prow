@@ -288,6 +288,10 @@ i.state {
     color: #000000;
 }
 
+#job-bar-scheduling {
+    background-color: #03A9F4;
+}
+
 #job-bar-triggered {
     background-color: #FFEB3B;
     color: #000000;
@@ -1409,4 +1413,3 @@ html.dark-mode body#index .mdl-button,
 body#index.dark-mode .mdl-button {
     color: #e0e0e0;
 }
-
