@@ -935,12 +935,13 @@ fi
 	cmd := exec.CommandContext(ctx, "git", "-C", repo.Directory(), "rebase", "-i", baseSHA, "--exec", tmpPath)
 	cmd.Env = append(os.Environ(), origEnv, "GIT_SEQUENCE_EDITOR=true", "GIT_CONFIG_NOSYSTEM=1")
 
-	if err := cmd.Run(); err != nil {
+        output, err := cmd.CombinedOutput()
+	if err != nil {
 		var rebaseErr error
 		if ctx.Err() == context.DeadlineExceeded {
 			rebaseErr = errors.New("git rebase --exec timed out")
 		} else {
-			rebaseErr = fmt.Errorf("git rebase --exec failed: %w", err)
+			rebaseErr = fmt.Errorf("git rebase --exec failed: %w: %s", err, strings.TrimSpace(string(output)))
 		}
 		errs := []error{rebaseErr}
 		abortCtx, abortCancel := context.WithTimeout(context.Background(), rebaseAbortTimeout)
