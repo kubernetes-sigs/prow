@@ -179,9 +179,18 @@ func TestApproveWorkflowRunsOnPullRequestEvent(t *testing.T) {
 			runs: []github.WorkflowRun{pendingRun(1)},
 		},
 		{
-			name:   "an opened pull request approves nothing",
+			// A trusted author can have held runs, for example a member of a
+			// trusted_orgs entry that GitHub sees as a first-time contributor.
+			name:           "an opened pull request from a trusted author approves",
+			action:         github.PullRequestActionOpened,
+			author:         "t",
+			runs:           []github.WorkflowRun{pendingRun(1)},
+			expectApproved: []string{"org/repo/1"},
+		},
+		{
+			name:   "an opened pull request from an untrusted author approves nothing",
 			action: github.PullRequestActionOpened,
-			author: "t",
+			author: "u",
 			runs:   []github.WorkflowRun{pendingRun(1)},
 		},
 		{
@@ -467,6 +476,81 @@ func TestApprovalDoesNotDelayTheAbort(t *testing.T) {
 
 	if !abortedBeforeList {
 		t.Error("The poll started before the abort of the old jobs.")
+	}
+	if len(g.ApprovedWorkflowRuns) != 1 {
+		t.Errorf("Expected one approval, got %v", g.ApprovedWorkflowRuns)
+	}
+}
+
+func TestApprovalDoesNotDelayTheOkToTestJobs(t *testing.T) {
+	fakeClient := fakegithub.NewFakeClient()
+	fakeClient.OrgMembers = map[string][]string{approvalOrg: {"t"}}
+	fakeClient.IssueComments = map[int][]github.IssueComment{}
+	prObject := approvalTestPullRequest("u")
+	fakeClient.PullRequests = map[int]*github.PullRequest{0: &prObject}
+
+	fakeProwJobClient := fake.NewSimpleClientset()
+
+	var jobsBeforeList int
+	g := &approvalTestClient{
+		FakeClient: fakeClient,
+		runs:       func(int) []github.WorkflowRun { return []github.WorkflowRun{pendingRun(1)} },
+		beforeList: func(call int) {
+			if call != 1 {
+				return
+			}
+			pjs, err := fakeProwJobClient.ProwV1().ProwJobs("namespace").List(t.Context(), metav1.ListOptions{})
+			if err != nil {
+				t.Errorf("failed to list prowjobs: %v", err)
+				return
+			}
+			jobsBeforeList = len(pjs.Items)
+		},
+	}
+
+	cfg := &config.Config{}
+	presubmits := map[string][]config.Presubmit{
+		approvalOrg + "/" + approvalRepo: {
+			{JobBase: config.JobBase{Name: "jib"}, AlwaysRun: true},
+		},
+	}
+	if err := cfg.SetPresubmits(presubmits); err != nil {
+		t.Fatalf("failed to set presubmits: %v", err)
+	}
+
+	c := Client{
+		GitHubClient:  g,
+		ProwJobClient: fakeProwJobClient.ProwV1().ProwJobs("namespace"),
+		Config:        cfg,
+		Logger:        logrus.WithField("plugin", PluginName),
+	}
+
+	event := github.GenericCommentEvent{
+		Action: github.GenericCommentActionCreated,
+		Repo: github.Repo{
+			Owner:    github.User{Login: approvalOrg},
+			Name:     approvalRepo,
+			FullName: approvalOrg + "/" + approvalRepo,
+		},
+		Body:        "/ok-to-test",
+		User:        github.User{Login: "t"},
+		IssueAuthor: github.User{Login: "u"},
+		IssueState:  "open",
+		IsPR:        true,
+	}
+	trigger := plugins.Trigger{
+		TrustedOrg:             approvalOrg,
+		OnlyOrgMembers:         true,
+		TriggerGitHubWorkflows: true,
+	}
+	trigger.SetDefaults()
+
+	if err := handleGenericComment(c, &fakeCommentPruner{}, trigger, event, time.Nanosecond); err != nil {
+		t.Fatalf("Didn't expect error: %s", err)
+	}
+
+	if jobsBeforeList != 1 {
+		t.Errorf("The poll started before the ProwJobs of the comment existed: %d jobs before the first list.", jobsBeforeList)
 	}
 	if len(g.ApprovedWorkflowRuns) != 1 {
 		t.Errorf("Expected one approval, got %v", g.ApprovedWorkflowRuns)

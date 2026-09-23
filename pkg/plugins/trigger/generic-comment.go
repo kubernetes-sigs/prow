@@ -144,9 +144,10 @@ func handleGenericComment(c Client, cp commentPruner, trigger plugins.Trigger, g
 		return err
 	}
 
-	// Approve pending GitHub Actions workflow runs on /ok-to-test
+	// Approve pending GitHub Actions workflow runs on /ok-to-test.
+	// Deferred, so the poll does not delay the ProwJobs of this comment.
 	if isOkToTest && trigger.TriggerGitHubWorkflows {
-		approvePendingWorkflowRuns(c, trigger, org, repo, *pr, millisecondOverride...)
+		defer approvePendingWorkflowRuns(c, trigger, org, repo, *pr, millisecondOverride...)
 	}
 
 	toTest, err := FilterPresubmits(HonorOkToTest(trigger), c.GitHubClient, gc.Body, pr, presubmits, c.Logger)

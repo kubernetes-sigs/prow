@@ -40,7 +40,11 @@ const (
 // workflow runs that wait for approval.
 func shouldApproveWorkflowRuns(c Client, pr github.PullRequestEvent) bool {
 	switch pr.Action {
-	case github.PullRequestActionSynchronize,
+	// For opened, the trust check stops an untrusted author. A trusted author
+	// can still have held runs, for example a member of a trusted_orgs entry
+	// that GitHub sees as a first-time contributor.
+	case github.PullRequestActionOpened,
+		github.PullRequestActionSynchronize,
 		github.PullRequestActionReopened,
 		github.PullRequestActionReadyForReview:
 		return true
@@ -128,7 +132,7 @@ func approvePendingWorkflowRuns(c Client, trigger plugins.Trigger, org, repo str
 		if len(pending) == 0 {
 			return true, nil
 		}
-		if !approvalStillValid(c, trigger, org, repo, pr) {
+		if !approvalStillValid(c, log, trigger, org, repo, pr) {
 			return true, nil
 		}
 		for _, run := range pending {
@@ -150,24 +154,24 @@ func approvePendingWorkflowRuns(c Client, trigger plugins.Trigger, org, repo str
 //
 // This does not make the approval atomic. A push can still arrive between this
 // check and the approval.
-func approvalStillValid(c Client, trigger plugins.Trigger, org, repo string, pr github.PullRequest) bool {
+func approvalStillValid(c Client, log *logrus.Entry, trigger plugins.Trigger, org, repo string, pr github.PullRequest) bool {
 	current, err := c.GitHubClient.GetPullRequest(org, repo, pr.Number)
 	if err != nil {
-		c.Logger.WithError(err).Warn("Could not read the pull request again, skipping the workflow run approval.")
+		log.WithError(err).Warn("Could not read the pull request again, skipping the workflow run approval.")
 		return false
 	}
 	if current.Head.SHA != pr.Head.SHA {
-		c.Logger.Info("The head commit changed during the poll, skipping the workflow run approval.")
+		log.Info("The head commit changed during the poll, skipping the workflow run approval.")
 		return false
 	}
 
 	_, trusted, err := TrustedPullRequest(c.GitHubClient, trigger, current.User.Login, org, repo, pr.Number, nil)
 	if err != nil {
-		c.Logger.WithError(err).Warn("Could not check the trust of the pull request again, skipping the workflow run approval.")
+		log.WithError(err).Warn("Could not check the trust of the pull request again, skipping the workflow run approval.")
 		return false
 	}
 	if !trusted {
-		c.Logger.Info("The pull request is no longer trusted, skipping the workflow run approval.")
+		log.Info("The pull request is no longer trusted, skipping the workflow run approval.")
 	}
 	return trusted
 }
