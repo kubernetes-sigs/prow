@@ -144,6 +144,7 @@ func main() {
 		logrus.WithError(err).Fatal("Error starting config agent.")
 	}
 
+	prometheus.MustRegister(configAgent)
 	metrics.ExposeMetrics("moonraker", configAgent.Config().PushGateway, o.instrumentationOptions.MetricsPort)
 
 	persist := o.config.InRepoConfigCacheDirBase != ""
