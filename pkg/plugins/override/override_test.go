@@ -149,6 +149,8 @@ type fakeClient struct {
 	owners           ownersClient
 	checkruns        *github.CheckRunList
 	usesAppsAuth     bool
+	nextCheckRunID   int64
+	listCheckRunsErr error
 }
 
 func (c *fakeClient) presubmits(_, _ string, _ config.RefGetter, _ string) ([]config.Presubmit, error) {
@@ -220,6 +222,9 @@ func (c *fakeClient) ListStatuses(org, repo, ref string) ([]github.Status, error
 }
 
 func (c *fakeClient) ListCheckRuns(org, repo, ref string) (*github.CheckRunList, error) {
+	if c.listCheckRunsErr != nil {
+		return nil, c.listCheckRunsErr
+	}
 	if c.checkruns != nil {
 		return c.checkruns, nil
 	}
@@ -227,28 +232,16 @@ func (c *fakeClient) ListCheckRuns(org, repo, ref string) (*github.CheckRunList,
 }
 
 func (c *fakeClient) CreateCheckRun(org, repo string, checkRun github.CheckRun) (int64, error) {
-	for _, checkrun := range c.checkruns.CheckRuns {
-		if checkrun.CompletedAt == "" {
-			continue
-		} else if strings.ToUpper(checkrun.Conclusion) == "NEUTRAL" {
-			continue
-		} else if strings.ToUpper(checkrun.Conclusion) == "SUCCESS" {
-			continue
-		} else if checkrun.Name == checkRun.Name {
-			prowOverrideCR := github.CheckRun{
-				Name:        checkrun.Name,
-				HeadSHA:     checkrun.HeadSHA,
-				CompletedAt: checkrun.CompletedAt,
-				Status:      "completed",
-				Conclusion:  "success",
-				Output: github.CheckRunOutput{
-					Title:   fmt.Sprintf("Prow override - %s", checkrun.Name),
-					Summary: fmt.Sprintf("Prow has received override command for the %s checkrun.", checkrun.Name),
-				},
-			}
-			c.checkruns.CheckRuns = append(c.checkruns.CheckRuns, prowOverrideCR)
-		}
+	if c.checkruns == nil {
+		c.checkruns = &github.CheckRunList{}
 	}
+	c.nextCheckRunID++
+	checkRun.ID = c.nextCheckRunID
+	// GitHub sets completed_at itself when a check run is created as completed.
+	if checkRun.Status == "completed" {
+		checkRun.CompletedAt = "1800 BC"
+	}
+	c.checkruns.CheckRuns = append(c.checkruns.CheckRuns, checkRun)
 	return checkRun.ID, nil
 }
 
@@ -395,25 +388,26 @@ func TestAuthorizedUser(t *testing.T) {
 
 func TestHandle(t *testing.T) {
 	cases := []struct {
-		name              string
-		action            github.GenericCommentEventAction
-		issue             bool
-		state             string
-		comment           string
-		contexts          []github.Status
-		branchProtection  *github.BranchProtection
-		presubmits        []config.Presubmit
-		user              string
-		number            int
-		expected          []github.Status
-		expectedCheckRuns *github.CheckRunList
-		jobs              sets.Set[string]
-		checkComments     []string
-		options           plugins.Override
-		approvers         []string
-		err               bool
-		checkruns         *github.CheckRunList
-		usesAppsAuth      bool
+		name               string
+		action             github.GenericCommentEventAction
+		issue              bool
+		state              string
+		comment            string
+		contexts           []github.Status
+		branchProtection   *github.BranchProtection
+		presubmits         []config.Presubmit
+		user               string
+		number             int
+		expected           []github.Status
+		expectedCheckRuns  *github.CheckRunList
+		jobs               sets.Set[string]
+		checkComments      []string
+		unexpectedComments []string
+		options            plugins.Override
+		approvers          []string
+		err                bool
+		checkruns          *github.CheckRunList
+		usesAppsAuth       bool
 	}{
 		{
 			name:    "successfully override failure",
@@ -447,7 +441,7 @@ func TestHandle(t *testing.T) {
 				CheckRuns: []github.CheckRun{
 					{Name: "incomplete-checkrun"},
 					{Name: "failure-checkrun", CompletedAt: "1800 BC", Conclusion: "failure"},
-					{Name: "failure-checkrun", CompletedAt: "1800 BC", Status: "completed", Conclusion: "success", Output: github.CheckRunOutput{
+					{ID: 1, Name: "failure-checkrun", HeadSHA: fakeSHA, Status: "completed", CompletedAt: "1800 BC", Conclusion: "success", Output: github.CheckRunOutput{
 						Title:   fmt.Sprintf("Prow override - %s", "failure-checkrun"),
 						Summary: fmt.Sprintf("Prow has received override command for the %s checkrun.", "failure-checkrun"),
 					}},
@@ -469,7 +463,7 @@ func TestHandle(t *testing.T) {
 				CheckRuns: []github.CheckRun{
 					{Name: "incomplete-checkrun"},
 					{Name: "test / Unit Tests", CompletedAt: "1800 BC", Conclusion: "failure"},
-					{Name: "test / Unit Tests", CompletedAt: "1800 BC", Status: "completed", Conclusion: "success", Output: github.CheckRunOutput{
+					{ID: 1, Name: "test / Unit Tests", HeadSHA: fakeSHA, Status: "completed", CompletedAt: "1800 BC", Conclusion: "success", Output: github.CheckRunOutput{
 						Title:   fmt.Sprintf("Prow override - %s", "test / Unit Tests"),
 						Summary: fmt.Sprintf("Prow has received override command for the %s checkrun.", "test / Unit Tests"),
 					}},
@@ -512,7 +506,7 @@ func TestHandle(t *testing.T) {
 				CheckRuns: []github.CheckRun{
 					{Name: "incomplete-checkrun"},
 					{Name: "test / Unit Tests", CompletedAt: "1800 BC", Conclusion: "failure"},
-					{Name: "test / Unit Tests", CompletedAt: "1800 BC", Status: "completed", Conclusion: "success", Output: github.CheckRunOutput{
+					{ID: 1, Name: "test / Unit Tests", HeadSHA: fakeSHA, Status: "completed", CompletedAt: "1800 BC", Conclusion: "success", Output: github.CheckRunOutput{
 						Title:   fmt.Sprintf("Prow override - %s", "test / Unit Tests"),
 						Summary: fmt.Sprintf("Prow has received override command for the %s checkrun.", "test / Unit Tests"),
 					}},
@@ -536,10 +530,9 @@ func TestHandle(t *testing.T) {
 					{Name: "success-checkrun", CompletedAt: "1800 BC", Conclusion: "success"},
 				},
 			},
-			usesAppsAuth: true,
-			checkComments: []string{
-				"The following unknown contexts/checkruns were given:", "`success-checkrun`",
-			},
+			usesAppsAuth:       true,
+			checkComments:      []string{"`success-checkrun` is already passing (or already overridden); no action taken. Use `/override-cancel success-checkrun` to remove an existing override."},
+			unexpectedComments: []string{"The following unknown contexts/checkruns were given:"},
 		},
 		{
 			name:    "override failure-checkrun checkrun, usesAppsAuth is false",
@@ -576,6 +569,159 @@ func TestHandle(t *testing.T) {
 				},
 			},
 			usesAppsAuth: true,
+		},
+		{
+			name:    "successfully override in-progress checkrun",
+			comment: "/override soak-gate",
+			checkruns: &github.CheckRunList{
+				CheckRuns: []github.CheckRun{
+					{Name: "soak-gate", Status: "in_progress", StartedAt: "1800 BC"},
+				},
+			},
+			expected: []github.Status{},
+			expectedCheckRuns: &github.CheckRunList{
+				CheckRuns: []github.CheckRun{
+					{Name: "soak-gate", Status: "in_progress", StartedAt: "1800 BC"},
+					{ID: 1, Name: "soak-gate", HeadSHA: fakeSHA, Status: "completed", CompletedAt: "1800 BC", Conclusion: "success", Output: github.CheckRunOutput{
+						Title:   "Prow override - soak-gate",
+						Summary: "Prow has received override command for the soak-gate checkrun.",
+					}},
+				},
+			},
+			checkComments: []string{"Overrode contexts on behalf of " + adminUser + ": soak-gate"},
+			usesAppsAuth:  true,
+		},
+		{
+			name:    "override queued and in-progress checkruns in sorted order",
+			comment: "/override gate-a gate-b",
+			checkruns: &github.CheckRunList{
+				CheckRuns: []github.CheckRun{
+					{Name: "gate-b", Status: "queued"},
+					{Name: "gate-a", Status: "in_progress"},
+				},
+			},
+			expected: []github.Status{},
+			expectedCheckRuns: &github.CheckRunList{
+				CheckRuns: []github.CheckRun{
+					{Name: "gate-b", Status: "queued"},
+					{Name: "gate-a", Status: "in_progress"},
+					{ID: 1, Name: "gate-a", HeadSHA: fakeSHA, Status: "completed", CompletedAt: "1800 BC", Conclusion: "success", Output: github.CheckRunOutput{
+						Title:   "Prow override - gate-a",
+						Summary: "Prow has received override command for the gate-a checkrun.",
+					}},
+					{ID: 2, Name: "gate-b", HeadSHA: fakeSHA, Status: "completed", CompletedAt: "1800 BC", Conclusion: "success", Output: github.CheckRunOutput{
+						Title:   "Prow override - gate-b",
+						Summary: "Prow has received override command for the gate-b checkrun.",
+					}},
+				},
+			},
+			checkComments: []string{"Overrode contexts on behalf of " + adminUser + ": gate-a, gate-b"},
+			usesAppsAuth:  true,
+		},
+		{
+			name:    "pending checkrun is listed as overridable when an unknown context is given",
+			comment: "/override foobar",
+			checkruns: &github.CheckRunList{
+				CheckRuns: []github.CheckRun{
+					{Name: "soak-gate", Status: "in_progress"},
+				},
+			},
+			expected: []github.Status{},
+			expectedCheckRuns: &github.CheckRunList{
+				CheckRuns: []github.CheckRun{
+					{Name: "soak-gate", Status: "in_progress"},
+				},
+			},
+			checkComments: []string{"Only the following failed or pending contexts/checkruns were expected", "`soak-gate`"},
+			usesAppsAuth:  true,
+		},
+		{
+			name:    "override in-progress checkrun that is also required by branch protection",
+			comment: "/override soak-gate",
+			branchProtection: &github.BranchProtection{RequiredStatusChecks: &github.RequiredStatusChecks{
+				Contexts: []string{"soak-gate"},
+			}},
+			checkruns: &github.CheckRunList{
+				CheckRuns: []github.CheckRun{
+					{Name: "soak-gate", Status: "in_progress"},
+				},
+			},
+			expected: []github.Status{},
+			expectedCheckRuns: &github.CheckRunList{
+				CheckRuns: []github.CheckRun{
+					{Name: "soak-gate", Status: "in_progress"},
+					{ID: 1, Name: "soak-gate", HeadSHA: fakeSHA, Status: "completed", CompletedAt: "1800 BC", Conclusion: "success", Output: github.CheckRunOutput{
+						Title:   "Prow override - soak-gate",
+						Summary: "Prow has received override command for the soak-gate checkrun.",
+					}},
+				},
+			},
+			usesAppsAuth: true,
+		},
+		{
+			name:    "already-overridden in-progress checkrun is not overridden again",
+			comment: "/override soak-gate",
+			checkruns: &github.CheckRunList{
+				CheckRuns: []github.CheckRun{
+					{Name: "soak-gate", Status: "in_progress"},
+					{ID: 7, Name: "soak-gate", Status: "completed", CompletedAt: "1800 BC", Conclusion: "success", Output: github.CheckRunOutput{Title: "Prow override - soak-gate"}},
+				},
+			},
+			expected: []github.Status{},
+			expectedCheckRuns: &github.CheckRunList{
+				CheckRuns: []github.CheckRun{
+					{Name: "soak-gate", Status: "in_progress"},
+					{ID: 7, Name: "soak-gate", Status: "completed", CompletedAt: "1800 BC", Conclusion: "success", Output: github.CheckRunOutput{Title: "Prow override - soak-gate"}},
+				},
+			},
+			checkComments:      []string{"`soak-gate` is already passing (or already overridden); no action taken. Use `/override-cancel soak-gate` to remove an existing override."},
+			unexpectedComments: []string{"The following unknown contexts/checkruns were given:"},
+			usesAppsAuth:       true,
+		},
+		{
+			name:    "already-overridden checkrun required by branch protection gets no second override run",
+			comment: "/override soak-gate",
+			branchProtection: &github.BranchProtection{RequiredStatusChecks: &github.RequiredStatusChecks{
+				Contexts: []string{"soak-gate"},
+			}},
+			checkruns: &github.CheckRunList{
+				CheckRuns: []github.CheckRun{
+					{Name: "soak-gate", Status: "in_progress"},
+					{ID: 7, Name: "soak-gate", Status: "completed", CompletedAt: "1800 BC", Conclusion: "success", Output: github.CheckRunOutput{Title: "Prow override - soak-gate"}},
+				},
+			},
+			expected: []github.Status{
+				{
+					Context:     "soak-gate",
+					Description: statusDescription(adminUser),
+					State:       github.StatusSuccess,
+				},
+			},
+			expectedCheckRuns: &github.CheckRunList{
+				CheckRuns: []github.CheckRun{
+					{Name: "soak-gate", Status: "in_progress"},
+					{ID: 7, Name: "soak-gate", Status: "completed", CompletedAt: "1800 BC", Conclusion: "success", Output: github.CheckRunOutput{Title: "Prow override - soak-gate"}},
+				},
+			},
+			usesAppsAuth: true,
+		},
+		{
+			name:    "neutral checkrun is reported as already passing",
+			comment: "/override neutral-check",
+			checkruns: &github.CheckRunList{
+				CheckRuns: []github.CheckRun{
+					{Name: "neutral-check", Status: "completed", CompletedAt: "1800 BC", Conclusion: "neutral"},
+				},
+			},
+			expected: []github.Status{},
+			expectedCheckRuns: &github.CheckRunList{
+				CheckRuns: []github.CheckRun{
+					{Name: "neutral-check", Status: "completed", CompletedAt: "1800 BC", Conclusion: "neutral"},
+				},
+			},
+			checkComments:      []string{"`neutral-check` is already passing (or already overridden); no action taken. Use `/override-cancel neutral-check` to remove an existing override."},
+			unexpectedComments: []string{"The following unknown contexts/checkruns were given:"},
+			usesAppsAuth:       true,
 		},
 
 		{
@@ -623,7 +769,7 @@ func TestHandle(t *testing.T) {
 			},
 			checkComments: []string{
 				"The following unknown contexts/checkruns were given", "whatever-you-want",
-				"Only the following failed contexts/checkruns were expected", "hung-test", "hung-prow-job",
+				"Only the following failed or pending contexts/checkruns were expected", "hung-test", "hung-prow-job",
 			},
 		},
 		{
@@ -874,6 +1020,128 @@ func TestHandle(t *testing.T) {
 					Description: "preserve description",
 				},
 			},
+			checkComments: []string{"`passing-test` is already passing (or already overridden); no action taken. Use `/override-cancel passing-test` to remove an existing override."},
+		},
+		{
+			name:    "already passing presubmit is recognized by job name",
+			comment: "/override passing-job",
+			contexts: []github.Status{
+				{
+					Context: "passing-ctx",
+					State:   github.StatusSuccess,
+				},
+			},
+			presubmits: []config.Presubmit{
+				{
+					JobBase: config.JobBase{
+						Name: "passing-job",
+					},
+					Reporter: config.Reporter{
+						Context: "passing-ctx",
+					},
+				},
+			},
+			expected: []github.Status{
+				{
+					Context: "passing-ctx",
+					State:   github.StatusSuccess,
+				},
+			},
+			checkComments:      []string{"`passing-job` is already passing (or already overridden); no action taken. Use `/override-cancel passing-job` to remove an existing override."},
+			unexpectedComments: []string{"The following unknown contexts/checkruns were given:"},
+		},
+		{
+			name:    "comment separates already passing contexts from unknown ones",
+			comment: "/override passing-test whatever-you-want",
+			contexts: []github.Status{
+				{
+					Context: "passing-test",
+					State:   github.StatusSuccess,
+				},
+				{
+					Context: "hung-test",
+					State:   github.StatusPending,
+				},
+			},
+			expected: []github.Status{
+				{
+					Context: "passing-test",
+					State:   github.StatusSuccess,
+				},
+				{
+					Context: "hung-test",
+					State:   github.StatusPending,
+				},
+			},
+			checkComments: []string{
+				"The following unknown contexts/checkruns were given:\n - `whatever-you-want`\n",
+				"`passing-test` is already passing (or already overridden); no action taken. Use `/override-cancel passing-test` to remove an existing override.",
+			},
+		},
+		{
+			name:    "mixed override with already passing context applies nothing",
+			comment: "/override soak-gate passing-test",
+			contexts: []github.Status{
+				{
+					Context: "passing-test",
+					State:   github.StatusSuccess,
+				},
+			},
+			checkruns: &github.CheckRunList{
+				CheckRuns: []github.CheckRun{
+					{Name: "soak-gate", Status: "in_progress", StartedAt: "1800 BC"},
+				},
+			},
+			expected: []github.Status{
+				{
+					Context: "passing-test",
+					State:   github.StatusSuccess,
+				},
+			},
+			expectedCheckRuns: &github.CheckRunList{
+				CheckRuns: []github.CheckRun{
+					{Name: "soak-gate", Status: "in_progress", StartedAt: "1800 BC"},
+				},
+			},
+			checkComments: []string{
+				"`passing-test` is already passing (or already overridden); no action taken. Use `/override-cancel passing-test` to remove an existing override.",
+				"No overrides were applied. Re-run `/override soak-gate` with only the contexts that can be overridden.",
+			},
+			unexpectedComments: []string{"Overrode contexts on behalf of", "The following unknown contexts/checkruns were given:"},
+			usesAppsAuth:       true,
+		},
+		{
+			name:    "mixed override with overridable, already passing and unknown contexts applies nothing",
+			comment: "/override soak-gate passing-test bogus",
+			contexts: []github.Status{
+				{
+					Context: "passing-test",
+					State:   github.StatusSuccess,
+				},
+			},
+			checkruns: &github.CheckRunList{
+				CheckRuns: []github.CheckRun{
+					{Name: "soak-gate", Status: "in_progress", StartedAt: "1800 BC"},
+				},
+			},
+			expected: []github.Status{
+				{
+					Context: "passing-test",
+					State:   github.StatusSuccess,
+				},
+			},
+			expectedCheckRuns: &github.CheckRunList{
+				CheckRuns: []github.CheckRun{
+					{Name: "soak-gate", Status: "in_progress", StartedAt: "1800 BC"},
+				},
+			},
+			checkComments: []string{
+				"The following unknown contexts/checkruns were given:\n - `bogus`\n",
+				"`passing-test` is already passing (or already overridden); no action taken. Use `/override-cancel passing-test` to remove an existing override.",
+				"No overrides were applied. Re-run `/override soak-gate` with only the contexts that can be overridden.",
+			},
+			unexpectedComments: []string{"Overrode contexts on behalf of"},
+			usesAppsAuth:       true,
 		},
 		{
 			name:    "create successful prow job",
@@ -1300,6 +1568,11 @@ func TestHandle(t *testing.T) {
 			for _, expectedComment := range tc.checkComments {
 				if !strings.Contains(strings.Join(fc.comments, "\n"), expectedComment) {
 					t.Errorf("bad comments: expected %#v to be in %#v", expectedComment, fc.comments)
+				}
+			}
+			for _, unexpectedComment := range tc.unexpectedComments {
+				if strings.Contains(strings.Join(fc.comments, "\n"), unexpectedComment) {
+					t.Errorf("bad comments: expected %#v not to be in %#v", unexpectedComment, fc.comments)
 				}
 			}
 		})

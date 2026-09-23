@@ -246,7 +246,7 @@ func helpProvider(config *plugins.Configuration, _ []config.OrgRepo) (*pluginhel
 	}
 	pluginHelp.AddCommand(pluginhelp.Command{
 		Usage:       "/override [context1] [context2]",
-		Description: "Forces github status contexts to green (multiple can be given). If the desired context has spaces, it must be quoted. Overrides expire when the base branch moves.",
+		Description: "Forces github status contexts and check runs to green (multiple can be given). Failed, pending, and in-progress contexts can be overridden. If the desired context has spaces, it must be quoted. Status context overrides expire when the base branch moves; check run overrides last for the current head commit until /override-cancel or a new push.",
 		Featured:    false,
 		WhoCanUse:   whoCanUse(overrideConfig, "", ""),
 		Examples:    []string{"/override pull-repo-whatever", "/override \"test / Unit Tests\"", "/override ci/circleci", "/override deleted-job other-job"},
@@ -386,6 +386,10 @@ func authorizedGitHubTeamMember(gc githubClient, log *logrus.Entry, teamSlugs ma
 
 const overrideDescriptionPrefix = "Overridden by"
 
+// checkRunOverrideTitlePrefix prefixes the output title of check runs created by /override,
+// and is how /override-cancel recognizes them.
+const checkRunOverrideTitlePrefix = "Prow override - "
+
 func description(user string) string {
 	return fmt.Sprintf("%s %s", overrideDescriptionPrefix, user)
 }
@@ -454,7 +458,7 @@ func handle(oc overrideClient, log *logrus.Entry, e *github.GenericCommentEvent,
 	overrides := sets.New[string]()
 	for _, m := range mat {
 		if m[1] == "" {
-			resp := fmt.Sprintf("%s requires failed status contexts to operate on, but none was given", cmdName)
+			resp := fmt.Sprintf("%s requires failed or pending status contexts to operate on, but none was given", cmdName)
 			log.Debug(resp)
 			return oc.CreateComment(org, repo, number, plugins.FormatResponseRaw(e.Body, e.HTMLURL, user, resp))
 		}
@@ -512,6 +516,9 @@ func handle(oc overrideClient, log *logrus.Entry, e *github.GenericCommentEvent,
 
 		// dedupe checkruns and pick the best one
 		checkrunContexts = deduplicateContexts(checkrunContexts)
+		sort.Slice(checkrunContexts, func(i, j int) bool {
+			return checkrunContexts[i].Context < checkrunContexts[j].Context
+		})
 	}
 
 	baseSHAGetter := shaGetterFactory(oc, org, repo, pr.Base.Ref)
@@ -538,9 +545,11 @@ func handle(oc overrideClient, log *logrus.Entry, e *github.GenericCommentEvent,
 		}
 	}
 
-	// add all checkruns that are not successful or pending to the list of contexts being tracked
+	// add all checkruns that are not successful to the list of contexts being tracked. Queued and
+	// in-progress checkruns are included, as pending statuses are, so checks that wait on an
+	// external condition can be overridden.
 	for _, cr := range checkrunContexts {
-		if cr.Context != "" && cr.State != "SUCCESS" && cr.State != "PENDING" {
+		if cr.Context != "" && cr.State != "SUCCESS" {
 			contexts.Insert(cr.Context)
 		}
 	}
@@ -563,15 +572,43 @@ func handle(oc overrideClient, log *logrus.Entry, e *github.GenericCommentEvent,
 	}
 
 	if unknown := overrides.Difference(contexts); unknown.Len() > 0 {
-		resp := fmt.Sprintf(`%s requires failed status contexts, check run or a prowjob name to operate on.
+		// Contexts that are already passing, including ones Prow already overrode, get a
+		// dedicated reply rather than being reported as unknown.
+		passing := sets.New[string]()
+		for _, status := range statuses {
+			if status.State != github.StatusSuccess {
+				continue
+			}
+			passing.Insert(status.Context)
+			if pre := presubmitForContext(presubmits, status.Context); pre != nil {
+				passing.Insert(pre.Name)
+			}
+		}
+		for _, cr := range checkrunContexts {
+			if cr.State == "SUCCESS" {
+				passing.Insert(cr.Context)
+			}
+		}
+
+		var parts []string
+		if trulyUnknown := unknown.Difference(passing); trulyUnknown.Len() > 0 {
+			parts = append(parts, fmt.Sprintf(`%s requires failed or pending status contexts, check run or a prowjob name to operate on.
 The following unknown contexts/checkruns were given:
 %s
 
-Only the following failed contexts/checkruns were expected:
+Only the following failed or pending contexts/checkruns were expected:
 %s
 
 If you are trying to override a checkrun that has a space in it, you must put a double quote on the context.
-`, cmdName, formatList(sets.List(unknown)), formatList(sets.List(contexts)))
+`, cmdName, formatList(sets.List(trulyUnknown)), formatList(sets.List(contexts))))
+		}
+		for _, name := range sets.List(unknown.Intersection(passing)) {
+			parts = append(parts, fmt.Sprintf("`%s` is already passing (or already overridden); no action taken. Use `/override-cancel %s` to remove an existing override.", name, name))
+		}
+		if overridable := overrides.Intersection(contexts); overridable.Len() > 0 {
+			parts = append(parts, fmt.Sprintf("No overrides were applied. Re-run `%s %s` with only the contexts that can be overridden.", cmdName, strings.Join(sets.List(overridable), " ")))
+		}
+		resp := strings.Join(parts, "\n\n")
 		log.Debug(resp)
 		return oc.CreateComment(org, repo, number, plugins.FormatResponseRaw(e.Body, e.HTMLURL, user, resp))
 	}
@@ -637,6 +674,11 @@ If you are trying to override a checkrun that has a space in it, you must put a 
 	// Checkruns have been converted to contexts and deduped
 	if oc.UsesAppAuth() {
 		for _, checkrun := range checkrunContexts {
+			// A check run that is already passing, for example one Prow already overrode, needs no
+			// further override run. It can still be requested when branch protection requires it.
+			if checkrun.State == "SUCCESS" {
+				continue
+			}
 			if overrides.Has(checkrun.Context) {
 				prowOverrideCR := github.CheckRun{
 					Name:       checkrun.Context,
@@ -644,7 +686,7 @@ If you are trying to override a checkrun that has a space in it, you must put a 
 					Status:     "completed",
 					Conclusion: "success",
 					Output: github.CheckRunOutput{
-						Title:   fmt.Sprintf("Prow override - %s", checkrun.Context),
+						Title:   checkRunOverrideTitlePrefix + checkrun.Context,
 						Summary: fmt.Sprintf("Prow has received override command for the %s checkrun.", checkrun.Context),
 					},
 				}
