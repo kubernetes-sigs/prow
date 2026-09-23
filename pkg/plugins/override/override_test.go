@@ -51,6 +51,9 @@ const (
 	adminUser   = "admin-user"
 )
 
+// fakeProwApp is the GitHub App the fake client reports as Prow's own by default.
+var fakeProwApp = github.App{ID: 4242, Slug: "prow"}
+
 func statusDescription(user string) string {
 	return config.ContextDescriptionWithBaseSha(description(user), fakeBaseSHA)
 }
@@ -151,6 +154,10 @@ type fakeClient struct {
 	usesAppsAuth     bool
 	nextCheckRunID   int64
 	listCheckRunsErr error
+	app              *github.App
+	getAppErr        error
+
+	updateCheckRunErrs map[int64]error
 }
 
 func (c *fakeClient) presubmits(_, _ string, _ config.RefGetter, _ string) ([]config.Presubmit, error) {
@@ -237,12 +244,35 @@ func (c *fakeClient) CreateCheckRun(org, repo string, checkRun github.CheckRun) 
 	}
 	c.nextCheckRunID++
 	checkRun.ID = c.nextCheckRunID
-	// GitHub sets completed_at itself when a check run is created as completed.
+	// GitHub records the app that created the check run and sets completed_at itself.
+	checkRun.App = *c.currentApp()
 	if checkRun.Status == "completed" {
 		checkRun.CompletedAt = "1800 BC"
 	}
 	c.checkruns.CheckRuns = append(c.checkruns.CheckRuns, checkRun)
 	return checkRun.ID, nil
+}
+
+func (c *fakeClient) UpdateCheckRun(org, repo string, checkRunId int64, checkRun github.CheckRun) error {
+	if err := c.updateCheckRunErrs[checkRunId]; err != nil {
+		return err
+	}
+	if c.checkruns != nil {
+		for i := range c.checkruns.CheckRuns {
+			cr := &c.checkruns.CheckRuns[i]
+			if cr.ID != checkRunId {
+				continue
+			}
+			cr.Status = checkRun.Status
+			if checkRun.Status == "completed" {
+				cr.CompletedAt = "1800 BC"
+			}
+			cr.Conclusion = checkRun.Conclusion
+			cr.Output = checkRun.Output
+			return nil
+		}
+	}
+	return fmt.Errorf("no check run with id %d", checkRunId)
 }
 
 func (c *fakeClient) GetBranchProtection(org, repo, branch string) (*github.BranchProtection, error) {
@@ -355,6 +385,20 @@ func (c *fakeClient) UsesAppAuth() bool {
 	return c.usesAppsAuth
 }
 
+func (c *fakeClient) GetApp() (*github.App, error) {
+	if c.getAppErr != nil {
+		return nil, c.getAppErr
+	}
+	return c.currentApp(), nil
+}
+
+func (c *fakeClient) currentApp() *github.App {
+	if c.app != nil {
+		return c.app
+	}
+	return &fakeProwApp
+}
+
 func TestAuthorizedUser(t *testing.T) {
 	cases := []struct {
 		name     string
@@ -441,7 +485,7 @@ func TestHandle(t *testing.T) {
 				CheckRuns: []github.CheckRun{
 					{Name: "incomplete-checkrun"},
 					{Name: "failure-checkrun", CompletedAt: "1800 BC", Conclusion: "failure"},
-					{ID: 1, Name: "failure-checkrun", HeadSHA: fakeSHA, Status: "completed", CompletedAt: "1800 BC", Conclusion: "success", Output: github.CheckRunOutput{
+					{ID: 1, Name: "failure-checkrun", HeadSHA: fakeSHA, Status: "completed", CompletedAt: "1800 BC", Conclusion: "success", App: fakeProwApp, Output: github.CheckRunOutput{
 						Title:   fmt.Sprintf("Prow override - %s", "failure-checkrun"),
 						Summary: fmt.Sprintf("Prow has received override command for the %s checkrun.", "failure-checkrun"),
 					}},
@@ -463,7 +507,7 @@ func TestHandle(t *testing.T) {
 				CheckRuns: []github.CheckRun{
 					{Name: "incomplete-checkrun"},
 					{Name: "test / Unit Tests", CompletedAt: "1800 BC", Conclusion: "failure"},
-					{ID: 1, Name: "test / Unit Tests", HeadSHA: fakeSHA, Status: "completed", CompletedAt: "1800 BC", Conclusion: "success", Output: github.CheckRunOutput{
+					{ID: 1, Name: "test / Unit Tests", HeadSHA: fakeSHA, Status: "completed", CompletedAt: "1800 BC", Conclusion: "success", App: fakeProwApp, Output: github.CheckRunOutput{
 						Title:   fmt.Sprintf("Prow override - %s", "test / Unit Tests"),
 						Summary: fmt.Sprintf("Prow has received override command for the %s checkrun.", "test / Unit Tests"),
 					}},
@@ -506,7 +550,7 @@ func TestHandle(t *testing.T) {
 				CheckRuns: []github.CheckRun{
 					{Name: "incomplete-checkrun"},
 					{Name: "test / Unit Tests", CompletedAt: "1800 BC", Conclusion: "failure"},
-					{ID: 1, Name: "test / Unit Tests", HeadSHA: fakeSHA, Status: "completed", CompletedAt: "1800 BC", Conclusion: "success", Output: github.CheckRunOutput{
+					{ID: 1, Name: "test / Unit Tests", HeadSHA: fakeSHA, Status: "completed", CompletedAt: "1800 BC", Conclusion: "success", App: fakeProwApp, Output: github.CheckRunOutput{
 						Title:   fmt.Sprintf("Prow override - %s", "test / Unit Tests"),
 						Summary: fmt.Sprintf("Prow has received override command for the %s checkrun.", "test / Unit Tests"),
 					}},
@@ -582,7 +626,7 @@ func TestHandle(t *testing.T) {
 			expectedCheckRuns: &github.CheckRunList{
 				CheckRuns: []github.CheckRun{
 					{Name: "soak-gate", Status: "in_progress", StartedAt: "1800 BC"},
-					{ID: 1, Name: "soak-gate", HeadSHA: fakeSHA, Status: "completed", CompletedAt: "1800 BC", Conclusion: "success", Output: github.CheckRunOutput{
+					{ID: 1, Name: "soak-gate", HeadSHA: fakeSHA, Status: "completed", CompletedAt: "1800 BC", Conclusion: "success", App: fakeProwApp, Output: github.CheckRunOutput{
 						Title:   "Prow override - soak-gate",
 						Summary: "Prow has received override command for the soak-gate checkrun.",
 					}},
@@ -605,11 +649,11 @@ func TestHandle(t *testing.T) {
 				CheckRuns: []github.CheckRun{
 					{Name: "gate-b", Status: "queued"},
 					{Name: "gate-a", Status: "in_progress"},
-					{ID: 1, Name: "gate-a", HeadSHA: fakeSHA, Status: "completed", CompletedAt: "1800 BC", Conclusion: "success", Output: github.CheckRunOutput{
+					{ID: 1, Name: "gate-a", HeadSHA: fakeSHA, Status: "completed", CompletedAt: "1800 BC", Conclusion: "success", App: fakeProwApp, Output: github.CheckRunOutput{
 						Title:   "Prow override - gate-a",
 						Summary: "Prow has received override command for the gate-a checkrun.",
 					}},
-					{ID: 2, Name: "gate-b", HeadSHA: fakeSHA, Status: "completed", CompletedAt: "1800 BC", Conclusion: "success", Output: github.CheckRunOutput{
+					{ID: 2, Name: "gate-b", HeadSHA: fakeSHA, Status: "completed", CompletedAt: "1800 BC", Conclusion: "success", App: fakeProwApp, Output: github.CheckRunOutput{
 						Title:   "Prow override - gate-b",
 						Summary: "Prow has received override command for the gate-b checkrun.",
 					}},
@@ -650,7 +694,7 @@ func TestHandle(t *testing.T) {
 			expectedCheckRuns: &github.CheckRunList{
 				CheckRuns: []github.CheckRun{
 					{Name: "soak-gate", Status: "in_progress"},
-					{ID: 1, Name: "soak-gate", HeadSHA: fakeSHA, Status: "completed", CompletedAt: "1800 BC", Conclusion: "success", Output: github.CheckRunOutput{
+					{ID: 1, Name: "soak-gate", HeadSHA: fakeSHA, Status: "completed", CompletedAt: "1800 BC", Conclusion: "success", App: fakeProwApp, Output: github.CheckRunOutput{
 						Title:   "Prow override - soak-gate",
 						Summary: "Prow has received override command for the soak-gate checkrun.",
 					}},
@@ -1915,6 +1959,317 @@ func TestHandleStickyCancel(t *testing.T) {
 				t.Errorf("expected comment containing %q, got %q", tc.expectedComment, fc.comments[len(fc.comments)-1])
 			}
 		})
+	}
+}
+
+func TestHandleCheckRunCancel(t *testing.T) {
+	log := logrus.WithField("plugin", pluginName)
+
+	overrideRun := func(id int64, name string) github.CheckRun {
+		return github.CheckRun{ID: id, Name: name, HeadSHA: fakeSHA, Status: "completed", CompletedAt: "1800 BC", Conclusion: "success", App: fakeProwApp, Output: github.CheckRunOutput{
+			Title:   "Prow override - " + name,
+			Summary: "Prow has received override command for the " + name + " checkrun.",
+		}}
+	}
+	cancelledRun := func(id int64, name string) github.CheckRun {
+		return github.CheckRun{ID: id, Name: name, HeadSHA: fakeSHA, Status: "completed", CompletedAt: "1800 BC", Conclusion: "cancelled", App: fakeProwApp, Output: github.CheckRunOutput{
+			Title:   "Prow override cancelled - " + name,
+			Summary: "Override cancelled by " + adminUser,
+		}}
+	}
+	pendingRun := func() github.CheckRun {
+		return github.CheckRun{ID: 1, Name: "soak-gate", Status: "in_progress"}
+	}
+	foreignRun := func() github.CheckRun {
+		return github.CheckRun{ID: 2, Name: "soak-gate", Status: "completed", CompletedAt: "1800 BC", Conclusion: "success", App: github.App{ID: 999, Slug: "other-app"}, Output: github.CheckRunOutput{
+			Title: "Prow override - soak-gate",
+		}}
+	}
+	slugApp := github.App{Slug: fakeProwApp.Slug}
+	withApp := func(cr github.CheckRun, app github.App) github.CheckRun {
+		cr.App = app
+		return cr
+	}
+
+	cases := []struct {
+		name               string
+		body               string
+		statuses           []github.Status
+		checkruns          []github.CheckRun
+		usesAppsAuth       bool
+		listCheckRunsErr   error
+		app                *github.App
+		getAppErr          error
+		updateCheckRunErrs map[int64]error
+		expectedStatuses   []github.Status
+		expectedCheckRuns  []github.CheckRun
+		expectedComments   []string
+		unexpectedComments []string
+	}{
+		{
+			name:              "cancel specific check run override",
+			body:              "/override-cancel soak-gate",
+			checkruns:         []github.CheckRun{pendingRun(), overrideRun(2, "soak-gate"), overrideRun(3, "other-gate")},
+			usesAppsAuth:      true,
+			expectedCheckRuns: []github.CheckRun{pendingRun(), cancelledRun(2, "soak-gate"), overrideRun(3, "other-gate")},
+			expectedComments:  []string{"Cancelled overrides on behalf of admin-user: soak-gate"},
+		},
+		{
+			name:              "cancel all cancels status and check run overrides",
+			body:              "/override-cancel",
+			statuses:          []github.Status{{Context: "job-a", State: github.StatusSuccess, Description: "Overridden by admin-user"}},
+			checkruns:         []github.CheckRun{pendingRun(), overrideRun(2, "soak-gate")},
+			usesAppsAuth:      true,
+			expectedStatuses:  []github.Status{{Context: "job-a", State: github.StatusFailure, Description: "Override cancelled by admin-user"}},
+			expectedCheckRuns: []github.CheckRun{pendingRun(), cancelledRun(2, "soak-gate")},
+			expectedComments:  []string{"Cancelled overrides on behalf of admin-user: job-a, soak-gate"},
+		},
+		{
+			name:              "override-titled check run from another app is left alone",
+			body:              "/override-cancel soak-gate",
+			checkruns:         []github.CheckRun{pendingRun(), foreignRun(), overrideRun(3, "soak-gate")},
+			usesAppsAuth:      true,
+			expectedCheckRuns: []github.CheckRun{pendingRun(), foreignRun(), cancelledRun(3, "soak-gate")},
+			expectedComments:  []string{"Cancelled overrides on behalf of admin-user: soak-gate", "`soak-gate`: check run titled as a Prow override was created by a different GitHub App and cannot be cancelled by this Prow instance"},
+		},
+		{
+			name:               "comment when only another app's override-titled check run matches",
+			body:               "/override-cancel",
+			checkruns:          []github.CheckRun{foreignRun()},
+			usesAppsAuth:       true,
+			expectedCheckRuns:  []github.CheckRun{foreignRun()},
+			expectedComments:   []string{"`soak-gate`: check run titled as a Prow override was created by a different GitHub App and cannot be cancelled by this Prow instance"},
+			unexpectedComments: []string{"No overrides found to cancel", "Cancelled overrides"},
+		},
+		{
+			name:              "ownership falls back to app slug when the app ID is unavailable",
+			body:              "/override-cancel soak-gate",
+			checkruns:         []github.CheckRun{withApp(overrideRun(2, "soak-gate"), slugApp)},
+			usesAppsAuth:      true,
+			app:               &slugApp,
+			expectedCheckRuns: []github.CheckRun{withApp(cancelledRun(2, "soak-gate"), slugApp)},
+			expectedComments:  []string{"Cancelled overrides on behalf of admin-user: soak-gate"},
+		},
+		{
+			name:               "slug fallback leaves a check run from a differently named app alone",
+			body:               "/override-cancel soak-gate",
+			checkruns:          []github.CheckRun{withApp(overrideRun(2, "soak-gate"), github.App{Slug: "other-app"})},
+			usesAppsAuth:       true,
+			app:                &slugApp,
+			expectedCheckRuns:  []github.CheckRun{withApp(overrideRun(2, "soak-gate"), github.App{Slug: "other-app"})},
+			expectedComments:   []string{"`soak-gate`: check run titled as a Prow override was created by a different GitHub App and cannot be cancelled by this Prow instance"},
+			unexpectedComments: []string{"Cancelled overrides"},
+		},
+		{
+			name:              "check run titled as a cancelled override is not cancelled again",
+			body:              "/override-cancel soak-gate",
+			checkruns:         []github.CheckRun{pendingRun(), cancelledRun(2, "soak-gate")},
+			usesAppsAuth:      true,
+			expectedCheckRuns: []github.CheckRun{pendingRun(), cancelledRun(2, "soak-gate")},
+			expectedComments:  []string{"No overrides found to cancel"},
+		},
+		{
+			name: "override-titled check run that did not succeed is not cancelled again",
+			body: "/override-cancel soak-gate",
+			checkruns: []github.CheckRun{{ID: 2, Name: "soak-gate", Status: "completed", CompletedAt: "1800 BC", Conclusion: "cancelled", App: fakeProwApp, Output: github.CheckRunOutput{
+				Title: "Prow override - soak-gate",
+			}}},
+			usesAppsAuth: true,
+			expectedCheckRuns: []github.CheckRun{{ID: 2, Name: "soak-gate", Status: "completed", CompletedAt: "1800 BC", Conclusion: "cancelled", App: fakeProwApp, Output: github.CheckRunOutput{
+				Title: "Prow override - soak-gate",
+			}}},
+			expectedComments: []string{"No overrides found to cancel"},
+		},
+		{
+			name:              "check runs are skipped without app auth",
+			body:              "/override-cancel",
+			checkruns:         []github.CheckRun{overrideRun(2, "soak-gate")},
+			usesAppsAuth:      false,
+			expectedCheckRuns: []github.CheckRun{overrideRun(2, "soak-gate")},
+			expectedComments:  []string{"No overrides found to cancel"},
+		},
+		{
+			name:             "listing check runs fails before any status is cancelled",
+			body:             "/override-cancel",
+			statuses:         []github.Status{{Context: "job-a", State: github.StatusSuccess, Description: "Overridden by admin-user"}},
+			usesAppsAuth:     true,
+			listCheckRunsErr: errors.New("injected ListCheckRuns failure"),
+			expectedStatuses: []github.Status{{Context: "job-a", State: github.StatusSuccess, Description: "Overridden by admin-user"}},
+			expectedComments: []string{"Cannot list check runs for PR #", "no overrides were cancelled. Please retry /override-cancel."},
+		},
+		{
+			name:               "partial check run failure reports both cancelled and failed overrides",
+			body:               "/override-cancel",
+			statuses:           []github.Status{{Context: "job-a", State: github.StatusSuccess, Description: "Overridden by admin-user"}},
+			checkruns:          []github.CheckRun{overrideRun(2, "gate-a"), overrideRun(3, "gate-b")},
+			usesAppsAuth:       true,
+			updateCheckRunErrs: map[int64]error{3: errors.New("injected UpdateCheckRun failure")},
+			expectedStatuses:   []github.Status{{Context: "job-a", State: github.StatusFailure, Description: "Override cancelled by admin-user"}},
+			expectedCheckRuns:  []github.CheckRun{cancelledRun(2, "gate-a"), overrideRun(3, "gate-b")},
+			expectedComments: []string{
+				"Cancelled overrides on behalf of admin-user: gate-a, job-a",
+				"Cannot cancel override check run gate-b",
+			},
+		},
+		{
+			name:              "comment when Prow's app cannot be determined",
+			body:              "/override-cancel",
+			statuses:          []github.Status{{Context: "job-a", State: github.StatusSuccess, Description: "Overridden by admin-user"}},
+			checkruns:         []github.CheckRun{overrideRun(2, "soak-gate")},
+			usesAppsAuth:      true,
+			getAppErr:         errors.New("injected GetApp failure"),
+			expectedStatuses:  []github.Status{{Context: "job-a", State: github.StatusFailure, Description: "Override cancelled by admin-user"}},
+			expectedCheckRuns: []github.CheckRun{overrideRun(2, "soak-gate")},
+			expectedComments: []string{
+				"Cancelled overrides on behalf of admin-user: job-a",
+				"Cannot determine Prow's GitHub App, so check runs titled as overrides were not cancelled: soak-gate",
+			},
+		},
+		{
+			name:               "an app without an ID or slug is treated as undetermined",
+			body:               "/override-cancel",
+			checkruns:          []github.CheckRun{overrideRun(2, "soak-gate")},
+			usesAppsAuth:       true,
+			app:                &github.App{},
+			expectedCheckRuns:  []github.CheckRun{overrideRun(2, "soak-gate")},
+			expectedComments:   []string{"Cannot determine Prow's GitHub App, so check runs titled as overrides were not cancelled: soak-gate"},
+			unexpectedComments: []string{"different GitHub App"},
+		},
+		{
+			name:               "check runs not created by override are left alone without looking up the app",
+			body:               "/override-cancel",
+			checkruns:          []github.CheckRun{{ID: 4, Name: "lint", Status: "completed", Conclusion: "success", Output: github.CheckRunOutput{Title: "Lint passed"}}},
+			usesAppsAuth:       true,
+			getAppErr:          errors.New("injected GetApp failure"),
+			expectedCheckRuns:  []github.CheckRun{{ID: 4, Name: "lint", Status: "completed", Conclusion: "success", Output: github.CheckRunOutput{Title: "Lint passed"}}},
+			expectedComments:   []string{"No overrides found to cancel"},
+			unexpectedComments: []string{"Cannot determine Prow's GitHub App"},
+		},
+		{
+			name:              "a failed status write does not stop check run cancellation",
+			body:              "/override-cancel",
+			statuses:          []github.Status{{Context: "fail-create", State: github.StatusSuccess, Description: "Overridden by admin-user"}},
+			checkruns:         []github.CheckRun{overrideRun(2, "soak-gate")},
+			usesAppsAuth:      true,
+			expectedStatuses:  []github.Status{{Context: "fail-create", State: github.StatusSuccess, Description: "Overridden by admin-user"}},
+			expectedCheckRuns: []github.CheckRun{cancelledRun(2, "soak-gate")},
+			expectedComments: []string{
+				"Cancelled overrides on behalf of admin-user: soak-gate",
+				"Cannot update PR status for context fail-create",
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			fc := &fakeClient{
+				statuses:           tc.statuses,
+				checkruns:          &github.CheckRunList{CheckRuns: tc.checkruns},
+				usesAppsAuth:       tc.usesAppsAuth,
+				listCheckRunsErr:   tc.listCheckRunsErr,
+				app:                tc.app,
+				getAppErr:          tc.getAppErr,
+				updateCheckRunErrs: tc.updateCheckRunErrs,
+				jobs:               sets.New[string](),
+			}
+			event := github.GenericCommentEvent{
+				IsPR:       true,
+				IssueState: "open",
+				Action:     github.GenericCommentActionCreated,
+				Body:       tc.body,
+				Number:     fakePR,
+				User:       github.User{Login: adminUser},
+				Repo:       github.Repo{Owner: github.User{Login: fakeOrg}, Name: fakeRepo},
+			}
+
+			if err := handleOverrideCancel(fc, log, &event, plugins.Override{}); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if diff := cmp.Diff(tc.expectedStatuses, fc.statuses); diff != "" {
+				t.Errorf("statuses mismatch (-want +got):\n%s", diff)
+			}
+			if diff := cmp.Diff(tc.expectedCheckRuns, fc.checkruns.CheckRuns); diff != "" {
+				t.Errorf("check runs mismatch (-want +got):\n%s", diff)
+			}
+			if len(fc.comments) != 1 {
+				t.Fatalf("expected exactly one comment, got %q", fc.comments)
+			}
+			for _, expected := range tc.expectedComments {
+				if !strings.Contains(fc.comments[0], expected) {
+					t.Errorf("expected comment containing %q, got %q", expected, fc.comments[0])
+				}
+			}
+			for _, unexpected := range tc.unexpectedComments {
+				if strings.Contains(fc.comments[0], unexpected) {
+					t.Errorf("expected comment not containing %q, got %q", unexpected, fc.comments[0])
+				}
+			}
+		})
+	}
+}
+
+func TestOverrideCheckRunLifecycle(t *testing.T) {
+	log := logrus.WithField("plugin", pluginName)
+
+	originalRun := github.CheckRun{ID: 100, Name: "soak-gate", Status: "in_progress"}
+	overrideRun := func(id int64) github.CheckRun {
+		return github.CheckRun{ID: id, Name: "soak-gate", HeadSHA: fakeSHA, Status: "completed", CompletedAt: "1800 BC", Conclusion: "success", App: fakeProwApp, Output: github.CheckRunOutput{
+			Title:   "Prow override - soak-gate",
+			Summary: "Prow has received override command for the soak-gate checkrun.",
+		}}
+	}
+	cancelledRun := func(id int64) github.CheckRun {
+		return github.CheckRun{ID: id, Name: "soak-gate", HeadSHA: fakeSHA, Status: "completed", CompletedAt: "1800 BC", Conclusion: "cancelled", App: fakeProwApp, Output: github.CheckRunOutput{
+			Title:   "Prow override cancelled - soak-gate",
+			Summary: "Override cancelled by " + adminUser,
+		}}
+	}
+
+	fc := &fakeClient{
+		checkruns:    &github.CheckRunList{CheckRuns: []github.CheckRun{originalRun}},
+		usesAppsAuth: true,
+		jobs:         sets.New[string](),
+		owners:       &fakeRepoownersClient{foc: &fakeOwnersClient{}},
+	}
+	event := func(body string) *github.GenericCommentEvent {
+		return &github.GenericCommentEvent{
+			IsPR:       true,
+			IssueState: "open",
+			Action:     github.GenericCommentActionCreated,
+			Body:       body,
+			Number:     fakePR,
+			User:       github.User{Login: adminUser},
+			Repo:       github.Repo{Owner: github.User{Login: fakeOrg}, Name: fakeRepo},
+		}
+	}
+	override := func() {
+		t.Helper()
+		if err := handle(fc, log, event("/override soak-gate"), plugins.Override{}, false); err != nil {
+			t.Fatalf("unexpected error overriding: %v", err)
+		}
+	}
+	cancel := func() {
+		t.Helper()
+		if err := handleOverrideCancel(fc, log, event("/override-cancel soak-gate"), plugins.Override{}); err != nil {
+			t.Fatalf("unexpected error cancelling: %v", err)
+		}
+	}
+
+	override()
+	cancel()
+	override()
+	expected := []github.CheckRun{originalRun, cancelledRun(1), overrideRun(2)}
+	if diff := cmp.Diff(expected, fc.checkruns.CheckRuns); diff != "" {
+		t.Fatalf("check runs after override, cancel, override mismatch (-want +got):\n%s", diff)
+	}
+
+	cancel()
+	expected = []github.CheckRun{originalRun, cancelledRun(1), cancelledRun(2)}
+	if diff := cmp.Diff(expected, fc.checkruns.CheckRuns); diff != "" {
+		t.Errorf("check runs after second cancel mismatch (-want +got):\n%s", diff)
+	}
+	if last := fc.comments[len(fc.comments)-1]; !strings.Contains(last, "Cancelled overrides on behalf of admin-user: soak-gate") {
+		t.Errorf("unexpected final comment: %q", last)
 	}
 }
 

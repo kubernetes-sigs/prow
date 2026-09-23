@@ -71,7 +71,9 @@ type githubClient interface {
 	ListTeamMembersBySlug(org, teamSlug, role string) ([]github.TeamMember, error)
 	ListCheckRuns(org, repo, ref string) (*github.CheckRunList, error)
 	CreateCheckRun(org, repo string, checkRun github.CheckRun) (int64, error)
+	UpdateCheckRun(org, repo string, checkRunId int64, checkRun github.CheckRun) error
 	UsesAppAuth() bool
+	GetApp() (*github.App, error)
 }
 
 type prowJobClient interface {
@@ -136,8 +138,16 @@ func (c client) CreateCheckRun(org, repo string, checkRun github.CheckRun) (int6
 	return c.ghc.CreateCheckRun(org, repo, checkRun)
 }
 
+func (c client) UpdateCheckRun(org, repo string, checkRunId int64, checkRun github.CheckRun) error {
+	return c.ghc.UpdateCheckRun(org, repo, checkRunId, checkRun)
+}
+
 func (c client) UsesAppAuth() bool {
 	return c.ghc.UsesAppAuth()
+}
+
+func (c client) GetApp() (*github.App, error) {
+	return c.ghc.GetApp()
 }
 
 func (c client) Create(ctx context.Context, pj *prowapi.ProwJob, o metav1.CreateOptions) (*prowapi.ProwJob, error) {
@@ -260,7 +270,7 @@ func helpProvider(config *plugins.Configuration, _ []config.OrgRepo) (*pluginhel
 	})
 	pluginHelp.AddCommand(pluginhelp.Command{
 		Usage:       "/override-cancel [context]",
-		Description: "Removes overrides by setting the status back to failure. Works on both regular and sticky overrides. If a context is given, only that override is removed. If no context is given, all overrides on the PR are removed.",
+		Description: "Removes overrides by setting the status back to failure, and cancels check runs created by /override. Works on both regular and sticky overrides. If a context is given, only that override is removed. If no context is given, all overrides on the PR are removed.",
 		Featured:    false,
 		WhoCanUse:   whoCanUse(overrideConfig, "", ""),
 		Examples:    []string{"/override-cancel pull-repo-whatever", "/override-cancel"},
@@ -386,8 +396,8 @@ func authorizedGitHubTeamMember(gc githubClient, log *logrus.Entry, teamSlugs ma
 
 const overrideDescriptionPrefix = "Overridden by"
 
-// checkRunOverrideTitlePrefix prefixes the output title of check runs created by /override,
-// and is how /override-cancel recognizes them.
+// checkRunOverrideTitlePrefix prefixes the output title of check runs created by /override.
+// /override-cancel recognizes them by this prefix together with the app that created them.
 const checkRunOverrideTitlePrefix = "Prow override - "
 
 func description(user string) string {
@@ -751,6 +761,47 @@ func handleOverrideCancel(oc overrideClient, log *logrus.Entry, e *github.Generi
 		return oc.CreateComment(org, repo, number, plugins.FormatResponseRaw(e.Body, e.HTMLURL, user, resp))
 	}
 
+	// List check runs before any writes, so a listing failure leaves everything untouched.
+	// Candidates are successful runs whose output title carries the override prefix and whose
+	// name was requested. Which app created them is checked below.
+	var overrideCheckRuns []github.CheckRun
+	if oc.UsesAppAuth() {
+		checkruns, err := oc.ListCheckRuns(org, repo, sha)
+		if err != nil {
+			resp := fmt.Sprintf("Cannot list check runs for PR #%d in %s/%s; no overrides were cancelled. Please retry /override-cancel.", number, org, repo)
+			log.WithError(err).Warn(resp)
+			return oc.CreateComment(org, repo, number, plugins.FormatResponseRaw(e.Body, e.HTMLURL, user, resp))
+		}
+		for _, cr := range checkruns.CheckRuns {
+			if !strings.HasPrefix(cr.Output.Title, checkRunOverrideTitlePrefix) || !strings.EqualFold(cr.Conclusion, "success") {
+				continue
+			}
+			if !cancelAll && !cancelContexts.Has(cr.Name) {
+				continue
+			}
+			overrideCheckRuns = append(overrideCheckRuns, cr)
+		}
+	}
+
+	var failures []string
+	var app *github.App
+	if len(overrideCheckRuns) > 0 {
+		app, err = oc.GetApp()
+		if err == nil && app.ID == 0 && app.Slug == "" {
+			err = fmt.Errorf("GitHub App has neither an ID nor a slug")
+		}
+		if err != nil {
+			names := sets.New[string]()
+			for _, cr := range overrideCheckRuns {
+				names.Insert(cr.Name)
+			}
+			resp := fmt.Sprintf("Cannot determine Prow's GitHub App, so check runs titled as overrides were not cancelled: %s", strings.Join(sets.List(names), ", "))
+			log.WithError(err).Warn(resp)
+			failures = append(failures, resp)
+			overrideCheckRuns = nil
+		}
+	}
+
 	cancelled := sets.New[string]()
 	cancelDesc := fmt.Sprintf("Override cancelled by %s", user)
 
@@ -766,20 +817,74 @@ func handleOverrideCancel(oc overrideClient, log *logrus.Entry, e *github.Generi
 		if err := oc.CreateStatus(org, repo, sha, status); err != nil {
 			resp := fmt.Sprintf("Cannot update PR status for context %s", status.Context)
 			log.WithError(err).Warn(resp)
-			return oc.CreateComment(org, repo, number, plugins.FormatResponseRaw(e.Body, e.HTMLURL, user, resp))
+			failures = append(failures, resp)
+			continue
 		}
 		cancelled.Insert(status.Context)
 	}
 
-	if cancelled.Len() == 0 {
+	// Prow can only update check runs its own GitHub App created, so only candidates whose app
+	// matches Prow's (by ID, or by slug if the ID is unavailable) are cancelled. Marking them
+	// cancelled lets Tide fall back to the original check run's state.
+	for _, cr := range overrideCheckRuns {
+		if !createdByApp(cr, app) {
+			resp := fmt.Sprintf("`%s`: check run titled as a Prow override was created by a different GitHub App and cannot be cancelled by this Prow instance", cr.Name)
+			log.WithFields(logrus.Fields{
+				"check_run_id":       cr.ID,
+				"check_run":          cr.Name,
+				"check_run_app_id":   cr.App.ID,
+				"check_run_app_slug": cr.App.Slug,
+				"prow_app_id":        app.ID,
+				"prow_app_slug":      app.Slug,
+			}).Warn("Skipping override-titled check run created by a different GitHub App")
+			failures = append(failures, resp)
+			continue
+		}
+		cancelledCR := github.CheckRun{
+			Status:     "completed",
+			Conclusion: "cancelled",
+			Output: github.CheckRunOutput{
+				Title:   fmt.Sprintf("Prow override cancelled - %s", cr.Name),
+				Summary: cancelDesc,
+			},
+		}
+		if err := oc.UpdateCheckRun(org, repo, cr.ID, cancelledCR); err != nil {
+			resp := fmt.Sprintf("Cannot cancel override check run %s", cr.Name)
+			log.WithError(err).Warn(resp)
+			failures = append(failures, resp)
+			continue
+		}
+		cancelled.Insert(cr.Name)
+	}
+
+	if cancelled.Len() == 0 && len(failures) == 0 {
 		resp := "No overrides found to cancel"
 		log.Debug(resp)
 		return oc.CreateComment(org, repo, number, plugins.FormatResponseRaw(e.Body, e.HTMLURL, user, resp))
 	}
 
-	msg := fmt.Sprintf("Cancelled overrides on behalf of %s: %s", user, strings.Join(sets.List(cancelled), ", "))
+	var parts []string
+	if cancelled.Len() > 0 {
+		parts = append(parts, fmt.Sprintf("Cancelled overrides on behalf of %s: %s", user, strings.Join(sets.List(cancelled), ", ")))
+	}
+	parts = append(parts, failures...)
+	msg := strings.Join(parts, "\n\n")
 	log.Info(msg)
 	return oc.CreateComment(org, repo, number, plugins.FormatResponseRaw(e.Body, e.HTMLURL, user, msg))
+}
+
+// createdByApp reports whether the check run was created by app, comparing by ID, or by
+// slug if the ID is unavailable.
+func createdByApp(cr github.CheckRun, app *github.App) bool {
+	switch {
+	case app == nil:
+		return false
+	case app.ID != 0:
+		return cr.App.ID == app.ID
+	case app.Slug != "":
+		return cr.App.Slug == app.Slug
+	}
+	return false
 }
 
 // shaGetterFactory is a closure to retrieve a sha once. It is not threadsafe.
