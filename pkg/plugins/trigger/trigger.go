@@ -177,7 +177,6 @@ type githubClient interface {
 	RemoveLabel(org, repo string, number int, label string) error
 	TriggerGitHubWorkflow(org, repo string, id int) error
 	TriggerFailedGitHubWorkflow(org, repo string, id int) error
-	GetPendingApprovalActionRuns(org, repo, branchName, headSHA string) ([]github.WorkflowRun, error)
 	ListWorkflowRunsByHeadBranch(org, repo, branchName, headSHA string) ([]github.WorkflowRun, error)
 	ApproveGitHubWorkflowRun(org, repo string, id int) error
 	DeleteStaleComments(org, repo string, number int, comments []github.IssueComment, isStale func(github.IssueComment) bool) error

@@ -70,9 +70,6 @@ func (c *approvalTestClient) ListWorkflowRunsByHeadBranch(org, repo, branchName,
 	if c.beforeList != nil {
 		c.beforeList(c.listCalls)
 	}
-	if c.runs == nil {
-		return nil, nil
-	}
 	return c.runs(c.listCalls), nil
 }
 
@@ -90,6 +87,37 @@ func approvalTestPullRequest(author string) github.PullRequest {
 		},
 		Head: github.PullRequestBranch{Ref: approvalBranch, SHA: approvalHeadSHA},
 	}
+}
+
+func approvalTestFakeClient(author string) *fakegithub.FakeClient {
+	fakeClient := fakegithub.NewFakeClient()
+	fakeClient.OrgMembers = map[string][]string{approvalOrg: {"t"}}
+	prObject := approvalTestPullRequest(author)
+	fakeClient.PullRequests = map[int]*github.PullRequest{0: &prObject}
+	return fakeClient
+}
+
+func approvalTestConfig(t *testing.T) *config.Config {
+	cfg := &config.Config{}
+	presubmits := map[string][]config.Presubmit{
+		approvalOrg + "/" + approvalRepo: {
+			{JobBase: config.JobBase{Name: "jib"}, AlwaysRun: true},
+		},
+	}
+	if err := cfg.SetPresubmits(presubmits); err != nil {
+		t.Fatalf("failed to set presubmits: %v", err)
+	}
+	return cfg
+}
+
+func approvalTestTrigger() plugins.Trigger {
+	trigger := plugins.Trigger{
+		TrustedOrg:             approvalOrg,
+		OnlyOrgMembers:         true,
+		TriggerGitHubWorkflows: true,
+	}
+	trigger.SetDefaults()
+	return trigger
 }
 
 func TestApproveWorkflowRunsOnPullRequestEvent(t *testing.T) {
@@ -221,10 +249,7 @@ func TestApproveWorkflowRunsOnPullRequestEvent(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			fakeClient := fakegithub.NewFakeClient()
-			fakeClient.OrgMembers = map[string][]string{approvalOrg: {"t"}}
-			prObject := approvalTestPullRequest(tc.author)
-			fakeClient.PullRequests = map[int]*github.PullRequest{0: &prObject}
+			fakeClient := approvalTestFakeClient(tc.author)
 			if tc.hasOkToTest {
 				fakeClient.IssueLabelsExisting = append(fakeClient.IssueLabelsExisting, issueLabels(labels.OkToTest)...)
 			}
@@ -234,16 +259,9 @@ func TestApproveWorkflowRunsOnPullRequestEvent(t *testing.T) {
 				runs:       func(int) []github.WorkflowRun { return tc.runs },
 			}
 
-			cfg := &config.Config{}
-			if !tc.noPresubmits {
-				presubmits := map[string][]config.Presubmit{
-					approvalOrg + "/" + approvalRepo: {
-						{JobBase: config.JobBase{Name: "jib"}, AlwaysRun: true},
-					},
-				}
-				if err := cfg.SetPresubmits(presubmits); err != nil {
-					t.Fatalf("failed to set presubmits: %v", err)
-				}
+			cfg := approvalTestConfig(t)
+			if tc.noPresubmits {
+				cfg = &config.Config{}
 			}
 
 			c := Client{
@@ -267,12 +285,8 @@ func TestApproveWorkflowRunsOnPullRequestEvent(t *testing.T) {
 				event.Changes = json.RawMessage(`{"base":{"ref":{"from":"REF"}, "sha":{"from":"SHA"}}}`)
 			}
 
-			trigger := plugins.Trigger{
-				TrustedOrg:             approvalOrg,
-				OnlyOrgMembers:         true,
-				TriggerGitHubWorkflows: !tc.flagOff,
-			}
-			trigger.SetDefaults()
+			trigger := approvalTestTrigger()
+			trigger.TriggerGitHubWorkflows = !tc.flagOff
 
 			if err := handlePR(c, trigger, event, time.Nanosecond); err != nil {
 				t.Fatalf("Didn't expect error: %s", err)
@@ -411,10 +425,7 @@ func TestApprovalDoesNotDelayTheAbort(t *testing.T) {
 		},
 	}
 
-	fakeClient := fakegithub.NewFakeClient()
-	fakeClient.OrgMembers = map[string][]string{approvalOrg: {"t"}}
-	prObject := approvalTestPullRequest("t")
-	fakeClient.PullRequests = map[int]*github.PullRequest{0: &prObject}
+	fakeClient := approvalTestFakeClient("t")
 
 	fakeProwJobClient := fake.NewSimpleClientset(jobToAbort)
 
@@ -435,15 +446,7 @@ func TestApprovalDoesNotDelayTheAbort(t *testing.T) {
 		},
 	}
 
-	cfg := &config.Config{}
-	presubmits := map[string][]config.Presubmit{
-		approvalOrg + "/" + approvalRepo: {
-			{JobBase: config.JobBase{Name: "jib"}, AlwaysRun: true},
-		},
-	}
-	if err := cfg.SetPresubmits(presubmits); err != nil {
-		t.Fatalf("failed to set presubmits: %v", err)
-	}
+	cfg := approvalTestConfig(t)
 
 	c := Client{
 		GitHubClient:  g,
@@ -457,12 +460,7 @@ func TestApprovalDoesNotDelayTheAbort(t *testing.T) {
 		PullRequest: approvalTestPullRequest("t"),
 		Sender:      github.User{Login: "t"},
 	}
-	trigger := plugins.Trigger{
-		TrustedOrg:             approvalOrg,
-		OnlyOrgMembers:         true,
-		TriggerGitHubWorkflows: true,
-	}
-	trigger.SetDefaults()
+	trigger := approvalTestTrigger()
 
 	if err := handlePR(c, trigger, event, time.Nanosecond); err != nil {
 		t.Fatalf("Didn't expect error: %s", err)
@@ -477,11 +475,8 @@ func TestApprovalDoesNotDelayTheAbort(t *testing.T) {
 }
 
 func TestApprovalDoesNotDelayTheOkToTestJobs(t *testing.T) {
-	fakeClient := fakegithub.NewFakeClient()
-	fakeClient.OrgMembers = map[string][]string{approvalOrg: {"t"}}
+	fakeClient := approvalTestFakeClient("u")
 	fakeClient.IssueComments = map[int][]github.IssueComment{}
-	prObject := approvalTestPullRequest("u")
-	fakeClient.PullRequests = map[int]*github.PullRequest{0: &prObject}
 
 	fakeProwJobClient := fake.NewSimpleClientset()
 
@@ -502,15 +497,7 @@ func TestApprovalDoesNotDelayTheOkToTestJobs(t *testing.T) {
 		},
 	}
 
-	cfg := &config.Config{}
-	presubmits := map[string][]config.Presubmit{
-		approvalOrg + "/" + approvalRepo: {
-			{JobBase: config.JobBase{Name: "jib"}, AlwaysRun: true},
-		},
-	}
-	if err := cfg.SetPresubmits(presubmits); err != nil {
-		t.Fatalf("failed to set presubmits: %v", err)
-	}
+	cfg := approvalTestConfig(t)
 
 	c := Client{
 		GitHubClient:  g,
@@ -532,12 +519,7 @@ func TestApprovalDoesNotDelayTheOkToTestJobs(t *testing.T) {
 		IssueState:  "open",
 		IsPR:        true,
 	}
-	trigger := plugins.Trigger{
-		TrustedOrg:             approvalOrg,
-		OnlyOrgMembers:         true,
-		TriggerGitHubWorkflows: true,
-	}
-	trigger.SetDefaults()
+	trigger := approvalTestTrigger()
 
 	if err := handleGenericComment(c, &fakeCommentPruner{}, trigger, event, time.Nanosecond); err != nil {
 		t.Fatalf("Didn't expect error: %s", err)
