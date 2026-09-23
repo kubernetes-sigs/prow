@@ -144,7 +144,7 @@ func handleGenericComment(c Client, cp commentPruner, trigger plugins.Trigger, g
 		return err
 	}
 
-	// Approve pending GitHub Actions workflow runs on /ok-to-test.
+	// Approve pending GitHub Actions workflow runs on /ok-to-test
 	// Deferred, so the poll does not delay the ProwJobs of this comment.
 	if isOkToTest && trigger.TriggerGitHubWorkflows {
 		defer approvePendingWorkflowRuns(c, trigger, org, repo, *pr, millisecondOverride...)

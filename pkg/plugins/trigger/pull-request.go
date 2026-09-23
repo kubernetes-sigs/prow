@@ -160,8 +160,6 @@ func handlePR(c Client, trigger plugins.Trigger, pr github.PullRequestEvent, mil
 	return nil
 }
 
-// baseChanged reports whether an edit changed the base of the pull request.
-// GitHub sends the previous values in the changes field of the event.
 func baseChanged(pr github.PullRequestEvent) bool {
 	var changes struct {
 		Base struct {

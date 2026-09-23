@@ -57,8 +57,6 @@ func startedRun(id int) github.WorkflowRun {
 	return github.WorkflowRun{ID: id, Event: "pull_request", Status: "in_progress"}
 }
 
-// approvalTestClient counts the list calls and controls what each one returns,
-// which is how the tests observe the poll.
 type approvalTestClient struct {
 	*fakegithub.FakeClient
 
@@ -126,10 +124,9 @@ func TestApproveWorkflowRunsOnPullRequestEvent(t *testing.T) {
 			expectApproved: []string{"org/repo/1"},
 		},
 		{
-			name:   "the flag off approves nothing",
-			action: github.PullRequestActionSynchronize,
-			author: "t",
-			// The whole feature is behind trigger_github_workflows.
+			name:    "the flag off approves nothing",
+			action:  github.PullRequestActionSynchronize,
+			author:  "t",
 			flagOff: true,
 			runs:    []github.WorkflowRun{pendingRun(1)},
 		},
@@ -154,8 +151,7 @@ func TestApproveWorkflowRunsOnPullRequestEvent(t *testing.T) {
 			sender:      bot,
 			author:      "u",
 			hasOkToTest: true,
-			// The comment handler approved the runs already.
-			runs: []github.WorkflowRun{pendingRun(1)},
+			runs:        []github.WorkflowRun{pendingRun(1)},
 		},
 		{
 			name:           "an ok-to-test label from a person approves the pending runs",
@@ -401,8 +397,6 @@ func TestApprovePendingWorkflowRunsPoll(t *testing.T) {
 	}
 }
 
-// TestApprovalDoesNotDelayTheAbort makes sure that a push aborts the old jobs
-// before the poll starts. The approval is deferred exactly for this reason.
 func TestApprovalDoesNotDelayTheAbort(t *testing.T) {
 	jobToAbort := &prowapi.ProwJob{
 		ObjectMeta: metav1.ObjectMeta{

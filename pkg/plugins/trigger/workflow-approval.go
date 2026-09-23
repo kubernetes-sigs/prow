@@ -36,13 +36,8 @@ const (
 	workflowRunPollSteps    = 5
 )
 
-// shouldApproveWorkflowRuns reports whether this pull request event can create
-// workflow runs that wait for approval.
 func shouldApproveWorkflowRuns(c Client, pr github.PullRequestEvent) bool {
 	switch pr.Action {
-	// For opened, the trust check stops an untrusted author. A trusted author
-	// can still have held runs, for example a member of a trusted_orgs entry
-	// that GitHub sees as a first-time contributor.
 	case github.PullRequestActionOpened,
 		github.PullRequestActionSynchronize,
 		github.PullRequestActionReopened,
@@ -66,11 +61,8 @@ func shouldApproveWorkflowRuns(c Client, pr github.PullRequestEvent) bool {
 	return false
 }
 
-// approvePendingWorkflowRunsIfTrusted approves the workflow runs if the pull
-// request is trusted.
-//
-// The approval is best effort and it returns no error, because it must not
-// stop the presubmits.
+// approvePendingWorkflowRunsIfTrusted is best effort and returns no error,
+// because it must not stop the presubmits.
 func approvePendingWorkflowRunsIfTrusted(c Client, trigger plugins.Trigger, pr github.PullRequestEvent, millisecondOverride ...time.Duration) {
 	org, repo, a := orgRepoAuthor(pr.PullRequest)
 
@@ -87,14 +79,6 @@ func approvePendingWorkflowRunsIfTrusted(c Client, trigger plugins.Trigger, pr g
 	approvePendingWorkflowRuns(c, trigger, org, repo, pr.PullRequest, millisecondOverride...)
 }
 
-// approvePendingWorkflowRuns approves the workflow runs of the head commit
-// that wait at the approval gate.
-//
-// The function polls with a backoff, because GitHub creates the runs after it
-// sends the webhook. It stops when the runs exist and no run waits for
-// approval.
-// An empty result means that GitHub did not create the runs yet, which is not
-// the same as a pull request that starts no workflow.
 func approvePendingWorkflowRuns(c Client, trigger plugins.Trigger, org, repo string, pr github.PullRequest, millisecondOverride ...time.Duration) {
 	millisecond := time.Millisecond
 	if len(millisecondOverride) == 1 {
@@ -119,6 +103,8 @@ func approvePendingWorkflowRuns(c Client, trigger plugins.Trigger, org, repo str
 			log.WithError(err).Warn("Could not list the workflow runs, will retry.")
 			return false, nil
 		}
+		// GitHub did not create the runs yet. This is not the same as a pull
+		// request that starts no workflow.
 		if len(runs) == 0 {
 			return false, nil
 		}
@@ -176,7 +162,6 @@ func approvalStillValid(c Client, log *logrus.Entry, trigger plugins.Trigger, or
 	return trusted
 }
 
-// approveWorkflowRun approves one workflow run.
 func approveWorkflowRun(c Client, log *logrus.Entry, org, repo string, run github.WorkflowRun) {
 	log = log.WithFields(logrus.Fields{"runID": run.ID, "runName": run.Name})
 
