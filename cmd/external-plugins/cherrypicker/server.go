@@ -928,14 +928,42 @@ fi
 		return fmt.Errorf("failed to chmod tmp script: %w", err)
 	}
 
+	// Read back the committer identity that was configured on this repo by the
+	// caller (via r.Config("user.name"/"user.email") above). We use raw
+	// "git config --get" because RepoClient only exposes a setter (Config()),
+	// not a getter. The identity is guaranteed to be present at this point;
+	// we fail clearly if for some reason it is not.
+	nameBytes, err := exec.Command("git", "-C", repo.Directory(), "config", "user.name").Output()
+	if err != nil {
+		return fmt.Errorf("failed to read git user.name: %w", err)
+	}
+	emailBytes, err := exec.Command("git", "-C", repo.Directory(), "config", "user.email").Output()
+	if err != nil {
+		return fmt.Errorf("failed to read git user.email: %w", err)
+	}
+	gitName := strings.TrimSpace(string(nameBytes))
+	gitEmail := strings.TrimSpace(string(emailBytes))
+	if gitName == "" {
+		return errors.New("git user.name is not configured in repository")
+	}
+	if gitEmail == "" {
+		return errors.New("git user.email is not configured in repository")
+	}
+
 	// Prepare and run the rebase. Export ORIGINAL_SHAS and prevent editor.
 	ctx, cancel := context.WithTimeout(context.Background(), rebaseTimeout)
 	defer cancel()
 	origEnv := fmt.Sprintf("ORIGINAL_SHAS=%s", strings.Join(originalSHAs, ","))
 	cmd := exec.CommandContext(ctx, "git", "-C", repo.Directory(), "rebase", "-i", baseSHA, "--exec", tmpPath)
-	cmd.Env = append(os.Environ(), origEnv, "GIT_SEQUENCE_EDITOR=true", "GIT_CONFIG_NOSYSTEM=1")
+	cmd.Env = append(os.Environ(),
+		origEnv,
+		"GIT_SEQUENCE_EDITOR=true",
+		"GIT_CONFIG_NOSYSTEM=1",
+		"GIT_COMMITTER_NAME="+gitName,
+		"GIT_COMMITTER_EMAIL="+gitEmail,
+	)
 
-        output, err := cmd.CombinedOutput()
+	output, err := cmd.CombinedOutput()
 	if err != nil {
 		var rebaseErr error
 		if ctx.Err() == context.DeadlineExceeded {
