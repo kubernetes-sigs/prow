@@ -4349,46 +4349,17 @@ func (c *client) ListCollaborators(org, repo string) ([]User, error) {
 	return users, nil
 }
 
-// directCollaboratorsQuery defines the GraphQL query structure for fetching direct repository collaborators
-type directCollaboratorsQuery struct {
-	Repository struct {
-		Collaborators struct {
-			Edges []struct {
-				Permission githubql.String
-				Node       struct {
-					Login githubql.String
-				}
-			}
-			PageInfo struct {
-				HasNextPage githubql.Boolean
-				EndCursor   githubql.String
-			}
-		} `graphql:"collaborators(affiliation: DIRECT, first: $first, after: $after)"`
-	} `graphql:"repository(owner: $owner, name: $name)"`
-}
-
-// mapGraphQLPermissionToRepoLevel maps GraphQL permission strings to RepoPermissionLevel
-func mapGraphQLPermissionToRepoLevel(graphqlPerm string) RepoPermissionLevel {
-	switch graphqlPerm {
-	case "ADMIN":
-		return Admin
-	case "MAINTAIN":
-		return Maintain
-	case "WRITE":
-		return Write
-	case "TRIAGE":
-		return Triage
-	case "READ":
-		return Read
-	default:
-		return Read // Default fallback
-	}
-}
-
-// ListDirectCollaboratorsWithPermissions gets direct repository collaborators with their permissions using GraphQL.
-// This only returns users who were explicitly added as collaborators, not those with inherited org/team access.
+// ListDirectCollaboratorsWithPermissions gets direct repository collaborators with their permissions,
+// meaning users with an explicit repository-level grant rather than access inherited through org or
+// team membership. The REST reference for affiliation=direct is loose (it cannot distinguish an
+// org-level grant from a repository-level one in the response), so this direct-only behaviour was
+// confirmed empirically: affiliation=direct returned the same set as the GraphQL
+// collaborators(affiliation: DIRECT) connection on a repository with 280 collaborators.
 //
-// See GraphQL schema: repository.collaborators(affiliation: DIRECT)
+// It uses REST rather than that GraphQL connection because the GraphQL query has been observed to fail
+// with "Resource limits for this query exceeded" on repositories in large organizations.
+//
+// See https://docs.github.com/en/rest/collaborators/collaborators#list-repository-collaborators
 func (c *client) ListDirectCollaboratorsWithPermissions(org, repo string) (map[string]RepoPermissionLevel, error) {
 	durationLogger := c.log("ListDirectCollaboratorsWithPermissions", org, repo)
 	defer durationLogger()
@@ -4398,33 +4369,25 @@ func (c *client) ListDirectCollaboratorsWithPermissions(org, repo string) (map[s
 	}
 
 	result := make(map[string]RepoPermissionLevel)
-	vars := map[string]interface{}{
-		"owner": githubql.String(org),
-		"name":  githubql.String(repo),
-		"first": githubql.Int(100), // GitHub's max per page
-		"after": (*githubql.String)(nil),
+	path := fmt.Sprintf("/repos/%s/%s/collaborators", org, repo)
+	values := url.Values{"affiliation": []string{"direct"}, "per_page": []string{"100"}}
+	err := c.readPaginatedResultsWithValues(
+		path,
+		values,
+		"application/vnd.github+json",
+		org,
+		func() interface{} {
+			return &[]User{}
+		},
+		func(obj interface{}) {
+			for _, u := range *(obj.(*[]User)) {
+				result[u.Login] = LevelFromPermissions(u.Permissions)
+			}
+		},
+	)
+	if err != nil {
+		return nil, err
 	}
-
-	for {
-		var query directCollaboratorsQuery
-		if err := c.QueryWithGitHubAppsSupport(context.Background(), &query, vars, org); err != nil {
-			return nil, fmt.Errorf("GraphQL query failed: %w", err)
-		}
-
-		// Process this page of results
-		for _, edge := range query.Repository.Collaborators.Edges {
-			login := string(edge.Node.Login)
-			permission := mapGraphQLPermissionToRepoLevel(string(edge.Permission))
-			result[login] = permission
-		}
-
-		// Check if there are more pages
-		if !query.Repository.Collaborators.PageInfo.HasNextPage {
-			break
-		}
-		vars["after"] = query.Repository.Collaborators.PageInfo.EndCursor
-	}
-
 	return result, nil
 }
 
