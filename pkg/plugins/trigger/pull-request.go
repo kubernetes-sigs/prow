@@ -24,6 +24,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -44,7 +45,7 @@ const (
 	abortedDescription = "Aborted by trigger plugin."
 )
 
-func handlePR(c Client, trigger plugins.Trigger, pr github.PullRequestEvent) error {
+func handlePR(c Client, trigger plugins.Trigger, pr github.PullRequestEvent, millisecondOverride ...time.Duration) error {
 	org, repo, a := orgRepoAuthor(pr.PullRequest)
 	author := string(a)
 	num := pr.PullRequest.Number
@@ -63,6 +64,14 @@ func handlePR(c Client, trigger plugins.Trigger, pr github.PullRequestEvent) err
 	}
 
 	presubmits := getPresubmits(c.Logger, c.GitClient, c.Config, org+"/"+repo, baseSHAGetter, headSHAGetter)
+
+	if trigger.TriggerGitHubWorkflows && shouldApproveWorkflowRuns(c, pr) {
+		// Deferred, so the poll runs after the ProwJobs of this event exist
+		// and it does not delay them. It also runs for a repository that has
+		// no presubmits, which is the case that issue 194 reports.
+		defer approvePendingWorkflowRunsIfTrusted(c, trigger, pr, millisecondOverride...)
+	}
+
 	if len(presubmits) == 0 {
 		return nil
 	}
@@ -99,24 +108,7 @@ func handlePR(c Client, trigger plugins.Trigger, pr github.PullRequestEvent) err
 	case github.PullRequestActionReopened:
 		return buildAllIfTrusted(c, trigger, pr, baseSHA, presubmits, true)
 	case github.PullRequestActionEdited:
-		// if someone changes the base of their PR, we will get this
-		// event and the changes field will list that the base SHA and
-		// ref changes so we can detect such a case and retrigger tests
-		var changes struct {
-			Base struct {
-				Ref struct {
-					From string `json:"from"`
-				} `json:"ref"`
-				Sha struct {
-					From string `json:"from"`
-				} `json:"sha"`
-			} `json:"base"`
-		}
-		if err := json.Unmarshal(pr.Changes, &changes); err != nil {
-			// we're detecting this best-effort so we can forget about
-			// the event
-			return nil
-		} else if changes.Base.Ref.From != "" || changes.Base.Sha.From != "" {
+		if baseChanged(pr) {
 			// the base of the PR changed and we need to re-test it
 			return buildAllIfTrusted(c, trigger, pr, baseSHA, presubmits, false)
 		}
@@ -166,6 +158,24 @@ func handlePR(c Client, trigger plugins.Trigger, pr github.PullRequestEvent) err
 	}
 
 	return nil
+}
+
+func baseChanged(pr github.PullRequestEvent) bool {
+	var changes struct {
+		Base struct {
+			Ref struct {
+				From string `json:"from"`
+			} `json:"ref"`
+			Sha struct {
+				From string `json:"from"`
+			} `json:"sha"`
+		} `json:"base"`
+	}
+	if err := json.Unmarshal(pr.Changes, &changes); err != nil {
+		// we're detecting this best-effort so we can forget about the event
+		return false
+	}
+	return changes.Base.Ref.From != "" || changes.Base.Sha.From != ""
 }
 
 func abortAllJobs(c Client, pr *github.PullRequest) error {
