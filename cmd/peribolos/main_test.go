@@ -1025,6 +1025,7 @@ func TestConfigureTeams(t *testing.T) {
 		config                org.Config
 		teams                 []github.Team
 		expected              map[string]github.Team
+		expectedIgnored       []string
 		deleted               []string
 		delta                 float64
 	}{
@@ -1208,11 +1209,12 @@ func TestConfigureTeams(t *testing.T) {
 					Privacy: string(org.Closed),
 				},
 			},
-			config:   org.Config{Teams: map[string]org.Team{}},
-			err:      false,
-			expected: map[string]github.Team{},
-			deleted:  []string{"closed"},
-			delta:    1,
+			config:          org.Config{Teams: map[string]org.Team{}},
+			err:             false,
+			expected:        map[string]github.Team{},
+			expectedIgnored: []string{"secret"},
+			deleted:         []string{"closed"},
+			delta:           1,
 		},
 		{
 			name:                  "skip enterprise teams when flag is set",
@@ -1230,10 +1232,11 @@ func TestConfigureTeams(t *testing.T) {
 					Type: github.TeamTypeEnterprise,
 				},
 			},
-			config:   org.Config{Teams: map[string]org.Team{}},
-			expected: map[string]github.Team{},
-			deleted:  []string{"org-team"},
-			delta:    1,
+			config:          org.Config{Teams: map[string]org.Team{}},
+			expected:        map[string]github.Team{},
+			expectedIgnored: []string{"ent-security"},
+			deleted:         []string{"org-team"},
+			delta:           1,
 		},
 		{
 			name: "enterprise teams treated as normal without flag",
@@ -1265,7 +1268,7 @@ func TestConfigureTeams(t *testing.T) {
 			if tc.delta == 0 {
 				tc.delta = 1
 			}
-			actual, err := configureTeams(fc, orgName, tc.config, tc.delta, tc.ignoreSecretTeams, tc.ignoreEnterpriseTeams)
+			actual, ignored, err := configureTeams(fc, orgName, tc.config, tc.delta, tc.ignoreSecretTeams, tc.ignoreEnterpriseTeams)
 			switch {
 			case err != nil:
 				if !tc.err {
@@ -1275,6 +1278,12 @@ func TestConfigureTeams(t *testing.T) {
 				t.Errorf("failed to receive error")
 			case !reflect.DeepEqual(actual, tc.expected):
 				t.Errorf("%#v != actual %#v", tc.expected, actual)
+			}
+			if err == nil {
+				wantIgnored := sets.New[string](tc.expectedIgnored...)
+				if !ignored.Equal(wantIgnored) {
+					t.Errorf("ignored team slugs mismatch: want %v, got %v", sets.List(wantIgnored), sets.List(ignored))
+				}
 			}
 			for _, slug := range tc.deleted {
 				if team, ok := fc.teams[slug]; ok {
@@ -1959,6 +1968,7 @@ func TestDumpOrgConfig(t *testing.T) {
 		teamsWithRole         map[int][]github.OrganizationRoleAssignment
 		usersWithRole         map[int][]github.OrganizationRoleAssignment
 		expected              org.Config
+		validateRoles         bool
 		err                   bool
 	}{
 		{
@@ -2473,6 +2483,179 @@ func TestDumpOrgConfig(t *testing.T) {
 				Repos:   map[string]org.Repo{},
 			},
 		},
+		{
+			// The role assignment comes back keyed by slug ("security-team"), but the dump
+			// must record the config team *name* ("Security Team") so the result round-trips
+			// through ValidateRoles (which matches role teams against config names).
+			name: "role team assignment records config name, not slug",
+			meta: github.Organization{
+				Name:                        "Hello",
+				DefaultRepositoryPermission: "write",
+			},
+			members: []string{"user1"},
+			admins:  []string{"admin"},
+			teams: []github.Team{
+				{ID: 7, Slug: "security-team", Name: "Security Team"},
+			},
+			teamMembers:     map[string][]string{"security-team": {}},
+			maintainers:     map[string][]string{"security-team": {}},
+			repoPermissions: map[string][]github.Repo{"security-team": {}},
+			roles: []github.OrganizationRole{
+				{ID: 1, Name: "security-manager"},
+			},
+			teamsWithRole: map[int][]github.OrganizationRoleAssignment{
+				1: {{ID: 7, Slug: "security-team", Assignment: "direct"}},
+			},
+			usersWithRole: map[int][]github.OrganizationRoleAssignment{},
+			expected: org.Config{
+				Metadata: org.Metadata{
+					Name:                         &hello,
+					BillingEmail:                 &empty,
+					Company:                      &empty,
+					Email:                        &empty,
+					Description:                  &empty,
+					Location:                     &empty,
+					HasOrganizationProjects:      &no,
+					HasRepositoryProjects:        &no,
+					DefaultRepositoryPermission:  &perm,
+					MembersCanCreateRepositories: &no,
+				},
+				Members: []string{"user1"},
+				Admins:  []string{"admin"},
+				Teams: map[string]org.Team{
+					"Security Team": {
+						TeamMetadata: org.TeamMetadata{
+							Description: &empty,
+							Privacy:     &pub,
+						},
+						Members:     []string{},
+						Maintainers: []string{},
+						Children:    map[string]org.Team{},
+						Repos:       map[string]github.RepoPermissionLevel{},
+					},
+				},
+				Repos: map[string]org.Repo{},
+				Roles: map[string]org.Role{
+					"security-manager": {
+						Teams: []string{"Security Team"},
+					},
+				},
+			},
+			validateRoles: true,
+		},
+		{
+			name:              "role assignments exclude ignored secret teams",
+			ignoreSecretTeams: true,
+			meta: github.Organization{
+				Name:                        "Hello",
+				DefaultRepositoryPermission: "write",
+			},
+			members: []string{"user1"},
+			admins:  []string{"admin"},
+			teams: []github.Team{
+				{ID: 1, Name: "Secret Team", Slug: "secret-team", Privacy: string(org.Secret)},
+			},
+			roles: []github.OrganizationRole{
+				{ID: 1, Name: "security-manager"},
+			},
+			teamsWithRole: map[int][]github.OrganizationRoleAssignment{
+				// The only assignment is to an ignored secret team, so the role must not
+				// appear in the dump (rather than leaking the raw slug).
+				1: {{ID: 1, Slug: "secret-team", Assignment: "direct"}},
+			},
+			usersWithRole: map[int][]github.OrganizationRoleAssignment{},
+			expected: org.Config{
+				Metadata: org.Metadata{
+					Name:                         &hello,
+					BillingEmail:                 &empty,
+					Company:                      &empty,
+					Email:                        &empty,
+					Description:                  &empty,
+					Location:                     &empty,
+					HasOrganizationProjects:      &no,
+					HasRepositoryProjects:        &no,
+					DefaultRepositoryPermission:  &perm,
+					MembersCanCreateRepositories: &no,
+				},
+				Members: []string{"user1"},
+				Admins:  []string{"admin"},
+				Teams:   map[string]org.Team{},
+				Repos:   map[string]org.Repo{},
+			},
+		},
+		{
+			// A child team that only inherits the role (reported "indirect") must be
+			// excluded from the dump; only the directly-assigned parent is recorded.
+			name: "role team assignment excludes indirect (inherited) team",
+			meta: github.Organization{
+				Name:                        "Hello",
+				DefaultRepositoryPermission: "write",
+			},
+			members: []string{"user1"},
+			admins:  []string{"admin"},
+			teams: []github.Team{
+				{ID: 7, Slug: "parent-team", Name: "Parent Team"},
+				{ID: 8, Slug: "child-team", Name: "Child Team"},
+			},
+			teamMembers:     map[string][]string{"parent-team": {}, "child-team": {}},
+			maintainers:     map[string][]string{"parent-team": {}, "child-team": {}},
+			repoPermissions: map[string][]github.Repo{"parent-team": {}, "child-team": {}},
+			roles: []github.OrganizationRole{
+				{ID: 1, Name: "security-manager"},
+			},
+			teamsWithRole: map[int][]github.OrganizationRoleAssignment{
+				1: {
+					{ID: 7, Slug: "parent-team", Assignment: "direct"},
+					{ID: 8, Slug: "child-team", Assignment: "indirect"},
+				},
+			},
+			usersWithRole: map[int][]github.OrganizationRoleAssignment{},
+			expected: org.Config{
+				Metadata: org.Metadata{
+					Name:                         &hello,
+					BillingEmail:                 &empty,
+					Company:                      &empty,
+					Email:                        &empty,
+					Description:                  &empty,
+					Location:                     &empty,
+					HasOrganizationProjects:      &no,
+					HasRepositoryProjects:        &no,
+					DefaultRepositoryPermission:  &perm,
+					MembersCanCreateRepositories: &no,
+				},
+				Members: []string{"user1"},
+				Admins:  []string{"admin"},
+				Teams: map[string]org.Team{
+					"Parent Team": {
+						TeamMetadata: org.TeamMetadata{
+							Description: &empty,
+							Privacy:     &pub,
+						},
+						Members:     []string{},
+						Maintainers: []string{},
+						Children:    map[string]org.Team{},
+						Repos:       map[string]github.RepoPermissionLevel{},
+					},
+					"Child Team": {
+						TeamMetadata: org.TeamMetadata{
+							Description: &empty,
+							Privacy:     &pub,
+						},
+						Members:     []string{},
+						Maintainers: []string{},
+						Children:    map[string]org.Team{},
+						Repos:       map[string]github.RepoPermissionLevel{},
+					},
+				},
+				Repos: map[string]org.Repo{},
+				Roles: map[string]org.Role{
+					"security-manager": {
+						Teams: []string{"Parent Team"},
+					},
+				},
+			},
+			validateRoles: true,
+		},
 	}
 
 	for _, tc := range cases {
@@ -2509,7 +2692,11 @@ func TestDumpOrgConfig(t *testing.T) {
 				if diff := cmp.Diff(actual, &tc.expected); diff != "" {
 					t.Errorf("did not get correct config, diff: %s", diff)
 				}
-
+				if tc.validateRoles {
+					if err := actual.ValidateRoles(); err != nil {
+						t.Errorf("dumped config failed ValidateRoles: %v", err)
+					}
+				}
 			}
 		})
 	}
@@ -4609,7 +4796,7 @@ func TestConfigureOrgRoles(t *testing.T) {
 		githubTeams := map[string]github.Team{}
 		invitees := sets.Set[string]{}
 
-		err := configureOrgRoles(client, "test-org", orgConfig, githubTeams, invitees)
+		err := configureOrgRoles(client, "test-org", orgConfig, githubTeams, nil, invitees)
 		if err == nil {
 			t.Error("Expected error for non-existent role, but got none")
 		}
@@ -4643,7 +4830,7 @@ func TestConfigureOrgRoles(t *testing.T) {
 		githubTeams := map[string]github.Team{}
 		invitees := sets.Set[string]{}
 
-		err := configureOrgRoles(client, "test-org", orgConfig, githubTeams, invitees)
+		err := configureOrgRoles(client, "test-org", orgConfig, githubTeams, nil, invitees)
 		if err != nil {
 			t.Errorf("Expected case-insensitive role matching to succeed, got error: %v", err)
 		}
@@ -4678,7 +4865,7 @@ func TestConfigureOrgRoles(t *testing.T) {
 		githubTeams := map[string]github.Team{}
 		invitees := sets.Set[string]{}
 
-		err := configureOrgRoles(client, "test-org", orgConfig, githubTeams, invitees)
+		err := configureOrgRoles(client, "test-org", orgConfig, githubTeams, nil, invitees)
 		if err != nil {
 			t.Errorf("Unexpected error: %v", err)
 		}
@@ -4729,32 +4916,26 @@ func TestConfigureOrgRoles(t *testing.T) {
 		githubTeams := map[string]github.Team{}
 		invitees := sets.Set[string]{}
 
-		err := configureOrgRoles(client, "test-org", orgConfig, githubTeams, invitees)
+		err := configureOrgRoles(client, "test-org", orgConfig, githubTeams, nil, invitees)
 		if err != nil {
 			t.Errorf("Unexpected error: %v", err)
 		}
 
-		// security-manager (role ID 1) must not be touched at all.
-		for _, removal := range client.removedTeamRoles {
-			if strings.Contains(removal, "/1") {
-				t.Errorf("Did not expect security-manager team assignment to be removed, removals: %v", client.removedTeamRoles)
-			}
+		// Only billing-manager (role ID 2) is configured, so admin-user must be assigned to
+		// it and nothing else may be touched. security-manager (role ID 1) is unconfigured
+		// and its existing team/user assignments must be left entirely alone. Assert on exact
+		// call sets rather than substring matches, which would also match role IDs 10-19.
+		if want := []string{"test-org/admin-user/2"}; !slicesEqualUnordered(client.assignedUserRoles, want) {
+			t.Errorf("assigned user roles mismatch:\nExpected: %v\nGot: %v", want, client.assignedUserRoles)
 		}
-		for _, removal := range client.removedUserRoles {
-			if strings.Contains(removal, "/1") {
-				t.Errorf("Did not expect security-manager user assignment to be removed, removals: %v", client.removedUserRoles)
-			}
+		if len(client.removedUserRoles) != 0 {
+			t.Errorf("Did not expect any user role removals, got: %v", client.removedUserRoles)
 		}
-
-		// billing-manager (role ID 2) must get admin-user assigned.
-		foundBillingUserAssignment := false
-		for _, assignment := range client.assignedUserRoles {
-			if strings.Contains(assignment, "/2") { // roleID 2
-				foundBillingUserAssignment = true
-			}
+		if len(client.assignedTeamRoles) != 0 {
+			t.Errorf("Did not expect any team role assignments, got: %v", client.assignedTeamRoles)
 		}
-		if !foundBillingUserAssignment {
-			t.Errorf("Expected billing-manager user assignment, assignments: %v", client.assignedUserRoles)
+		if len(client.removedTeamRoles) != 0 {
+			t.Errorf("Did not expect any team role removals, got: %v", client.removedTeamRoles)
 		}
 	})
 }
@@ -4833,18 +5014,19 @@ func (f *fakeOrgRolesClient) ListUsersWithRole(org string, roleID int) ([]github
 // Test configureRoleTeamAssignments
 func TestConfigureRoleTeamAssignments(t *testing.T) {
 	tests := []struct {
-		name           string
-		roleName       string
-		roleID         int
-		wantTeams      []string
-		currentTeams   []github.OrganizationRoleAssignment
-		githubTeams    map[string]github.Team
-		expectAssigned []string
-		expectRemoved  []string
-		listTeamsErr   error
-		assignErr      error
-		removeErr      error
-		expectError    bool
+		name             string
+		roleName         string
+		roleID           int
+		wantTeams        []string
+		currentTeams     []github.OrganizationRoleAssignment
+		githubTeams      map[string]github.Team
+		ignoredTeamSlugs sets.Set[string]
+		expectAssigned   []string
+		expectRemoved    []string
+		listTeamsErr     error
+		assignErr        error
+		removeErr        error
+		expectError      bool
 	}{
 		{
 			name:           "no teams to configure",
@@ -4855,6 +5037,128 @@ func TestConfigureRoleTeamAssignments(t *testing.T) {
 			githubTeams:    map[string]github.Team{},
 			expectAssigned: []string{},
 			expectRemoved:  []string{},
+		},
+		{
+			// Config references the team by its display name ("Security Team"); the code
+			// must resolve it to the GitHub slug ("security-team") before assigning.
+			name:         "resolve config team name to slug when assigning",
+			roleName:     "security-manager",
+			roleID:       1,
+			wantTeams:    []string{"Security Team"},
+			currentTeams: []github.OrganizationRoleAssignment{},
+			githubTeams: map[string]github.Team{
+				"Security Team": {ID: 10, Slug: "security-team", Name: "Security Team"},
+			},
+			expectAssigned: []string{"test-org/security-team/1"},
+			expectRemoved:  []string{},
+		},
+		{
+			// Differently-cased config name for an already-assigned team: resolves to the
+			// same slug that is already present, so there must be no add and no remove.
+			name:      "case-insensitive name of existing assignment is a no-op",
+			roleName:  "security-manager",
+			roleID:    1,
+			wantTeams: []string{"SECURITY team"},
+			currentTeams: []github.OrganizationRoleAssignment{
+				{ID: 10, Slug: "security-team", Assignment: "direct"},
+			},
+			githubTeams: map[string]github.Team{
+				"Security Team": {ID: 10, Slug: "security-team", Name: "Security Team"},
+			},
+			expectAssigned: []string{},
+			expectRemoved:  []string{},
+		},
+		{
+			// A child team that only inherits the role from a parent is reported "indirect";
+			// it must not be removed even though it is not declared in config.
+			name:      "indirect (inherited) assignment is not removed",
+			roleName:  "security-manager",
+			roleID:    1,
+			wantTeams: []string{"security-team"},
+			currentTeams: []github.OrganizationRoleAssignment{
+				{ID: 10, Slug: "security-team", Assignment: "direct"},
+				{ID: 11, Slug: "child-team", Assignment: "indirect"},
+			},
+			githubTeams: map[string]github.Team{
+				"security-team": {ID: 10, Slug: "security-team", Name: "security-team"},
+			},
+			expectAssigned: []string{},
+			expectRemoved:  []string{},
+		},
+		{
+			// "mixed" (direct + inherited) is treated as a direct assignment, so an
+			// undeclared mixed team is removed like any other direct assignment.
+			name:      "mixed assignment is reconciled like direct",
+			roleName:  "security-manager",
+			roleID:    1,
+			wantTeams: []string{},
+			currentTeams: []github.OrganizationRoleAssignment{
+				{ID: 11, Slug: "mixed-team", Assignment: "mixed"},
+			},
+			githubTeams:    map[string]github.Team{},
+			expectAssigned: []string{},
+			expectRemoved:  []string{"test-org/mixed-team/1"},
+		},
+		{
+			// A team excluded via --ignore-secret-teams/--ignore-enterprise-teams that
+			// still holds the role must be left untouched (not removed) on every run.
+			name:      "ignored team holding the role is not removed",
+			roleName:  "security-manager",
+			roleID:    1,
+			wantTeams: []string{},
+			currentTeams: []github.OrganizationRoleAssignment{
+				{ID: 12, Slug: "secret-team", Assignment: "direct"},
+			},
+			githubTeams:      map[string]github.Team{},
+			ignoredTeamSlugs: sets.New[string]("secret-team"),
+			expectAssigned:   []string{},
+			expectRemoved:    []string{},
+		},
+		{
+			// Even when an assignment fails, removals for other teams must still be
+			// attempted, and the overall call must report the error.
+			name:      "removal still happens after an assign fails",
+			roleName:  "security-manager",
+			roleID:    1,
+			wantTeams: []string{"new-team"},
+			currentTeams: []github.OrganizationRoleAssignment{
+				{ID: 10, Slug: "old-team", Assignment: "direct"},
+			},
+			githubTeams: map[string]github.Team{
+				"new-team": {ID: 20, Slug: "new-team", Name: "New Team"},
+			},
+			assignErr:      fmt.Errorf("assign failed"),
+			expectAssigned: []string{},
+			expectRemoved:  []string{"test-org/old-team/1"},
+			expectError:    true,
+		},
+		{
+			name:         "list teams error is propagated",
+			roleName:     "security-manager",
+			roleID:       1,
+			wantTeams:    []string{"security-team"},
+			currentTeams: []github.OrganizationRoleAssignment{},
+			githubTeams: map[string]github.Team{
+				"security-team": {ID: 10, Slug: "security-team", Name: "Security Team"},
+			},
+			listTeamsErr:   fmt.Errorf("api error"),
+			expectAssigned: []string{},
+			expectRemoved:  []string{},
+			expectError:    true,
+		},
+		{
+			name:      "remove error is propagated",
+			roleName:  "security-manager",
+			roleID:    1,
+			wantTeams: []string{},
+			currentTeams: []github.OrganizationRoleAssignment{
+				{ID: 10, Slug: "old-team", Assignment: "direct"},
+			},
+			githubTeams:    map[string]github.Team{},
+			removeErr:      fmt.Errorf("remove failed"),
+			expectAssigned: []string{},
+			expectRemoved:  []string{},
+			expectError:    true,
 		},
 		{
 			name:         "add new team assignment",
@@ -4934,7 +5238,7 @@ func TestConfigureRoleTeamAssignments(t *testing.T) {
 				removeTeamRoleErr:    tc.removeErr,
 			}
 
-			err := configureRoleTeamAssignments(client, "test-org", tc.roleName, tc.roleID, tc.wantTeams, tc.githubTeams)
+			err := configureRoleTeamAssignments(client, "test-org", tc.roleName, tc.roleID, tc.wantTeams, tc.githubTeams, tc.ignoredTeamSlugs)
 
 			if tc.expectError && err == nil {
 				t.Error("Expected error but got none")
@@ -5156,7 +5460,7 @@ func TestConfigureRoleTeamAssignmentsErrors(t *testing.T) {
 		client := &fakeOrgRolesClient{
 			listTeamsWithRoleErr: fmt.Errorf("api error"),
 		}
-		err := configureRoleTeamAssignments(client, "test-org", "test-role", 1, []string{"team"}, map[string]github.Team{})
+		err := configureRoleTeamAssignments(client, "test-org", "test-role", 1, []string{"team"}, map[string]github.Team{}, nil)
 		if err == nil {
 			t.Error("Expected error but got none")
 		}
@@ -5170,7 +5474,7 @@ func TestConfigureRoleTeamAssignmentsErrors(t *testing.T) {
 		githubTeams := map[string]github.Team{
 			"my-team": {ID: 1, Slug: "my-team"},
 		}
-		err := configureRoleTeamAssignments(client, "test-org", "test-role", 1, []string{"my-team"}, githubTeams)
+		err := configureRoleTeamAssignments(client, "test-org", "test-role", 1, []string{"my-team"}, githubTeams, nil)
 		if err == nil {
 			t.Error("Expected error but got none")
 		}
@@ -5183,7 +5487,7 @@ func TestConfigureRoleTeamAssignmentsErrors(t *testing.T) {
 			},
 			removeTeamRoleErr: fmt.Errorf("remove failed"),
 		}
-		err := configureRoleTeamAssignments(client, "test-org", "test-role", 1, []string{}, map[string]github.Team{})
+		err := configureRoleTeamAssignments(client, "test-org", "test-role", 1, []string{}, map[string]github.Team{}, nil)
 		if err == nil {
 			t.Error("Expected error but got none")
 		}
@@ -5245,7 +5549,7 @@ func TestConfigureOrgRolesValidatesBeforeMutating(t *testing.T) {
 		usersWithRole: map[int][]github.OrganizationRoleAssignment{1: {}},
 	}
 
-	err := configureOrgRoles(client, "test-org", orgConfig, map[string]github.Team{}, sets.Set[string]{})
+	err := configureOrgRoles(client, "test-org", orgConfig, map[string]github.Team{}, nil, sets.Set[string]{})
 	if err == nil {
 		t.Fatal("Expected error for non-existent role")
 	}

@@ -137,13 +137,20 @@ type Role struct {
 	Users []string `json:"users,omitempty"`
 }
 
-// ValidateRoles checks that all teams and users referenced in role assignments exist in the configuration
+// ValidateRoles checks that the organization roles configuration is internally consistent:
+//   - role names must not collide case-insensitively (GitHub role names are case-insensitive).
+//   - every team referenced by a role must be declared in the config (including nested teams).
+//   - every user referenced by a role must be a declared org member, but this check only runs
+//     when the config declares org membership (Members/Admins). --fix-org-roles requires
+//     --fix-teams but not --fix-org-members, so membership may be managed elsewhere; when the
+//     full member set is unknown the user check is skipped rather than rejecting valid configs.
 func (c *Config) ValidateRoles() error {
 	if len(c.Roles) == 0 {
 		return nil
 	}
 
-	// Build a set of all team slugs (including nested teams)
+	// Build a set of all config team names, lowercased (including nested teams). Role team
+	// references are matched against these names, not GitHub team slugs.
 	availableTeams := make(map[string]bool)
 	var collectTeams func(teams map[string]Team)
 	collectTeams = func(teams map[string]Team) {
@@ -186,9 +193,9 @@ func (c *Config) ValidateRoles() error {
 	validateUsers := len(c.Members) > 0 || len(c.Admins) > 0
 	var errors []string
 	for roleName, role := range c.Roles {
-		for _, teamSlug := range role.Teams {
-			if !availableTeams[strings.ToLower(teamSlug)] {
-				errors = append(errors, fmt.Sprintf("role %q references undefined team %q", roleName, teamSlug))
+		for _, teamName := range role.Teams {
+			if !availableTeams[strings.ToLower(teamName)] {
+				errors = append(errors, fmt.Sprintf("role %q references undefined team %q", roleName, teamName))
 			}
 		}
 		if !validateUsers {
