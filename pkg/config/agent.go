@@ -24,11 +24,21 @@ import (
 	"sync"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/fsnotify.v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"sigs.k8s.io/prow/pkg/interrupts"
 )
+
+var configJobDefinitions = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	Name: "config_job_definitions",
+	Help: "Number of job definitions in the accepted configuration, by job type.",
+}, []string{"type"})
+
+func init() {
+	prometheus.MustRegister(configJobDefinitions)
+}
 
 // Delta represents the before and after states of a Config change detected by the Agent.
 type Delta struct {
@@ -409,6 +419,7 @@ func (ca *Agent) Set(c *Config) {
 	}
 	delta := Delta{oldConfig, *c}
 	ca.c = c
+	recordJobDefinitionMetrics(c)
 	for _, subscription := range ca.subscriptions {
 		go func(sub DeltaChan) { // wait a minute to send each event
 			end := time.NewTimer(time.Minute)
@@ -434,4 +445,19 @@ func (ca *Agent) SetWithoutBroadcast(c *Config) {
 	ca.mut.Lock()
 	defer ca.mut.Unlock()
 	ca.c = c
+	recordJobDefinitionMetrics(c)
+}
+
+func recordJobDefinitionMetrics(c *Config) {
+	configJobDefinitions.WithLabelValues("periodic").Set(float64(len(c.Periodics)))
+	configJobDefinitions.WithLabelValues("presubmit").Set(float64(jobCount(c.PresubmitsStatic)))
+	configJobDefinitions.WithLabelValues("postsubmit").Set(float64(jobCount(c.PostsubmitsStatic)))
+}
+
+func jobCount[T any](jobs map[string][]T) int {
+	count := 0
+	for _, jobsForRepo := range jobs {
+		count += len(jobsForRepo)
+	}
+	return count
 }
