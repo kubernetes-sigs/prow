@@ -577,7 +577,8 @@ function redraw(fz: FuzzySearch, pushState = true): void {
     }
 
     totalJob++;
-    jobCountMap.set(state, (jobCountMap.get(state) || 0) + 1);
+    const barState = normalizeJobBarState(state);
+    jobCountMap.set(barState, (jobCountMap.get(barState) || 0) + 1);
     const dashCell = "-";
 
     // accumulate a count of the percentage of successful jobs over each interval
@@ -796,17 +797,26 @@ function batchRevisionCell(build: ProwJob): HTMLTableDataCellElement {
   return c;
 }
 
+const jobBarStates: ProwJobState[] = ["success", "pending", "scheduling", "triggered", "error", "failure", "aborted", "unknown"];
+
+function normalizeJobBarState(state: string): ProwJobState {
+  switch (state) {
+    case "scheduling":
+    case "success":
+    case "pending":
+    case "triggered":
+    case "error":
+    case "failure":
+    case "aborted":
+      return state;
+    default:
+      return "unknown";
+  }
+}
+
 function drawJobBar(total: number, jobCountMap: Map<ProwJobState, number>): void {
-  const states: ProwJobState[] = ["success", "pending", "triggered", "error", "failure", "aborted", ""];
-  states.sort((s1, s2) => {
-    return jobCountMap.get(s1)! - jobCountMap.get(s2)!;
-  });
-  states.forEach((state, index) => {
+  jobBarStates.forEach((state) => {
     const count = jobCountMap.get(state);
-    // If state is undefined or empty, treats it as unknown state.
-    if (!state) {
-      state = "unknown";
-    }
     const id = `job-bar-${  state}`;
     const el = document.getElementById(id)!;
     const tt = document.getElementById(`${state  }-tooltip`)!;
@@ -817,11 +827,7 @@ function drawJobBar(total: number, jobCountMap: Map<ProwJobState, number>): void
     } else {
       el.textContent = count.toString();
       tt.textContent = `${count} ${stateToAdj(state)} jobs`;
-      if (index === states.length - 1) {
-        el.style.width = "auto";
-      } else {
-        el.style.width = `${Math.max((count / total * 100), 1)  }%`;
-      }
+      el.style.width = `${Math.max((count / total * 100), 1)  }%`;
     }
   });
 }
