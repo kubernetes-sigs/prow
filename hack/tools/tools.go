@@ -39,6 +39,9 @@ import (
 
 	_ "github.com/client9/misspell"
 
+	// link checker for the docs site
+	_ "github.com/wjdp/htmltest"
+
 	// image builder
 	_ "github.com/google/ko"
 )

@@ -45,6 +45,8 @@ if find -L . -type f -not \( \
     -o -path '*/static/*' \
     -o -path '*/third_party/*' \
     -o -path '*/node_modules/*' \
+    -o -path './site/public/*' \
+    -o -path './site/resources/*' \
     -o -path '*/localdata/*' \
     -o -path '*/gubernator/*' \
     -o -path '*/pkg/bugzilla/client_test.go' \
@@ -72,6 +74,8 @@ find -L . -type f -not \( \
     -o -path '*/static/*' \
     -o -path '*/third_party/*' \
     -o -path '*/node_modules/*' \
+    -o -path './site/public/*' \
+    -o -path './site/resources/*' \
     -o -path '*/localdata/*' \
     -o -path './.git/*' \
     -o -path './_bin/*' \

@@ -215,7 +215,10 @@ def get_files(extensions):
 
 
 def get_dates():
-    year_alternatives = '|'.join((str(year) for year in range(2014, 2026)))
+    # The upper bound is the current year, so the range never expires.
+    this_year = datetime.date.today().year
+    year_alternatives = '|'.join(
+        (str(year) for year in range(2014, this_year + 1)))
     return r'Copyright (?:(?:%s) )?' % year_alternatives
 
 
