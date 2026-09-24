@@ -32,6 +32,7 @@ import (
 
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 
+	"cloud.google.com/go/auth/credentials"
 	"cloud.google.com/go/storage"
 	"github.com/sirupsen/logrus"
 	"gocloud.dev/blob"
@@ -136,6 +137,30 @@ func NewGCSOpener(gcsClient *storage.Client) Opener {
 		gcsClient:     gcsClient,
 		cachedBuckets: map[string]*blob.Bucket{},
 	}
+}
+
+// NewOpenerFromCredentialBytes creates an opener from raw credential bytes,
+// e.g. read directly from a Kubernetes secret, rather than from files on disk.
+// Exactly one of gcsCredentials or s3Credentials must be non-nil.
+func NewOpenerFromCredentialBytes(ctx context.Context, gcsCredentials, s3Credentials []byte) (Opener, error) {
+	var gcsClient storageClient
+	if len(gcsCredentials) > 0 {
+		creds, err := credentials.NewCredentialsFromJSON(credentials.ServiceAccount, gcsCredentials, &credentials.DetectOptions{
+			Scopes: []string{storage.ScopeFullControl},
+		})
+		if err != nil {
+			return nil, fmt.Errorf("loading GCS credentials from bytes: %w", err)
+		}
+		gcsClient, err = storage.NewClient(ctx, option.WithAuthCredentials(creds))
+		if err != nil {
+			return nil, fmt.Errorf("creating GCS client from credential bytes: %w", err)
+		}
+	}
+	return &opener{
+		gcsClient:     gcsClient,
+		s3Credentials: s3Credentials,
+		cachedBuckets: map[string]*blob.Bucket{},
+	}, nil
 }
 
 func createGCSClient(ctx context.Context, gcsCredentialsFile string) (storageClient, error) {

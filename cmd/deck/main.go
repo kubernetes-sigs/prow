@@ -332,6 +332,7 @@ func main() {
 	var githubClient deckGitHubClient
 	var gitClient git.ClientFactory
 	var podLogClients map[string]jobs.PodLogClient
+	var k8sClient ctrlruntimeclient.Client
 	if runLocal {
 		localDataHandler := staticHandlerFromDir(o.pregeneratedData)
 		fallbackHandler = localDataHandler.ServeHTTP
@@ -399,7 +400,8 @@ func main() {
 			logrus.WithError(err).Fatal("Failed to register kubeconfig change callback")
 		}
 
-		pjListingClient = &pjListingClientWrapper{mgr.GetClient()}
+		k8sClient = mgr.GetClient()
+		pjListingClient = &pjListingClientWrapper{k8sClient}
 
 		// We use the GH client to resolve GH teams when determining who is permitted to rerun a job.
 		// When inrepoconfig is enabled, both the GitHubClient and the gitClient are used to resolve
@@ -459,7 +461,7 @@ func main() {
 	mux.Handle("/log", gziphandler.GzipHandler(handleLog(ja, logrus.WithField("handler", "/log"))))
 
 	if o.spyglass {
-		initSpyglass(cfg, o, mux, ja, githubClient, gitClient)
+		initSpyglass(cfg, o, mux, ja, githubClient, gitClient, k8sClient)
 	}
 
 	if runLocal {
@@ -648,7 +650,7 @@ func prodOnlyMain(cfg config.Getter, pluginAgent *plugins.ConfigAgent, authCfgGe
 	return mux
 }
 
-func initSpyglass(cfg config.Getter, o options, mux *http.ServeMux, ja *jobs.JobAgent, gitHubClient deckGitHubClient, gitClient git.ClientFactory) {
+func initSpyglass(cfg config.Getter, o options, mux *http.ServeMux, ja *jobs.JobAgent, gitHubClient deckGitHubClient, gitClient git.ClientFactory, k8sClient ctrlruntimeclient.Client) {
 	ctx := context.TODO()
 	opener, err := io.NewOpener(ctx, o.storage.GCSCredentialsFile, o.storage.S3CredentialsFile)
 	if err != nil {
@@ -657,14 +659,69 @@ func initSpyglass(cfg config.Getter, o options, mux *http.ServeMux, ja *jobs.Job
 	sg := spyglass.New(ctx, ja, cfg, opener, o.gcsCookieAuth)
 	sg.Start()
 
+	additionalBuckets, err := buildAdditionalHistoryBuckets(ctx, cfg, k8sClient, opener)
+	if err != nil {
+		logrus.WithError(err).Fatal("Error building additional history bucket clients")
+	}
+
 	mux.Handle("/spyglass/static/", http.StripPrefix("/spyglass/static", staticHandlerFromDir(o.spyglassFilesLocation)))
 	mux.Handle("/spyglass/lens/", gziphandler.GzipHandler(http.StripPrefix("/spyglass/lens/", handleArtifactView(o, sg, cfg))))
 	mux.Handle("/view/", gziphandler.GzipHandler(handleRequestJobViews(sg, cfg, o, logrus.WithField("handler", "/view"))))
-	mux.Handle("/job-history/", gziphandler.GzipHandler(handleJobHistory(o, cfg, opener, logrus.WithField("handler", "/job-history"))))
+	mux.Handle("/job-history/", gziphandler.GzipHandler(handleJobHistory(o, cfg, opener, additionalBuckets, logrus.WithField("handler", "/job-history"))))
 	mux.Handle("/pr-history/", gziphandler.GzipHandler(handlePRHistory(o, cfg, opener, gitHubClient, gitClient, logrus.WithField("handler", "/pr-history"))))
 	if err := initLocalLensHandler(cfg, o, sg); err != nil {
 		logrus.WithError(err).Fatal("Failed to initialize local lens handler")
 	}
+}
+
+// buildAdditionalHistoryBuckets constructs a blobStorageBucket for each entry in
+// cfg().Deck.Spyglass.AdditionalHistoryBuckets. If a secret is referenced, deck
+// reads it from the infrastructure cluster to build a dedicated opener; otherwise
+// defaultOpener is reused.
+func buildAdditionalHistoryBuckets(ctx context.Context, cfg config.Getter, k8sClient ctrlruntimeclient.Client, defaultOpener io.Opener) ([]blobStorageBucket, error) {
+	entries := cfg().Deck.Spyglass.AdditionalHistoryBuckets
+	if len(entries) == 0 {
+		return nil, nil
+	}
+
+	buckets := make([]blobStorageBucket, 0, len(entries))
+	for _, entry := range entries {
+		parsedURL, err := url.Parse(entry.Bucket)
+		if err != nil {
+			return nil, fmt.Errorf("parsing additional history bucket %q: %w", entry.Bucket, err)
+		}
+
+		var bucketOpener io.Opener
+		switch {
+		case entry.GCSCredentialsSecret != nil:
+			secret := &coreapi.Secret{}
+			if err := k8sClient.Get(ctx, ctrlruntimeclient.ObjectKey{Namespace: cfg().ProwJobNamespace, Name: entry.GCSCredentialsSecret.Name}, secret); err != nil {
+				return nil, fmt.Errorf("reading GCS credentials secret %q for bucket %q: %w", entry.GCSCredentialsSecret.Name, entry.Bucket, err)
+			}
+			bucketOpener, err = io.NewOpenerFromCredentialBytes(ctx, secret.Data[entry.GCSCredentialsSecret.Key], nil)
+			if err != nil {
+				return nil, fmt.Errorf("creating opener from GCS secret %q key %q: %w", entry.GCSCredentialsSecret.Name, entry.GCSCredentialsSecret.Key, err)
+			}
+		case entry.S3CredentialsSecret != nil:
+			secret := &coreapi.Secret{}
+			if err := k8sClient.Get(ctx, ctrlruntimeclient.ObjectKey{Namespace: cfg().ProwJobNamespace, Name: entry.S3CredentialsSecret.Name}, secret); err != nil {
+				return nil, fmt.Errorf("reading S3 credentials secret %q for bucket %q: %w", entry.S3CredentialsSecret.Name, entry.Bucket, err)
+			}
+			bucketOpener, err = io.NewOpenerFromCredentialBytes(ctx, nil, secret.Data[entry.S3CredentialsSecret.Key])
+			if err != nil {
+				return nil, fmt.Errorf("creating opener from S3 secret %q key %q: %w", entry.S3CredentialsSecret.Name, entry.S3CredentialsSecret.Key, err)
+			}
+		default:
+			bucketOpener = defaultOpener
+		}
+
+		blobBucket, err := newBlobStorageBucket(parsedURL.Host, parsedURL.Scheme, cfg(), bucketOpener)
+		if err != nil {
+			return nil, fmt.Errorf("constructing storage bucket for %q: %w", entry.Bucket, err)
+		}
+		buckets = append(buckets, blobBucket)
+	}
+	return buckets, nil
 }
 
 func initLocalLensHandler(cfg config.Getter, o options, sg *spyglass.Spyglass) error {
@@ -929,10 +986,10 @@ func handleBadge(ja *jobs.JobAgent) http.HandlerFunc {
 // Example:
 // - /job-history/kubernetes-jenkins/logs/ci-kubernetes-e2e-prow-canary
 // - /job-history/gs/kubernetes-jenkins/logs/ci-kubernetes-e2e-prow-canary
-func handleJobHistory(o options, cfg config.Getter, opener io.Opener, log *logrus.Entry) http.HandlerFunc {
+func handleJobHistory(o options, cfg config.Getter, opener io.Opener, additionalBuckets []blobStorageBucket, log *logrus.Entry) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		setHeadersNoCaching(w)
-		tmpl, err := getJobHistory(r.Context(), r.URL, cfg, opener)
+		tmpl, err := getJobHistory(r.Context(), r.URL, cfg, opener, additionalBuckets)
 		if err != nil {
 			msg := fmt.Sprintf("failed to get job history: %v", err)
 			if shouldLogHTTPErrors(err) {
