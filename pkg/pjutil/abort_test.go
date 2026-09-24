@@ -479,3 +479,69 @@ func TestTerminateOlderJobs(t *testing.T) {
 		})
 	}
 }
+
+// TestTerminateOlderJobsTieIsOrderIndependent covers duplicate jobs that share a
+// StartTime, which is what happens when the same PR is triggered twice within a
+// second. Whichever copy survives, it must be the same one for every input
+// order: callers read the list from a cache that does not return a stable order,
+// and two of them disagreeing aborts every copy of the job.
+func TestTerminateOlderJobsTieIsOrderIndependent(t *testing.T) {
+	startTime := metav1.NewTime(time.Now().Add(-time.Minute))
+	pj := func(name string) prowv1.ProwJob {
+		return prowv1.ProwJob{
+			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "prow-job"},
+			Spec: prowv1.ProwJobSpec{
+				Type: prowv1.PresubmitJob,
+				Job:  "j1",
+				Refs: &prowv1.Refs{Repo: "test", Pulls: []prowv1.Pull{{Number: 1, SHA: "foo"}}},
+			},
+			Status: prowv1.ProwJobStatus{StartTime: startTime},
+		}
+	}
+
+	var survivors []string
+	for _, order := range [][]string{
+		{"a", "b", "c"},
+		{"a", "c", "b"},
+		{"b", "a", "c"},
+		{"b", "c", "a"},
+		{"c", "a", "b"},
+		{"c", "b", "a"},
+	} {
+		pjs := make([]prowv1.ProwJob, 0, len(order))
+		builder := fakectrlruntimeclient.NewClientBuilder()
+		for _, name := range order {
+			pjs = append(pjs, pj(name))
+		}
+		for i := range pjs {
+			builder.WithRuntimeObjects(&pjs[i])
+		}
+		fakeProwJobClient := builder.Build()
+
+		if err := TerminateOlderJobs(fakeProwJobClient, logrus.NewEntry(logrus.StandardLogger()), pjs); err != nil {
+			t.Fatalf("order %v: error terminating the older presubmit jobs: %v", order, err)
+		}
+
+		var actualPJs prowv1.ProwJobList
+		if err := fakeProwJobClient.List(context.Background(), &actualPJs); err != nil {
+			t.Fatalf("order %v: failed to list prowjobs: %v", order, err)
+		}
+		running := sets.Set[string]{}
+		for _, job := range actualPJs.Items {
+			if job.Status.State != prowv1.AbortedState {
+				running.Insert(job.Name)
+			}
+		}
+		if running.Len() != 1 {
+			t.Fatalf("order %v: want exactly one job left running, got %v", order, sets.List(running))
+		}
+		survivors = append(survivors, sets.List(running)[0])
+	}
+
+	for _, survivor := range survivors {
+		if survivor != survivors[0] {
+			t.Errorf("survivor depends on input order: got %v", survivors)
+			break
+		}
+	}
+}
