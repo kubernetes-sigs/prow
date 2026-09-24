@@ -247,6 +247,11 @@ type Tide struct {
 	// starting a new one requires to start new instances of all tests.
 	// Use '*' as key to set this globally. Defaults to true.
 	PrioritizeExistingBatchesMap map[string]bool `json:"prioritize_existing_batches,omitempty"`
+	// AbortSupersededBatchJobsMap configures on org or org/repo level whether Tide
+	// should abort older in-flight batch ProwJobs for the same branch when a new
+	// base SHA requires triggering a new batch.
+	// Use '*' as key to set this globally. Defaults to true.
+	AbortSupersededBatchJobsMap map[string]bool `json:"abort_superseded_batch_jobs,omitempty"`
 	// GitHubMergeBlocksPolicyMap configures on org or org/repo level how Tide should handle
 	// GitHub's mergeStateStatus (BLOCKED state from branch protection rules, rulesets,
 	// required reviews, etc.).
@@ -383,6 +388,22 @@ func (t *Tide) PrioritizeExistingBatches(repo OrgRepo) bool {
 		return val
 	}
 
+	return true
+}
+
+// AbortSupersededBatchJobs returns whether Tide should abort older in-flight
+// batch ProwJobs when a new base SHA triggers a new batch for the given repo.
+// Defaults to true if no config is set.
+func (t *Tide) AbortSupersededBatchJobs(repo OrgRepo) bool {
+	if val, set := t.AbortSupersededBatchJobsMap[repo.String()]; set {
+		return val
+	}
+	if val, set := t.AbortSupersededBatchJobsMap[repo.Org]; set {
+		return val
+	}
+	if val, set := t.AbortSupersededBatchJobsMap["*"]; set {
+		return val
+	}
 	return true
 }
 
