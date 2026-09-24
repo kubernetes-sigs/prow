@@ -72,6 +72,14 @@ func DisplayName(provider string) string {
 //     "access_key": "access_key",
 //     "secret_key": "secret_key"
 //     }
+//   - S3-compatible service that rejects aws-chunked uploads, e.g. OCI Object Storage or OpenStack Swift (s3://):
+//     {
+//     "endpoint": "https://<namespace>.compat.objectstorage.<region>.oraclecloud.com",
+//     "s3_force_path_style": true,
+//     "access_key": "access_key",
+//     "secret_key": "secret_key",
+//     "request_checksum_calculation": "when_required"
+//     }
 func GetBucket(ctx context.Context, S3Credentials []byte, path string) (*blob.Bucket, error) {
 	storageProvider, bucket, _, err := ParseStoragePath(path)
 	if err != nil {
@@ -99,6 +107,10 @@ type S3Credentials struct {
 	AccessKey        string `json:"access_key"`
 	SecretKey        string `json:"secret_key"`
 	SessionToken     string `json:"session_token"`
+	// RequestChecksumCalculation sets the AWS SDK checksum mode: "when_supported" (default) or "when_required".
+	// Use "when_required" for stores that reject aws-chunked (OCI, Swift). When empty, the SDK default and the
+	// AWS_REQUEST_CHECKSUM_CALCULATION env var are left in place.
+	RequestChecksumCalculation string `json:"request_checksum_calculation,omitempty"`
 }
 
 // HasStorageProviderPrefix returns true if the given string starts with
