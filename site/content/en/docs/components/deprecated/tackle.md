@@ -54,7 +54,7 @@ tackle
 2. Once your cluster is created, you'll get a prompt to apply a `starter.yaml`. Before you do that open another terminal and apply the prow CRDs using:
 
 ```sh
-kubectl apply --server-side=true -f https://raw.githubusercontent.com/kubernetes/test-infra/main/config/prow/cluster/prowjob-crd/prowjob_customresourcedefinition.yaml
+kubectl apply --server-side=true -f https://raw.githubusercontent.com/kubernetes-sigs/prow/main/config/prow/cluster/prowjob-crd/prowjob_customresourcedefinition.yaml
 ```
 
 3. After that specify the `starter.yaml` you want to use (please make sure to replace the values mentioned [here](/docs/getting-started-deploy/#update-the-sample-manifest)). Once that is done some pods still won't be in the `Running` state because we haven't created the secret containing the credentials needed for our GCS bucket. To do that follow the steps in [Configure a GCS bucket](/docs/getting-started-deploy/#configure-a-gcs-bucket).

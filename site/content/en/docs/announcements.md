@@ -113,7 +113,7 @@ New features added to each component:
 - *June 23rd, 2020* An [hmac](/docs/components/optional/hmac/) tool was added to automatically reconcile webhooks and hmac
     tokens for the orgs and repos integrated with your prow instance.
 - *June 8th, 2020* A new informer-based Plank implementation was added. It can be used by deploying
-    the new [prow-controller-manager](https://github.com/kubernetes/test-infra/blob/master/config/prow/experimental/controller_manager.yaml) binary.
+    the new [prow-controller-manager](https://github.com/kubernetes/test-infra/blob/1f8084bc21af8774266754ffa6c047f7bb35776d/config/prow/experimental/controller_manager.yaml) binary.
     We plan to gradually move all our controllers into that binary, see <https://github.com/kubernetes/test-infra/issues/17024>
 - *May 31, 2020* '--gcs-no-auth' in Deck is deprecated and not used anymore. We always
     fall back to an anonymous GCS client now, if all other options fail. This flag will
@@ -255,7 +255,7 @@ used when updating deployments.
                            has been extended to specify a schema. Unfortunately, this results in a huge manifest which
                            in turn makes the standard `kubectl apply` fail, as the last-applied annotation it generates
                            exceeds the maximum annotation size. If you are using Kubernetes 1.18 or newer, you can add
-                           the `--server-side=true` argument to work around this. If not, you can use a [schemaless manifest](https://github.com/kubernetes/test-infra/blob/master/config/prow/cluster/prowjob-crd/legacy/prowjob-schemaless_customresourcedefinition.yaml)
+                           the `--server-side=true` argument to work around this. If not, you can use a [schemaless manifest](https://github.com/kubernetes/test-infra/blob/1f8084bc21af8774266754ffa6c047f7bb35776d/config/prow/cluster/prowjob-crd/legacy/prowjob-schemaless_customresourcedefinition.yaml)
 - *September 15th, 2021* `autobump` removed, please use `generic-autobumper` instead, see [example config](https://github.com/kubernetes/test-infra/blob/master/config/prow/autobump-config/prow-component-autobump-config.yaml)
 - *April 16th, 2021* Flagutil remove default value for `--github-token-path`.
 - *April 15th, 2021* Sinker requires --dry-run=false (default is true) to function correctly in production.
@@ -277,8 +277,8 @@ used when updating deployments.
                        for more details.
 - *November, 2020* The `blacklist` flag in status reconciler has been deprecated in favor of `denylist`. The support of `blacklist` will be stopped in February 2021.
 - *October, 2020*  The `plank` binary has been deprecated in favor of the more modern implementation in the prow-controller-manager that provides the same functionality. Check out
-                  its [README](/docs/components/core/prow-controller-manager/) or check out its [deployment](https://github.com/kubernetes/test-infra/blob/master/config/prow/cluster/prow_controller_manager_deployment.yaml) and
-                  [rbac](https://github.com/kubernetes/test-infra/blob/master/config/prow/cluster/prow_controller_manager_rbac.yaml) manifest. The plank binary will be removed in February, 2021.
+                  its [README](/docs/components/core/prow-controller-manager/) or check out its [deployment](https://github.com/kubernetes/test-infra/blob/1f8084bc21af8774266754ffa6c047f7bb35776d/config/prow/cluster/prow_controller_manager_deployment.yaml) and
+                  [rbac](https://github.com/kubernetes/test-infra/blob/1f8084bc21af8774266754ffa6c047f7bb35776d/config/prow/cluster/prow_controller_manager_rbac.yaml) manifest. The plank binary will be removed in February, 2021.
 - *September 14th, 2020* Sinker now requires `LIST` and `WATCH` permissions for pods
 - *September 2, 2020* The already deprecated `namespace` and `additional_namespaces` settings in the config updater will be removed in October, 2020
 - *August 28, 2020* `tide` now ignores archived repositories in queries.

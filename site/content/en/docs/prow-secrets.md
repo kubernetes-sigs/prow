@@ -25,7 +25,7 @@ This is performed by prow service/build clusters maintainer.
    `kubernetes-external-secrets_deployment.yaml`,
    `kubernetes-external-secrets_rbac.yaml`,
    and  `kubernetes-external-secrets_service.yaml` under
-   [`config/prow/cluster`](https://github.com/kubernetes/test-infra/tree/master/config/prow/cluster). The deployment file assumes
+   [`config/prow/cluster`](https://github.com/kubernetes/test-infra/tree/1f8084bc21af8774266754ffa6c047f7bb35776d/config/prow/cluster). The deployment file assumes
    using the same service account name as used in step #1
 2. [Optional but recommended] Create postsubmit deploy job for managing the
    deployment, for example
@@ -49,12 +49,12 @@ where the prow service/build clusters are located.
    build cluster) is defined in
    [`trusted_serviceaccounts.yaml`](https://github.com/kubernetes/test-infra/blob/1b2153ebe2809727a45c5b930647b2a3609dd7e7/config/prow/cluster/trusted_serviceaccounts.yaml#L46),
    and the secrets are defined in
-   [`kubernetes_external_secrets.yaml`](https://github.com/kubernetes/test-infra/blob/master/config/prow/cluster/kubernetes_external_secrets.yaml).
+   [`kubernetes_external_secrets.yaml`](https://github.com/kubernetes/test-infra/blob/1f8084bc21af8774266754ffa6c047f7bb35776d/config/prow/cluster/kubernetes_external_secrets.yaml).
    The service account used for `k8s-prow-builds` cluster(aka the default build
    cluster) is defined in
    [`build_serviceaccounts.yaml`](https://github.com/kubernetes/test-infra/blob/422fd7239bd65aba020adca54948df292c60c10a/config/prow/cluster/build_serviceaccounts.yaml#L43),
    and the secrets are defined in
-   [`build_kubernetes-external-secrets_customresource.yaml`](https://github.com/kubernetes/test-infra/blob/master/config/prow/cluster/build/build_kubernetes-external-secrets_customresource.yaml).
+   [`build_kubernetes-external-secrets_customresource.yaml`](https://github.com/kubernetes/test-infra/blob/1f8084bc21af8774266754ffa6c047f7bb35776d/config/prow/cluster/build/build_kubernetes-external-secrets_customresource.yaml).
 
 2. Create secret in google secret manager
 3. Create kubernetes external secrets custom resource by:
