@@ -100,10 +100,12 @@ func (gi *GitHubProvider) blockers() (blockers.Blockers, error) {
 
 // Query gets all open PRs based on tide configuration.
 func (gi *GitHubProvider) Query() (map[string]CodeReviewCommon, error) {
+	const controller = "sync"
 	lock := sync.Mutex{}
 	wg := sync.WaitGroup{}
 	prs := make(map[string]CodeReviewCommon)
 	var errs []error
+	var shardSuccess, shardPartial, shardError int
 	for i, query := range gi.cfg().Tide.Queries {
 
 		// Use org-sharded queries only when GitHub apps auth is in use
@@ -119,16 +121,31 @@ func (gi *GitHubProvider) Query() (map[string]CodeReviewCommon, error) {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
+				start := time.Now()
 				results, err := gi.search(gi.ghc.QueryWithGitHubAppsSupport, gi.logger, q, time.Time{}, time.Now(), org)
-
-				resultString := "success"
+				duration := time.Since(start)
+				result := queryResult(err, len(results))
+				queryID := strconv.Itoa(i)
+				tideMetrics.queryResults.WithLabelValues(queryID, org, result).Inc()
+				tideMetrics.queryDuration.WithLabelValues(controller, result).Observe(duration.Seconds())
+				tideMetrics.queryPRsReturned.WithLabelValues(controller).Observe(float64(len(results)))
 				if err != nil {
-					resultString = "error"
+					tideMetrics.queryErrors.WithLabelValues(controller, queryID, org, classifyQueryError(err)).Inc()
 				}
-				tideMetrics.queryResults.WithLabelValues(strconv.Itoa(i), org, resultString).Inc()
+				if result == "partial" {
+					tideMetrics.queryPartialResults.WithLabelValues(controller, queryID, org).Inc()
+				}
 
 				lock.Lock()
 				defer lock.Unlock()
+				switch result {
+				case "error":
+					shardError++
+				case "partial":
+					shardPartial++
+				default:
+					shardSuccess++
+				}
 				if err != nil && len(results) == 0 {
 					gi.logger.WithField("query", q).WithError(err).Warn("Failed to execute query.")
 					errs = append(errs, fmt.Errorf("query %d, err: %w", i, err))
@@ -152,8 +169,57 @@ func (gi *GitHubProvider) Query() (map[string]CodeReviewCommon, error) {
 		}
 	}
 	wg.Wait()
+	total := shardSuccess + shardPartial + shardError
+	tideMetrics.syncQueryShards.WithLabelValues(controller, "success").Set(float64(shardSuccess))
+	tideMetrics.syncQueryShards.WithLabelValues(controller, "partial").Set(float64(shardPartial))
+	tideMetrics.syncQueryShards.WithLabelValues(controller, "error").Set(float64(shardError))
+	if total > 0 {
+		tideMetrics.poolCompletenessRatio.WithLabelValues(controller).Set(float64(shardSuccess) / float64(total))
+	}
 
 	return prs, utilerrors.NewAggregate(errs)
+}
+
+func queryResult(err error, resultCount int) string {
+	if err == nil {
+		return "success"
+	}
+	if resultCount == 0 {
+		return "error"
+	}
+	return "partial"
+}
+
+func classifyQueryError(err error) string {
+	if err == nil {
+		return ""
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return "context_deadline"
+	}
+	if errors.Is(err, context.Canceled) {
+		return "context_canceled"
+	}
+	msg := err.Error()
+	if strings.Contains(msg, "Client.Timeout") || strings.Contains(msg, "request canceled") {
+		return "client_timeout"
+	}
+	if strings.Contains(msg, "connection refused") || strings.Contains(msg, "connection reset") || strings.Contains(msg, "no such host") || strings.Contains(msg, "EOF") {
+		return "connection"
+	}
+	if strings.Contains(msg, "Resource limits") || strings.Contains(msg, "resource limits") {
+		return "resource_limits"
+	}
+	if strings.Contains(msg, "abuse detection") || strings.Contains(msg, "secondary rate limit") {
+		return "secondary_rate_limit"
+	}
+	if strings.Contains(msg, "API rate limit") {
+		return "rate_limit"
+	}
+	if strings.Contains(msg, "502") || strings.Contains(msg, "503") || strings.Contains(msg, "504") || strings.Contains(msg, "500") {
+		return "server_error"
+	}
+	return "other"
 }
 
 func (gi *GitHubProvider) GetRef(org, repo, ref string) (string, error) {
