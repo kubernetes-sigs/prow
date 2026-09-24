@@ -464,7 +464,7 @@ func handle(log *logrus.Entry, ghc githubClient, repo approvers.Repo, githubConf
 		return comments[i].CreatedAt.Before(comments[j].CreatedAt)
 	})
 	approveComments := filterComments(comments, approvalMatcher(isBot, opts.LgtmActsAsApprove, opts.ConsiderReviewState()))
-	addApprovers(&approversHandler, approveComments, pr.author, opts.ConsiderReviewState())
+	addApprovers(&approversHandler, approveComments, pr.author, opts.ConsiderReviewState(), opts.LgtmActsAsApprove)
 	log.WithField("duration", time.Since(start).String()).Debug("Completed filtering approval comments in handle")
 
 	for _, user := range pr.assignees {
@@ -594,8 +594,9 @@ func updateNotification(linkURL *url.URL, commandHelpLink, prProcessLink, org, r
 // and identifies all of the people that have said /approve and adds
 // them to the Approvers.  The function uses the latest approve or cancel comment
 // to determine the Users intention. A review in requested changes state is
-// considered a cancel.
-func addApprovers(approversHandler *approvers.Approvers, approveComments []*comment, author string, reviewActsAsApprove bool) {
+// considered a cancel. The /lgtm command is only considered if lgtmActsAsApprove is set,
+// and never overrides a requested changes review.
+func addApprovers(approversHandler *approvers.Approvers, approveComments []*comment, author string, reviewActsAsApprove, lgtmActsAsApprove bool) {
 	for _, c := range approveComments {
 		if c.Author == "" {
 			continue
@@ -620,6 +621,15 @@ func addApprovers(approversHandler *approvers.Approvers, approveComments []*comm
 			}
 			if name != approveCommand && name != lgtmCommand {
 				continue
+			}
+			if name == lgtmCommand {
+				if !lgtmActsAsApprove {
+					continue
+				}
+				// A changes requested review takes precedence over a /lgtm in the same review.
+				if reviewActsAsApprove && c.ReviewState == github.ReviewStateChangesRequested {
+					continue
+				}
 			}
 			args := strings.ToLower(strings.TrimSpace(match[2]))
 			if strings.Contains(args, cancelArgument) {
