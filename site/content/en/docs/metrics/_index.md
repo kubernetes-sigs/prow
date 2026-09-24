@@ -21,6 +21,12 @@ available.
 |                           | Counter       | `tidepoolerrors`                      | org, repo, branch             		| Count of Tide pool sync errors.                                               |
 |                           | Counter       | `tidequeryresults`                    | query_index, org_shard, result		| Count of Tide queries by query index, org shard, and result (success/error).  |
 |                           | Counter       | `tidesyncheartbeat`                   | controller                    		| Count of Tide syncs per controller.                                           |
+|                           | Histogram     | `tide_query_duration_seconds`         | controller, result                        | Duration of individual GitHub search query shards in seconds, including pagination. |
+|                           | Histogram     | `tide_query_prs_returned`             | controller                                | Number of PRs returned per GitHub search query shard, including partial results. |
+|                           | Counter       | `tide_query_errors_total`             | controller, query_id, org_shard, error_class | Count of GitHub search query shard errors, including queries returning partial results. |
+|                           | Counter       | `tide_query_partial_results_total`    | controller, query_id, org_shard            | Count of GitHub search query shards returning both PRs and an error. |
+|                           | Gauge         | `tide_query_shards`                   | controller, result                        | Number of query shards in the most recent search cycle by outcome. |
+|                           | Gauge         | `tide_pool_completeness_ratio`        | controller                                | Fraction of query shards completing without an error in the most recent search cycle with at least one shard. |
 | Hook                      | Counter       | `prow_webhook_counter`    	    | event_type            	    		| The number of GitHub webhooks received by Prow.           	                |
 | Plank/Jenkins-Operator    | Gauge         | `prowjobs`                	    | job_name, type, state 	    		| The number of ProwJobs.                                   	                |
 | Jenkins-Operator          | Counter       | `jenkins_requests`        	    | verb, handler, code   	    		| The number of jenkins requests made by Prow.              	                |
