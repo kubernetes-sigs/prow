@@ -19,6 +19,8 @@ package main
 import (
 	"errors"
 	"fmt"
+	"os"
+	"os/exec"
 	"reflect"
 	"strings"
 	"sync"
@@ -27,6 +29,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	"sigs.k8s.io/prow/pkg/git/localgit"
@@ -1462,4 +1465,202 @@ func (p *prNumberGenerator) GetPRNumber() int {
 	defer p.Unlock()
 	p.prNumber = p.prNumber + 10
 	return p.prNumber
+}
+
+func TestExtractOriginalSHAs(t *testing.T) {
+	tests := []struct {
+		name        string
+		patch       string
+		expected    []string
+		expectError bool
+	}{
+		{
+			name: "single commit",
+			patch: `From 1111111111111111111111111111111111111111 Mon Sep 17 00:00:00 2001
+diff --git a/file b/file`,
+			expected: []string{
+				"1111111111111111111111111111111111111111",
+			},
+		},
+		{
+			name: "multiple commits",
+			patch: `From 1111111111111111111111111111111111111111 Mon Sep 17 00:00:00 2001
+diff --git a/file1 b/file1
+From 2222222222222222222222222222222222222222 Mon Sep 17 00:00:00 2001
+diff --git a/file2 b/file2`,
+			expected: []string{
+				"1111111111111111111111111111111111111111",
+				"2222222222222222222222222222222222222222",
+			},
+		},
+		{
+			name: "ignore invalid From lines",
+			patch: `From invalid-sha
+From 3333333333333333333333333333333333333333 Mon Sep 17 00:00:00 2001`,
+			expected: []string{
+				"3333333333333333333333333333333333333333",
+			},
+		},
+		{
+			name:        "no commits",
+			patch:       `random content`,
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmp, err := os.CreateTemp("", "patch-*.patch")
+			require.NoError(t, err)
+			defer os.Remove(tmp.Name())
+
+			_, err = tmp.WriteString(tt.patch)
+			require.NoError(t, err)
+
+			require.NoError(t, tmp.Close())
+
+			shas, err := extractOriginalSHAs(tmp.Name())
+
+			if tt.expectError {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), "no original SHAs found")
+				return
+			}
+
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, shas)
+		})
+	}
+}
+
+func TestAppendCherryPickMessages_Empty(t *testing.T) {
+	t.Parallel()
+
+	require.NoError(t, appendCherryPickMessages(nil, nil))
+}
+
+func TestAppendCherryPickMessages_InvalidRevision(t *testing.T) {
+	t.Parallel()
+
+	_, c := makeFakeRepoWithCommit(localgit.NewV2, t)
+	r, err := c.ClientFor("foo", "bar")
+	require.NoError(t, err)
+
+	err = appendCherryPickMessages(r, []string{
+		"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		"cccccccccccccccccccccccccccccccccccccccc",
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "failed to resolve base SHA")
+}
+
+func TestAppendCherryPickMessages_SingleCommit(t *testing.T) {
+	t.Parallel()
+
+	lg, c := makeFakeRepoWithCommit(localgit.NewV2, t)
+	require.NoError(t, lg.AddCommit("foo", "bar", map[string][]byte{"file.txt": []byte("change-1")}))
+	r, err := c.ClientFor("foo", "bar")
+	require.NoError(t, err)
+
+	err = appendCherryPickMessages(r, []string{
+		"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+	})
+	require.NoError(t, err)
+
+	cmd := exec.Command("git", "-C", r.Directory(), "log", "-1", "--pretty=%B")
+	out, err := cmd.Output()
+	require.NoError(t, err)
+
+	require.Contains(
+		t,
+		string(out),
+		"(cherry picked from commit aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa)",
+	)
+}
+
+func TestAppendCherryPickMessages_MultiCommit(t *testing.T) {
+	t.Parallel()
+
+	lg, c := makeFakeRepoWithCommit(localgit.NewV2, t)
+	require.NoError(t, lg.AddCommit("foo", "bar", map[string][]byte{"file.txt": []byte("one")}))
+	require.NoError(t, lg.AddCommit("foo", "bar", map[string][]byte{"file.txt": []byte("two")}))
+	r, err := c.ClientFor("foo", "bar")
+	require.NoError(t, err)
+
+	err = appendCherryPickMessages(r, []string{
+		"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+	})
+	require.NoError(t, err)
+
+	cmd := exec.Command(
+		"git",
+		"-C",
+		r.Directory(),
+		"log",
+		"-2",
+		"--format=%B%x00",
+	)
+
+	out, err := cmd.Output()
+	require.NoError(t, err)
+
+	messages := strings.Split(string(out), "\x00")
+
+	var got []string
+	for _, msg := range messages {
+		msg = strings.TrimSpace(msg)
+		if msg != "" {
+			got = append(got, msg)
+		}
+	}
+
+	require.Len(t, got, 2)
+
+	require.Contains(
+		t,
+		got[0],
+		"(cherry picked from commit bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb)",
+	)
+
+	require.Contains(
+		t,
+		got[1],
+		"(cherry picked from commit aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa)",
+	)
+
+	// Ensure original messages are preserved
+	require.Contains(t, got[0], "wow")
+	require.Contains(t, got[1], "wow")
+}
+
+func TestAppendCherryPickMessages_RebaseFailureRestoresHead(t *testing.T) {
+	t.Parallel()
+
+	lg, c := makeFakeRepoWithCommit(localgit.NewV2, t)
+	require.NoError(t, lg.AddCommit("foo", "bar", map[string][]byte{"file.txt": []byte("change")}))
+	r, err := c.ClientFor("foo", "bar")
+	require.NoError(t, err)
+
+	headBefore, err := r.RevParse("HEAD")
+	require.NoError(t, err)
+	require.NoError(t, r.Config("commit.gpgsign", "true"))
+	require.NoError(t, r.Config("user.signingkey", "invalid-signing-key"))
+
+	err = appendCherryPickMessages(r, []string{
+		"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "git rebase --exec failed")
+
+	headAfter, err := r.RevParse("HEAD")
+	require.NoError(t, err)
+	require.Equal(t, headBefore, headAfter)
+	dirty, err := r.IsDirty()
+	require.NoError(t, err)
+	require.False(t, dirty)
 }

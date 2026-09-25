@@ -17,10 +17,14 @@ limitations under the License.
 package main
 
 import (
+	"bufio"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
+	"os/exec"
 	"regexp"
 	"slices"
 	"strings"
@@ -41,6 +45,8 @@ import (
 
 const pluginName = "cherrypick"
 const defaultLabelPrefix = "cherrypick/"
+const rebaseTimeout = 5 * time.Minute
+const rebaseAbortTimeout = 30 * time.Second
 
 var cherryPickRe = regexp.MustCompile(`(?m)^(?:/cherrypick|/cherry-pick)\s+(.+)$`)
 var releaseNoteRe = regexp.MustCompile(`(?s)(?:Release note\*\*:\s*(?:<!--[^<>]*-->\s*)?` + "```(?:release-note)?|```release-note)(.+?)```")
@@ -103,6 +109,8 @@ type Server struct {
 	allowAll bool
 	// Create an issue on cherrypick conflict.
 	issueOnConflict bool
+	// Add original commit ID to cherry-picked commit messages.
+	addOriginalCommitID bool
 	// Set a custom label prefix.
 	labelPrefix string
 
@@ -631,6 +639,34 @@ func (s *Server) handle(logger logrus.FieldLogger, requester string, comment *gi
 		return utilerrors.NewAggregate(errs)
 	}
 
+	// Add original commit IDs if flag is enabled.
+	if s.addOriginalCommitID {
+		// Extract all original commit SHAs from patch.
+		originalSHAs, err := extractOriginalSHAs(localPath)
+		if err != nil {
+			logger.WithError(err).Error("Failed to extract original SHAs from patch")
+			errs := []error{fmt.Errorf("failed to extract original SHAs from patch: %w", err)}
+			resp := "Failed to add original commit IDs to the cherry-picked commits. No cherry-pick branch was pushed."
+			if commentErr := s.createComment(logger, org, repo, num, comment, resp); commentErr != nil {
+				errs = append(errs, fmt.Errorf("failed to create comment: %w", commentErr))
+			}
+			return utilerrors.NewAggregate(errs)
+		}
+
+		// Append cherry-pick messages to all commits created by git am.
+		if err := appendCherryPickMessages(r, originalSHAs); err != nil {
+			logger.WithError(err).Error("Failed to append cherry-pick messages")
+			errs := []error{fmt.Errorf("failed to append cherry-pick messages: %w", err)}
+			resp := "Failed to add original commit IDs to the cherry-picked commits. No cherry-pick branch was pushed."
+			if commentErr := s.createComment(logger, org, repo, num, comment, resp); commentErr != nil {
+				errs = append(errs, fmt.Errorf("failed to create comment: %w", commentErr))
+			}
+			return utilerrors.NewAggregate(errs)
+		}
+		logger.WithField("commit_count", len(originalSHAs)).
+			Info("Successfully added original commit IDs to cherry-picked commits")
+	}
+
 	// Push the new branch
 	if err := p.Push(r, newBranch, true); err != nil {
 		logger.WithError(err).Warn("failed to push chery-picked changes to GitHub")
@@ -799,4 +835,153 @@ func kindLabelsFromIssueLabels(labels []github.Label) []string {
 		}
 	}
 	return sets.List(kindSet)
+}
+
+// extractOriginalSHAs extracts all original commit SHAs from a patch file.
+// Each commit in a patch starts with: "From <SHA> Mon Sep 17 00:00:00 2001"
+func extractOriginalSHAs(patchPath string) ([]string, error) {
+	file, err := os.Open(patchPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open patch file: %w", err)
+	}
+	defer file.Close()
+
+	var shas []string
+	scanner := bufio.NewScanner(file)
+	fromPattern := regexp.MustCompile(`^From ([0-9a-f]{40}) `)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if matches := fromPattern.FindStringSubmatch(line); matches != nil {
+			shas = append(shas, matches[1])
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("error reading patch file: %w", err)
+	}
+
+	if len(shas) == 0 {
+		return nil, fmt.Errorf("no original SHAs found in patch file")
+	}
+
+	return shas, nil
+}
+
+// appendCherryPickMessages appends "(cherry picked from commit <sha>)"
+// to all commits created by git am (supports single and multi-commit PRs).
+func appendCherryPickMessages(repo git.RepoClient, originalSHAs []string) error {
+	numCommits := len(originalSHAs)
+	if numCommits == 0 {
+		return nil
+	}
+
+	// Resolve absolute SHAs for stability and recovery.
+	headSHA, err := repo.RevParse("HEAD")
+	if err != nil {
+		return fmt.Errorf("failed to resolve HEAD SHA: %w", err)
+	}
+	headSHA = strings.TrimSpace(headSHA)
+	if headSHA == "" {
+		return errors.New("failed to resolve HEAD SHA: empty SHA returned")
+	}
+	baseSHA, err := repo.RevParse(fmt.Sprintf("HEAD~%d", numCommits))
+	if err != nil {
+		return fmt.Errorf("failed to resolve base SHA: %w", err)
+	}
+	baseSHA = strings.TrimSpace(baseSHA)
+	if baseSHA == "" {
+		return errors.New("failed to resolve base SHA: empty SHA returned")
+	}
+
+	// Helper script run after each commit during rebase.
+	// Uses a temp file for the amended message to avoid shell quoting issues
+	// with commit messages that contain quotes, backticks, or newlines.
+	script := fmt.Sprintf(`#!/bin/sh
+set -e
+COMMIT_NUM=$(git rev-list --count %s..HEAD)
+ORIGINAL_SHA=$(echo "$ORIGINAL_SHAS" | cut -d',' -f$COMMIT_NUM)
+if [ -n "$ORIGINAL_SHA" ]; then
+    MSGFILE=$(mktemp)
+    git log -1 --pretty=%%B > "$MSGFILE"
+    printf '\n(cherry picked from commit %%s)\n' "$ORIGINAL_SHA" >> "$MSGFILE"
+    git commit --amend -F "$MSGFILE"
+    rm -f "$MSGFILE"
+fi
+`, baseSHA)
+
+	tmpfile, err := os.CreateTemp("", "cherry-pick-exec-*.sh")
+	if err != nil {
+		return fmt.Errorf("failed to create tmp script: %w", err)
+	}
+	tmpPath := tmpfile.Name()
+	defer os.Remove(tmpPath)
+
+	if _, err := tmpfile.WriteString(script); err != nil {
+		_ = tmpfile.Close()
+		return fmt.Errorf("failed to write tmp script: %w", err)
+	}
+	if err := tmpfile.Close(); err != nil {
+		return fmt.Errorf("failed to close tmp script: %w", err)
+	}
+
+	if err := os.Chmod(tmpPath, 0700); err != nil {
+		return fmt.Errorf("failed to chmod tmp script: %w", err)
+	}
+
+	// Read back the committer identity that was configured on this repo by the
+	// caller (via r.Config("user.name"/"user.email") above). We use raw
+	// "git config --get" because RepoClient only exposes a setter (Config()),
+	// not a getter. The identity is guaranteed to be present at this point;
+	// we fail clearly if for some reason it is not.
+	nameBytes, err := exec.Command("git", "-C", repo.Directory(), "config", "user.name").Output()
+	if err != nil {
+		return fmt.Errorf("failed to read git user.name: %w", err)
+	}
+	emailBytes, err := exec.Command("git", "-C", repo.Directory(), "config", "user.email").Output()
+	if err != nil {
+		return fmt.Errorf("failed to read git user.email: %w", err)
+	}
+	gitName := strings.TrimSpace(string(nameBytes))
+	gitEmail := strings.TrimSpace(string(emailBytes))
+	if gitName == "" {
+		return errors.New("git user.name is not configured in repository")
+	}
+	if gitEmail == "" {
+		return errors.New("git user.email is not configured in repository")
+	}
+
+	// Prepare and run the rebase. Export ORIGINAL_SHAS and prevent editor.
+	ctx, cancel := context.WithTimeout(context.Background(), rebaseTimeout)
+	defer cancel()
+	origEnv := fmt.Sprintf("ORIGINAL_SHAS=%s", strings.Join(originalSHAs, ","))
+	cmd := exec.CommandContext(ctx, "git", "-C", repo.Directory(), "rebase", "-i", baseSHA, "--exec", tmpPath)
+	cmd.Env = append(os.Environ(),
+		origEnv,
+		"GIT_SEQUENCE_EDITOR=true",
+		"GIT_CONFIG_NOSYSTEM=1",
+		"GIT_COMMITTER_NAME="+gitName,
+		"GIT_COMMITTER_EMAIL="+gitEmail,
+	)
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		var rebaseErr error
+		if ctx.Err() == context.DeadlineExceeded {
+			rebaseErr = errors.New("git rebase --exec timed out")
+		} else {
+			rebaseErr = fmt.Errorf("git rebase --exec failed: %w: %s", err, strings.TrimSpace(string(output)))
+		}
+		errs := []error{rebaseErr}
+		abortCtx, abortCancel := context.WithTimeout(context.Background(), rebaseAbortTimeout)
+		defer abortCancel()
+		if abortErr := exec.CommandContext(abortCtx, "git", "-C", repo.Directory(), "rebase", "--abort").Run(); abortErr != nil {
+			errs = append(errs, fmt.Errorf("failed to abort rebase: %w", abortErr))
+		}
+		if resetErr := repo.ResetHard(headSHA); resetErr != nil {
+			errs = append(errs, fmt.Errorf("failed to restore HEAD after rebase failure: %w", resetErr))
+		}
+		return utilerrors.NewAggregate(errs)
+	}
+
+	return nil
 }
