@@ -34,7 +34,7 @@ type storedState struct {
 }
 
 type statusClient interface {
-	Load() (chan config.Delta, error)
+	Load() (config.DeltaChan, error)
 	Save() error
 }
 
@@ -54,14 +54,13 @@ type statusController struct {
 	config.Agent
 }
 
-func (s *statusController) Load() (chan config.Delta, error) {
+func (s *statusController) Load() (config.DeltaChan, error) {
 	s.Agent = config.Agent{}
 	state, err := s.loadState()
 	if err == nil {
 		s.Agent.Set(&state.Config)
 	}
-	changes := make(chan config.Delta)
-	s.Agent.Subscribe(changes)
+	changes := s.Agent.Subscribe()
 
 	if _, err := s.configOpts.ConfigAgent(&s.Agent); err != nil {
 		s.logger.WithError(err).Error("Error starting config agent.")
