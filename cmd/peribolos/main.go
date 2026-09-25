@@ -59,6 +59,7 @@ type options struct {
 	fixTeamRepos          bool
 	fixRepos              bool
 	fixCollaborators      bool
+	fixOrgRoles           bool
 	ignoreInvitees        bool
 	ignoreSecretTeams     bool
 	ignoreEnterpriseTeams bool
@@ -97,6 +98,7 @@ func (o *options) parseArgs(flags *flag.FlagSet, args []string) error {
 	flags.BoolVar(&o.fixTeamRepos, "fix-team-repos", false, "Add/remove team permissions on repos if set")
 	flags.BoolVar(&o.fixRepos, "fix-repos", false, "Create/update repositories if set")
 	flags.BoolVar(&o.fixCollaborators, "fix-collaborators", false, "Add/remove/update repository collaborators if set")
+	flags.BoolVar(&o.fixOrgRoles, "fix-org-roles", false, "Assign/remove organization roles to teams and users if set")
 	flags.BoolVar(&o.allowRepoArchival, "allow-repo-archival", false, "If set, archiving repos is allowed while updating repos")
 	flags.BoolVar(&o.allowRepoPublish, "allow-repo-publish", false, "If set, changing repository visibility to public is allowed while updating repos")
 	flags.StringVar(&o.logLevel, "log-level", logrus.InfoLevel.String(), fmt.Sprintf("Logging level, one of %v", logrus.AllLevels))
@@ -148,6 +150,10 @@ func (o *options) parseArgs(flags *flag.FlagSet, args []string) error {
 
 	if o.fixTeamRepos && !o.fixTeams {
 		return fmt.Errorf("--fix-team-repos requires --fix-teams")
+	}
+
+	if o.fixOrgRoles && !o.fixTeams {
+		return fmt.Errorf("--fix-org-roles requires --fix-teams")
 	}
 
 	return nil
@@ -212,6 +218,9 @@ type dumpClient interface {
 	GetRepo(owner, name string) (github.FullRepo, error)
 	GetRepos(org string, isUser bool) ([]github.Repo, error)
 	ListDirectCollaboratorsWithPermissions(org, repo string) (map[string]github.RepoPermissionLevel, error)
+	ListOrganizationRoles(org string) ([]github.OrganizationRole, error)
+	ListTeamsWithRole(org string, roleID int) ([]github.OrganizationRoleAssignment, error)
+	ListUsersWithRole(org string, roleID int) ([]github.OrganizationRoleAssignment, error)
 	BotUser() (*github.UserData, error)
 }
 
@@ -275,18 +284,26 @@ func dumpOrgConfig(client dumpClient, orgName string, ignoreSecretTeams bool, ig
 	idMap := map[int]org.Team{} // metadata for a team
 	children := map[int][]int{} // what children does it have
 	var tops []int              // what are the top-level teams
+	slugToName := map[string]string{}
+	// Slugs of teams intentionally excluded from the dump (secret/enterprise per
+	// ignore flags). Used to keep such teams out of dumped role assignments so we
+	// do not leak ignored teams as raw slugs.
+	ignoredTeamSlugs := sets.New[string]()
 
 	for _, t := range teams {
 		logger := logrus.WithFields(logrus.Fields{"id": t.ID, "name": t.Name})
 		if ignoreEnterpriseTeams && t.Type == github.TeamTypeEnterprise {
 			logger.Debug("Skipping enterprise team.")
+			ignoredTeamSlugs.Insert(t.Slug)
 			continue
 		}
 		p := org.Privacy(t.Privacy)
 		if ignoreSecretTeams && p == org.Secret {
 			logger.Debug("Ignoring secret team.")
+			ignoredTeamSlugs.Insert(t.Slug)
 			continue
 		}
+		slugToName[t.Slug] = t.Name
 		d := t.Description
 		nt := org.Team{
 			TeamMetadata: org.TeamMetadata{
@@ -394,6 +411,79 @@ func dumpOrgConfig(client dumpClient, orgName string, ignoreSecretTeams bool, ig
 			repoConfig.Collaborators = directCollabs
 		}
 		out.Repos[full.Name] = repoConfig
+	}
+
+	// Dump organization roles. Listing roles and their assignees requires an
+	// org admin token (classic tokens: admin:org scope); tokens without it (or
+	// orgs where the API is unavailable) should still be able to dump everything
+	// else, so failures here are logged and skipped rather than aborting the whole dump.
+	roles, err := client.ListOrganizationRoles(orgName)
+	if err != nil {
+		logrus.WithError(err).Warn("Failed to list organization roles; omitting roles from dump")
+		roles = nil
+	}
+	logrus.Debugf("Found %d organization roles", len(roles))
+	for _, role := range roles {
+		logrus.WithField("role", role.Name).Debug("Recording organization role.")
+
+		// Get teams with this role
+		teamsWithRole, err := client.ListTeamsWithRole(orgName, role.ID)
+		if err != nil {
+			logrus.WithError(err).Warnf("Failed to list teams with role %s; skipping role in dump", role.Name)
+			continue
+		}
+
+		// Get users with this role
+		usersWithRole, err := client.ListUsersWithRole(orgName, role.ID)
+		if err != nil {
+			logrus.WithError(err).Warnf("Failed to list users with role %s; skipping role in dump", role.Name)
+			continue
+		}
+
+		// Build team list. Teams that were intentionally excluded from the dump
+		// (secret/enterprise per ignore flags) are skipped so we do not leak them
+		// as raw slugs and produce a config that fails ValidateRoles on re-apply.
+		// Indirect assignments are also skipped: a child team that only inherits the
+		// role from its parent should not be dumped as a direct grant, otherwise a
+		// re-apply would promote the inherited role into a direct one that survives
+		// revoking the parent's role. "mixed" (direct + inherited) is kept as direct.
+		var teamNames []string
+		for _, team := range teamsWithRole {
+			if team.Assignment == "indirect" {
+				logrus.WithField("team", team.Slug).Debug("Skipping indirect role team assignment (inherited from a parent team).")
+				continue
+			}
+			if name, ok := slugToName[team.Slug]; ok {
+				teamNames = append(teamNames, name)
+			} else if ignoredTeamSlugs.Has(team.Slug) {
+				logrus.WithField("team", team.Slug).Debug("Skipping role team assignment for intentionally ignored team.")
+			} else {
+				// The team holds the role but is not in the org's team list (a rename/delete
+				// race, or a team this token cannot see). Emitting its raw slug would produce
+				// a role assignment that does not resolve to a config team and would fail
+				// ValidateRoles on re-apply, so skip it and surface the omission at Warn.
+				logrus.Warnf("Skipping role %s assignment for team %s in dump: team not found in the org's team list (renamed, deleted, or not visible to this token)", role.Name, team.Slug)
+			}
+		}
+
+		// Build user list, filtering out indirect assignments (users who have the role via team membership)
+		var userLogins []string
+		for _, user := range usersWithRole {
+			if user.Assignment == "indirect" {
+				continue
+			}
+			userLogins = append(userLogins, user.Login)
+		}
+
+		if len(teamNames) > 0 || len(userLogins) > 0 {
+			if out.Roles == nil {
+				out.Roles = make(map[string]org.Role)
+			}
+			out.Roles[role.Name] = org.Role{
+				Teams: teamNames,
+				Users: userLogins,
+			}
+		}
 	}
 
 	return &out, nil
@@ -545,6 +635,8 @@ func configureOrgMembers(opt options, client orgClient, orgName string, orgConfi
 			}
 		} else if om.State == github.StatePending {
 			logrus.Infof("Invited %s to %s as a %s", user, orgName, role)
+			// Track the new invitation so role assignment can skip this user
+			invitees.Insert(github.NormLogin(user))
 		} else {
 			logrus.Infof("Set %s as a %s of %s", user, role, orgName)
 		}
@@ -714,25 +806,33 @@ type teamClient interface {
 }
 
 // configureTeams returns the ids for all expected team names, creating/deleting teams as necessary.
-func configureTeams(client teamClient, orgName string, orgConfig org.Config, maxDelta float64, ignoreSecretTeams bool, ignoreEnterpriseTeams bool) (map[string]github.Team, error) {
+// It also returns the slugs of teams that were intentionally excluded per the ignore flags
+// (secret/enterprise), so callers such as configureOrgRoles can leave those teams' role
+// assignments untouched instead of reconciling against a filtered team set.
+func configureTeams(client teamClient, orgName string, orgConfig org.Config, maxDelta float64, ignoreSecretTeams bool, ignoreEnterpriseTeams bool) (map[string]github.Team, sets.Set[string], error) {
 	if err := validateTeamNames(orgConfig); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// What teams exist?
 	teams := map[string]github.Team{}
 	slugs := sets.Set[string]{}
+	// Slugs of teams intentionally excluded per the ignore flags. These are kept out of
+	// role reconciliation so we do not strip role assignments from teams we do not manage.
+	ignoredTeamSlugs := sets.New[string]()
 	teamList, err := client.ListTeams(orgName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list teams: %w", err)
+		return nil, nil, fmt.Errorf("failed to list teams: %w", err)
 	}
 	logrus.Debugf("Found %d teams", len(teamList))
 	for _, t := range teamList {
 		if ignoreEnterpriseTeams && t.Type == github.TeamTypeEnterprise {
 			logrus.Infof("Skipping enterprise team %s(%s) — managed at the enterprise level", t.Slug, t.Name)
+			ignoredTeamSlugs.Insert(t.Slug)
 			continue
 		}
 		if ignoreSecretTeams && org.Privacy(t.Privacy) == org.Secret {
+			ignoredTeamSlugs.Insert(t.Slug)
 			continue
 		}
 		teams[t.Slug] = t
@@ -787,7 +887,7 @@ func configureTeams(client teamClient, orgName string, orgConfig org.Config, max
 	// First compute teams we will delete, ensure we are not deleting too many
 	unused := slugs.Difference(used)
 	if delta := float64(len(unused)) / float64(len(slugs)); delta > maxDelta {
-		return nil, fmt.Errorf("cannot delete %d teams or %.3f of %s teams (exceeds limit of %.3f)", len(unused), delta, orgName, maxDelta)
+		return nil, nil, fmt.Errorf("cannot delete %d teams or %.3f of %s teams (exceeds limit of %.3f)", len(unused), delta, orgName, maxDelta)
 	}
 
 	// Create any missing team names
@@ -811,7 +911,7 @@ func configureTeams(client teamClient, orgName string, orgConfig org.Config, max
 		used.Insert(t.Slug)
 	}
 	if n := len(failures); n > 0 {
-		return nil, fmt.Errorf("failed to create %d teams: %s", n, strings.Join(failures, ", "))
+		return nil, nil, fmt.Errorf("failed to create %d teams: %s", n, strings.Join(failures, ", "))
 	}
 
 	// Remove any IDs returned by CreateTeam() that are in the unused set.
@@ -832,11 +932,11 @@ func configureTeams(client teamClient, orgName string, orgConfig org.Config, max
 		}
 	}
 	if n := len(failures); n > 0 {
-		return nil, fmt.Errorf("failed to delete %d teams: %s", n, strings.Join(failures, ", "))
+		return nil, nil, fmt.Errorf("failed to delete %d teams: %s", n, strings.Join(failures, ", "))
 	}
 
 	// Return matches
-	return matches, nil
+	return matches, ignoredTeamSlugs, nil
 }
 
 // updateString will return true and set have to want iff they are set and different.
@@ -906,7 +1006,7 @@ type inviteClient interface {
 
 func orgInvitations(opt options, client inviteClient, orgName string) (sets.Set[string], error) {
 	invitees := sets.Set[string]{}
-	if (!opt.fixOrgMembers && !opt.fixTeamMembers) || opt.ignoreInvitees {
+	if (!opt.fixOrgMembers && !opt.fixTeamMembers && !opt.fixOrgRoles) || opt.ignoreInvitees {
 		return invitees, nil
 	}
 	is, err := client.ListOrgInvitations(orgName)
@@ -949,6 +1049,19 @@ func orgFailedInvitations(opt options, client failedInviteClient, orgName string
 }
 
 func configureOrg(opt options, client github.Client, orgName string, orgConfig org.Config) error {
+	// Validate role configuration early (before any API calls), but only when we are
+	// actually going to reconcile roles. Like the other subsystems, role config is not
+	// validated unless its --fix flag is set, so a run without --fix-org-roles (even a
+	// dry run) does not check role references. With --fix-org-roles set, validation runs
+	// regardless of --confirm, so a dry run surfaces undefined team/user references before
+	// applying. Note this does not check that the referenced roles exist in GitHub; that
+	// requires an API call and happens later in configureOrgRoles, before any mutations.
+	if opt.fixOrgRoles {
+		if err := orgConfig.ValidateRoles(); err != nil {
+			return fmt.Errorf("invalid role configuration: %w", err)
+		}
+	}
+
 	// Ensure that metadata is configured correctly.
 	if !opt.fixOrg {
 		logrus.Infof("Skipping org metadata configuration")
@@ -972,6 +1085,9 @@ func configureOrg(opt options, client github.Client, orgName string, orgConfig o
 	} else if err := configureOrgMembers(opt, client, orgName, orgConfig, invitees, failedInvites); err != nil {
 		return fmt.Errorf("failed to configure %s members: %w", orgName, err)
 	}
+
+	// Note: New invitations sent by configureOrgMembers are tracked in the invitees set,
+	// so role assignment can skip users with pending invitations without an extra API call.
 
 	// Create repositories in the org
 	if !opt.fixRepos {
@@ -997,7 +1113,7 @@ func configureOrg(opt options, client github.Client, orgName string, orgConfig o
 	}
 
 	// Find the id and current state of each declared team (create/delete as necessary)
-	githubTeams, err := configureTeams(client, orgName, orgConfig, opt.maximumDelta, opt.ignoreSecretTeams, opt.ignoreEnterpriseTeams)
+	githubTeams, ignoredTeamSlugs, err := configureTeams(client, orgName, orgConfig, opt.maximumDelta, opt.ignoreSecretTeams, opt.ignoreEnterpriseTeams)
 	if err != nil {
 		return fmt.Errorf("failed to configure %s teams: %w", orgName, err)
 	}
@@ -1016,6 +1132,14 @@ func configureOrg(opt options, client github.Client, orgName string, orgConfig o
 			return fmt.Errorf("failed to configure %s team %s repos: %w", orgName, name, err)
 		}
 	}
+
+	// Configure organization roles
+	if !opt.fixOrgRoles {
+		logrus.Infof("Skipping organization roles configuration")
+	} else if err := configureOrgRoles(client, orgName, orgConfig, githubTeams, ignoredTeamSlugs, invitees); err != nil {
+		return fmt.Errorf("failed to configure %s organization roles: %w", orgName, err)
+	}
+
 	return nil
 }
 
@@ -1380,10 +1504,17 @@ func configureTeamAndMembers(opt options, client github.Client, githubTeams map[
 		return fmt.Errorf("%s not found in id list", name)
 	}
 
-	// Configure team metadata
-	err := configureTeam(client, orgName, name, team, gt, parent)
+	// Configure team metadata. If the team was patched (e.g. renamed), write the
+	// updated team - whose Slug reflects the rename - back into githubTeams so that
+	// later steps (team repos, role reconciliation) use the current slug instead of
+	// the stale one captured before the edit.
+	updated, err := configureTeam(client, orgName, name, team, gt, parent)
 	if err != nil {
 		return fmt.Errorf("failed to update %s metadata: %w", name, err)
+	}
+	if updated != nil {
+		gt = *updated
+		githubTeams[name] = gt
 	}
 
 	// Configure team members
@@ -1411,8 +1542,12 @@ type editTeamClient interface {
 	EditTeam(org string, team github.Team) (*github.Team, error)
 }
 
-// configureTeam patches the team name/description/privacy when values differ
-func configureTeam(client editTeamClient, orgName, teamName string, team org.Team, gt github.Team, parent *int) error {
+// configureTeam patches the team name/description/privacy when values differ.
+// When a patch is applied it returns the updated team from GitHub (whose Slug
+// reflects any rename); it returns nil when no change was needed. Callers should
+// write the returned team back into their team map so later steps (e.g. role
+// reconciliation) resolve against the current slug rather than a stale one.
+func configureTeam(client editTeamClient, orgName, teamName string, team org.Team, gt github.Team, parent *int) (*github.Team, error) {
 	// Do we need to reconfigure any team settings?
 	var patch bool
 	if gt.Name != teamName {
@@ -1452,11 +1587,13 @@ func configureTeam(client editTeamClient, orgName, teamName string, team org.Tea
 	}
 
 	if patch { // yes we need to patch
-		if _, err := client.EditTeam(orgName, gt); err != nil {
-			return fmt.Errorf("failed to edit %s team %s(%s): %w", orgName, gt.Slug, gt.Name, err)
+		updated, err := client.EditTeam(orgName, gt)
+		if err != nil {
+			return nil, fmt.Errorf("failed to edit %s team %s(%s): %w", orgName, gt.Slug, gt.Name, err)
 		}
+		return updated, nil
 	}
-	return nil
+	return nil, nil
 }
 
 type teamRepoClient interface {
@@ -1529,6 +1666,228 @@ func configureTeamRepos(client teamRepoClient, githubTeams map[string]github.Tea
 	}
 
 	return utilerrors.NewAggregate(updateErrors)
+}
+
+type orgRolesClient interface {
+	ListOrganizationRoles(org string) ([]github.OrganizationRole, error)
+	AssignOrganizationRoleToTeam(org, teamSlug string, roleID int) error
+	RemoveOrganizationRoleFromTeam(org, teamSlug string, roleID int) error
+	AssignOrganizationRoleToUser(org, user string, roleID int) error
+	RemoveOrganizationRoleFromUser(org, user string, roleID int) error
+	ListTeamsWithRole(org string, roleID int) ([]github.OrganizationRoleAssignment, error)
+	ListUsersWithRole(org string, roleID int) ([]github.OrganizationRoleAssignment, error)
+}
+
+// configureOrgRoles configures organization roles for teams and users.
+// ignoredTeamSlugs holds teams excluded per the ignore flags (secret/enterprise); their
+// role assignments are left untouched rather than reconciled against the filtered team set.
+func configureOrgRoles(client orgRolesClient, orgName string, orgConfig org.Config, githubTeams map[string]github.Team, ignoredTeamSlugs sets.Set[string], invitees sets.Set[string]) error {
+	// Get current organization roles from GitHub
+	roles, err := client.ListOrganizationRoles(orgName)
+	if err != nil {
+		return fmt.Errorf("failed to list organization roles: %w", err)
+	}
+
+	if len(roles) == 0 && len(orgConfig.Roles) == 0 {
+		return nil
+	}
+
+	// Build a lookup of GitHub roles by lowercase name
+	githubRolesByName := make(map[string]github.OrganizationRole, len(roles))
+	for _, role := range roles {
+		githubRolesByName[strings.ToLower(role.Name)] = role
+	}
+
+	// Validate all configured roles exist in GitHub BEFORE any mutations
+	for roleName := range orgConfig.Roles {
+		if _, ok := githubRolesByName[strings.ToLower(roleName)]; !ok {
+			return fmt.Errorf("role %q does not exist in organization %s - create the role in GitHub before assigning it", roleName, orgName)
+		}
+	}
+
+	logrus.Debugf("Processing %d configured organization roles (of %d total in org)", len(orgConfig.Roles), len(roles))
+
+	var allErrors []error
+
+	// Only manage roles that are explicitly declared in config. Roles absent
+	// from config - including GitHub's built-in predefined roles and any roles
+	// managed out-of-band - are left untouched. To empty a role, declare it in
+	// config with no teams/users. This is a deliberate difference from
+	// configureTeams (which deletes undeclared teams) and configureOrgMembers
+	// (which removes undeclared members): role management is opt-in per role,
+	// because GitHub ships predefined roles and roles may be managed outside
+	// peribolos.
+	for roleName, roleConfig := range orgConfig.Roles {
+		role := githubRolesByName[strings.ToLower(roleName)]
+		if err := configureRoleTeamAssignments(client, orgName, role.Name, role.ID, roleConfig.Teams, githubTeams, ignoredTeamSlugs); err != nil {
+			allErrors = append(allErrors, fmt.Errorf("failed to configure team assignments for role %s: %w", role.Name, err))
+		}
+		if err := configureRoleUserAssignments(client, orgName, role.Name, role.ID, roleConfig.Users, invitees); err != nil {
+			allErrors = append(allErrors, fmt.Errorf("failed to configure user assignments for role %s: %w", role.Name, err))
+		}
+	}
+
+	return utilerrors.NewAggregate(allErrors)
+}
+
+// configureRoleTeamAssignments configures team assignments for a specific role
+func configureRoleTeamAssignments(client orgRolesClient, orgName, roleName string, roleID int, wantTeams []string, githubTeams map[string]github.Team, ignoredTeamSlugs sets.Set[string]) error {
+	// Get current team assignments for this role
+	currentTeams, err := client.ListTeamsWithRole(orgName, roleID)
+	if err != nil {
+		return fmt.Errorf("failed to list teams with role %s: %w", roleName, err)
+	}
+
+	// If we want no teams and have no teams, we're done
+	if len(wantTeams) == 0 && len(currentTeams) == 0 {
+		return nil
+	}
+
+	// Build a map of normalized team name to team slug for the teams we have in config
+	// This allows resolving "MyTeam" (config name) to "my-team" (GitHub slug)
+	normalizedTeams := make(map[string]string)
+	for name, team := range githubTeams {
+		normalizedTeams[strings.ToLower(name)] = team.Slug
+	}
+
+	// Create sets for comparison using slugs
+	var resolveErrors []error
+	wantSet := sets.New[string]()
+	for _, teamName := range wantTeams {
+		// Resolve config team name to slug
+		if slug, ok := normalizedTeams[strings.ToLower(teamName)]; ok {
+			wantSet.Insert(slug)
+		} else {
+			resolveErrors = append(resolveErrors, fmt.Errorf("team %q referenced in role %q could not be resolved to a GitHub team slug", teamName, roleName))
+		}
+	}
+	if len(resolveErrors) > 0 {
+		return utilerrors.NewAggregate(resolveErrors)
+	}
+
+	// Build the set of teams that currently hold the role, mirroring the user path:
+	//   - skip "indirect" assignments: the team inherits the role from a parent team and
+	//     does not hold it in its own right, so removing it here would be wrong (and would
+	//     churn on every run). "mixed" (direct + inherited) is treated as direct.
+	//   - skip teams excluded per the ignore flags: they cannot appear in wantSet (githubTeams
+	//     is already filtered), so leaving them out avoids stripping a role from a team we do
+	//     not manage.
+	haveSet := sets.New[string]()
+	for _, team := range currentTeams {
+		if team.Assignment == "indirect" {
+			logrus.Debugf("Skipping indirect role assignment for team %s (inherits role from a parent team)", team.Slug)
+			continue
+		}
+		if ignoredTeamSlugs.Has(team.Slug) {
+			// Surfaced at Warn: this grant is intentionally not reconciled, so if the
+			// role is being emptied to revoke it, the assignment survives on the ignored
+			// team and the operator needs to see that at the default log level.
+			logrus.Warnf("Leaving role %s assigned to team %s in place: the team is excluded via --ignore-secret-teams/--ignore-enterprise-teams and is not reconciled", roleName, team.Slug)
+			continue
+		}
+		haveSet.Insert(team.Slug)
+	}
+
+	// Teams to add
+	var errors []error
+	toAdd := wantSet.Difference(haveSet)
+	for teamSlug := range toAdd {
+		if err := client.AssignOrganizationRoleToTeam(orgName, teamSlug, roleID); err != nil {
+			errors = append(errors, fmt.Errorf("failed to assign role %s to team %s: %w", roleName, teamSlug, err))
+			logrus.WithError(err).Warnf("Failed to assign role %s to team %s", roleName, teamSlug)
+		} else {
+			logrus.Infof("Assigned role %s to team %s", roleName, teamSlug)
+		}
+	}
+
+	// Teams to remove
+	toRemove := haveSet.Difference(wantSet)
+	for teamSlug := range toRemove {
+		if err := client.RemoveOrganizationRoleFromTeam(orgName, teamSlug, roleID); err != nil {
+			errors = append(errors, fmt.Errorf("failed to remove role %s from team %s: %w", roleName, teamSlug, err))
+			logrus.WithError(err).Warnf("Failed to remove role %s from team %s", roleName, teamSlug)
+		} else {
+			logrus.Infof("Removed role %s from team %s", roleName, teamSlug)
+		}
+	}
+
+	return utilerrors.NewAggregate(errors)
+}
+
+// configureRoleUserAssignments configures user assignments for a specific role
+func configureRoleUserAssignments(client orgRolesClient, orgName, roleName string, roleID int, wantUsers []string, invitees sets.Set[string]) error {
+	// Get current user assignments for this role
+	currentUsers, err := client.ListUsersWithRole(orgName, roleID)
+	if err != nil {
+		return fmt.Errorf("failed to list users with role %s: %w", roleName, err)
+	}
+
+	// Create maps to preserve original casing while comparing normalized usernames
+	wantMap := make(map[string]string) // normalized -> original
+	for _, user := range wantUsers {
+		wantMap[github.NormLogin(user)] = user
+	}
+
+	// Build haveMap from assignments we manage directly. Only "indirect" assignments are
+	// skipped: those users have the role solely via team membership and must not be removed
+	// just because they are not in the users list - they keep the role through their team.
+	// "mixed" (direct + via team) is kept and reconciled like a direct assignment; do not
+	// change this to `== "direct"` or mixed assignments would never be cleaned up.
+	haveMap := make(map[string]string) // normalized -> original
+	for _, user := range currentUsers {
+		if user.Assignment == "indirect" {
+			logrus.Debugf("Skipping indirect role assignment for user %s (has role via team membership)", user.Login)
+			continue
+		}
+		haveMap[github.NormLogin(user.Login)] = user.Login
+	}
+
+	// If we want no direct users and have no direct users, we're done
+	if len(wantUsers) == 0 && len(haveMap) == 0 {
+		return nil
+	}
+
+	// Create sets for comparison with normalized usernames
+	wantSet := sets.New[string]()
+	for normalized := range wantMap {
+		wantSet.Insert(normalized)
+	}
+	haveSet := sets.New[string]()
+	for normalized := range haveMap {
+		haveSet.Insert(normalized)
+	}
+
+	// Users to add
+	var errors []error
+	toAdd := wantSet.Difference(haveSet)
+	for normalizedUser := range toAdd {
+		originalUser := wantMap[normalizedUser]
+		// Skip users who have pending org invitations - they must accept before we can assign roles
+		if invitees.Has(normalizedUser) {
+			logrus.Infof("Waiting for %s to accept org invitation before assigning role %s", originalUser, roleName)
+			continue
+		}
+		if err := client.AssignOrganizationRoleToUser(orgName, originalUser, roleID); err != nil {
+			errors = append(errors, fmt.Errorf("failed to assign role %s to user %s: %w", roleName, originalUser, err))
+			logrus.WithError(err).Warnf("Failed to assign role %s to user %s", roleName, originalUser)
+		} else {
+			logrus.Infof("Assigned role %s to user %s", roleName, originalUser)
+		}
+	}
+
+	// Users to remove
+	toRemove := haveSet.Difference(wantSet)
+	for normalizedUser := range toRemove {
+		originalUser := haveMap[normalizedUser]
+		if err := client.RemoveOrganizationRoleFromUser(orgName, originalUser, roleID); err != nil {
+			errors = append(errors, fmt.Errorf("failed to remove role %s from user %s: %w", roleName, originalUser, err))
+			logrus.WithError(err).Warnf("Failed to remove role %s from user %s", roleName, originalUser)
+		} else {
+			logrus.Infof("Removed role %s from user %s", roleName, originalUser)
+		}
+	}
+
+	return utilerrors.NewAggregate(errors)
 }
 
 // teamMembersClient can list/remove/update people to a team.

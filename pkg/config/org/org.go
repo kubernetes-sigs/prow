@@ -19,6 +19,7 @@ package org
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"sigs.k8s.io/prow/pkg/github"
@@ -122,6 +123,95 @@ type Config struct {
 	Members []string        `json:"members,omitempty"`
 	Admins  []string        `json:"admins,omitempty"`
 	Repos   map[string]Repo `json:"repos,omitempty"`
+	Roles   map[string]Role `json:"roles,omitempty"`
+}
+
+// Role declares the desired team and user assignments for a single organization
+// role. The role must already exist in GitHub; declaring it here does not create
+// it. Only roles listed in config are managed - roles omitted from config,
+// including GitHub's predefined roles, are left untouched. Emptying teams/users
+// removes all direct assignments for the role; indirect (inherited) assignments,
+// such as a role a team holds via its parent, are never removed.
+//
+// See https://docs.github.com/en/rest/orgs/organization-roles#assign-an-organization-role-to-a-team
+// See https://docs.github.com/en/rest/orgs/organization-roles#assign-an-organization-role-to-a-user
+type Role struct {
+	// Teams is a list of team names (from config keys) that have this role assigned
+	Teams []string `json:"teams,omitempty"`
+	// Users is a list of usernames that have this role assigned
+	Users []string `json:"users,omitempty"`
+}
+
+// ValidateRoles checks that the organization roles configuration is internally consistent:
+//   - role names must not collide case-insensitively (GitHub role names are case-insensitive).
+//   - every team referenced by a role must be declared in the config (including nested teams).
+//   - every user referenced by a role must be a declared org member. This check runs only
+//     when the config declares membership (Members/Admins); when it does not, membership may
+//     be managed elsewhere and the full member set is unknown, so the user check is skipped
+//     rather than rejecting valid configs.
+func (c *Config) ValidateRoles() error {
+	if len(c.Roles) == 0 {
+		return nil
+	}
+
+	// Build a set of all config team names, lowercased (including nested teams). Role team
+	// references are matched against these names, not GitHub team slugs.
+	availableTeams := make(map[string]bool)
+	var collectTeams func(teams map[string]Team)
+	collectTeams = func(teams map[string]Team) {
+		for name, team := range teams {
+			availableTeams[strings.ToLower(name)] = true
+			if len(team.Children) > 0 {
+				collectTeams(team.Children)
+			}
+		}
+	}
+	collectTeams(c.Teams)
+
+	// Build a set of all org members (normalized)
+	availableUsers := make(map[string]bool)
+	for _, user := range c.Admins {
+		availableUsers[github.NormLogin(user)] = true
+	}
+	for _, user := range c.Members {
+		availableUsers[github.NormLogin(user)] = true
+	}
+
+	// Detect case-insensitive role name collisions
+	seenRoles := make(map[string]string) // lowercase -> original
+	for roleName := range c.Roles {
+		lower := strings.ToLower(roleName)
+		if existing, ok := seenRoles[lower]; ok {
+			return fmt.Errorf("role name collision: %q and %q differ only in case", existing, roleName)
+		}
+		seenRoles[lower] = roleName
+	}
+
+	// Validate each role's team and user references. User references are only checked
+	// when the config declares membership; see the ValidateRoles doc comment for why.
+	validateUsers := len(c.Members) > 0 || len(c.Admins) > 0
+	var errors []string
+	for roleName, role := range c.Roles {
+		for _, teamName := range role.Teams {
+			if !availableTeams[strings.ToLower(teamName)] {
+				errors = append(errors, fmt.Sprintf("role %q references undefined team %q", roleName, teamName))
+			}
+		}
+		if !validateUsers {
+			continue
+		}
+		for _, user := range role.Users {
+			if !availableUsers[github.NormLogin(user)] {
+				errors = append(errors, fmt.Sprintf("role %q references user %q who is not an org member", roleName, user))
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return fmt.Errorf("role validation failed:\n  - %s", strings.Join(errors, "\n  - "))
+	}
+
+	return nil
 }
 
 // TeamMetadata declares metadata about the github team.
