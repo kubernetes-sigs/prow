@@ -1239,6 +1239,10 @@ type OrgPlan struct {
 // OrgMembership contains Membership fields for user membership in an org.
 type OrgMembership struct {
 	Membership
+	// DirectMembership is true when the user is a direct member of the org, as opposed to
+	// having membership conferred only indirectly (e.g. via an enterprise team). Returned
+	// by GET /orgs/{org}/memberships/{username}.
+	DirectMembership bool `json:"direct_membership"`
 }
 
 // TeamMembership contains Membership fields for user membership on a team.

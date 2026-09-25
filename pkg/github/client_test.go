@@ -89,6 +89,61 @@ func getClient(url string) *client {
 	return c
 }
 
+func TestGetOrgMembership(t *testing.T) {
+	cases := []struct {
+		name         string
+		body         string
+		expectDirect bool
+		expectRole   string
+	}{
+		{
+			name:         "direct membership true",
+			body:         `{"role":"admin","state":"active","direct_membership":true,"enterprise_teams_providing_indirect_membership":["ent:foo"]}`,
+			expectDirect: true,
+			expectRole:   "admin",
+		},
+		{
+			name:         "direct membership false",
+			body:         `{"role":"member","state":"active","direct_membership":false,"enterprise_teams_providing_indirect_membership":["ent:foo"]}`,
+			expectDirect: false,
+			expectRole:   "member",
+		},
+		{
+			// Guards against the whole feature silently degrading to drop-all if the JSON key
+			// or type ever drifts: an absent direct_membership must decode to false, not error.
+			name:         "direct_membership absent defaults to false",
+			body:         `{"role":"member","state":"active"}`,
+			expectDirect: false,
+			expectRole:   "member",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != http.MethodGet {
+					t.Errorf("Bad method: %s", r.Method)
+				}
+				if want := "/orgs/org/memberships/user"; r.URL.Path != want {
+					t.Errorf("Bad request path: got %s, want %s", r.URL.Path, want)
+				}
+				fmt.Fprint(w, tc.body)
+			}))
+			defer ts.Close()
+			c := getClient(ts.URL)
+			m, err := c.GetOrgMembership("org", "user")
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if m.DirectMembership != tc.expectDirect {
+				t.Errorf("DirectMembership: got %v, want %v", m.DirectMembership, tc.expectDirect)
+			}
+			if m.Role != tc.expectRole {
+				t.Errorf("Role: got %q, want %q", m.Role, tc.expectRole)
+			}
+		})
+	}
+}
+
 func TestRequestRateLimit(t *testing.T) {
 	tc := &testTime{now: time.Now()}
 	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
