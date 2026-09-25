@@ -126,7 +126,12 @@ type Config struct {
 	Roles   map[string]Role `json:"roles,omitempty"`
 }
 
-// Role declares an organization role and its assignments to teams and users
+// Role declares the desired team and user assignments for a single organization
+// role. The role must already exist in GitHub; declaring it here does not create
+// it. Only roles listed in config are managed - roles omitted from config,
+// including GitHub's predefined roles, are left untouched. Emptying teams/users
+// removes all direct assignments for the role; indirect (inherited) assignments,
+// such as a role a team holds via its parent, are never removed.
 //
 // See https://docs.github.com/en/rest/orgs/organization-roles#assign-an-organization-role-to-a-team
 // See https://docs.github.com/en/rest/orgs/organization-roles#assign-an-organization-role-to-a-user
@@ -140,10 +145,10 @@ type Role struct {
 // ValidateRoles checks that the organization roles configuration is internally consistent:
 //   - role names must not collide case-insensitively (GitHub role names are case-insensitive).
 //   - every team referenced by a role must be declared in the config (including nested teams).
-//   - every user referenced by a role must be a declared org member, but this check only runs
-//     when the config declares org membership (Members/Admins). --fix-org-roles requires
-//     --fix-teams but not --fix-org-members, so membership may be managed elsewhere; when the
-//     full member set is unknown the user check is skipped rather than rejecting valid configs.
+//   - every user referenced by a role must be a declared org member. This check runs only
+//     when the config declares membership (Members/Admins); when it does not, membership may
+//     be managed elsewhere and the full member set is unknown, so the user check is skipped
+//     rather than rejecting valid configs.
 func (c *Config) ValidateRoles() error {
 	if len(c.Roles) == 0 {
 		return nil
@@ -182,14 +187,8 @@ func (c *Config) ValidateRoles() error {
 		seenRoles[lower] = roleName
 	}
 
-	// Validate each role's team and user references.
-	//
-	// User membership is only validated when the config actually declares org
-	// membership (Members/Admins). --fix-org-roles requires --fix-teams but not
-	// --fix-org-members, so membership may be managed elsewhere; in that case we
-	// cannot know the full member set and skip the user check rather than
-	// rejecting valid configs. Team references are always validated because
-	// --fix-org-roles implies --fix-teams, so config teams are authoritative.
+	// Validate each role's team and user references. User references are only checked
+	// when the config declares membership; see the ValidateRoles doc comment for why.
 	validateUsers := len(c.Members) > 0 || len(c.Admins) > 0
 	var errors []string
 	for roleName, role := range c.Roles {

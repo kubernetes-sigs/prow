@@ -458,7 +458,11 @@ func dumpOrgConfig(client dumpClient, orgName string, ignoreSecretTeams bool, ig
 			} else if ignoredTeamSlugs.Has(team.Slug) {
 				logrus.WithField("team", team.Slug).Debug("Skipping role team assignment for intentionally ignored team.")
 			} else {
-				teamNames = append(teamNames, team.Slug)
+				// The team holds the role but is not in the org's team list (a rename/delete
+				// race, or a team this token cannot see). Emitting its raw slug would produce
+				// a role assignment that does not resolve to a config team and would fail
+				// ValidateRoles on re-apply, so skip it and surface the omission at Warn.
+				logrus.Warnf("Skipping role %s assignment for team %s in dump: team not found in the org's team list (renamed, deleted, or not visible to this token)", role.Name, team.Slug)
 			}
 		}
 
@@ -1049,7 +1053,9 @@ func configureOrg(opt options, client github.Client, orgName string, orgConfig o
 	// actually going to reconcile roles. Like the other subsystems, role config is not
 	// validated unless its --fix flag is set, so a run without --fix-org-roles (even a
 	// dry run) does not check role references. With --fix-org-roles set, validation runs
-	// regardless of --confirm, so a dry run surfaces broken references before applying.
+	// regardless of --confirm, so a dry run surfaces undefined team/user references before
+	// applying. Note this does not check that the referenced roles exist in GitHub; that
+	// requires an API call and happens later in configureOrgRoles, before any mutations.
 	if opt.fixOrgRoles {
 		if err := orgConfig.ValidateRoles(); err != nil {
 			return fmt.Errorf("invalid role configuration: %w", err)
@@ -1498,10 +1504,17 @@ func configureTeamAndMembers(opt options, client github.Client, githubTeams map[
 		return fmt.Errorf("%s not found in id list", name)
 	}
 
-	// Configure team metadata
-	err := configureTeam(client, orgName, name, team, gt, parent)
+	// Configure team metadata. If the team was patched (e.g. renamed), write the
+	// updated team - whose Slug reflects the rename - back into githubTeams so that
+	// later steps (team repos, role reconciliation) use the current slug instead of
+	// the stale one captured before the edit.
+	updated, err := configureTeam(client, orgName, name, team, gt, parent)
 	if err != nil {
 		return fmt.Errorf("failed to update %s metadata: %w", name, err)
+	}
+	if updated != nil {
+		gt = *updated
+		githubTeams[name] = gt
 	}
 
 	// Configure team members
@@ -1529,8 +1542,12 @@ type editTeamClient interface {
 	EditTeam(org string, team github.Team) (*github.Team, error)
 }
 
-// configureTeam patches the team name/description/privacy when values differ
-func configureTeam(client editTeamClient, orgName, teamName string, team org.Team, gt github.Team, parent *int) error {
+// configureTeam patches the team name/description/privacy when values differ.
+// When a patch is applied it returns the updated team from GitHub (whose Slug
+// reflects any rename); it returns nil when no change was needed. Callers should
+// write the returned team back into their team map so later steps (e.g. role
+// reconciliation) resolve against the current slug rather than a stale one.
+func configureTeam(client editTeamClient, orgName, teamName string, team org.Team, gt github.Team, parent *int) (*github.Team, error) {
 	// Do we need to reconfigure any team settings?
 	var patch bool
 	if gt.Name != teamName {
@@ -1570,11 +1587,13 @@ func configureTeam(client editTeamClient, orgName, teamName string, team org.Tea
 	}
 
 	if patch { // yes we need to patch
-		if _, err := client.EditTeam(orgName, gt); err != nil {
-			return fmt.Errorf("failed to edit %s team %s(%s): %w", orgName, gt.Slug, gt.Name, err)
+		updated, err := client.EditTeam(orgName, gt)
+		if err != nil {
+			return nil, fmt.Errorf("failed to edit %s team %s(%s): %w", orgName, gt.Slug, gt.Name, err)
 		}
+		return updated, nil
 	}
-	return nil
+	return nil, nil
 }
 
 type teamRepoClient interface {
@@ -1693,8 +1712,11 @@ func configureOrgRoles(client orgRolesClient, orgName string, orgConfig org.Conf
 	// Only manage roles that are explicitly declared in config. Roles absent
 	// from config - including GitHub's built-in predefined roles and any roles
 	// managed out-of-band - are left untouched. To empty a role, declare it in
-	// config with no teams/users. (This mirrors how peribolos avoids mutating
-	// resources it was not asked to manage.)
+	// config with no teams/users. This is a deliberate difference from
+	// configureTeams (which deletes undeclared teams) and configureOrgMembers
+	// (which removes undeclared members): role management is opt-in per role,
+	// because GitHub ships predefined roles and roles may be managed outside
+	// peribolos.
 	for roleName, roleConfig := range orgConfig.Roles {
 		role := githubRolesByName[strings.ToLower(roleName)]
 		if err := configureRoleTeamAssignments(client, orgName, role.Name, role.ID, roleConfig.Teams, githubTeams, ignoredTeamSlugs); err != nil {
@@ -1757,7 +1779,10 @@ func configureRoleTeamAssignments(client orgRolesClient, orgName, roleName strin
 			continue
 		}
 		if ignoredTeamSlugs.Has(team.Slug) {
-			logrus.Debugf("Skipping role assignment for intentionally ignored team %s", team.Slug)
+			// Surfaced at Warn: this grant is intentionally not reconciled, so if the
+			// role is being emptied to revoke it, the assignment survives on the ignored
+			// team and the operator needs to see that at the default log level.
+			logrus.Warnf("Leaving role %s assigned to team %s in place: the team is excluded via --ignore-secret-teams/--ignore-enterprise-teams and is not reconciled", roleName, team.Slug)
 			continue
 		}
 		haveSet.Insert(team.Slug)
