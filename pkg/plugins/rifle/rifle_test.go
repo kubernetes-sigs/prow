@@ -140,8 +140,8 @@ type fakeOwnersClient struct {
 	allOwners     sets.Set[string]
 }
 
-func (foc *fakeOwnersClient) AllApprovers() sets.Set[string]    { return sets.Set[string]{} }
-func (foc *fakeOwnersClient) AllReviewers() sets.Set[string]    { return sets.Set[string]{} }
+func (foc *fakeOwnersClient) AllApprovers() sets.Set[string]      { return sets.Set[string]{} }
+func (foc *fakeOwnersClient) AllReviewers() sets.Set[string]      { return sets.Set[string]{} }
 func (foc *fakeOwnersClient) TopLevelApprovers() sets.Set[string] { return sets.Set[string]{} }
 
 func (foc *fakeOwnersClient) AllOwners() sets.Set[string] {
@@ -183,7 +183,7 @@ func (foc *fakeOwnersClient) FindLabelsForFile(path string) sets.Set[string] {
 	return sets.Set[string]{}
 }
 
-func (foc *fakeOwnersClient) IsNoParentOwners(path string) bool              { return false }
+func (foc *fakeOwnersClient) IsNoParentOwners(path string) bool               { return false }
 func (foc *fakeOwnersClient) IsAutoApproveUnownedSubfolders(path string) bool { return false }
 
 func (foc *fakeOwnersClient) ParseSimpleConfig(path string) (repoowners.SimpleConfig, error) {

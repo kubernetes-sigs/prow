@@ -521,12 +521,12 @@ func TestPresubmitFilter(t *testing.T) {
 		},
 	}}
 	var testCases = []struct {
-		name                  string
-		honorOkToTest         bool
-		body, org, repo, ref  string
-		presubmits            []config.Presubmit
-		expected              [][]bool
-		statusErr, expectErr  bool
+		name                 string
+		honorOkToTest        bool
+		body, org, repo, ref string
+		presubmits           []config.Presubmit
+		expected             [][]bool
+		statusErr, expectErr bool
 	}{
 		{
 			name: "test all comment selects all tests that don't need an explicit trigger",
