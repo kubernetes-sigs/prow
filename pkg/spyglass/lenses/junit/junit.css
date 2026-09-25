@@ -45,17 +45,17 @@ td.skipped {
   color: #ffe62d;
 }
 
-.failed-layout, .group-layout, .flaky-layout {
+.detail-layout {
   width: 100%;
   border-collapse: collapse;
 }
 
-.failed-layout td, .group-layout td, .flaky-layout td {
+.detail-layout td {
   border: 0;
   padding: 0;
 }
 
-.failure-name, .group-name, .flaky-name {
+.detail-name {
   cursor: pointer;
 }
 
@@ -68,19 +68,11 @@ td {
   background-color: unset !important;
 }
 
-table.failed-layout tbody tr.failure-text:hover {
+table.detail-layout tbody tr.detail-text:hover {
   background-color: unset !important;
 }
 
-table.group-layout tbody tr.group-text:hover {
-  background-color: unset !important;
-}
-
-table.flaky-layout tbody tr.flaky-text:hover {
-  background-color: unset !important;
-}
-
-.failure-text div, .group-text div, .flaky-text div {
+.detail-text div {
   padding-left: 20px;
   padding-right: 20px;
   white-space: pre-wrap;
@@ -88,7 +80,7 @@ table.flaky-layout tbody tr.flaky-text:hover {
   padding-bottom: 10px;
 }
 
-.failure-text td, .group-text td, .flaky-text td {
+.detail-text td {
   padding-bottom: 15px;
 }
 

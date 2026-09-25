@@ -1,3 +1,76 @@
+{{define "test-detail-rows"}}
+  {{range $ix, $test := .}}
+    {{$numTest := len $test.Junit}}
+    {{$firstTest := index $test.Junit 0}}
+    {{if eq $numTest 1}}
+    <tr>
+      <td colspan="2" style="padding: 0;">
+        <table class="detail-layout">
+          <tr class="detail-name">
+            <td class="mdl-data-table__cell--non-numeric test-name">{{$firstTest.ClassName}}: {{$firstTest.Name}}&nbsp;<i class="icon-button material-icons arrow-icon">expand_more</i></td>
+            <td class="mdl-data-table__cell--non-numeric" style="text-align: right;">{{$firstTest.Duration}}</td>
+          </tr>
+          <tr class="hidden detail-text">
+            <td colspan="2" class="mdl-data-table__cell--non-numeric">
+              <div>{{$firstTest.Failure}}</div>
+              {{if $firstTest.Output}}
+              <a href="#" class="open-stdout-stderr">open stdout<i class="material-icons" style="font-size: 1em; vertical-align: middle; padding-left: 3px;">open_in_new</i></a>
+              <pre style="display: none;">{{$firstTest.Output}}</pre>
+              {{end}}
+              {{if $firstTest.Error}}
+              <a href="#" class="open-stdout-stderr">open stderr<i class="material-icons" style="font-size: 1em; vertical-align: middle; padding-left: 3px;">open_in_new</i></a>
+              <pre style="display: none;">{{$firstTest.Error}}</pre>
+              {{end}}
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+    {{else}}
+    <tr>
+      <td colspan="2" style="padding: 0;">
+        <table class="detail-layout">
+          <tr class="detail-name">
+            <td class="mdl-data-table__cell--non-numeric test-name">{{$firstTest.ClassName}}: {{$firstTest.Name}}&nbsp;<i class="icon-button material-icons arrow-icon">expand_more</i></td>
+          </tr>
+          <tr class="hidden">
+            <td>
+              <table  class="detail-layout">
+                {{range $ixt, $indTest := $test.Junit}}
+                <tr  class="detail-text">
+                  <td colspan="2" style="padding: 0;">
+                    <table class="detail-layout">
+                      <tr class="detail-name">
+                        <td class="mdl-data-table__cell--non-numeric test-name">Run #{{$ixt}}: {{$indTest.Status}}&nbsp;<i class="icon-button material-icons arrow-icon">expand_more</i></td>
+                        <td class="mdl-data-table__cell--non-numeric" style="text-align: right;">{{$indTest.Duration}}</td>
+                      </tr>
+                      <tr class="hidden detail-text">
+                        <td colspan="2" class="mdl-data-table__cell--non-numeric">
+                          <div>{{$indTest.Failure}}</div>
+                          {{if $indTest.Output}}
+                          <a href="#" class="open-stdout-stderr">open stdout<i class="material-icons" style="font-size: 1em; vertical-align: middle; padding-left: 3px;">open_in_new</i></a>
+                          <pre style="display: none;">{{$indTest.Output}}</pre>
+                          {{end}}
+                          {{if $indTest.Error}}
+                          <a href="#" class="open-stdout-stderr">open stderr<i class="material-icons" style="font-size: 1em; vertical-align: middle; padding-left: 3px;">open_in_new</i></a>
+                          <pre style="display: none;">{{$indTest.Error}}</pre>
+                          {{end}}
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+                {{end}}
+              </table>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+    {{end}}
+  {{end}}
+{{end}}
+
 {{define "header"}}
 <link rel="stylesheet" type="text/css" href="junit.css">
 <script type="text/javascript" src="script_bundle.min.js"></script>
@@ -21,76 +94,7 @@
     <td class="mdl-data-table__cell--non-numeric expander"><i id="failed-expander" class="icon-button material-icons arrow-icon noselect">expand_less</i></td>
   </tr>
   <tbody id="failed-tbody">
-    {{range $ix, $test := .Failed}}
-      {{$numTest := len $test.Junit}}
-      {{$firstTest := index $test.Junit 0}}
-      {{if eq $numTest 1}}
-      <tr>
-        <td colspan="2" style="padding: 0;">
-          <table class="failed-layout">
-            <tr class="failure-name">
-              <td class="mdl-data-table__cell--non-numeric test-name">{{$firstTest.ClassName}}: {{$firstTest.Name}}&nbsp;<i class="icon-button material-icons arrow-icon">expand_more</i></td>
-              <td class="mdl-data-table__cell--non-numeric" style="text-align: right;">{{$firstTest.Duration}}</td>
-            </tr>
-            <tr class="hidden failure-text">
-              <td colspan="2" class="mdl-data-table__cell--non-numeric">
-                <div>{{$firstTest.Failure}}</div>
-                {{if $firstTest.Output}}
-                <a href="#" class="open-stdout-stderr">open stdout<i class="material-icons" style="font-size: 1em; vertical-align: middle; padding-left: 3px;">open_in_new</i></a>
-                <pre style="display: none;">{{$firstTest.Output}}</pre>
-                {{end}}
-                {{if $firstTest.Error}}
-                <a href="#" class="open-stdout-stderr">open stderr<i class="material-icons" style="font-size: 1em; vertical-align: middle; padding-left: 3px;">open_in_new</i></a>
-                <pre style="display: none;">{{$firstTest.Error}}</pre>
-                {{end}}
-              </td>
-            </tr>
-          </table>
-        </td>
-      </tr>
-      {{else}}
-      <tr>
-        <td colspan="2" style="padding: 0;">
-          <table class="failed-layout">
-            <tr class="failure-name">
-              <td class="mdl-data-table__cell--non-numeric test-name">{{$firstTest.ClassName}}: {{$firstTest.Name}}&nbsp;<i class="icon-button material-icons arrow-icon">expand_more</i></td>
-            </tr>
-            <tr class="hidden">
-              <td>
-                <table  class="failed-layout">
-                  {{range $ixt, $indTest := $test.Junit}}
-                  <tr  class="failure-text">
-                    <td colspan="2" style="padding: 0;">
-                      <table class="failed-layout">
-                        <tr class="failure-name">
-                          <td class="mdl-data-table__cell--non-numeric test-name">Run #{{$ixt}}: {{$indTest.Status}}&nbsp;<i class="icon-button material-icons arrow-icon">expand_more</i></td>
-                          <td class="mdl-data-table__cell--non-numeric" style="text-align: right;">{{$indTest.Duration}}</td>
-                        </tr>
-                        <tr class="hidden failure-text">
-                          <td colspan="2" class="mdl-data-table__cell--non-numeric">
-                            <div>{{$indTest.Failure}}</div>
-                            {{if $indTest.Output}}
-                            <a href="#" class="open-stdout-stderr">open stdout<i class="material-icons" style="font-size: 1em; vertical-align: middle; padding-left: 3px;">open_in_new</i></a>
-                            <pre style="display: none;">{{$indTest.Output}}</pre>
-                            {{end}}
-                            {{if $indTest.Error}}
-                            <a href="#" class="open-stdout-stderr">open stderr<i class="material-icons" style="font-size: 1em; vertical-align: middle; padding-left: 3px;">open_in_new</i></a>
-                            <pre style="display: none;">{{$indTest.Error}}</pre>
-                            {{end}}
-                          </td>
-                        </tr>
-                      </table>
-                    </td>
-                  </tr>
-                  {{end}}
-                </table>
-              </td>
-            </tr>
-          </table>
-        </td>
-      </tr>
-      {{end}}
-    {{end}}
+    {{template "test-detail-rows" .Failed}}
   </tbody>
   {{end}}
   {{if gt $numFlk 0}}
@@ -99,49 +103,7 @@
     <td class="mdl-data-table__cell--non-numeric expander"><i id="flaky-expander" class="icon-button material-icons arrow-icon noselect">expand_less</i></td>
   </tr>
   <tbody id="flaky-tbody">
-    {{range $ix, $test := .Flaky}}
-      {{$firstTest := index $test.Junit 0}}
-      <tr>
-        <td colspan="2" style="padding: 0;">
-          <table class="flaky-layout">
-            <tr class="flaky-name">
-              <td class="mdl-data-table__cell--non-numeric test-name">{{$firstTest.ClassName}}: {{$firstTest.Name}}&nbsp;<i class="icon-button material-icons arrow-icon">expand_more</i></td>
-            </tr>
-            <tr class="hidden">
-              <td>
-                <table class="flaky-layout">
-                  {{range $ixt, $indTest := $test.Junit}}
-                  <tr  class="flaky-text">
-                    <td colspan="2" style="padding: 0;">
-                      <table class="flaky-layout">
-                        <tr class="flaky-name">
-                          <td class="mdl-data-table__cell--non-numeric test-name">Run #{{$ixt}}: {{$indTest.Status}}&nbsp;<i class="icon-button material-icons arrow-icon">expand_more</i></td>
-                          <td class="mdl-data-table__cell--non-numeric" style="text-align: right;">{{$indTest.Duration}}</td>
-                        </tr>
-                        <tr class="hidden flaky-text">
-                          <td colspan="2" class="mdl-data-table__cell--non-numeric">
-                            <div>{{$indTest.Failure}}</div>
-                            {{if $indTest.Output}}
-                            <a href="#" class="open-stdout-stderr">open stdout<i class="material-icons" style="font-size: 1em; vertical-align: middle; padding-left: 3px;">open_in_new</i></a>
-                            <pre style="display: none;">{{$indTest.Output}}</pre>
-                            {{end}}
-                            {{if $indTest.Error}}
-                            <a href="#" class="open-stdout-stderr">open stderr<i class="material-icons" style="font-size: 1em; vertical-align: middle; padding-left: 3px;">open_in_new</i></a>
-                            <pre style="display: none;">{{$indTest.Error}}</pre>
-                            {{end}}
-                          </td>
-                        </tr>
-                      </table>
-                    </td>
-                  </tr>
-                  {{end}}
-                </table>
-              </td>
-            </tr>
-          </table>
-        </td>
-      </tr>
-    {{end}}
+    {{template "test-detail-rows" .Flaky}}
   </tbody>
   {{end}}
   {{if gt $numP 0}}
@@ -193,76 +155,7 @@
     <td class="mdl-data-table__cell--non-numeric expander"><i class="icon-button material-icons arrow-icon noselect">{{if $group.Collapsed}}expand_more{{else}}expand_less{{end}}</i></td>
   </tr>
   <tbody class="group-tbody{{if $group.Collapsed}} hidden-tests{{end}}">
-    {{range $ix, $test := $group.Failed}}
-      {{$numTest := len $test.Junit}}
-      {{$firstTest := index $test.Junit 0}}
-      {{if eq $numTest 1}}
-      <tr>
-        <td colspan="2" style="padding: 0;">
-          <table class="group-layout">
-            <tr class="group-name">
-              <td class="mdl-data-table__cell--non-numeric test-name">{{$firstTest.ClassName}}: {{$firstTest.Name}}&nbsp;<i class="icon-button material-icons arrow-icon">expand_more</i></td>
-              <td class="mdl-data-table__cell--non-numeric" style="text-align: right;">{{$firstTest.Duration}}</td>
-            </tr>
-            <tr class="hidden group-text">
-              <td colspan="2" class="mdl-data-table__cell--non-numeric">
-                <div>{{$firstTest.Failure}}</div>
-                {{if $firstTest.Output}}
-                <a href="#" class="open-stdout-stderr">open stdout<i class="material-icons" style="font-size: 1em; vertical-align: middle; padding-left: 3px;">open_in_new</i></a>
-                <pre style="display: none;">{{$firstTest.Output}}</pre>
-                {{end}}
-                {{if $firstTest.Error}}
-                <a href="#" class="open-stdout-stderr">open stderr<i class="material-icons" style="font-size: 1em; vertical-align: middle; padding-left: 3px;">open_in_new</i></a>
-                <pre style="display: none;">{{$firstTest.Error}}</pre>
-                {{end}}
-              </td>
-            </tr>
-          </table>
-        </td>
-      </tr>
-      {{else}}
-      <tr>
-        <td colspan="2" style="padding: 0;">
-          <table class="group-layout">
-            <tr class="group-name">
-              <td class="mdl-data-table__cell--non-numeric test-name">{{$firstTest.ClassName}}: {{$firstTest.Name}}&nbsp;<i class="icon-button material-icons arrow-icon">expand_more</i></td>
-            </tr>
-            <tr class="hidden">
-              <td>
-                <table class="group-layout">
-                  {{range $ixt, $indTest := $test.Junit}}
-                  <tr class="group-text">
-                    <td colspan="2" style="padding: 0;">
-                      <table class="group-layout">
-                        <tr class="group-name">
-                          <td class="mdl-data-table__cell--non-numeric test-name">Run #{{$ixt}}: {{$indTest.Status}}&nbsp;<i class="icon-button material-icons arrow-icon">expand_more</i></td>
-                          <td class="mdl-data-table__cell--non-numeric" style="text-align: right;">{{$indTest.Duration}}</td>
-                        </tr>
-                        <tr class="hidden group-text">
-                          <td colspan="2" class="mdl-data-table__cell--non-numeric">
-                            <div>{{$indTest.Failure}}</div>
-                            {{if $indTest.Output}}
-                            <a href="#" class="open-stdout-stderr">open stdout<i class="material-icons" style="font-size: 1em; vertical-align: middle; padding-left: 3px;">open_in_new</i></a>
-                            <pre style="display: none;">{{$indTest.Output}}</pre>
-                            {{end}}
-                            {{if $indTest.Error}}
-                            <a href="#" class="open-stdout-stderr">open stderr<i class="material-icons" style="font-size: 1em; vertical-align: middle; padding-left: 3px;">open_in_new</i></a>
-                            <pre style="display: none;">{{$indTest.Error}}</pre>
-                            {{end}}
-                          </td>
-                        </tr>
-                      </table>
-                    </td>
-                  </tr>
-                  {{end}}
-                </table>
-              </td>
-            </tr>
-          </table>
-        </td>
-      </tr>
-      {{end}}
-    {{end}}
+    {{template "test-detail-rows" $group.Failed}}
   </tbody>
   {{end}}
   {{if gt $gNumFlk 0}}
@@ -271,49 +164,7 @@
     <td class="mdl-data-table__cell--non-numeric expander"><i class="icon-button material-icons arrow-icon noselect">{{if $group.Collapsed}}expand_more{{else}}expand_less{{end}}</i></td>
   </tr>
   <tbody class="group-tbody{{if $group.Collapsed}} hidden-tests{{end}}">
-    {{range $ix, $test := $group.Flaky}}
-      {{$firstTest := index $test.Junit 0}}
-      <tr>
-        <td colspan="2" style="padding: 0;">
-          <table class="group-layout">
-            <tr class="group-name">
-              <td class="mdl-data-table__cell--non-numeric test-name">{{$firstTest.ClassName}}: {{$firstTest.Name}}&nbsp;<i class="icon-button material-icons arrow-icon">expand_more</i></td>
-            </tr>
-            <tr class="hidden">
-              <td>
-                <table class="group-layout">
-                  {{range $ixt, $indTest := $test.Junit}}
-                  <tr class="group-text">
-                    <td colspan="2" style="padding: 0;">
-                      <table class="group-layout">
-                        <tr class="group-name">
-                          <td class="mdl-data-table__cell--non-numeric test-name">Run #{{$ixt}}: {{$indTest.Status}}&nbsp;<i class="icon-button material-icons arrow-icon">expand_more</i></td>
-                          <td class="mdl-data-table__cell--non-numeric" style="text-align: right;">{{$indTest.Duration}}</td>
-                        </tr>
-                        <tr class="hidden group-text">
-                          <td colspan="2" class="mdl-data-table__cell--non-numeric">
-                            <div>{{$indTest.Failure}}</div>
-                            {{if $indTest.Output}}
-                            <a href="#" class="open-stdout-stderr">open stdout<i class="material-icons" style="font-size: 1em; vertical-align: middle; padding-left: 3px;">open_in_new</i></a>
-                            <pre style="display: none;">{{$indTest.Output}}</pre>
-                            {{end}}
-                            {{if $indTest.Error}}
-                            <a href="#" class="open-stdout-stderr">open stderr<i class="material-icons" style="font-size: 1em; vertical-align: middle; padding-left: 3px;">open_in_new</i></a>
-                            <pre style="display: none;">{{$indTest.Error}}</pre>
-                            {{end}}
-                          </td>
-                        </tr>
-                      </table>
-                    </td>
-                  </tr>
-                  {{end}}
-                </table>
-              </td>
-            </tr>
-          </table>
-        </td>
-      </tr>
-    {{end}}
+    {{template "test-detail-rows" $group.Flaky}}
   </tbody>
   {{end}}
   {{if gt $gNumP 0}}
@@ -356,4 +207,3 @@
 </div>
 {{end}}
 {{end}}
-
