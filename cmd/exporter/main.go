@@ -85,6 +85,7 @@ func main() {
 
 	pprof.Instrument(o.instrumentationOptions)
 	health := pjutil.NewHealthOnPort(o.instrumentationOptions.HealthPort)
+	health.ServeLive()
 
 	configAgent, err := o.config.ConfigAgent()
 	if err != nil {

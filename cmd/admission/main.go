@@ -70,6 +70,7 @@ func main() {
 
 	pprof.Instrument(o.instrumentationOptions)
 	health := pjutil.NewHealthOnPort(o.instrumentationOptions.HealthPort)
+	health.ServeLive()
 
 	admissionMux := http.NewServeMux()
 	admissionMux.HandleFunc("/validate", handle)
