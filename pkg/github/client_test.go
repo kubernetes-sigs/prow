@@ -90,30 +90,32 @@ func getClient(url string) *client {
 }
 
 func TestGetOrgMembership(t *testing.T) {
+	yes, no := true, false
 	cases := []struct {
 		name         string
 		body         string
-		expectDirect bool
+		expectDirect *bool
 		expectRole   string
 	}{
 		{
 			name:         "direct membership true",
 			body:         `{"role":"admin","state":"active","direct_membership":true,"enterprise_teams_providing_indirect_membership":["ent:foo"]}`,
-			expectDirect: true,
+			expectDirect: &yes,
 			expectRole:   "admin",
 		},
 		{
 			name:         "direct membership false",
 			body:         `{"role":"member","state":"active","direct_membership":false,"enterprise_teams_providing_indirect_membership":["ent:foo"]}`,
-			expectDirect: false,
+			expectDirect: &no,
 			expectRole:   "member",
 		},
 		{
-			// Guards against the whole feature silently degrading to drop-all if the JSON key
-			// or type ever drifts: an absent direct_membership must decode to false, not error.
-			name:         "direct_membership absent defaults to false",
+			// An absent direct_membership must decode to nil (unknown), not false: callers key off
+			// the pointer being nil to fail loud rather than silently treat the user as indirect-only
+			// and drop them from the dump.
+			name:         "direct_membership absent decodes to nil",
 			body:         `{"role":"member","state":"active"}`,
-			expectDirect: false,
+			expectDirect: nil,
 			expectRole:   "member",
 		},
 	}
@@ -134,8 +136,13 @@ func TestGetOrgMembership(t *testing.T) {
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			if m.DirectMembership != tc.expectDirect {
-				t.Errorf("DirectMembership: got %v, want %v", m.DirectMembership, tc.expectDirect)
+			switch {
+			case tc.expectDirect == nil && m.DirectMembership != nil:
+				t.Errorf("DirectMembership: got %v, want nil", *m.DirectMembership)
+			case tc.expectDirect != nil && m.DirectMembership == nil:
+				t.Errorf("DirectMembership: got nil, want %v", *tc.expectDirect)
+			case tc.expectDirect != nil && *m.DirectMembership != *tc.expectDirect:
+				t.Errorf("DirectMembership: got %v, want %v", *m.DirectMembership, *tc.expectDirect)
 			}
 			if m.Role != tc.expectRole {
 				t.Errorf("Role: got %q, want %q", m.Role, tc.expectRole)

@@ -1996,25 +1996,26 @@ func TestDumpOrgConfig(t *testing.T) {
 	repoHomepage := "https://www.somewhe.re/something/"
 	master := "master-branch"
 	cases := []struct {
-		name                   string
-		orgOverride            string
-		ignoreSecretTeams      bool
-		ignoreEnterpriseTeams  bool
-		meta                   github.Organization
-		members                []string
-		admins                 []string
-		teams                  []github.Team
-		teamMembers            map[string][]string
-		maintainers            map[string][]string
-		repoPermissions        map[string][]github.Repo
-		repos                  []github.FullRepo
-		enterpriseTeamMembers  map[string][]string
-		enterpriseTeamListErrs map[string]bool
-		directMembership       map[string]bool
-		getMembershipErrs      map[string]bool
-		botUser                string
-		expected               org.Config
-		err                    bool
+		name                    string
+		orgOverride             string
+		ignoreSecretTeams       bool
+		ignoreEnterpriseTeams   bool
+		meta                    github.Organization
+		members                 []string
+		admins                  []string
+		teams                   []github.Team
+		teamMembers             map[string][]string
+		maintainers             map[string][]string
+		repoPermissions         map[string][]github.Repo
+		repos                   []github.FullRepo
+		enterpriseTeamMembers   map[string][]string
+		enterpriseTeamListErrs  map[string]bool
+		directMembership        map[string]bool
+		missingDirectMembership map[string]bool
+		getMembershipErrs       map[string]bool
+		botUser                 string
+		expected                org.Config
+		err                     bool
 	}{
 		{
 			name:        "fails if GetOrg fails",
@@ -2779,6 +2780,83 @@ func TestDumpOrgConfig(t *testing.T) {
 				Repos:   map[string]org.Repo{},
 			},
 		},
+		{
+			// Regression guard for the regular-team structural check: enterprise-team members on a
+			// regular team (a member and a maintainer/admin) are kept in members:/admins: even when
+			// direct_membership is false, so the guard short-circuits before the direct-membership
+			// lookup. Removing the regularTeamMembers guard would fall through to GetOrgMembership,
+			// omit them, and produce a config configureOrgMembers rejects; this case would then fail.
+			name:                  "keeps enterprise team members on a regular team without a direct membership",
+			ignoreEnterpriseTeams: true,
+			meta: github.Organization{
+				Name:                         hello,
+				MembersCanCreateRepositories: yes,
+				DefaultRepositoryPermission:  string(perm),
+			},
+			members: []string{"ent-onteam"},
+			admins:  []string{"admin", "ent-maint"},
+			teams: []github.Team{
+				{ID: 5, Slug: "reg-team", Name: "regulars"},
+				{ID: 9, Slug: "ent-security", Name: "ent-security", Type: github.TeamTypeEnterprise},
+			},
+			teamMembers:     map[string][]string{"reg-team": {"ent-onteam"}},
+			maintainers:     map[string][]string{"reg-team": {"ent-maint"}},
+			repoPermissions: map[string][]github.Repo{"reg-team": {}},
+			enterpriseTeamMembers: map[string][]string{
+				"ent-security": {"ent-onteam", "ent-maint"},
+			},
+			// Neither has a direct membership; the regular-team guard keeps them regardless.
+			directMembership: map[string]bool{"ent-onteam": false, "ent-maint": false},
+			expected: org.Config{
+				Metadata: org.Metadata{
+					Name:                         &hello,
+					BillingEmail:                 &empty,
+					Company:                      &empty,
+					Email:                        &empty,
+					Description:                  &empty,
+					Location:                     &empty,
+					HasOrganizationProjects:      &no,
+					HasRepositoryProjects:        &no,
+					DefaultRepositoryPermission:  &perm,
+					MembersCanCreateRepositories: &yes,
+				},
+				Teams: map[string]org.Team{
+					"regulars": {
+						TeamMetadata: org.TeamMetadata{
+							Description: &empty,
+							Privacy:     &pub,
+						},
+						Members:     []string{"ent-onteam"},
+						Maintainers: []string{"ent-maint"},
+						Children:    map[string]org.Team{},
+						Repos:       map[string]github.RepoPermissionLevel{},
+					},
+				},
+				Members: []string{"ent-onteam"},
+				Admins:  []string{"admin", "ent-maint"},
+				Repos:   map[string]org.Repo{},
+			},
+		},
+		{
+			// An enterprise member on no regular team whose membership response omits
+			// direct_membership (pointer nil, i.e. unknown) must fail the dump rather than be
+			// silently dropped, matching the fail-loud handling of a listing error.
+			name:                  "fails the dump when direct_membership is not reported",
+			ignoreEnterpriseTeams: true,
+			meta: github.Organization{
+				Name:                         hello,
+				MembersCanCreateRepositories: yes,
+				DefaultRepositoryPermission:  string(perm),
+			},
+			members: []string{"george", "ent-user"},
+			admins:  []string{"admin"},
+			teams: []github.Team{
+				{ID: 9, Slug: "ent-security", Name: "ent-security", Type: github.TeamTypeEnterprise},
+			},
+			enterpriseTeamMembers:   map[string][]string{"ent-security": {"ent-user"}},
+			missingDirectMembership: map[string]bool{"ent-user": true},
+			err:                     true,
+		},
 	}
 
 	for _, tc := range cases {
@@ -2788,20 +2866,21 @@ func TestDumpOrgConfig(t *testing.T) {
 				orgName = tc.orgOverride
 			}
 			fc := fakeDumpClient{
-				name:                   orgName,
-				members:                tc.members,
-				admins:                 tc.admins,
-				meta:                   tc.meta,
-				teams:                  tc.teams,
-				teamMembers:            tc.teamMembers,
-				maintainers:            tc.maintainers,
-				repoPermissions:        tc.repoPermissions,
-				repos:                  tc.repos,
-				enterpriseTeamMembers:  tc.enterpriseTeamMembers,
-				enterpriseTeamListErrs: tc.enterpriseTeamListErrs,
-				directMembership:       tc.directMembership,
-				getMembershipErrs:      tc.getMembershipErrs,
-				botUser:                tc.botUser,
+				name:                    orgName,
+				members:                 tc.members,
+				admins:                  tc.admins,
+				meta:                    tc.meta,
+				teams:                   tc.teams,
+				teamMembers:             tc.teamMembers,
+				maintainers:             tc.maintainers,
+				repoPermissions:         tc.repoPermissions,
+				repos:                   tc.repos,
+				enterpriseTeamMembers:   tc.enterpriseTeamMembers,
+				enterpriseTeamListErrs:  tc.enterpriseTeamListErrs,
+				directMembership:        tc.directMembership,
+				missingDirectMembership: tc.missingDirectMembership,
+				getMembershipErrs:       tc.getMembershipErrs,
+				botUser:                 tc.botUser,
 			}
 			actual, err := dumpOrgConfig(fc, orgName, tc.ignoreSecretTeams, tc.ignoreEnterpriseTeams, "")
 			switch {
@@ -2871,16 +2950,24 @@ func TestDumpConfigRoundTripsEnterpriseMemberOnRegularTeam(t *testing.T) {
 	if err := configureOrgMembers(opt, applyFake, orgName, *dumped, sets.Set[string]{}, nil); err != nil {
 		t.Fatalf("re-applying the dumped config failed (round-trip broken): %v", err)
 	}
-	// Nothing should be removed: the round-trip must not drop ent-direct.
-	if applyFake.removed.Len() != 0 {
-		t.Errorf("expected no removals on re-apply, got %v", sets.List(applyFake.removed))
-	}
-	// Pins the known re-PUT churn (a follow-up would use direct_membership on the apply side to
-	// avoid it): apply excludes ent-direct from the current set as an enterprise member, but the
-	// dumped config lists them, so it re-adds them via UpdateOrgMembership every run.
-	if !applyFake.newMembers.Has("ent-direct") {
-		t.Errorf("expected ent-direct to be re-added (known churn), newMembers=%v", sets.List(applyFake.newMembers))
-	}
+
+	t.Run("round-trips without error or removals", func(t *testing.T) {
+		// Nothing should be removed: the round-trip must not drop ent-direct.
+		if applyFake.removed.Len() != 0 {
+			t.Errorf("expected no removals on re-apply, got %v", sets.List(applyFake.removed))
+		}
+	})
+
+	t.Run("known re-PUT churn", func(t *testing.T) {
+		// Kept separate from the round-trip check so it can be removed independently: a follow-up
+		// that uses direct_membership on the apply side would stop re-adding listed enterprise
+		// members, and only this subtest should change then. Apply excludes ent-direct from the
+		// current set as an enterprise member, but the dumped config lists them, so it re-adds them
+		// via UpdateOrgMembership every run (a harmless 200 no-op against GitHub, verified live).
+		if !applyFake.newMembers.Has("ent-direct") {
+			t.Errorf("expected ent-direct to be re-added (known churn), newMembers=%v", sets.List(applyFake.newMembers))
+		}
+	})
 }
 
 type fakeDumpClient struct {
@@ -2903,6 +2990,10 @@ type fakeDumpClient struct {
 	// GetOrgMembership. Only consulted for enterprise-team members (others are direct by
 	// definition); a login absent from the map defaults to no direct membership.
 	directMembership map[string]bool
+	// missingDirectMembership marks logins whose GetOrgMembership returns a response with no
+	// direct_membership field (DirectMembership nil), modeling an API that does not report it
+	// (e.g. some GitHub Enterprise Server versions).
+	missingDirectMembership map[string]bool
 	// getMembershipErrs marks logins whose GetOrgMembership should fail.
 	getMembershipErrs map[string]bool
 	// botUser overrides the login returned by BotUser; defaults to "admin" when empty.
@@ -2916,7 +3007,12 @@ func (c fakeDumpClient) GetOrgMembership(org, user string) (*github.OrgMembershi
 	if c.getMembershipErrs[user] {
 		return nil, fmt.Errorf("injected GetOrgMembership error for %s", user)
 	}
-	return &github.OrgMembership{DirectMembership: c.directMembership[user]}, nil
+	m := &github.OrgMembership{}
+	if !c.missingDirectMembership[user] {
+		direct := c.directMembership[user]
+		m.DirectMembership = &direct
+	}
+	return m, nil
 }
 
 func (c fakeDumpClient) GetOrg(name string) (*github.Organization, error) {

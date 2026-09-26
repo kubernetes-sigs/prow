@@ -287,7 +287,7 @@ func dumpOrgConfig(client dumpClient, orgName string, ignoreSecretTeams bool, ig
 	if ignoreEnterpriseTeams {
 		enterpriseMembers, err = enterpriseTeamMembers(client, orgName, teams)
 		if err != nil {
-			return nil, fmt.Errorf("listing enterprise team members for dump: %w", err)
+			return nil, fmt.Errorf("listing enterprise team members for dump (does the token have org admin/read access to enterprise team membership?): %w", err)
 		}
 	}
 	regularTeamMembers := sets.New[string]()
@@ -373,17 +373,24 @@ func dumpOrgConfig(client dumpClient, orgName string, ignoreSecretTeams bool, ig
 		}
 		membership, err := client.GetOrgMembership(orgName, login)
 		if err != nil {
-			return false, fmt.Errorf("failed to get org membership for %s: %w", login, err)
+			return false, fmt.Errorf("failed to get org membership for %s (does the token have org admin/read access to enterprise team membership?): %w", login, err)
+		}
+		// Fail loud rather than guess when direct_membership is not reported (e.g. on some GitHub
+		// Enterprise Server versions): defaulting to false would silently drop a real direct member,
+		// and defaulting to true would keep an unmanageable indirect-only one. Both are wrong.
+		if membership.DirectMembership == nil {
+			return false, fmt.Errorf("org membership for %s did not report direct_membership; cannot decide whether to omit them from the dump", login)
 		}
 		// Keep users with a direct membership; omit only indirect-only (enterprise-conferred) ones.
-		return !membership.DirectMembership, nil
+		return !*membership.DirectMembership, nil
 	}
 
+	var omittedAdmins, omittedMembers []string
 	for _, m := range admins {
 		if omit, err := omitFromMembership(m.Login); err != nil {
 			return nil, err
 		} else if omit {
-			logrus.WithField("login", m.Login).Debug("Skipping enterprise-managed admin (no direct membership) in dump.")
+			omittedAdmins = append(omittedAdmins, m.Login)
 			continue
 		}
 		logrus.WithField("login", m.Login).Debug("Recording admin.")
@@ -393,11 +400,17 @@ func dumpOrgConfig(client dumpClient, orgName string, ignoreSecretTeams bool, ig
 		if omit, err := omitFromMembership(m.Login); err != nil {
 			return nil, err
 		} else if omit {
-			logrus.WithField("login", m.Login).Debug("Skipping enterprise-managed member (no direct membership) in dump.")
+			omittedMembers = append(omittedMembers, m.Login)
 			continue
 		}
 		logrus.WithField("login", m.Login).Debug("Recording member.")
 		out.Members = append(out.Members, m.Login)
+	}
+	if len(omittedAdmins) > 0 || len(omittedMembers) > 0 {
+		logrus.WithFields(logrus.Fields{
+			"admins":  omittedAdmins,
+			"members": omittedMembers,
+		}).Infof("Omitted %d admin(s) and %d member(s) from dump: org membership conferred only by an enterprise team (no direct membership).", len(omittedAdmins), len(omittedMembers))
 	}
 
 	var makeChild func(id int) org.Team
@@ -559,7 +572,11 @@ func configureOrgMembers(opt options, client orgClient, orgName string, orgConfi
 		}
 		enterpriseMembers, err := enterpriseTeamMembers(client, orgName, allTeams)
 		if err != nil {
-			return fmt.Errorf("failed to list %s enterprise team members: %w", orgName, err)
+			// Fail loud rather than reconcile against a partial exclusion set: acting on it could
+			// remove members the enterprise team confers. This aborts the whole org run (repos,
+			// teams and collaborators included), so a persistent failure needs fixing, likely the
+			// token's org admin/read access to enterprise team membership.
+			return fmt.Errorf("failed to list %s enterprise team members (does the token have org admin/read access to enterprise team membership?): %w", orgName, err)
 		}
 		if len(enterpriseMembers) > 0 {
 			logrus.Infof("Excluding %d enterprise team members from org member reconciliation: %s",
