@@ -89,7 +89,7 @@ func (o *options) parseArgs(flags *flag.FlagSet, args []string) error {
 	flags.BoolVar(&o.dumpFull, "dump-full", false, "Output current config of the org as a valid input config file instead of a snippet")
 	flags.BoolVar(&o.ignoreInvitees, "ignore-invitees", false, "Do not compare missing members with active invitations (compatibility for GitHub Enterprise)")
 	flags.BoolVar(&o.ignoreSecretTeams, "ignore-secret-teams", false, "Do not dump or update secret teams if set")
-	flags.BoolVar(&o.ignoreEnterpriseTeams, "ignore-enterprise-teams", false, "Skip enterprise teams and their members during reconciliation")
+	flags.BoolVar(&o.ignoreEnterpriseTeams, "ignore-enterprise-teams", false, "Skip enterprise teams: during reconciliation, enterprise-team members are excluded from org-member add/remove; in --dump, members whose org membership is only via an enterprise team (no direct membership) are omitted from members/admins")
 	flags.BoolVar(&o.fixOrg, "fix-org", false, "Change org metadata if set")
 	flags.BoolVar(&o.fixOrgMembers, "fix-org-members", false, "Add/remove org members if set")
 	flags.BoolVar(&o.fixTeams, "fix-teams", false, "Create/delete/update teams if set")
@@ -206,6 +206,7 @@ func main() {
 type dumpClient interface {
 	GetOrg(name string) (*github.Organization, error)
 	ListOrgMembers(org, role string) ([]github.TeamMember, error)
+	GetOrgMembership(org, user string) (*github.OrgMembership, error)
 	ListTeams(org string) ([]github.Team, error)
 	ListTeamMembersBySlug(org, teamSlug, role string) ([]github.TeamMember, error)
 	ListTeamReposBySlug(org, teamSlug string) ([]github.Repo, error)
@@ -243,9 +244,9 @@ func dumpOrgConfig(client dumpClient, orgName string, ignoreSecretTeams bool, ig
 		return nil, fmt.Errorf("failed to list org admins: %w", err)
 	}
 	logrus.Debugf("Found %d admins", len(admins))
+	// Determine admin status over the full admin list, before the filtering below, so that
+	// excluding an enterprise-team admin cannot flip the admin:org guard.
 	for _, m := range admins {
-		logrus.WithField("login", m.Login).Debug("Recording admin.")
-		out.Admins = append(out.Admins, m.Login)
 		if runningAs.Login == m.Login || appID != "" {
 			runningAsAdmin = true
 		}
@@ -260,16 +261,36 @@ func dumpOrgConfig(client dumpClient, orgName string, ignoreSecretTeams bool, ig
 		return nil, fmt.Errorf("failed to list org members: %w", err)
 	}
 	logrus.Debugf("Found %d members", len(orgMembers))
-	for _, m := range orgMembers {
-		logrus.WithField("login", m.Login).Debug("Recording member.")
-		out.Members = append(out.Members, m.Login)
-	}
 
 	teams, err := client.ListTeams(orgName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list teams: %w", err)
 	}
 	logrus.Debugf("Found %d teams", len(teams))
+
+	// When ignoring enterprise teams, omit enterprise-managed members from the dumped org
+	// members/admins. GitHub confers org membership through an enterprise team, but that
+	// membership is managed at the enterprise level: peribolos cannot remove it (a delete
+	// only strips the direct membership - the user remains via the enterprise team), so
+	// dumping it would produce unmanageable drift.
+	//
+	// A member is kept when peribolos can manage them: either they are on a regular
+	// (non-ignored) team - which requires, and joining grants, a direct org membership
+	// (verified live against github.com) - or GET /orgs/{org}/memberships reports a direct
+	// membership. The regular-team check is a structural guard: a login the dump emits into a
+	// team is never omitted, so the result always satisfies configureOrgMembers' invariant
+	// that team members are org members, regardless of what direct_membership reports (e.g. on
+	// GHES). The per-user membership lookup is therefore needed only for enterprise-team
+	// members who are on no regular team. regularTeamMembers is populated by the team loop
+	// below; the filtering happens afterwards.
+	var enterpriseMembers sets.Set[string]
+	if ignoreEnterpriseTeams {
+		enterpriseMembers, err = enterpriseTeamMembers(client, orgName, teams)
+		if err != nil {
+			return nil, fmt.Errorf("listing enterprise team members for dump (does the token have org admin/read access to enterprise team membership?): %w", err)
+		}
+	}
+	regularTeamMembers := sets.New[string]()
 
 	names := map[int]string{}   // what's the name of a team?
 	idMap := map[int]org.Team{} // metadata for a team
@@ -306,6 +327,7 @@ func dumpOrgConfig(client dumpClient, orgName string, ignoreSecretTeams bool, ig
 		for _, m := range maintainers {
 			logger.WithField("login", m.Login).Debug("Recording maintainer.")
 			nt.Maintainers = append(nt.Maintainers, m.Login)
+			regularTeamMembers.Insert(github.NormLogin(m.Login))
 		}
 		teamMembers, err := client.ListTeamMembersBySlug(orgName, t.Slug, github.RoleMember)
 		if err != nil {
@@ -315,6 +337,7 @@ func dumpOrgConfig(client dumpClient, orgName string, ignoreSecretTeams bool, ig
 		for _, m := range teamMembers {
 			logger.WithField("login", m.Login).Debug("Recording member.")
 			nt.Members = append(nt.Members, m.Login)
+			regularTeamMembers.Insert(github.NormLogin(m.Login))
 		}
 
 		names[t.ID] = t.Name
@@ -338,6 +361,56 @@ func dumpOrgConfig(client dumpClient, orgName string, ignoreSecretTeams bool, ig
 			logger.WithFields(logrus.Fields{"repo": repo, "permission": level}).Debug("Recording repo permission.")
 			nt.Repos[repo.Name] = level
 		}
+	}
+
+	// Record org members/admins now that regular-team membership is known. Omit a login only
+	// when it is an enterprise-team member, is on no regular team (structural guard: team
+	// members are always kept so the dump round-trips), and has no direct org membership.
+	omitFromMembership := func(login string) (bool, error) {
+		norm := github.NormLogin(login)
+		if !ignoreEnterpriseTeams || !enterpriseMembers.Has(norm) || regularTeamMembers.Has(norm) {
+			return false, nil
+		}
+		membership, err := client.GetOrgMembership(orgName, login)
+		if err != nil {
+			return false, fmt.Errorf("failed to get org membership for %s (does the token have org admin/read access to enterprise team membership?): %w", login, err)
+		}
+		// Fail loud rather than guess when direct_membership is not reported (e.g. on some GitHub
+		// Enterprise Server versions): defaulting to false would silently drop a real direct member,
+		// and defaulting to true would keep an unmanageable indirect-only one. Both are wrong.
+		if membership.DirectMembership == nil {
+			return false, fmt.Errorf("org membership for %s did not report direct_membership; cannot decide whether to omit them from the dump", login)
+		}
+		// Keep users with a direct membership; omit only indirect-only (enterprise-conferred) ones.
+		return !*membership.DirectMembership, nil
+	}
+
+	var omittedAdmins, omittedMembers []string
+	for _, m := range admins {
+		if omit, err := omitFromMembership(m.Login); err != nil {
+			return nil, err
+		} else if omit {
+			omittedAdmins = append(omittedAdmins, m.Login)
+			continue
+		}
+		logrus.WithField("login", m.Login).Debug("Recording admin.")
+		out.Admins = append(out.Admins, m.Login)
+	}
+	for _, m := range orgMembers {
+		if omit, err := omitFromMembership(m.Login); err != nil {
+			return nil, err
+		} else if omit {
+			omittedMembers = append(omittedMembers, m.Login)
+			continue
+		}
+		logrus.WithField("login", m.Login).Debug("Recording member.")
+		out.Members = append(out.Members, m.Login)
+	}
+	if len(omittedAdmins) > 0 || len(omittedMembers) > 0 {
+		logrus.WithFields(logrus.Fields{
+			"admins":  omittedAdmins,
+			"members": omittedMembers,
+		}).Infof("Omitted %d admin(s) and %d member(s) from dump: org membership conferred only by an enterprise team (no direct membership).", len(omittedAdmins), len(omittedMembers))
 	}
 
 	var makeChild func(id int) org.Team
@@ -409,6 +482,41 @@ type orgClient interface {
 	UpdateOrgMembership(org, user string, admin bool) (*github.OrgMembership, error)
 }
 
+// enterpriseTeamMemberClient lists the members of a team by slug.
+type enterpriseTeamMemberClient interface {
+	ListTeamMembersBySlug(org, teamSlug, role string) ([]github.TeamMember, error)
+}
+
+// enterpriseTeamMembers returns the normalized logins of every member of an enterprise
+// team among the provided teams. Enterprise team membership is managed at the enterprise
+// level, so callers use this set to treat those members specially when
+// --ignore-enterprise-teams is set. The two callers then diverge in what they do with it:
+// configureOrgMembers excludes all of them from org-member reconciliation (it cannot manage
+// enterprise-conferred membership), while dumpOrgConfig omits only the subset that lacks a
+// direct membership (see its call site). Teams whose members cannot be listed are collected
+// into the returned aggregated error; the successfully listed members are still returned.
+// Both callers treat that error as fatal, because acting on a partial set is unsafe:
+// dumpOrgConfig would silently emit enterprise-managed members into the dumped config, and
+// configureOrgMembers could remove them from the org. Neither proceeds on an incomplete set.
+func enterpriseTeamMembers(client enterpriseTeamMemberClient, orgName string, teams []github.Team) (sets.Set[string], error) {
+	enterpriseMembers := sets.New[string]()
+	var errs []error
+	for _, t := range teams {
+		if t.Type != github.TeamTypeEnterprise {
+			continue
+		}
+		members, err := client.ListTeamMembersBySlug(orgName, t.Slug, github.RoleAll)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("failed to list enterprise team %s members: %w", t.Slug, err))
+			continue
+		}
+		for _, m := range members {
+			enterpriseMembers.Insert(github.NormLogin(m.Login))
+		}
+	}
+	return enterpriseMembers, utilerrors.NewAggregate(errs)
+}
+
 func configureOrgMembers(opt options, client orgClient, orgName string, orgConfig org.Config, invitees sets.Set[string], failedInvites map[string][]int) error {
 	// Get desired state
 	wantAdmins := sets.New[string](orgConfig.Admins...)
@@ -462,19 +570,13 @@ func configureOrgMembers(opt options, client orgClient, orgName string, orgConfi
 		if err != nil {
 			return fmt.Errorf("failed to list %s teams: %w", orgName, err)
 		}
-		enterpriseMembers := sets.Set[string]{}
-		for _, t := range allTeams {
-			if t.Type != github.TeamTypeEnterprise {
-				continue
-			}
-			members, err := client.ListTeamMembersBySlug(orgName, t.Slug, github.RoleAll)
-			if err != nil {
-				logrus.WithError(err).Warnf("Failed to list enterprise team %s members, skipping", t.Slug)
-				continue
-			}
-			for _, m := range members {
-				enterpriseMembers.Insert(github.NormLogin(m.Login))
-			}
+		enterpriseMembers, err := enterpriseTeamMembers(client, orgName, allTeams)
+		if err != nil {
+			// Fail loud rather than reconcile against a partial exclusion set: acting on it could
+			// remove members the enterprise team confers. This aborts the whole org run (repos,
+			// teams and collaborators included), so a persistent failure needs fixing, likely the
+			// token's org admin/read access to enterprise team membership.
+			return fmt.Errorf("failed to list %s enterprise team members (does the token have org admin/read access to enterprise team membership?): %w", orgName, err)
 		}
 		if len(enterpriseMembers) > 0 {
 			logrus.Infof("Excluding %d enterprise team members from org member reconciliation: %s",

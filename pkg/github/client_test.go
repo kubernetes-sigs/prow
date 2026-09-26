@@ -89,6 +89,68 @@ func getClient(url string) *client {
 	return c
 }
 
+func TestGetOrgMembership(t *testing.T) {
+	yes, no := true, false
+	cases := []struct {
+		name         string
+		body         string
+		expectDirect *bool
+		expectRole   string
+	}{
+		{
+			name:         "direct membership true",
+			body:         `{"role":"admin","state":"active","direct_membership":true,"enterprise_teams_providing_indirect_membership":["ent:foo"]}`,
+			expectDirect: &yes,
+			expectRole:   "admin",
+		},
+		{
+			name:         "direct membership false",
+			body:         `{"role":"member","state":"active","direct_membership":false,"enterprise_teams_providing_indirect_membership":["ent:foo"]}`,
+			expectDirect: &no,
+			expectRole:   "member",
+		},
+		{
+			// An absent direct_membership must decode to nil (unknown), not false: callers key off
+			// the pointer being nil to fail loud rather than silently treat the user as indirect-only
+			// and drop them from the dump.
+			name:         "direct_membership absent decodes to nil",
+			body:         `{"role":"member","state":"active"}`,
+			expectDirect: nil,
+			expectRole:   "member",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != http.MethodGet {
+					t.Errorf("Bad method: %s", r.Method)
+				}
+				if want := "/orgs/org/memberships/user"; r.URL.Path != want {
+					t.Errorf("Bad request path: got %s, want %s", r.URL.Path, want)
+				}
+				fmt.Fprint(w, tc.body)
+			}))
+			defer ts.Close()
+			c := getClient(ts.URL)
+			m, err := c.GetOrgMembership("org", "user")
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			switch {
+			case tc.expectDirect == nil && m.DirectMembership != nil:
+				t.Errorf("DirectMembership: got %v, want nil", *m.DirectMembership)
+			case tc.expectDirect != nil && m.DirectMembership == nil:
+				t.Errorf("DirectMembership: got nil, want %v", *tc.expectDirect)
+			case tc.expectDirect != nil && *m.DirectMembership != *tc.expectDirect:
+				t.Errorf("DirectMembership: got %v, want %v", *m.DirectMembership, *tc.expectDirect)
+			}
+			if m.Role != tc.expectRole {
+				t.Errorf("Role: got %q, want %q", m.Role, tc.expectRole)
+			}
+		})
+	}
+}
+
 func TestRequestRateLimit(t *testing.T) {
 	tc := &testTime{now: time.Now()}
 	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

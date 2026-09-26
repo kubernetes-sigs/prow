@@ -73,6 +73,7 @@ type OrganizationClient interface {
 	HasPermission(org, repo, user string, roles ...string) (bool, error)
 	GetUserPermission(org, repo, user string) (string, error)
 	UpdateOrgMembership(org, user string, admin bool) (*OrgMembership, error)
+	GetOrgMembership(org, user string) (*OrgMembership, error)
 	RemoveOrgMembership(org, user string) error
 }
 
@@ -1813,6 +1814,23 @@ func (c *client) UpdateOrgMembership(org, user string, admin bool) (*OrgMembersh
 		org:         org,
 		requestBody: &om,
 		exitCodes:   []int{200},
+	}, &om)
+	return &om, err
+}
+
+// GetOrgMembership returns the user's membership in the org, including whether it is a
+// direct membership (as opposed to one conferred only indirectly, e.g. via an enterprise
+// team).
+//
+// https://docs.github.com/en/rest/orgs/members#get-organization-membership-for-a-user
+func (c *client) GetOrgMembership(org, user string) (*OrgMembership, error) {
+	c.log("GetOrgMembership", org, user)
+	var om OrgMembership
+	_, err := c.request(&request{
+		method:    http.MethodGet,
+		path:      fmt.Sprintf("/orgs/%s/memberships/%s", org, user),
+		org:       org,
+		exitCodes: []int{200},
 	}, &om)
 	return &om, err
 }
