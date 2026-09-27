@@ -1,5 +1,5 @@
 export type ProwJobType = "presubmit" | "postsubmit" | "batch" | "periodic";
-export type ProwJobState = "triggered" | "pending" | "success" | "failure" | "aborted" | "error" | "unknown" | "";
+export type ProwJobState = "scheduling" | "triggered" | "pending" | "success" | "failure" | "aborted" | "error" | "unknown" | "";
 export type ProwJobAgent = "kubernetes" | "jenkins" | "tekton-pipeline";
 
 // Pull describes a pull request at a particular point in time.
