@@ -40,6 +40,8 @@ files=$(find . -type f -name '*.sh' \
       -path './.git/*' \
       -o -path './node_modules/*' \
       -o -path './_bin/*' \
+      -o -path './site/public/*' \
+      -o -path './site/resources/*' \
     \) -prune \
   \))
 

@@ -1,3 +1,5 @@
+DirectoryPath: public
+
 IgnoreDirs:
 - /_print/
 IgnoreURLs:
@@ -9,12 +11,6 @@ IgnoreURLs:
 - /_print/
 # Ignore other stuff...
 - /index.xml$
-# Ignore paths that refer to the toplevel "/docs/..." and "/community/..."
-# pages. These links are only resolvable at runtime as they refer to folder
-# names that have been normalized (the names are not what they look like in the
-# site/content/en/... path).
-- ^/docs/
-- ^/community/
 # Ignore "Last modified..." links because they break when referring to local
 # commits that have not yet been pushed up to GitHub yet.
 - ^https://github.com/kubernetes-sigs/prow/commit/
@@ -30,9 +26,15 @@ IgnoreURLs:
 - ^https://docs.github.com/.*
 - ^https://help.github.com/.*
 
+# Ignore the Slack links in the site footer. They appear on every page and
+# Slack answers 403 to unauthenticated requests, then 429 when we retry.
+- ^https://kubernetes.slack.com/
+
 # Ignore known-valid paths that fail for reasons unknown.
 - ^https://prow.k8s.io/badge.svg\?jobs=.*
 IgnoreDirectoryMissingTrailingSlash: true
-IgnoreSSLVerify: true
+# Certificate problems are real breakage. Suppress single URLs through
+# IgnoreURLs above if one ever needs an exception.
+IgnoreSSLVerify: false
 IgnoreExternalBrokenLinks: true
 IgnoreAltMissing: true
