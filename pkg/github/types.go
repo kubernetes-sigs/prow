@@ -1239,6 +1239,13 @@ type OrgPlan struct {
 // OrgMembership contains Membership fields for user membership in an org.
 type OrgMembership struct {
 	Membership
+	// DirectMembership is true when the user is a direct member of the org, as opposed to
+	// having membership conferred only indirectly (e.g. via an enterprise team). Returned by
+	// GET /orgs/{org}/memberships/{username}. It is a pointer so a missing field decodes to nil
+	// (unknown) rather than false: callers must not treat "not reported" as "not a direct member".
+	// omitempty keeps it out of the request body of PUT (UpdateOrgMembership), where it is a
+	// read-only field.
+	DirectMembership *bool `json:"direct_membership,omitempty"`
 }
 
 // TeamMembership contains Membership fields for user membership on a team.
