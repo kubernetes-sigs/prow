@@ -415,6 +415,7 @@ func (ca *Agent) Set(c *Config) {
 			select {
 			case sub <- delta:
 			case <-end.C:
+				logrus.Warn("Failed to deliver config delta to subscriber within 1 minute, delta dropped. Subscriber may miss config changes if it does not track its own state.")
 			}
 			if !end.Stop() { // prevent new events
 				<-end.C // drain the pending event
