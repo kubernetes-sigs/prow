@@ -621,7 +621,7 @@ a separate namespace.
 [2]: /docs/jobs/#how-to-configure-new-jobs
 [3]: https://github.com/jetstack/cert-manager
 [4]: https://kubernetes.io/docs/concepts/services-networking/ingress/#tls
-[5]: https://github.com/kubernetes/test-infra/tree/master/gencred/
+[5]: https://github.com/kubernetes/test-infra/tree/12ceffbff2dccc2b9939f91ae4bbbc4ab6e19d2c/gencred/
 [6]: /docs/components/core/tide/
 [7]: /docs/components/core/tide/config/
 [8]: /docs/scaling/#working-around-githubs-limited-acls
