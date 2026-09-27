@@ -18,41 +18,90 @@ set -o nounset
 set -o pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd -P)"
-cd $REPO_ROOT
+TMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/verify-codegen.XXXXXXXX")"
+trap 'rm -rf -- "${TMP_ROOT}"' EXIT
+TMP_ROOT="$(cd "${TMP_ROOT}" && pwd -P)"
+output_paths=(
+  pkg/apis
+  pkg/client
+  pkg/config
+  pkg/gangway
+  pkg/pipeline
+  pkg/plugins
+  config/prow/cluster/prowjob-crd/prowjob_customresourcedefinition.yaml
+)
 
-# place to stick temp binaries
-BINDIR="${REPO_ROOT}/_bin"
-if [[ ! -d "${BINDIR}" ]]; then
-  mkdir "${BINDIR}"
+# The updater resolves its own repository root and writes generated files there.
+# Include untracked files that Git does not ignore so directory comparisons
+# do not report unrelated local files as missing from the temporary copy.
+source_files=()
+while IFS= read -r -d '' source_file; do
+  if [[ -e "${REPO_ROOT}/${source_file}" || -L "${REPO_ROOT}/${source_file}" ]]; then
+    source_files+=("${source_file}")
+  fi
+done < <(git -C "${REPO_ROOT}" ls-files -z --cached --others --exclude-standard)
+printf '%s\0' "${source_files[@]}" \
+  | tar -C "${REPO_ROOT}" --null -T - -cf - \
+  | tar -C "${TMP_ROOT}" -xf -
+# The compared paths must also contain any local ignored files so they do not
+# appear as missing outputs in whole-directory diffs.
+existing_output_paths=()
+for path in "${output_paths[@]}"; do
+  if [[ -e "${REPO_ROOT}/${path}" || -L "${REPO_ROOT}/${path}" ]]; then
+    existing_output_paths+=("${path}")
+  fi
+done
+if [[ ${#existing_output_paths[@]} -gt 0 ]]; then
+  tar -C "${REPO_ROOT}" -cf - "${existing_output_paths[@]}" | tar -C "${TMP_ROOT}" -xf -
 fi
 
-DIFFROOT="${REPO_ROOT}"
-TMP_DIFFROOT="$(TMPDIR="${BINDIR}" mktemp -d "${BINDIR}/verify-codegen.XXXXX")"
+# Reuse downloaded protoc dependencies
+if [[ -d "${REPO_ROOT}/_bin/protoc" ]]; then
+  mkdir -p "${TMP_ROOT}/_bin"
+  cp -aL "${REPO_ROOT}/_bin/protoc" "${TMP_ROOT}/_bin/"
+fi
 
-mkdir -p "${TMP_DIFFROOT}/prow"
-cp -a "${DIFFROOT}"/pkg/{apis,client,config,gangway,plugins,spyglass} "${TMP_DIFFROOT}/prow"
-mkdir -p "${TMP_DIFFROOT}/config/prow/cluster/prowjob-crd"
-cp -a "${DIFFROOT}/config/prow/cluster/prowjob-crd/prowjob_customresourcedefinition.yaml" "${TMP_DIFFROOT}/config/prow/cluster/prowjob-crd/prowjob_customresourcedefinition.yaml"
+if ! "${TMP_ROOT}/hack/make-rules/update/codegen.sh"; then
+  echo "ERROR: codegen generation failed" >&2
+  exit 1
+fi
 
-"${REPO_ROOT}/hack/make-rules/update/codegen.sh"
-
-echo "diffing ${DIFFROOT} against freshly generated codegen"
+echo "diffing ${REPO_ROOT} against freshly generated codegen"
 ret=0
-diff -Naupr "${DIFFROOT}/pkg/apis" "${TMP_DIFFROOT}/prow/apis" || ret=$?
-diff -Naupr "${DIFFROOT}/pkg/client" "${TMP_DIFFROOT}/prow/client" || ret=$?
-diff -Naupr "${DIFFROOT}/pkg/config" "${TMP_DIFFROOT}/prow/config" || ret=$?
-diff -Naupr "${DIFFROOT}/pkg/gangway" "${TMP_DIFFROOT}/prow/gangway" || ret=$?
-diff -Naupr "${DIFFROOT}/pkg/spyglass" "${TMP_DIFFROOT}/prow/spyglass" || ret=$?
-diff -Naupr "${DIFFROOT}/config/prow/cluster/prowjob-crd/prowjob_customresourcedefinition.yaml" "${TMP_DIFFROOT}/config/prow/cluster/prowjob-crd/prowjob_customresourcedefinition.yaml" || ret=$?
-# Restore so that verify codegen doesn't modify workspace
-cp -a "${TMP_DIFFROOT}/prow"/{apis,client,config,spyglass} "${DIFFROOT}"/pkg
-cp -a "${TMP_DIFFROOT}/config/prow/cluster/prowjob-crd/prowjob_customresourcedefinition.yaml" "${DIFFROOT}/config/prow/cluster/prowjob-crd/prowjob_customresourcedefinition.yaml"
+compare_output() {
+  local path="$1"
+  diff -Naupr "${REPO_ROOT}/${path}" "${TMP_ROOT}/${path}" || ret=1
+}
 
-# Clean up
-rm -rf "${TMP_DIFFROOT}"
+# Match all destinations in update/codegen.sh
+for path in "${output_paths[@]}"; do
+  compare_output "${path}"
+done
+
+# gen-all-proto-stubs also handles proto files outside the directories above.
+while IFS= read -r -d '' proto; do
+  relative="${proto#"${TMP_ROOT}/"}"
+  for path in "${output_paths[@]}"; do
+    if [[ "${relative}" == "${path}/"* ]]; then
+      # Leave both loops for the next proto; its directory is compared above.
+      continue 2
+    fi
+  done
+  stem="${relative%.proto}"
+  for path in "${stem}.pb.go" "${stem}_grpc.pb.go"; do
+    if [[ -e "${REPO_ROOT}/${path}" || -e "${TMP_ROOT}/${path}" ]]; then
+      compare_output "${path}"
+    fi
+  done
+done < <(find "${TMP_ROOT}" \
+  -path "${TMP_ROOT}/vendor" -prune -o \
+  -path "${TMP_ROOT}/hack/tools/vendor" -prune -o \
+  -path "${TMP_ROOT}/node_modules" -prune -o \
+  -path "${TMP_ROOT}/_bin" -prune -o \
+  -name '*.proto' -print0)
 
 if [[ ${ret} -eq 0 ]]; then
-  echo "${DIFFROOT} up to date."
+  echo "${REPO_ROOT} up to date."
   exit 0
 fi
 echo "ERROR: out of date codegen files. Fix with make update-codegen" >&2
