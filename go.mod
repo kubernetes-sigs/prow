@@ -15,7 +15,7 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.47.0
 	github.com/aws/aws-sdk-go-v2/config v1.33.5
 	github.com/aws/aws-sdk-go-v2/credentials v1.20.5
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.113.1
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.113.2
 	github.com/bazelbuild/buildtools v0.0.0-20200922170545-10384511ce98
 	github.com/blang/semver/v4 v4.0.0
 	github.com/bombsimon/logrusr/v4 v4.1.0
