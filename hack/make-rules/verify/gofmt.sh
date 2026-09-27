@@ -23,13 +23,12 @@ cd $REPO_ROOT
 echo "Ensuring go version."
 source ./hack/build/setup-go.sh
 
-find . -name '*.go' -type f -print0 | xargs -0 gofmt -s -w
-diff=$(find . -name '*.go' -type f -print0 | xargs -0 gofmt -s -d)
-if [[ -z "$diff" ]]; then
+files=$(find . -name '*.go' -type f -print0 | xargs -0 gofmt -s -l)
+if [[ -z "$files" ]]; then
   exit 0
 fi
 
-echo "$diff"
+echo "$files"
 echo
 echo "ERROR: found unformatted go files, fix with:" >&2
 echo "  make update-gofmt" >&2
