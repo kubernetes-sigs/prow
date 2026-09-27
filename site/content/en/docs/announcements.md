@@ -9,6 +9,10 @@ description: >
 
 New features added to each component:
 
+- *August 20, 2026* The `trigger` plugin supports new `/test-manual-required` command. It starts all
+    required presubmit jobs that can only be triggered manually: jobs with `always_run: false` (or unset)
+    and neither `run_if_changed` nor `skip_if_only_changed` set. It excludes optional, automatically
+    triggered, and file-change-conditional jobs.
 - *August 11, 2026* The `transfer-issue` plugin has been consolidated into the new `issue-management`
     plugin along with `/link-issue`, `/unlink-issue`, `/pin-issue`, and `/unpin-issue` commands.
     Users should replace `transfer-issue` with `issue-management` in their `plugins.yaml`.
