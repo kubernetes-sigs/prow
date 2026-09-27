@@ -1120,6 +1120,136 @@ Approvers can cancel approval by writing ` + "`/approve cancel`" + ` in a commen
 <!-- META={"approvers":[]} -->`,
 		},
 		{
+			name:                "lgtm command does not supersede simultaneous changes requested review when lgtm does not act as approve",
+			hasLabel:            false,
+			files:               []string{"a/a.go"},
+			comments:            []github.IssueComment{},
+			reviews:             []github.Review{newTestReview("Alice", "otherwise lgtm.\n/lgtm\n/ok-to-test\n/triage accepted", github.ReviewStateChangesRequested)},
+			selfApprove:         false,
+			needsIssue:          false,
+			lgtmActsAsApprove:   false,
+			reviewActsAsApprove: true,
+			githubLinkURL:       &url.URL{Scheme: "https", Host: "github.com"},
+
+			expectDelete:  false,
+			expectToggle:  false,
+			expectComment: true,
+			expectedComment: `[APPROVALNOTIFIER] This PR is **NOT APPROVED**
+
+This pull-request has been approved by:
+**Once this PR has been reviewed and has the lgtm label**, please assign [alice](https://github.com/alice) for approval. For more information see [the Code Review Process](https://git.k8s.io/community/contributors/guide/owners.md#the-code-review-process).
+
+The full list of commands accepted by this bot can be found [here](https://go.k8s.io/bot-commands?repo=org%2Frepo).
+
+<details open>
+Needs approval from an approver in each of these files:
+
+- **[a/OWNERS](https://github.com/org/repo/blob/master/a/OWNERS)**
+
+Approvers can indicate their approval by writing ` + "`/approve`" + ` in a comment
+Approvers can cancel approval by writing ` + "`/approve cancel`" + ` in a comment
+</details>
+<!-- META={"approvers":["alice"]} -->`,
+		},
+		{
+			name:                "approved review containing /lgtm is credited as Approved when lgtm does not act as approve",
+			hasLabel:            false,
+			files:               []string{"a/a.go"},
+			comments:            []github.IssueComment{},
+			reviews:             []github.Review{newTestReview("Alice", "/lgtm", github.ReviewStateApproved)},
+			selfApprove:         false,
+			needsIssue:          false,
+			lgtmActsAsApprove:   false,
+			reviewActsAsApprove: true,
+			githubLinkURL:       &url.URL{Scheme: "https", Host: "github.com"},
+
+			expectDelete:  false,
+			expectToggle:  true,
+			expectComment: true,
+			expectedComment: `[APPROVALNOTIFIER] This PR is **APPROVED**
+
+This pull-request has been approved by: *<a href="" title="Approved">Alice</a>*
+
+The full list of commands accepted by this bot can be found [here](https://go.k8s.io/bot-commands?repo=org%2Frepo).
+
+The pull request process is described [here](https://git.k8s.io/community/contributors/guide/owners.md#the-code-review-process)
+
+<details >
+Needs approval from an approver in each of these files:
+
+- ~~[a/OWNERS](https://github.com/org/repo/blob/master/a/OWNERS)~~ [Alice]
+
+Approvers can indicate their approval by writing ` + "`/approve`" + ` in a comment
+Approvers can cancel approval by writing ` + "`/approve cancel`" + ` in a comment
+</details>
+<!-- META={"approvers":[]} -->`,
+		},
+		{
+			name:                "changes requested review supersedes simultaneous lgtm command when lgtm acts as approve",
+			hasLabel:            false,
+			files:               []string{"a/a.go"},
+			comments:            []github.IssueComment{},
+			reviews:             []github.Review{newTestReview("Alice", "/lgtm", github.ReviewStateChangesRequested)},
+			selfApprove:         false,
+			needsIssue:          false,
+			lgtmActsAsApprove:   true,
+			reviewActsAsApprove: true,
+			githubLinkURL:       &url.URL{Scheme: "https", Host: "github.com"},
+
+			expectDelete:  false,
+			expectToggle:  false,
+			expectComment: true,
+			expectedComment: `[APPROVALNOTIFIER] This PR is **NOT APPROVED**
+
+This pull-request has been approved by:
+**Once this PR has been reviewed and has the lgtm label**, please assign [alice](https://github.com/alice) for approval. For more information see [the Code Review Process](https://git.k8s.io/community/contributors/guide/owners.md#the-code-review-process).
+
+The full list of commands accepted by this bot can be found [here](https://go.k8s.io/bot-commands?repo=org%2Frepo).
+
+<details open>
+Needs approval from an approver in each of these files:
+
+- **[a/OWNERS](https://github.com/org/repo/blob/master/a/OWNERS)**
+
+Approvers can indicate their approval by writing ` + "`/approve`" + ` in a comment
+Approvers can cancel approval by writing ` + "`/approve cancel`" + ` in a comment
+</details>
+<!-- META={"approvers":["alice"]} -->`,
+		},
+		{
+			name:                "lgtm command in changes requested review approves when lgtm acts as approve and review state is ignored",
+			hasLabel:            false,
+			files:               []string{"a/a.go"},
+			comments:            []github.IssueComment{},
+			reviews:             []github.Review{newTestReview("Alice", "/lgtm", github.ReviewStateChangesRequested)},
+			selfApprove:         false,
+			needsIssue:          false,
+			lgtmActsAsApprove:   true,
+			reviewActsAsApprove: false,
+			githubLinkURL:       &url.URL{Scheme: "https", Host: "github.com"},
+
+			expectDelete:  false,
+			expectToggle:  true,
+			expectComment: true,
+			expectedComment: `[APPROVALNOTIFIER] This PR is **APPROVED**
+
+This pull-request has been approved by: *<a href="" title="LGTM">Alice</a>*
+
+The full list of commands accepted by this bot can be found [here](https://go.k8s.io/bot-commands?repo=org%2Frepo).
+
+The pull request process is described [here](https://git.k8s.io/community/contributors/guide/owners.md#the-code-review-process)
+
+<details >
+Needs approval from an approver in each of these files:
+
+- ~~[a/OWNERS](https://github.com/org/repo/blob/master/a/OWNERS)~~ [Alice]
+
+Approvers can indicate their approval by writing ` + "`/approve`" + ` in a comment
+Approvers can cancel approval by writing ` + "`/approve cancel`" + ` in a comment
+</details>
+<!-- META={"approvers":[]} -->`,
+		},
+		{
 			name:                "different branch, initial notification (approved)",
 			branch:              "dev",
 			hasLabel:            false,
