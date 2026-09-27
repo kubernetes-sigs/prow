@@ -89,7 +89,7 @@ func (o *options) parseArgs(flags *flag.FlagSet, args []string) error {
 	flags.BoolVar(&o.dumpFull, "dump-full", false, "Output current config of the org as a valid input config file instead of a snippet")
 	flags.BoolVar(&o.ignoreInvitees, "ignore-invitees", false, "Do not compare missing members with active invitations (compatibility for GitHub Enterprise)")
 	flags.BoolVar(&o.ignoreSecretTeams, "ignore-secret-teams", false, "Do not dump or update secret teams if set")
-	flags.BoolVar(&o.ignoreEnterpriseTeams, "ignore-enterprise-teams", false, "Skip enterprise teams: during reconciliation, enterprise-team members are excluded from org-member add/remove; in --dump, members whose org membership is only via an enterprise team (no direct membership) are omitted from members/admins")
+	flags.BoolVar(&o.ignoreEnterpriseTeams, "ignore-enterprise-teams", false, "Skip enterprise teams: they are not dumped or reconciled, and their members are never removed from the org. In --dump, members whose org membership comes only from an enterprise team (no direct membership, not on a regular team) are omitted from members/admins")
 	flags.BoolVar(&o.fixOrg, "fix-org", false, "Change org metadata if set")
 	flags.BoolVar(&o.fixOrgMembers, "fix-org-members", false, "Add/remove org members if set")
 	flags.BoolVar(&o.fixTeams, "fix-teams", false, "Create/delete/update teams if set")
@@ -373,7 +373,7 @@ func dumpOrgConfig(client dumpClient, orgName string, ignoreSecretTeams bool, ig
 		}
 		membership, err := client.GetOrgMembership(orgName, login)
 		if err != nil {
-			return false, fmt.Errorf("failed to get org membership for %s (does the token have org admin/read access to enterprise team membership?): %w", login, err)
+			return false, fmt.Errorf("failed to get org membership for %s: %w", login, err)
 		}
 		// Fail loud rather than guess when direct_membership is not reported (e.g. on some GitHub
 		// Enterprise Server versions): defaulting to false would silently drop a real direct member,
@@ -491,9 +491,10 @@ type enterpriseTeamMemberClient interface {
 // team among the provided teams. Enterprise team membership is managed at the enterprise
 // level, so callers use this set to treat those members specially when
 // --ignore-enterprise-teams is set. The two callers then diverge in what they do with it:
-// configureOrgMembers excludes all of them from org-member reconciliation (it cannot manage
-// enterprise-conferred membership), while dumpOrgConfig omits only the subset that lacks a
-// direct membership (see its call site). Teams whose members cannot be listed are collected
+// configureOrgMembers never removes them during org-member reconciliation (it cannot remove
+// enterprise-conferred membership; adds and role changes for listed members still apply),
+// while dumpOrgConfig omits only those who are on no regular team and also lack a direct
+// membership (see its call site). Teams whose members cannot be listed are collected
 // into the returned aggregated error; the successfully listed members are still returned.
 // Both callers treat that error as fatal, because acting on a partial set is unsafe:
 // dumpOrgConfig would silently emit enterprise-managed members into the dumped config, and
