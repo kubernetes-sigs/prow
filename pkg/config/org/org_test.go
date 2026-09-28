@@ -123,6 +123,16 @@ func TestPruneRepoDefaults(t *testing.T) {
 				Archived:         &yes,
 			},
 		},
+		{
+			description: "fork block survives pruning of default metadata",
+			repo: Repo{
+				Description: &empty, // default -> pruned to nil
+				Fork:        &ForkConfig{From: "octocat/Hello-World", DefaultBranchOnly: true},
+			},
+			expected: Repo{
+				Fork: &ForkConfig{From: "octocat/Hello-World", DefaultBranchOnly: true},
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -181,6 +191,19 @@ func TestRepoUnmarshalJSON(t *testing.T) {
 			name:     "private null with visibility set does not conflict",
 			json:     `{"private": null, "visibility": "internal"}`,
 			expected: Repo{Visibility: new(github.RepoVisibilityInternal)},
+		},
+		{
+			name: "fork block is preserved through the custom unmarshal",
+			json: `{"description": "d", "fork": {"from": "octocat/Hello-World", "default_branch_only": true}}`,
+			expected: Repo{
+				Description: new("d"),
+				Fork:        &ForkConfig{From: "octocat/Hello-World", DefaultBranchOnly: true},
+			},
+		},
+		{
+			name:     "fork with only from defaults default_branch_only to false",
+			json:     `{"fork": {"from": "octocat/Hello-World"}}`,
+			expected: Repo{Fork: &ForkConfig{From: "octocat/Hello-World"}},
 		},
 	}
 

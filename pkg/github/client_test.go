@@ -3670,6 +3670,92 @@ func TestCreateFork(t *testing.T) {
 	}
 }
 
+func TestCreateForkInOrg(t *testing.T) {
+	var receivedBody map[string]interface{}
+	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("Bad method: %s", r.Method)
+		}
+		if r.URL.Path != "/repos/upstream-org/upstream-repo/forks" {
+			t.Errorf("Bad request path: %s", r.URL.Path)
+		}
+		body, _ := io.ReadAll(r.Body)
+		json.Unmarshal(body, &receivedBody)
+		w.WriteHeader(202)
+		w.Write([]byte(`{"name":"my-custom-fork"}`))
+	}))
+	defer ts.Close()
+	c := getClient(ts.URL)
+
+	name, err := c.CreateForkInOrg("upstream-org", "upstream-repo", "target-org", true, "my-custom-fork")
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+	if name != "my-custom-fork" {
+		t.Errorf("Unexpected fork name: %v", name)
+	}
+	if receivedBody["organization"] != "target-org" {
+		t.Errorf("Expected organization 'target-org', got %v", receivedBody["organization"])
+	}
+	if receivedBody["default_branch_only"] != true {
+		t.Errorf("Expected default_branch_only true, got %v", receivedBody["default_branch_only"])
+	}
+	if receivedBody["name"] != "my-custom-fork" {
+		t.Errorf("Expected name 'my-custom-fork', got %v", receivedBody["name"])
+	}
+}
+
+func TestCreateForkInOrgWithoutName(t *testing.T) {
+	var receivedBody map[string]interface{}
+	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		json.Unmarshal(body, &receivedBody)
+		w.WriteHeader(202)
+		w.Write([]byte(`{"name":"upstream-repo"}`))
+	}))
+	defer ts.Close()
+	c := getClient(ts.URL)
+
+	name, err := c.CreateForkInOrg("upstream-org", "upstream-repo", "target-org", false, "")
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+	if name != "upstream-repo" {
+		t.Errorf("Unexpected fork name: %v", name)
+	}
+	// When name is empty, it should not be included in the request body (omitempty)
+	if _, hasName := receivedBody["name"]; hasName {
+		t.Errorf("Expected name field to be omitted when empty, got %v", receivedBody["name"])
+	}
+}
+
+// TestCreateForkInOrgUsesTargetOrgToken ensures the fork request is scoped to the
+// target org (where the fork is created), not the upstream owner. The org drives
+// GitHub App installation-token selection; scoping it to the upstream owner breaks
+// App auth when the app is not installed on the upstream org.
+func TestCreateForkInOrgUsesTargetOrgToken(t *testing.T) {
+	var capturedOrg string
+	capturing := testRoundTripper{func(r *http.Request) (*http.Response, error) {
+		if v := r.Context().Value(githubOrgContextKey); v != nil {
+			capturedOrg = v.(string)
+		}
+		return &http.Response{
+			StatusCode: 202,
+			Body:       io.NopCloser(strings.NewReader(`{"name":"my-fork"}`)),
+			Header:     http.Header{},
+		}, nil
+	}}
+	c := getClient("http://example.com")
+	c.client.(*ghThrottler).http.(*http.Client).Transport = capturing
+
+	if _, err := c.CreateForkInOrg("upstream-org", "upstream-repo", "target-org", true, "my-fork"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if want := "target-org"; capturedOrg != want {
+		t.Errorf("fork request scoped to org %q, want %q (upstream owner would break App auth)", capturedOrg, want)
+	}
+}
+
 func TestToCurl(t *testing.T) {
 	testCases := []struct {
 		name     string
