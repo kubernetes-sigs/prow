@@ -150,7 +150,10 @@ func handleGenericComment(c Client, cp commentPruner, trigger plugins.Trigger, g
 		if err != nil {
 			c.Logger.Warnf("headSHA unavailable, cannot approve pending workflows: %v", err)
 		} else {
-			approveGitHubActionsWorkflowRuns(c, org, repo, pr.Head.Ref, headSHA)
+			// The approvals run in parallel with the ProwJob creation. The
+			// handler waits for them, because hook waits only for the handler
+			// on shutdown.
+			defer approveGitHubActionsWorkflowRuns(c, org, repo, pr.Head.Ref, headSHA).Wait()
 		}
 	}
 
@@ -176,6 +179,8 @@ func handleGenericComment(c Client, cp commentPruner, trigger plugins.Trigger, g
 			if err != nil {
 				c.Logger.Errorf("%v: unable to get failed github action runs for branch %v", err, pr.Head.Ref)
 			} else {
+				var wg sync.WaitGroup
+				defer wg.Wait()
 				for _, run := range failedRuns {
 					log := c.Logger.WithFields(logrus.Fields{
 						"runID":   run.ID,
@@ -184,13 +189,13 @@ func handleGenericComment(c Client, cp commentPruner, trigger plugins.Trigger, g
 						"repo":    repo,
 					})
 					runID := run.ID
-					go func() {
+					wg.Go(func() {
 						if err := c.GitHubClient.TriggerFailedGitHubWorkflow(org, repo, runID); err != nil {
 							log.Errorf("attempt to trigger github run failed: %v", err)
 						} else {
 							log.Infof("successfully triggered action run")
 						}
-					}()
+					})
 				}
 			}
 		}

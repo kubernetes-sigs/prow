@@ -20,8 +20,11 @@ import (
 	"fmt"
 	"log"
 	"reflect"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -1764,6 +1767,83 @@ func produceCodeBlock(text string, withNewLine bool) string {
 	return fmt.Sprintf("```\n%s\n```%s", text, newline)
 }
 
+const (
+	actionsOrg     = "org"
+	actionsRepo    = "repo"
+	actionsBranch  = "pr-branch"
+	actionsHeadSHA = "abc123"
+	actionsRunsKey = actionsOrg + "/" + actionsRepo + "/" + actionsBranch + "/" + actionsHeadSHA
+)
+
+// newActionsFakeClient returns a fake with PR 0 of org/repo. The user
+// "author" opened the PR from the branch pr-branch at the SHA abc123.
+func newActionsFakeClient() *fakegithub.FakeClient {
+	return &fakegithub.FakeClient{
+		IssueComments: map[int][]github.IssueComment{},
+		OrgMembers:    map[string][]string{actionsOrg: {"trusted-member"}},
+		PullRequests: map[int]*github.PullRequest{
+			0: {
+				Base: github.PullRequestBranch{Ref: "master"},
+				Head: github.PullRequestBranch{
+					Ref: actionsBranch,
+					SHA: actionsHeadSHA,
+				},
+				User: github.User{Login: "author"},
+			},
+		},
+		IssueLabelsAdded:     []string{},
+		IssueLabelsRemoved:   []string{},
+		PendingApprovalRuns:  map[string][]github.WorkflowRun{},
+		ApprovedWorkflowRuns: []string{},
+	}
+}
+
+func handleActionsComment(g githubClient, trigger plugins.Trigger, commenter, body string) (*fake.Clientset, error) {
+	fakeConfig := &config.Config{ProwConfig: config.ProwConfig{ProwJobNamespace: "prowjobs"}}
+	presubmits := map[string][]config.Presubmit{
+		actionsOrg + "/" + actionsRepo: {
+			{
+				JobBase: config.JobBase{
+					Name: "test-job",
+				},
+				Brancher:     config.Brancher{Branches: []string{"master"}},
+				Reporter:     config.Reporter{Context: "pull-test-job"},
+				Trigger:      `(?m)^/test (?:.*? )?test-job(?: .*?)?$`,
+				RerunCommand: "/test test-job",
+				AlwaysRun:    true,
+			},
+		},
+	}
+	if err := fakeConfig.SetPresubmits(presubmits); err != nil {
+		return nil, fmt.Errorf("failed to set presubmits: %w", err)
+	}
+
+	fakeProwJobClient := fake.NewSimpleClientset()
+	c := Client{
+		GitHubClient:  g,
+		ProwJobClient: fakeProwJobClient.ProwV1().ProwJobs(fakeConfig.ProwJobNamespace),
+		Config:        fakeConfig,
+		Logger:        logrus.WithField("plugin", PluginName),
+	}
+
+	event := github.GenericCommentEvent{
+		Action: github.GenericCommentActionCreated,
+		Repo: github.Repo{
+			Owner:    github.User{Login: actionsOrg},
+			Name:     actionsRepo,
+			FullName: actionsOrg + "/" + actionsRepo,
+		},
+		Body:        body,
+		User:        github.User{Login: commenter},
+		IssueAuthor: github.User{Login: "author"},
+		IssueState:  "open",
+		IsPR:        true,
+	}
+
+	trigger.SetDefaults()
+	return fakeProwJobClient, handleGenericComment(c, &fakeCommentPruner{}, trigger, event)
+}
+
 func TestApproveGitHubActionsWorkflowRuns(t *testing.T) {
 	testCases := []struct {
 		name                   string
@@ -1771,7 +1851,7 @@ func TestApproveGitHubActionsWorkflowRuns(t *testing.T) {
 		triggerGitHubWorkflows bool
 		ignoreOkToTest         bool
 		pendingRuns            []github.WorkflowRun
-		expectApprovalAttempt  bool
+		expectApproved         []string
 	}{
 		{
 			name:                   "/ok-to-test with TriggerGitHubWorkflows enabled - should approve",
@@ -1779,9 +1859,9 @@ func TestApproveGitHubActionsWorkflowRuns(t *testing.T) {
 			triggerGitHubWorkflows: true,
 			ignoreOkToTest:         false,
 			pendingRuns: []github.WorkflowRun{
-				{ID: 1, Name: "test-workflow", Status: "action_required"},
+				{ID: 1, Name: "test-workflow", Status: "completed", Conclusion: "action_required"},
 			},
-			expectApprovalAttempt: true,
+			expectApproved: []string{"org/repo/1"},
 		},
 		{
 			name:                   "/ok-to-test with TriggerGitHubWorkflows disabled - should not approve",
@@ -1789,9 +1869,8 @@ func TestApproveGitHubActionsWorkflowRuns(t *testing.T) {
 			triggerGitHubWorkflows: false,
 			ignoreOkToTest:         false,
 			pendingRuns: []github.WorkflowRun{
-				{ID: 1, Name: "test-workflow", Status: "action_required"},
+				{ID: 1, Name: "test-workflow", Status: "completed", Conclusion: "action_required"},
 			},
-			expectApprovalAttempt: false,
 		},
 		{
 			name:                   "/test all should not approve workflows",
@@ -1799,9 +1878,8 @@ func TestApproveGitHubActionsWorkflowRuns(t *testing.T) {
 			triggerGitHubWorkflows: true,
 			ignoreOkToTest:         false,
 			pendingRuns: []github.WorkflowRun{
-				{ID: 1, Name: "test-workflow", Status: "action_required"},
+				{ID: 1, Name: "test-workflow", Status: "completed", Conclusion: "action_required"},
 			},
-			expectApprovalAttempt: false,
 		},
 		{
 			name:                   "/retest should not approve workflows",
@@ -1809,9 +1887,8 @@ func TestApproveGitHubActionsWorkflowRuns(t *testing.T) {
 			triggerGitHubWorkflows: true,
 			ignoreOkToTest:         false,
 			pendingRuns: []github.WorkflowRun{
-				{ID: 1, Name: "test-workflow", Status: "action_required"},
+				{ID: 1, Name: "test-workflow", Status: "completed", Conclusion: "action_required"},
 			},
-			expectApprovalAttempt: false,
 		},
 		{
 			name:                   "IgnoreOkToTest=true with TriggerGitHubWorkflows=true - should not approve",
@@ -1819,9 +1896,8 @@ func TestApproveGitHubActionsWorkflowRuns(t *testing.T) {
 			triggerGitHubWorkflows: true,
 			ignoreOkToTest:         true,
 			pendingRuns: []github.WorkflowRun{
-				{ID: 1, Name: "test-workflow", Status: "action_required"},
+				{ID: 1, Name: "test-workflow", Status: "completed", Conclusion: "action_required"},
 			},
-			expectApprovalAttempt: false,
 		},
 		{
 			name:                   "/ok-to-test with multiple pending runs",
@@ -1829,10 +1905,10 @@ func TestApproveGitHubActionsWorkflowRuns(t *testing.T) {
 			triggerGitHubWorkflows: true,
 			ignoreOkToTest:         false,
 			pendingRuns: []github.WorkflowRun{
-				{ID: 1, Name: "test-workflow-1", Status: "action_required"},
-				{ID: 2, Name: "test-workflow-2", Status: "action_required"},
+				{ID: 1, Name: "test-workflow-1", Status: "completed", Conclusion: "action_required"},
+				{ID: 2, Name: "test-workflow-2", Status: "completed", Conclusion: "action_required"},
 			},
-			expectApprovalAttempt: true,
+			expectApproved: []string{"org/repo/1", "org/repo/2"},
 		},
 		{
 			name:                   "/ok-to-test with no pending runs",
@@ -1840,109 +1916,117 @@ func TestApproveGitHubActionsWorkflowRuns(t *testing.T) {
 			triggerGitHubWorkflows: true,
 			ignoreOkToTest:         false,
 			pendingRuns:            []github.WorkflowRun{},
-			expectApprovalAttempt:  false,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			org := "org"
-			repo := "repo"
-			branch := "master"
-			headSHA := "abc123"
-
-			g := &fakegithub.FakeClient{
-				IssueComments: map[int][]github.IssueComment{},
-				OrgMembers:    map[string][]string{"org": {"trusted-member"}},
-				PullRequests: map[int]*github.PullRequest{
-					0: {
-						Base: github.PullRequestBranch{Ref: branch},
-						Head: github.PullRequestBranch{
-							Ref: "pr-branch",
-							SHA: headSHA,
-						},
-						User: github.User{Login: "author"},
-					},
-				},
-				IssueLabelsAdded:     []string{},
-				IssueLabelsRemoved:   []string{},
-				PendingApprovalRuns:  map[string][]github.WorkflowRun{},
-				ApprovedWorkflowRuns: []string{},
-			}
-
-			// Set up pending runs if any
-			if len(tc.pendingRuns) > 0 {
-				key := fmt.Sprintf("%s/%s/pr-branch/%s", org, repo, headSHA)
-				g.PendingApprovalRuns[key] = tc.pendingRuns
-			}
-
-			fakeConfig := &config.Config{ProwConfig: config.ProwConfig{ProwJobNamespace: "prowjobs"}}
-			fakeProwJobClient := fake.NewSimpleClientset()
-
-			presubmits := map[string][]config.Presubmit{
-				"org/repo": {
-					{
-						JobBase: config.JobBase{
-							Name: "test-job",
-						},
-						Brancher:     config.Brancher{Branches: []string{branch}},
-						Reporter:     config.Reporter{Context: "pull-test-job"},
-						Trigger:      `(?m)^/test (?:.*? )?test-job(?: .*?)?$`,
-						RerunCommand: "/test test-job",
-						AlwaysRun:    true,
-					},
-				},
-			}
-			if err := fakeConfig.SetPresubmits(presubmits); err != nil {
-				t.Fatalf("failed to set presubmits: %v", err)
-			}
-
-			c := Client{
-				GitHubClient:  g,
-				ProwJobClient: fakeProwJobClient.ProwV1().ProwJobs(fakeConfig.ProwJobNamespace),
-				Config:        fakeConfig,
-				Logger:        logrus.WithField("plugin", PluginName),
-			}
-
-			event := github.GenericCommentEvent{
-				Action: github.GenericCommentActionCreated,
-				Repo: github.Repo{
-					Owner:    github.User{Login: org},
-					Name:     repo,
-					FullName: "org/repo",
-				},
-				Body:        tc.body,
-				User:        github.User{Login: "trusted-member"},
-				IssueAuthor: github.User{Login: "author"},
-				IssueState:  "open",
-				IsPR:        true,
-			}
+			g := newActionsFakeClient()
+			g.PendingApprovalRuns[actionsRunsKey] = tc.pendingRuns
 
 			trigger := plugins.Trigger{
 				TriggerGitHubWorkflows: tc.triggerGitHubWorkflows,
 				IgnoreOkToTest:         tc.ignoreOkToTest,
 			}
-			trigger.SetDefaults()
-
-			cp := &fakeCommentPruner{}
-
-			err := handleGenericComment(c, cp, trigger, event)
-			if err != nil {
+			if _, err := handleActionsComment(g, trigger, "trusted-member", tc.body); err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 
-			// Verify approval was attempted or not based on expectations.
-			// Negative cases use the fake client which records synchronously in
-			// the goroutine; positive cases only verify no error from the handler.
-			if tc.expectApprovalAttempt {
-				if len(tc.pendingRuns) > 0 {
-					t.Logf("Approval should be attempted for %d pending runs", len(tc.pendingRuns))
+			// The handler waits for the approvals before it returns.
+			if got, want := slices.Sorted(slices.Values(g.ApprovedWorkflowRuns)), tc.expectApproved; !slices.Equal(got, want) {
+				t.Errorf("Expected approved runs %v, got %v", want, got)
+			}
+		})
+	}
+}
+
+// blockingActionsClient blocks the approve call and the re-run call of the
+// failed jobs until the test closes release.
+type blockingActionsClient struct {
+	*fakegithub.FakeClient
+	failedRuns  []github.WorkflowRun
+	enteredOnce sync.Once
+	entered     chan struct{}
+	release     chan struct{}
+}
+
+func (b *blockingActionsClient) block() {
+	b.enteredOnce.Do(func() { close(b.entered) })
+	<-b.release
+}
+
+func (b *blockingActionsClient) ApproveGitHubWorkflowRun(org, repo string, id int) error {
+	b.block()
+	return nil
+}
+
+func (b *blockingActionsClient) GetFailedActionRunsByHeadBranch(org, repo, branchName, headSHA string) ([]github.WorkflowRun, error) {
+	return b.failedRuns, nil
+}
+
+func (b *blockingActionsClient) TriggerFailedGitHubWorkflow(org, repo string, id int) error {
+	b.block()
+	return nil
+}
+
+// Hook waits only for the handler on shutdown. An Actions call that is still
+// in flight when the handler returns can stop in the middle.
+func TestHandleGenericCommentWaitsForActionsCalls(t *testing.T) {
+	testCases := []struct {
+		name        string
+		body        string
+		pendingRuns []github.WorkflowRun
+		failedRuns  []github.WorkflowRun
+	}{
+		{
+			name:        "approval on /ok-to-test",
+			body:        "/ok-to-test",
+			pendingRuns: []github.WorkflowRun{{ID: 1, Status: "completed", Conclusion: "action_required"}},
+		},
+		{
+			name:       "re-run of the failed jobs on /retest",
+			body:       "/retest",
+			failedRuns: []github.WorkflowRun{{ID: 1, Status: "completed", Conclusion: "failure"}},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := &blockingActionsClient{
+				FakeClient: newActionsFakeClient(),
+				failedRuns: tc.failedRuns,
+				entered:    make(chan struct{}),
+				release:    make(chan struct{}),
+			}
+			g.PendingApprovalRuns[actionsRunsKey] = tc.pendingRuns
+			// A t.Fatal before the release must not leave the handler blocked.
+			release := sync.OnceFunc(func() { close(g.release) })
+			t.Cleanup(release)
+
+			done := make(chan error, 1)
+			go func() {
+				_, err := handleActionsComment(g, plugins.Trigger{TriggerGitHubWorkflows: true}, "trusted-member", tc.body)
+				done <- err
+			}()
+
+			select {
+			case <-g.entered:
+			case <-time.After(5 * time.Second):
+				t.Fatal("the handler did not start the Actions call")
+			}
+			select {
+			case <-done:
+				t.Fatal("the handler returned while an Actions call was in flight")
+			case <-time.After(100 * time.Millisecond):
+			}
+			release()
+			select {
+			case err := <-done:
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
 				}
-			} else {
-				// This only works because the fake client records approvals synchronously
-				if len(g.ApprovedWorkflowRuns) > 0 {
-					t.Errorf("Expected no approval attempts, but found %d approvals: %v", len(g.ApprovedWorkflowRuns), g.ApprovedWorkflowRuns)
-				}
+			case <-time.After(5 * time.Second):
+				t.Fatal("the handler did not return after the Actions call ended")
 			}
 		})
 	}
@@ -1962,7 +2046,7 @@ func TestApproveWorkflowRunsFallback(t *testing.T) {
 		{
 			name: "successful approval - no rerun needed",
 			pendingRuns: []github.WorkflowRun{
-				{ID: 1, Name: "test-workflow", Status: "action_required"},
+				{ID: 1, Name: "test-workflow", Status: "completed", Conclusion: "action_required"},
 			},
 			expectApproved: []string{"org/repo/1"},
 			expectNoReran:  true,
@@ -1970,7 +2054,7 @@ func TestApproveWorkflowRunsFallback(t *testing.T) {
 		{
 			name: "404 from approve - already approved, no rerun",
 			pendingRuns: []github.WorkflowRun{
-				{ID: 1, Name: "test-workflow", Status: "action_required"},
+				{ID: 1, Name: "test-workflow", Status: "completed", Conclusion: "action_required"},
 			},
 			approveErrors: map[string]error{
 				"org/repo/1": github.NewNotFound(),
@@ -1981,7 +2065,7 @@ func TestApproveWorkflowRunsFallback(t *testing.T) {
 		{
 			name: "403 from approve - falls back to rerun",
 			pendingRuns: []github.WorkflowRun{
-				{ID: 1, Name: "test-workflow", Status: "action_required"},
+				{ID: 1, Name: "test-workflow", Status: "completed", Conclusion: "action_required"},
 			},
 			approveErrors: map[string]error{
 				"org/repo/1": github.NewForbidden(),
@@ -1992,7 +2076,7 @@ func TestApproveWorkflowRunsFallback(t *testing.T) {
 		{
 			name: "403 from approve and rerun also fails - logs error",
 			pendingRuns: []github.WorkflowRun{
-				{ID: 1, Name: "test-workflow", Status: "action_required"},
+				{ID: 1, Name: "test-workflow", Status: "completed", Conclusion: "action_required"},
 			},
 			approveErrors: map[string]error{
 				"org/repo/1": github.NewForbidden(),
@@ -2006,7 +2090,7 @@ func TestApproveWorkflowRunsFallback(t *testing.T) {
 		{
 			name: "generic error from approve - no rerun attempted",
 			pendingRuns: []github.WorkflowRun{
-				{ID: 1, Name: "test-workflow", Status: "action_required"},
+				{ID: 1, Name: "test-workflow", Status: "completed", Conclusion: "action_required"},
 			},
 			approveErrors: map[string]error{
 				"org/repo/1": fmt.Errorf("server error"),
@@ -2017,8 +2101,8 @@ func TestApproveWorkflowRunsFallback(t *testing.T) {
 		{
 			name: "multiple runs with 403 - all fall back to rerun",
 			pendingRuns: []github.WorkflowRun{
-				{ID: 1, Name: "workflow-1", Status: "action_required"},
-				{ID: 2, Name: "workflow-2", Status: "action_required"},
+				{ID: 1, Name: "workflow-1", Status: "completed", Conclusion: "action_required"},
+				{ID: 2, Name: "workflow-2", Status: "completed", Conclusion: "action_required"},
 			},
 			approveErrors: map[string]error{
 				"org/repo/1": github.NewForbidden(),
@@ -2030,8 +2114,8 @@ func TestApproveWorkflowRunsFallback(t *testing.T) {
 		{
 			name: "mixed: one approve succeeds, one gets 403 and reruns",
 			pendingRuns: []github.WorkflowRun{
-				{ID: 1, Name: "workflow-1", Status: "action_required"},
-				{ID: 2, Name: "workflow-2", Status: "action_required"},
+				{ID: 1, Name: "workflow-1", Status: "completed", Conclusion: "action_required"},
+				{ID: 2, Name: "workflow-2", Status: "completed", Conclusion: "action_required"},
 			},
 			approveErrors: map[string]error{
 				"org/repo/2": github.NewForbidden(),
