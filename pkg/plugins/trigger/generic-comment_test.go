@@ -1805,7 +1805,7 @@ func newActionsFakeClient() *fakegithub.FakeClient {
 	}
 }
 
-func handleActionsComment(g githubClient, trigger plugins.Trigger, commenter, body string) (*fake.Clientset, error) {
+func handleActionsComment(g githubClient, logger *logrus.Entry, trigger plugins.Trigger, commenter, body string) (*fake.Clientset, error) {
 	fakeConfig := &config.Config{ProwConfig: config.ProwConfig{ProwJobNamespace: "prowjobs"}}
 	presubmits := map[string][]config.Presubmit{
 		actionsOrg + "/" + actionsRepo: {
@@ -1830,7 +1830,7 @@ func handleActionsComment(g githubClient, trigger plugins.Trigger, commenter, bo
 		GitHubClient:  g,
 		ProwJobClient: fakeProwJobClient.ProwV1().ProwJobs(fakeConfig.ProwJobNamespace),
 		Config:        fakeConfig,
-		Logger:        logrus.WithField("plugin", PluginName),
+		Logger:        logger,
 	}
 
 	event := github.GenericCommentEvent{
@@ -1849,6 +1849,16 @@ func handleActionsComment(g githubClient, trigger plugins.Trigger, commenter, bo
 
 	trigger.SetDefaults()
 	return fakeProwJobClient, handleGenericComment(c, &fakeCommentPruner{}, trigger, event)
+}
+
+func countErrorEntries(hook *logrustest.Hook) int {
+	var count int
+	for _, entry := range hook.AllEntries() {
+		if entry.Level == logrus.ErrorLevel {
+			count++
+		}
+	}
+	return count
 }
 
 func TestApproveGitHubActionsWorkflowRuns(t *testing.T) {
@@ -1956,7 +1966,7 @@ func TestApproveGitHubActionsWorkflowRuns(t *testing.T) {
 				TriggerGitHubWorkflows: tc.triggerGitHubWorkflows,
 				IgnoreOkToTest:         tc.ignoreOkToTest,
 			}
-			prowJobClient, err := handleActionsComment(g, trigger, commenter, tc.body)
+			prowJobClient, err := handleActionsComment(g, logrus.WithField("plugin", PluginName), trigger, commenter, tc.body)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -1985,7 +1995,6 @@ func TestApproveGitHubActionsWorkflowRuns(t *testing.T) {
 // failed jobs until the test closes release.
 type blockingActionsClient struct {
 	*fakegithub.FakeClient
-	failedRuns  []github.WorkflowRun
 	enteredOnce sync.Once
 	entered     chan struct{}
 	release     chan struct{}
@@ -1999,10 +2008,6 @@ func (b *blockingActionsClient) block() {
 func (b *blockingActionsClient) ApproveGitHubWorkflowRun(org, repo string, id int) error {
 	b.block()
 	return nil
-}
-
-func (b *blockingActionsClient) GetFailedActionRunsByHeadBranch(org, repo, branchName, headSHA string) ([]github.WorkflowRun, error) {
-	return b.failedRuns, nil
 }
 
 func (b *blockingActionsClient) TriggerFailedGitHubWorkflow(org, repo string, id int) error {
@@ -2035,18 +2040,18 @@ func TestHandleGenericCommentWaitsForActionsCalls(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			g := &blockingActionsClient{
 				FakeClient: newActionsFakeClient(),
-				failedRuns: tc.failedRuns,
 				entered:    make(chan struct{}),
 				release:    make(chan struct{}),
 			}
 			g.PendingApprovalRuns[actionsRunsKey] = tc.pendingRuns
+			g.FailedActionRuns = map[string][]github.WorkflowRun{actionsRunsKey: tc.failedRuns}
 			// A t.Fatal before the release must not leave the handler blocked.
 			release := sync.OnceFunc(func() { close(g.release) })
 			t.Cleanup(release)
 
 			done := make(chan error, 1)
 			go func() {
-				_, err := handleActionsComment(g, plugins.Trigger{TriggerGitHubWorkflows: true}, "trusted-member", tc.body)
+				_, err := handleActionsComment(g, logrus.WithField("plugin", PluginName), plugins.Trigger{TriggerGitHubWorkflows: true}, "trusted-member", tc.body)
 				done <- err
 			}()
 
@@ -2239,13 +2244,100 @@ func TestApproveWorkflowRunsByRepository(t *testing.T) {
 			if got, want := slices.Sorted(slices.Values(g.ReranWorkflowRuns)), tc.expectReran; !slices.Equal(got, want) {
 				t.Errorf("Expected re-run runs %v, got %v", want, got)
 			}
-			var errorEntries int
-			for _, entry := range hook.AllEntries() {
-				if entry.Level == logrus.ErrorLevel {
-					errorEntries++
-				}
+			if errorEntries := countErrorEntries(hook); errorEntries != tc.expectErrors {
+				t.Errorf("Expected %d error log entries, got %d", tc.expectErrors, errorEntries)
 			}
-			if errorEntries != tc.expectErrors {
+		})
+	}
+}
+
+func TestTriggerFailedGitHubWorkflows(t *testing.T) {
+	failedRuns := []github.WorkflowRun{
+		{ID: 1, Name: "workflow-1", Status: "completed", Conclusion: "failure"},
+		{ID: 2, Name: "workflow-2", Status: "completed", Conclusion: "cancelled"},
+	}
+	testCases := []struct {
+		name                   string
+		body                   string
+		triggerGitHubWorkflows bool
+		lookupError            error
+		rerunErrors            map[string]error
+		commenter              string
+		existingLabels         []string
+		expectTriggered        []string
+		expectErrors           int
+	}{
+		{
+			name:                   "/retest re-runs the failed runs",
+			body:                   "/retest",
+			triggerGitHubWorkflows: true,
+			expectTriggered:        []string{"org/repo/1", "org/repo/2"},
+		},
+		{
+			name:                   "/test all re-runs the failed runs",
+			body:                   "/test all",
+			triggerGitHubWorkflows: true,
+			expectTriggered:        []string{"org/repo/1", "org/repo/2"},
+		},
+		{
+			name:                   "TriggerGitHubWorkflows disabled re-runs nothing",
+			body:                   "/retest",
+			triggerGitHubWorkflows: false,
+		},
+		{
+			name:                   "/test of one job re-runs nothing",
+			body:                   "/test test-job",
+			triggerGitHubWorkflows: true,
+		},
+		{
+			name:                   "lookup error re-runs nothing",
+			body:                   "/retest",
+			triggerGitHubWorkflows: true,
+			lookupError:            fmt.Errorf("server error"),
+			expectErrors:           1,
+		},
+		{
+			name:                   "re-run error does not stop the other re-runs",
+			body:                   "/retest",
+			triggerGitHubWorkflows: true,
+			rerunErrors: map[string]error{
+				"org/repo/1": fmt.Errorf("rerun failed"),
+			},
+			expectTriggered: []string{"org/repo/2"},
+			expectErrors:    1,
+		},
+		{
+			// The ok-to-test label makes the PR trusted, but not the commenter.
+			name:                   "/retest from an untrusted PR author on a PR with ok-to-test re-runs nothing",
+			body:                   "/retest",
+			triggerGitHubWorkflows: true,
+			commenter:              "author",
+			existingLabels:         []string{"org/repo#0:" + labels.OkToTest},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := newActionsFakeClient()
+			g.FailedActionRuns = map[string][]github.WorkflowRun{actionsRunsKey: failedRuns}
+			g.FailedActionRunsError = tc.lookupError
+			g.TriggerFailedWorkflowRunErrors = tc.rerunErrors
+			g.IssueLabelsExisting = tc.existingLabels
+			commenter := tc.commenter
+			if commenter == "" {
+				commenter = "trusted-member"
+			}
+			logger, hook := logrustest.NewNullLogger()
+
+			trigger := plugins.Trigger{TriggerGitHubWorkflows: tc.triggerGitHubWorkflows}
+			if _, err := handleActionsComment(g, logrus.NewEntry(logger), trigger, commenter, tc.body); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if got, want := slices.Sorted(slices.Values(g.TriggeredFailedWorkflowRuns)), tc.expectTriggered; !slices.Equal(got, want) {
+				t.Errorf("Expected re-run runs %v, got %v", want, got)
+			}
+			if errorEntries := countErrorEntries(hook); errorEntries != tc.expectErrors {
 				t.Errorf("Expected %d error log entries, got %d", tc.expectErrors, errorEntries)
 			}
 		})
