@@ -712,6 +712,60 @@ func TestGetPendingApprovalActionRunsPagination(t *testing.T) {
 	}
 }
 
+func TestListWorkflowRunsByHeadBranch(t *testing.T) {
+	const (
+		org     = "k8s"
+		repo    = "kuber"
+		branch  = "pr-branch"
+		headSHA = "abc123"
+	)
+	pages := map[string]WorkflowRuns{
+		"": {WorkflowRuns: []WorkflowRun{
+			{ID: 1, HeadSha: headSHA, Event: "pull_request", Status: "in_progress"},
+			{ID: 2, HeadSha: headSHA, Event: "schedule", Status: "completed", Conclusion: "action_required"},
+		}},
+		"2": {WorkflowRuns: []WorkflowRun{
+			{ID: 3, HeadSha: headSHA, Event: "pull_request_target", Status: "completed", Conclusion: "action_required"},
+		}},
+	}
+	ts := httptest.NewTLSServer(workflowRunPages(t, pages, headSHA, branch))
+	defer ts.Close()
+
+	runs, err := getClient(ts.URL).ListWorkflowRunsByHeadBranch(org, repo, branch, headSHA)
+	if err != nil {
+		t.Fatalf("Did not expect error, got %v", err)
+	}
+	expectedIDs := []int{1, 3}
+	var ids []int
+	for _, run := range runs {
+		ids = append(ids, run.ID)
+	}
+	if !reflect.DeepEqual(ids, expectedIDs) {
+		t.Errorf("Expected runs %v, got %v", expectedIDs, ids)
+	}
+}
+
+func TestIsPendingApprovalRun(t *testing.T) {
+	testCases := []struct {
+		name     string
+		run      WorkflowRun
+		expected bool
+	}{
+		{name: "pull request run at the gate", run: WorkflowRun{Event: "pull_request", Status: "completed", Conclusion: "action_required"}, expected: true},
+		{name: "pull request target run at the gate", run: WorkflowRun{Event: "pull_request_target", Status: "completed", Conclusion: "action_required"}, expected: true},
+		{name: "run of another event", run: WorkflowRun{Event: "schedule", Status: "completed", Conclusion: "action_required"}},
+		{name: "failed run", run: WorkflowRun{Event: "pull_request", Status: "completed", Conclusion: "failure"}},
+		{name: "run in progress", run: WorkflowRun{Event: "pull_request", Status: "in_progress"}},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := IsPendingApprovalRun(tc.run); got != tc.expected {
+				t.Errorf("Expected %t, got %t", tc.expected, got)
+			}
+		})
+	}
+}
+
 func TestGetPullRequestChanges(t *testing.T) {
 	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
