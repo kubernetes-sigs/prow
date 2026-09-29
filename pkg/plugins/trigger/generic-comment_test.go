@@ -17,6 +17,7 @@ limitations under the License.
 package trigger
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"reflect"
@@ -28,6 +29,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	logrustest "github.com/sirupsen/logrus/hooks/test"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	clienttesting "k8s.io/client-go/testing"
 
@@ -1856,7 +1858,10 @@ func TestApproveGitHubActionsWorkflowRuns(t *testing.T) {
 		triggerGitHubWorkflows bool
 		ignoreOkToTest         bool
 		pendingRuns            []github.WorkflowRun
+		commenter              string
+		existingLabels         []string
 		expectApproved         []string
+		expectProwJob          bool
 	}{
 		{
 			name:                   "/ok-to-test with TriggerGitHubWorkflows enabled - should approve",
@@ -1922,24 +1927,55 @@ func TestApproveGitHubActionsWorkflowRuns(t *testing.T) {
 			ignoreOkToTest:         false,
 			pendingRuns:            []github.WorkflowRun{},
 		},
+		{
+			// The ok-to-test label makes the PR trusted, so the ProwJobs
+			// start. The label does not make the commenter trusted.
+			name:                   "/ok-to-test from an untrusted PR author on a PR with ok-to-test - should not approve",
+			body:                   "/ok-to-test",
+			triggerGitHubWorkflows: true,
+			pendingRuns: []github.WorkflowRun{
+				{ID: 1, Name: "test-workflow", Status: "completed", Conclusion: "action_required"},
+			},
+			commenter:      "author",
+			existingLabels: []string{"org/repo#0:" + labels.OkToTest},
+			expectProwJob:  true,
+		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			g := newActionsFakeClient()
 			g.PendingApprovalRuns[actionsRunsKey] = tc.pendingRuns
+			g.IssueLabelsExisting = tc.existingLabels
+			commenter := tc.commenter
+			if commenter == "" {
+				commenter = "trusted-member"
+			}
 
 			trigger := plugins.Trigger{
 				TriggerGitHubWorkflows: tc.triggerGitHubWorkflows,
 				IgnoreOkToTest:         tc.ignoreOkToTest,
 			}
-			if _, err := handleActionsComment(g, trigger, "trusted-member", tc.body); err != nil {
+			prowJobClient, err := handleActionsComment(g, trigger, commenter, tc.body)
+			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 
 			// The handler waits for the approvals before it returns.
 			if got, want := slices.Sorted(slices.Values(g.ApprovedWorkflowRuns)), tc.expectApproved; !slices.Equal(got, want) {
 				t.Errorf("Expected approved runs %v, got %v", want, got)
+			}
+			if len(g.ReranWorkflowRuns) > 0 {
+				t.Errorf("Expected no re-run runs, got %v", g.ReranWorkflowRuns)
+			}
+			if tc.expectProwJob {
+				prowJobs, err := prowJobClient.ProwV1().ProwJobs("prowjobs").List(context.Background(), metav1.ListOptions{})
+				if err != nil {
+					t.Fatalf("failed to list ProwJobs: %v", err)
+				}
+				if len(prowJobs.Items) == 0 {
+					t.Error("Expected a ProwJob, got none")
+				}
 			}
 		})
 	}

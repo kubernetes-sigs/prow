@@ -145,12 +145,17 @@ func handleGenericComment(c Client, cp commentPruner, trigger plugins.Trigger, g
 		return err
 	}
 
-	// Approve pending GitHub Actions workflow runs on /ok-to-test
+	// The ok-to-test label stays on the PR after a new push, so only a trusted
+	// commenter can approve or re-run GitHub Actions workflow runs.
 	if isOkToTest && trigger.TriggerGitHubWorkflows {
-		// The approvals run in parallel with the ProwJob creation. The
-		// handler waits for them, because hook waits only for the handler
-		// on shutdown.
-		defer approveGitHubActionsWorkflowRuns(c, org, repo, pr).Wait()
+		if trustedResponse.IsTrusted {
+			// The approvals run in parallel with the ProwJob creation. The
+			// handler waits for them, because hook waits only for the
+			// handler on shutdown.
+			defer approveGitHubActionsWorkflowRuns(c, org, repo, pr).Wait()
+		} else {
+			c.Logger.Infof("Commenter %s is not trusted, skipping the approval of the pending workflow runs.", commentAuthor)
+		}
 	}
 
 	toTest, err := FilterPresubmits(HonorOkToTest(trigger), c.GitHubClient, gc.Body, pr, presubmits, c.Logger)
@@ -166,7 +171,7 @@ func handleGenericComment(c Client, cp commentPruner, trigger plugins.Trigger, g
 		additionalLabels[kube.RetestLabel] = "true"
 	}
 	// run failed github actions
-	if trigger.TriggerGitHubWorkflows && (pjutil.RetestRe.MatchString(textToCheck) || pjutil.TestAllRe.MatchString(textToCheck)) {
+	if trigger.TriggerGitHubWorkflows && trustedResponse.IsTrusted && (pjutil.RetestRe.MatchString(textToCheck) || pjutil.TestAllRe.MatchString(textToCheck)) {
 		headSHA, err := refGetter.HeadSHA()
 		if err != nil {
 			c.Logger.Warnf("headSHA unavailable, failed github actions for pr will not be triggered: %v", pr)
