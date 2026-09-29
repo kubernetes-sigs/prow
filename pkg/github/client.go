@@ -305,7 +305,6 @@ type Client interface {
 	Used() bool
 	TriggerGitHubWorkflow(org, repo string, id int) error
 	TriggerFailedGitHubWorkflow(org, repo string, id int) error
-	GetPendingApprovalActionRuns(org, repo, branchName, headSHA string) ([]WorkflowRun, error)
 	ListWorkflowRunsByHeadBranch(org, repo, branchName, headSHA string) ([]WorkflowRun, error)
 	ApproveGitHubWorkflowRun(org, repo string, id int) error
 }
@@ -2423,32 +2422,6 @@ func (c *client) TriggerFailedGitHubWorkflow(org, repo string, id int) error {
 		exitCodes: []int{201},
 	}, nil)
 	return err
-}
-
-// GetPendingApprovalActionRuns retrieves workflow runs that are pending approval for a given PR head SHA
-//
-// See https://docs.github.com/en/rest/actions/workflow-runs#list-workflow-runs-for-a-repository
-func (c *client) GetPendingApprovalActionRuns(org, repo, branchName, headSHA string) ([]WorkflowRun, error) {
-	durationLogger := c.log("GetPendingApprovalActionRuns", org, repo)
-	defer durationLogger()
-
-	// The "status" parameter is overloaded: the value "action_required" matches
-	// the conclusion of the run, not its status.
-	runs, err := c.listWorkflowRuns(org, repo, url.Values{
-		"per_page": []string{"100"},
-		"head_sha": []string{headSHA},
-		"branch":   []string{branchName},
-		"status":   []string{"action_required"},
-	})
-
-	prRuns := []WorkflowRun{}
-	for _, run := range runs {
-		if slices.Contains(pullRequestWorkflowRunEvents, run.Event) {
-			prRuns = append(prRuns, run)
-		}
-	}
-
-	return prRuns, err
 }
 
 // ListWorkflowRunsByHeadBranch retrieves the workflow runs of a pull request

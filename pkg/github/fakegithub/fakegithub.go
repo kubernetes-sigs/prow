@@ -153,8 +153,6 @@ type FakeClient struct {
 	// WasLabelAddedByHumanVal determines the return of the method with the same name
 	WasLabelAddedByHumanVal bool
 
-	// PendingApprovalRuns maps "org/repo/branch/sha" to workflow runs pending approval
-	PendingApprovalRuns map[string][]github.WorkflowRun
 	// WorkflowRuns maps "org/repo/branch/sha" to all the workflow runs of a pull request
 	WorkflowRuns map[string][]github.WorkflowRun
 	// ApprovedWorkflowRuns tracks approvals as "org/repo/runID"
@@ -1426,17 +1424,6 @@ func (f *FakeClient) TriggerFailedGitHubWorkflow(org, repo string, id int) error
 	}
 	f.TriggeredFailedWorkflowRuns = append(f.TriggeredFailedWorkflowRuns, key)
 	return nil
-}
-
-func (f *FakeClient) GetPendingApprovalActionRuns(org, repo, branchName, headSHA string) ([]github.WorkflowRun, error) {
-	f.lock.RLock()
-	defer f.lock.RUnlock()
-
-	key := fmt.Sprintf("%s/%s/%s/%s", org, repo, branchName, headSHA)
-	if runs, ok := f.PendingApprovalRuns[key]; ok {
-		return runs, nil
-	}
-	return []github.WorkflowRun{}, nil
 }
 
 func (f *FakeClient) ListWorkflowRunsByHeadBranch(org, repo, branchName, headSHA string) ([]github.WorkflowRun, error) {
