@@ -439,11 +439,13 @@ func TestGetFailedActionRunsByHeadBranch(t *testing.T) {
 			expectedRuns: []WorkflowRun{cancelledRun},
 		},
 		{
-			name: "run of a called workflow",
+			// A called reusable workflow runs as jobs inside the caller run,
+			// and those jobs report the event of the caller.
+			name: "run with the event workflow_call is dropped",
 			queryResponse: WorkflowRuns{
-				WorkflowRuns: []WorkflowRun{calledRun},
+				WorkflowRuns: []WorkflowRun{failedRun, calledRun},
 			},
-			expectedRuns: []WorkflowRun{calledRun},
+			expectedRuns: []WorkflowRun{failedRun},
 		},
 		{
 			name: "run of another event is dropped",
@@ -604,7 +606,7 @@ func TestGetFailedActionRunsByHeadBranchPagination(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Did not expect error, got %v", err)
 	}
-	expectedIDs := []int{1, 4}
+	expectedIDs := []int{1}
 	var ids []int
 	for _, run := range runs {
 		ids = append(ids, run.ID)

@@ -401,10 +401,6 @@ var (
 	retestableWorkflowRunConclusions = []string{"failure", "cancelled", "timed_out", "startup_failure"}
 
 	pullRequestWorkflowRunEvents = []string{"pull_request", "pull_request_target"}
-
-	// retestableWorkflowRunEvents adds workflow_call, because a matrix workflow
-	// starts other workflows.
-	retestableWorkflowRunEvents = []string{"pull_request", "pull_request_target", "workflow_call"}
 )
 
 const (
@@ -2213,7 +2209,7 @@ func (c *client) GetFailedActionRunsByHeadBranch(org, repo, branchName, headSHA 
 	// run, and it takes only one value, so the client filters the runs.
 	// See https://docs.github.com/en/rest/actions/workflow-runs#list-workflow-runs-for-a-repository
 	for _, run := range runs {
-		if !slices.Contains(retestableWorkflowRunEvents, run.Event) {
+		if !slices.Contains(pullRequestWorkflowRunEvents, run.Event) {
 			continue
 		}
 		if run.Status == "completed" && slices.Contains(retestableWorkflowRunConclusions, run.Conclusion) {
