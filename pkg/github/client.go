@@ -398,10 +398,7 @@ func (c *client) WithFields(fields logrus.Fields) Client {
 var (
 	teamRe = regexp.MustCompile(`^(.*)/(.*)$`)
 
-	// nonRetestableWorkflowRunConclusions lists the conclusions that /retest
-	// must not re-run: the run passed, the run was skipped, or the run waits
-	// for approval and did not start.
-	nonRetestableWorkflowRunConclusions = []string{"success", "skipped", "action_required"}
+	retestableWorkflowRunConclusions = []string{"failure", "cancelled", "timed_out", "startup_failure"}
 
 	pullRequestWorkflowRunEvents = []string{"pull_request", "pull_request_target"}
 
@@ -2212,20 +2209,14 @@ func (c *client) GetFailedActionRunsByHeadBranch(org, repo, branchName, headSHA 
 
 	prRuns := []WorkflowRun{}
 
-	// We only want to get failed workflows.
-	// Note: The query parameter "status" is overloaded and used for both status and conclusion.
-	// See https://docs.github.com/en/rest/actions/workflow-runs?apiVersion=2022-11-28#list-workflow-runs-for-a-workflow
-	// This makes it hard to use directly. Instead, we loop through the runs and check them individually.
-	// A successful workflow will have status "completed" and conclusion "success".
-	// A skipped workflow will have status "completed" and conclusion "skipped".
-	// A workflow that waits for approval also has status "completed", with conclusion "action_required".
-	// A failed workflow also have status "completed", but the conclusion can be either "failure" or "cancelled".
-	// We only want completed jobs that are not skipped, not successful and not pending approval.
+	// The query parameter "status" matches the status and the conclusion of a
+	// run, and it takes only one value, so the client filters the runs.
+	// See https://docs.github.com/en/rest/actions/workflow-runs#list-workflow-runs-for-a-repository
 	for _, run := range runs {
 		if !slices.Contains(retestableWorkflowRunEvents, run.Event) {
 			continue
 		}
-		if run.Status == "completed" && !slices.Contains(nonRetestableWorkflowRunConclusions, run.Conclusion) {
+		if run.Status == "completed" && slices.Contains(retestableWorkflowRunConclusions, run.Conclusion) {
 			prRuns = append(prRuns, run)
 		}
 	}

@@ -397,6 +397,11 @@ func TestGetFailedActionRunsByHeadBranch(t *testing.T) {
 		calledRun          = WorkflowRun{ID: 6, HeadSha: headSHA, Event: "workflow_call", Status: "completed", Conclusion: "failure"}
 		otherEventRun      = WorkflowRun{ID: 7, HeadSha: headSHA, Event: "schedule", Status: "completed", Conclusion: "failure"}
 		pendingApprovalRun = WorkflowRun{ID: 8, HeadSha: headSHA, Event: "pull_request", Status: "completed", Conclusion: "action_required"}
+		timedOutRun        = WorkflowRun{ID: 9, HeadSha: headSHA, Event: "pull_request", Status: "completed", Conclusion: "timed_out"}
+		neutralRun         = WorkflowRun{ID: 10, HeadSha: headSHA, Event: "pull_request", Status: "completed", Conclusion: "neutral"}
+		staleRun           = WorkflowRun{ID: 11, HeadSha: headSHA, Event: "pull_request", Status: "completed", Conclusion: "stale"}
+		startupFailureRun  = WorkflowRun{ID: 12, HeadSha: headSHA, Event: "pull_request", Status: "completed", Conclusion: "startup_failure"}
+		inProgressRun      = WorkflowRun{ID: 13, HeadSha: headSHA, Event: "pull_request", Status: "in_progress"}
 	)
 	testCases := []struct {
 		name string
@@ -453,6 +458,34 @@ func TestGetFailedActionRunsByHeadBranch(t *testing.T) {
 			name: "run that waits for approval is not a failed run",
 			queryResponse: WorkflowRuns{
 				WorkflowRuns: []WorkflowRun{failedRun, pendingApprovalRun},
+			},
+			expectedRuns: []WorkflowRun{failedRun},
+		},
+		{
+			name: "timed out run",
+			queryResponse: WorkflowRuns{
+				WorkflowRuns: []WorkflowRun{timedOutRun},
+			},
+			expectedRuns: []WorkflowRun{timedOutRun},
+		},
+		{
+			name: "run with a startup failure",
+			queryResponse: WorkflowRuns{
+				WorkflowRuns: []WorkflowRun{startupFailureRun},
+			},
+			expectedRuns: []WorkflowRun{startupFailureRun},
+		},
+		{
+			name: "run with a conclusion that is not a failure is dropped",
+			queryResponse: WorkflowRuns{
+				WorkflowRuns: []WorkflowRun{failedRun, neutralRun, staleRun},
+			},
+			expectedRuns: []WorkflowRun{failedRun},
+		},
+		{
+			name: "run that is not completed is dropped",
+			queryResponse: WorkflowRuns{
+				WorkflowRuns: []WorkflowRun{failedRun, inProgressRun},
 			},
 			expectedRuns: []WorkflowRun{failedRun},
 		},
