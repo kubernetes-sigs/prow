@@ -654,7 +654,7 @@ func (s *Server) handle(logger logrus.FieldLogger, requester string, comment *gi
 		}
 
 		// Append cherry-pick messages to all commits created by git am.
-		if err := appendCherryPickMessages(r, originalSHAs); err != nil {
+		if err := appendCherryPickMessages(r, originalSHAs, s.botUser.Login, email); err != nil {
 			logger.WithError(err).Error("Failed to append cherry-pick messages")
 			errs := []error{fmt.Errorf("failed to append cherry-pick messages: %w", err)}
 			resp := "Failed to add original commit IDs to the cherry-picked commits. No cherry-pick branch was pushed."
@@ -869,7 +869,7 @@ func extractOriginalSHAs(patchPath string) ([]string, error) {
 
 // appendCherryPickMessages appends "(cherry picked from commit <sha>)"
 // to all commits created by git am (supports single and multi-commit PRs).
-func appendCherryPickMessages(repo git.RepoClient, originalSHAs []string) error {
+func appendCherryPickMessages(repo git.RepoClient, originalSHAs []string, gitName, gitEmail string) error {
 	numCommits := len(originalSHAs)
 	if numCommits == 0 {
 		return nil
@@ -926,28 +926,6 @@ fi
 
 	if err := os.Chmod(tmpPath, 0700); err != nil {
 		return fmt.Errorf("failed to chmod tmp script: %w", err)
-	}
-
-	// Read back the committer identity that was configured on this repo by the
-	// caller (via r.Config("user.name"/"user.email") above). We use raw
-	// "git config --get" because RepoClient only exposes a setter (Config()),
-	// not a getter. The identity is guaranteed to be present at this point;
-	// we fail clearly if for some reason it is not.
-	nameBytes, err := exec.Command("git", "-C", repo.Directory(), "config", "user.name").Output()
-	if err != nil {
-		return fmt.Errorf("failed to read git user.name: %w", err)
-	}
-	emailBytes, err := exec.Command("git", "-C", repo.Directory(), "config", "user.email").Output()
-	if err != nil {
-		return fmt.Errorf("failed to read git user.email: %w", err)
-	}
-	gitName := strings.TrimSpace(string(nameBytes))
-	gitEmail := strings.TrimSpace(string(emailBytes))
-	if gitName == "" {
-		return errors.New("git user.name is not configured in repository")
-	}
-	if gitEmail == "" {
-		return errors.New("git user.email is not configured in repository")
 	}
 
 	// Prepare and run the rebase. Export ORIGINAL_SHAS and prevent editor.

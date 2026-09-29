@@ -1539,7 +1539,7 @@ From 3333333333333333333333333333333333333333 Mon Sep 17 00:00:00 2001`,
 func TestAppendCherryPickMessages_Empty(t *testing.T) {
 	t.Parallel()
 
-	require.NoError(t, appendCherryPickMessages(nil, nil))
+	require.NoError(t, appendCherryPickMessages(nil, nil, "test test", "test@test.test"))
 }
 
 func TestAppendCherryPickMessages_InvalidRevision(t *testing.T) {
@@ -1553,7 +1553,7 @@ func TestAppendCherryPickMessages_InvalidRevision(t *testing.T) {
 		"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
 		"cccccccccccccccccccccccccccccccccccccccc",
-	})
+	}, "test test", "test@test.test")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to resolve base SHA")
 }
@@ -1568,7 +1568,7 @@ func TestAppendCherryPickMessages_SingleCommit(t *testing.T) {
 
 	err = appendCherryPickMessages(r, []string{
 		"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-	})
+	}, "test test", "test@test.test")
 	require.NoError(t, err)
 
 	cmd := exec.Command("git", "-C", r.Directory(), "log", "-1", "--pretty=%B")
@@ -1594,7 +1594,7 @@ func TestAppendCherryPickMessages_MultiCommit(t *testing.T) {
 	err = appendCherryPickMessages(r, []string{
 		"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-	})
+	}, "test test", "test@test.test")
 	require.NoError(t, err)
 
 	cmd := exec.Command(
@@ -1653,7 +1653,7 @@ func TestAppendCherryPickMessages_RebaseFailureRestoresHead(t *testing.T) {
 
 	err = appendCherryPickMessages(r, []string{
 		"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-	})
+	}, "test test", "test@test.test")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "git rebase --exec failed")
 
