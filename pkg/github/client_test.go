@@ -1669,6 +1669,63 @@ func TestReadPaginatedResults(t *testing.T) {
 	}
 }
 
+func TestReadPaginatedResultsClassifiesStatusErrors(t *testing.T) {
+	// A non-2xx response from a paginated endpoint must come back as an error
+	// whose HTTP status is recoverable, so callers can treat an absent or
+	// forbidden resource as best-effort rather than fatal. Regression test for
+	// the peribolos dump's org-role listing: these errors used to surface as a
+	// plain "return code not 2XX" string that neither github.IsNotFound nor
+	// github.IsForbidden could classify, which silently defeated best-effort
+	// handling and failed the whole dump for a token without admin:org.
+	cases := []struct {
+		name        string
+		statusCode  int
+		body        string
+		isNotFound  bool
+		isForbidden bool
+	}{
+		{
+			name:       "404 is classified as not found",
+			statusCode: http.StatusNotFound,
+			body:       `{"message": "Not Found"}`,
+			isNotFound: true,
+		},
+		{
+			name:        "403 is classified as forbidden",
+			statusCode:  http.StatusForbidden,
+			body:        `{"message": "Forbidden"}`,
+			isForbidden: true,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(tc.statusCode)
+				fmt.Fprint(w, tc.body)
+			}))
+			defer ts.Close()
+
+			c := getClient(ts.URL)
+			err := c.readPaginatedResults(
+				"/something",
+				"",
+				"",
+				func() interface{} { return &[]Label{} },
+				func(obj interface{}) {},
+			)
+			if err == nil {
+				t.Fatal("expected an error from a non-2xx paginated response, got nil")
+			}
+			if got := IsNotFound(err); got != tc.isNotFound {
+				t.Errorf("IsNotFound() = %t, want %t (err: %v)", got, tc.isNotFound, err)
+			}
+			if got := IsForbidden(err); got != tc.isForbidden {
+				t.Errorf("IsForbidden() = %t, want %t (err: %v)", got, tc.isForbidden, err)
+			}
+		})
+	}
+}
+
 func TestReadPaginatedResultsWithValuesSamePathPagination(t *testing.T) {
 	requestCount := 0
 	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

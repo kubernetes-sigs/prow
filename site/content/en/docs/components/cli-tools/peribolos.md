@@ -59,6 +59,14 @@ orgs:
       another-team:
         ...
       ...
+
+    # organization role assignments (the custom org role must already exist in GitHub)
+    roles:
+      security_manager:
+        teams:
+        - node
+        users:
+        - anne
   that-org:
     ...
 ```
@@ -78,10 +86,23 @@ This config will:
   * Add anne as a member and jane as a maintainer to node
   * Similar things for another-team (details elided)
 * Ensure that the team has admin rights to `some-repo`, read access to `other-repo` and no other privileges
+* Assign the `security_manager` organization role to the `node` team and directly to `anne`
 
 Note that any fields missing from the config will not be managed by peribolos. So if description is missing from the org setting, the current value will remain.
 
 For more details please see GitHub documentation around [edit org], [update org membership], [edit team], [update team membership].
+
+### Organization roles
+
+The `roles` key assigns [custom organization roles] to teams and users. Role management is opt-in and deliberately conservative:
+
+* The role must already exist in GitHub. Peribolos assigns existing roles but never creates or deletes one; referencing a role that does not exist is a fatal error.
+* Only roles declared in the config are managed. Roles absent from the config, including GitHub's built-in predefined roles and any managed out-of-band, are left untouched.
+* To clear a role, declare it with no `teams`/`users`: an empty role removes all of its direct assignments.
+* Indirect assignments are preserved. A team that only inherits a role from a parent team (or a user who holds it only through a team) is never removed.
+* `--fix-org-roles` requires `--fix-teams`, because assignments are reconciled against the resolved team slugs.
+* Teams excluded via `--ignore-secret-teams`/`--ignore-enterprise-teams` are left alone: an ignored team that holds a role keeps it.
+* Roles are included in `--dump`. A dumped `roles` stanza is informational until you apply it with `--fix-org-roles`, at which point those roles become managed (and, per the rules above, a direct assignment that is not in the applied config would be removed).
 
 ### Initial seed
 
@@ -176,3 +197,4 @@ See `go run ./cmd/peribolos --help` for the full and current list of settings th
 [kubernetes/org]: https://github.com/kubernetes/org
 [`update.sh`]: https://github.com/kubernetes/org/blob/master/admin/update.sh
 [kubecon talk]: https://www.youtube.com/watch?v=te3Xj2zr1Co
+[custom organization roles]: https://docs.github.com/en/organizations/managing-peoples-access-to-your-organization-with-roles/about-custom-organization-roles
