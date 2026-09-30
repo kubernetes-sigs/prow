@@ -18,6 +18,7 @@ package trigger
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/sirupsen/logrus"
@@ -144,13 +145,16 @@ func handleGenericComment(c Client, cp commentPruner, trigger plugins.Trigger, g
 		return err
 	}
 
-	// Approve pending GitHub Actions workflow runs on /ok-to-test
+	// The ok-to-test label stays on the PR after a new push, so only a trusted
+	// commenter can approve or re-run GitHub Actions workflow runs.
 	if isOkToTest && trigger.TriggerGitHubWorkflows {
-		headSHA, err := refGetter.HeadSHA()
-		if err != nil {
-			c.Logger.Warnf("headSHA unavailable, cannot approve pending workflows: %v", err)
+		if trustedResponse.IsTrusted {
+			// The approvals run in parallel with the ProwJob creation. The
+			// handler waits for them, because hook waits only for the
+			// handler on shutdown.
+			defer approveGitHubActionsWorkflowRuns(c, org, repo, pr).Wait()
 		} else {
-			approveGitHubActionsWorkflowRuns(c, org, repo, pr.Head.Ref, headSHA)
+			c.Logger.Infof("Commenter %s is not trusted, skipping the approval of the pending workflow runs.", commentAuthor)
 		}
 	}
 
@@ -167,7 +171,7 @@ func handleGenericComment(c Client, cp commentPruner, trigger plugins.Trigger, g
 		additionalLabels[kube.RetestLabel] = "true"
 	}
 	// run failed github actions
-	if trigger.TriggerGitHubWorkflows && (pjutil.RetestRe.MatchString(textToCheck) || pjutil.TestAllRe.MatchString(textToCheck)) {
+	if trigger.TriggerGitHubWorkflows && trustedResponse.IsTrusted && (pjutil.RetestRe.MatchString(textToCheck) || pjutil.TestAllRe.MatchString(textToCheck)) {
 		headSHA, err := refGetter.HeadSHA()
 		if err != nil {
 			c.Logger.Warnf("headSHA unavailable, failed github actions for pr will not be triggered: %v", pr)
@@ -176,6 +180,8 @@ func handleGenericComment(c Client, cp commentPruner, trigger plugins.Trigger, g
 			if err != nil {
 				c.Logger.Errorf("%v: unable to get failed github action runs for branch %v", err, pr.Head.Ref)
 			} else {
+				var wg sync.WaitGroup
+				defer wg.Wait()
 				for _, run := range failedRuns {
 					log := c.Logger.WithFields(logrus.Fields{
 						"runID":   run.ID,
@@ -184,13 +190,13 @@ func handleGenericComment(c Client, cp commentPruner, trigger plugins.Trigger, g
 						"repo":    repo,
 					})
 					runID := run.ID
-					go func() {
+					wg.Go(func() {
 						if err := c.GitHubClient.TriggerFailedGitHubWorkflow(org, repo, runID); err != nil {
 							log.Errorf("attempt to trigger github run failed: %v", err)
 						} else {
 							log.Infof("successfully triggered action run")
 						}
-					}()
+					})
 				}
 			}
 		}
@@ -303,10 +309,23 @@ func addHelpComment(githubClient githubClient, body, org, repo, branch string, n
 	return githubClient.CreateComment(org, repo, number, plugins.FormatResponseRaw(body, HTMLURL, user, resp))
 }
 
-// approveGitHubActionsWorkflowRuns approves pending GitHub Actions workflow runs for a PR.
-// Returns a WaitGroup that completes when all approval goroutines finish.
-func approveGitHubActionsWorkflowRuns(c Client, org, repo, branchName, headSHA string) *sync.WaitGroup {
+// isSameRepoPullRequest reports whether the head branch of the PR is in the
+// base repository. GitHub repository names are case insensitive. The head
+// repository has no name when its fork was deleted.
+func isSameRepoPullRequest(pr github.PullRequest) bool {
+	return pr.Head.Repo.FullName != "" && strings.EqualFold(pr.Head.Repo.FullName, pr.Base.Repo.FullName)
+}
+
+// approveGitHubActionsWorkflowRuns starts the workflow runs of a PR that wait
+// for approval. Returns a WaitGroup that completes when all the calls finish.
+//
+// GitHub documents the approve endpoint only for a fork PR. For a PR from the
+// base repository, for example the PR of a bot, re-run the workflow instead.
+// The re-run sets the triggering actor to the API caller (prow), which clears
+// the approval gate.
+func approveGitHubActionsWorkflowRuns(c Client, org, repo string, pr *github.PullRequest) *sync.WaitGroup {
 	wg := &sync.WaitGroup{}
+	branchName, headSHA := pr.Head.Ref, pr.Head.SHA
 
 	pendingRuns, err := c.GitHubClient.GetPendingApprovalActionRuns(org, repo, branchName, headSHA)
 	if err != nil {
@@ -314,6 +333,7 @@ func approveGitHubActionsWorkflowRuns(c Client, org, repo, branchName, headSHA s
 		return wg
 	}
 
+	sameRepo := isSameRepoPullRequest(*pr)
 	for _, run := range pendingRuns {
 		log := c.Logger.WithFields(logrus.Fields{
 			"runID":   run.ID,
@@ -324,24 +344,19 @@ func approveGitHubActionsWorkflowRuns(c Client, org, repo, branchName, headSHA s
 		})
 		runID := run.ID
 		wg.Go(func() {
+			if sameRepo {
+				if err := c.GitHubClient.TriggerGitHubWorkflow(org, repo, runID); err != nil {
+					log.Errorf("failed to re-run workflow run: %v", err)
+				} else {
+					log.Infof("successfully re-ran workflow run")
+				}
+				return
+			}
 			if err := c.GitHubClient.ApproveGitHubWorkflowRun(org, repo, runID); err != nil {
-				// Per GitHub API docs (https://docs.github.com/en/rest/actions/workflow-runs#approve-a-workflow-run-for-a-fork-pull-request):
-				// - 404: Workflow run doesn't exist or is not pending approval (already approved/completed)
-				// - 403: Permission denied or non-fork PR
-				// 404 is expected in race conditions where another actor approved the run.
-				// 403 can mean the approve endpoint doesn't apply (it only works for
-				// fork PRs). For same-repo PRs created by bots, fall back to
-				// rerunning the workflow which changes the triggering_actor to the
-				// API caller and bypasses the approval gate.
+				// A 404 tells that the run does not wait for approval, for
+				// example because another actor approved it.
 				if github.IsNotFound(err) {
 					log.Infof("workflow run not pending approval (already approved or completed): %v", err)
-				} else if github.IsForbidden(err) {
-					log.Infof("approve endpoint returned 403 (likely non-fork PR), falling back to rerun: %v", err)
-					if rerunErr := c.GitHubClient.TriggerGitHubWorkflow(org, repo, runID); rerunErr != nil {
-						log.Errorf("failed to rerun workflow as fallback for approval: %v", rerunErr)
-					} else {
-						log.Infof("successfully reran workflow run as fallback for approval")
-					}
 				} else {
 					log.Errorf("failed to approve workflow run: %v", err)
 				}

@@ -399,7 +399,9 @@ func (c *client) WithFields(fields logrus.Fields) Client {
 var (
 	teamRe = regexp.MustCompile(`^(.*)/(.*)$`)
 
-	passedWorkflowRunConclusions = []string{"success", "skipped"}
+	retestableWorkflowRunConclusions = []string{"failure", "cancelled", "timed_out", "startup_failure"}
+
+	pullRequestWorkflowRunEvents = []string{"pull_request", "pull_request_target"}
 )
 
 const (
@@ -2213,45 +2215,52 @@ func (c *client) GetFailedActionRunsByHeadBranch(org, repo, branchName, headSHA 
 	durationLogger := c.log("GetJobsByHeadBranch", org, repo)
 	defer durationLogger()
 
-	var runs WorkflowRuns
-
-	u := url.URL{
-		Path: fmt.Sprintf("/repos/%s/%s/actions/runs", org, repo),
-	}
-	query := u.Query()
-	// Filter for the specific head SHA
-	query.Add("head_sha", headSHA)
-	// setting the OR condition to get both PR and PR target workflows, as well
-	// as workflows called via another workflow using workflow_call (matrix workflows)
-	query.Add("event", "pull_request OR pull_request_target OR workflow_call")
-	query.Add("branch", branchName)
-	u.RawQuery = query.Encode()
-
-	_, err := c.request(&request{
-		accept:    "application/vnd.github.v3+json",
-		method:    http.MethodGet,
-		path:      u.String(),
-		org:       org,
-		exitCodes: []int{200},
-	}, &runs)
+	runs, err := c.listWorkflowRuns(org, repo, url.Values{
+		"per_page": []string{"100"},
+		"head_sha": []string{headSHA},
+		"branch":   []string{branchName},
+	})
 
 	prRuns := []WorkflowRun{}
 
-	// We only want to get failed workflows.
-	// Note: The query parameter "status" is overloaded and used for both status and conclusion.
-	// See https://docs.github.com/en/rest/actions/workflow-runs?apiVersion=2022-11-28#list-workflow-runs-for-a-workflow
-	// This makes it hard to use directly. Instead, we loop through the runs and check them individually.
-	// A successful workflow will have status "completed" and conclusion "success".
-	// A skipped workflow will have status "completed" and conclusion "skipped".
-	// A failed workflow also have status "completed", but the conclusion can be either "failure" or "cancelled".
-	// We only want completed jobs that are not skipped and not successful.
-	for _, run := range runs.WorkflowRuns {
-		if run.Status == "completed" && !slices.Contains(passedWorkflowRunConclusions, run.Conclusion) {
+	// The query parameter "status" matches the status and the conclusion of a
+	// run, and it takes only one value, so the client filters the runs.
+	// See https://docs.github.com/en/rest/actions/workflow-runs#list-workflow-runs-for-a-repository
+	for _, run := range runs {
+		if !slices.Contains(pullRequestWorkflowRunEvents, run.Event) {
+			continue
+		}
+		if run.Status == "completed" && slices.Contains(retestableWorkflowRunConclusions, run.Conclusion) {
 			prRuns = append(prRuns, run)
 		}
 	}
 
 	return prRuns, err
+}
+
+// listWorkflowRuns reads all the pages of the workflow runs that agree with
+// the query.
+//
+// The GitHub API matches the "event" query parameter as an exact string, and
+// it has no syntax for more than one value. Thus the caller must filter the
+// events on the client.
+//
+// See https://docs.github.com/en/rest/actions/workflow-runs#list-workflow-runs-for-a-repository
+func (c *client) listWorkflowRuns(org, repo string, values url.Values) ([]WorkflowRun, error) {
+	var runs []WorkflowRun
+	err := c.readPaginatedResultsWithValues(
+		fmt.Sprintf("/repos/%s/%s/actions/runs", org, repo),
+		values,
+		"application/vnd.github.v3+json",
+		org,
+		func() interface{} {
+			return &WorkflowRuns{}
+		},
+		func(obj interface{}) {
+			runs = append(runs, obj.(*WorkflowRuns).WorkflowRuns...)
+		},
+	)
+	return runs, err
 }
 
 // TriggerGitHubWorkflow will rerun a workflow
@@ -2293,30 +2302,23 @@ func (c *client) GetPendingApprovalActionRuns(org, repo, branchName, headSHA str
 	durationLogger := c.log("GetPendingApprovalActionRuns", org, repo)
 	defer durationLogger()
 
-	var runs WorkflowRuns
+	// The "status" parameter is overloaded: the value "action_required" matches
+	// the conclusion of the run, not its status.
+	runs, err := c.listWorkflowRuns(org, repo, url.Values{
+		"per_page": []string{"100"},
+		"head_sha": []string{headSHA},
+		"branch":   []string{branchName},
+		"status":   []string{"action_required"},
+	})
 
-	u := url.URL{
-		Path: fmt.Sprintf("/repos/%s/%s/actions/runs", org, repo),
+	prRuns := []WorkflowRun{}
+	for _, run := range runs {
+		if slices.Contains(pullRequestWorkflowRunEvents, run.Event) {
+			prRuns = append(prRuns, run)
+		}
 	}
-	query := u.Query()
-	// Filter for the specific head SHA
-	query.Add("head_sha", headSHA)
-	// setting the OR condition to get both PR and PR target workflows
-	query.Add("event", "pull_request OR pull_request_target")
-	query.Add("branch", branchName)
-	// Filter for action_required status (workflows pending approval)
-	query.Add("status", "action_required")
-	u.RawQuery = query.Encode()
 
-	_, err := c.request(&request{
-		accept:    "application/vnd.github.v3+json",
-		method:    http.MethodGet,
-		path:      u.String(),
-		org:       org,
-		exitCodes: []int{200},
-	}, &runs)
-
-	return runs.WorkflowRuns, err
+	return prRuns, err
 }
 
 // ApproveGitHubWorkflowRun approves a pending workflow run
