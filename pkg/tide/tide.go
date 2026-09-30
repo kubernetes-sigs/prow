@@ -2129,7 +2129,7 @@ type searchQuery struct {
 			EndCursor   githubql.String
 		}
 		Nodes []PRNode
-	} `graphql:"search(type: ISSUE, first: 37, after: $searchCursor, query: $query)"`
+	} `graphql:"search(type: ISSUE, first: $searchPageSize, after: $searchCursor, query: $query)"`
 }
 
 // orgRepoQueryStrings returns the GitHub query strings for given orgs and

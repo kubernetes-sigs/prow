@@ -19,6 +19,8 @@ package tide
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net/http"
 	"reflect"
 	"slices"
 	"testing"
@@ -56,16 +58,23 @@ func TestSearch(t *testing.T) {
 		return sq
 	}
 
+	gatewayErr := func(code int) error {
+		return fmt.Errorf("non-200 OK status code: %d %s body: %q", code, http.StatusText(code), "<html>...</html>")
+	}
+
 	cases := []struct {
-		name     string
-		start    time.Time
-		end      time.Time
-		q        string
-		cursors  []*githubql.String
-		sqs      []searchQuery
-		errs     []error
-		expected []PullRequest
-		err      bool
+		name    string
+		start   time.Time
+		end     time.Time
+		q       string
+		cursors []*githubql.String
+		// pageSizes is the expected searchPageSize per call. If nil,
+		// maxSearchPageSize is expected for every call.
+		pageSizes []int
+		sqs       []searchQuery
+		errs      []error
+		expected  []PullRequest
+		err       bool
 	}{
 		{
 			name:    "single page works",
@@ -138,16 +147,89 @@ func TestSearch(t *testing.T) {
 			expected: makePRs(1, 2),
 			err:      true,
 		},
+		{
+			name:      "non-timeout error is not retried with a smaller page",
+			start:     earlier,
+			end:       now,
+			q:         datedQuery(q, earlier, now),
+			cursors:   []*githubql.String{nil},
+			pageSizes: []int{37},
+			sqs:       []searchQuery{{}},
+			errs:      []error{gatewayErr(http.StatusServiceUnavailable)},
+			err:       true,
+		},
+		{
+			name:      "502 on first page is retried with a smaller page",
+			start:     earlier,
+			end:       now,
+			q:         datedQuery(q, earlier, now),
+			cursors:   []*githubql.String{nil, nil},
+			pageSizes: []int{37, 18},
+			sqs: []searchQuery{
+				{},
+				makeQuery(false, "", 1, 2),
+			},
+			errs:     []error{gatewayErr(http.StatusBadGateway), nil},
+			expected: makePRs(1, 2),
+		},
+		{
+			name:  "504 on a later page retries the same cursor and keeps the smaller page",
+			start: earlier,
+			end:   now,
+			q:     datedQuery(q, earlier, now),
+			cursors: []*githubql.String{
+				nil,
+				githubql.NewString("first"),
+				githubql.NewString("first"),
+				githubql.NewString("second"),
+			},
+			pageSizes: []int{37, 37, 18, 18},
+			sqs: []searchQuery{
+				makeQuery(true, "first", 1, 2),
+				{},
+				makeQuery(true, "second", 3, 4),
+				makeQuery(false, "", 5, 6),
+			},
+			errs:     []error{nil, gatewayErr(http.StatusGatewayTimeout), nil, nil},
+			expected: makePRs(1, 2, 3, 4, 5, 6),
+		},
+		{
+			name:      "gives up after shrinking to the minimum page size",
+			start:     earlier,
+			end:       now,
+			q:         datedQuery(q, earlier, now),
+			cursors:   []*githubql.String{nil, nil, nil, nil},
+			pageSizes: []int{37, 18, 9, 5},
+			sqs:       []searchQuery{{}, {}, {}, {}},
+			errs: []error{
+				gatewayErr(http.StatusBadGateway),
+				gatewayErr(http.StatusGatewayTimeout),
+				gatewayErr(http.StatusBadGateway),
+				gatewayErr(http.StatusBadGateway),
+			},
+			err: true,
+		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			client := &GitHubProvider{}
 			var i int
-			querier := func(_ context.Context, result interface{}, actual map[string]interface{}, _ string) error {
+			querier := func(ctx context.Context, result interface{}, actual map[string]interface{}, _ string) error {
+				if i >= len(tc.cursors) {
+					t.Fatalf("unexpected call %d", i)
+				}
+				pageSize := maxSearchPageSize
+				if tc.pageSizes != nil {
+					pageSize = tc.pageSizes[i]
+				}
+				if want, got := pageSize > minSearchPageSize, github.CallerHandlesGatewayTimeouts(ctx); want != got {
+					t.Errorf("call %d (page size %d): expected caller-handled gateway timeouts=%t, got %t", i, pageSize, want, got)
+				}
 				expected := map[string]interface{}{
-					"query":        githubql.String(tc.q),
-					"searchCursor": tc.cursors[i],
+					"query":          githubql.String(tc.q),
+					"searchCursor":   tc.cursors[i],
+					"searchPageSize": githubql.Int(pageSize),
 				}
 				if !equality.Semantic.DeepEqual(expected, actual) {
 					t.Errorf("call %d vars do not match:\n%s", i, diff.Diff(expected, actual))
@@ -175,7 +257,29 @@ func TestSearch(t *testing.T) {
 			if !reflect.DeepEqual(tc.expected, prs) {
 				t.Errorf("prs do not match:\n%s", diff.Diff(tc.expected, prs))
 			}
+			if i != len(tc.cursors) {
+				t.Errorf("expected %d queries, got %d", len(tc.cursors), i)
+			}
 		})
+	}
+}
+
+func TestIsGatewayTimeout(t *testing.T) {
+	for _, tc := range []struct {
+		err  error
+		want bool
+	}{
+		{err: nil, want: false},
+		{err: errors.New(`non-200 OK status code: 502 Bad Gateway body: "<html>"`), want: true},
+		{err: fmt.Errorf("cursor: %q, err: %w", "abc", errors.New(`non-200 OK status code: 504 Gateway Timeout body: ""`)), want: true},
+		{err: errors.New(`non-200 OK status code: 503 Service Unavailable body: ""`), want: false},
+		{err: errors.New(`non-200 OK status code: 500 Internal Server Error body: ""`), want: false},
+		{err: errors.New(`non-200 OK status code: 5021 Weird body: ""`), want: false},
+		{err: errors.New("context deadline exceeded"), want: false},
+	} {
+		if got := isGatewayTimeout(tc.err); got != tc.want {
+			t.Errorf("isGatewayTimeout(%v) = %v, want %v", tc.err, got, tc.want)
+		}
 	}
 }
 

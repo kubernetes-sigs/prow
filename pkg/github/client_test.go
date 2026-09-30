@@ -4815,3 +4815,209 @@ func TestAllowInDryRunOnlyForTokenAcquisition(t *testing.T) {
 		})
 	}
 }
+
+type recordingRoundTripper struct {
+	statuses []int
+	bodies   []string
+}
+
+func (r *recordingRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	var body string
+	if req.Body != nil {
+		b, err := io.ReadAll(req.Body)
+		if err != nil {
+			return nil, err
+		}
+		body = string(b)
+	}
+	r.bodies = append(r.bodies, body)
+	code := r.statuses[len(r.bodies)-1]
+	return &http.Response{
+		StatusCode: code,
+		Status:     fmt.Sprintf("%d %s", code, http.StatusText(code)),
+		Body:       io.NopCloser(strings.NewReader("{}")),
+		Header:     http.Header{},
+		Request:    req,
+	}, nil
+}
+
+func TestGraphQLRetryTransport(t *testing.T) {
+	const reqBody = `{"query":"{ viewer { login } }"}`
+	testCases := []struct {
+		name         string
+		statuses     []int
+		expectedCode int
+		expectedReqs int
+		expectedWait []time.Duration
+	}{
+		{
+			name:         "success is not retried",
+			statuses:     []int{http.StatusOK},
+			expectedCode: http.StatusOK,
+			expectedReqs: 1,
+		},
+		{
+			name:         "non-retryable errors are not retried",
+			statuses:     []int{http.StatusInternalServerError},
+			expectedCode: http.StatusInternalServerError,
+			expectedReqs: 1,
+		},
+		{
+			name:         "502 then success",
+			statuses:     []int{http.StatusBadGateway, http.StatusOK},
+			expectedCode: http.StatusOK,
+			expectedReqs: 2,
+			expectedWait: []time.Duration{time.Second},
+		},
+		{
+			name:         "503 and 504 are retried with exponential backoff",
+			statuses:     []int{http.StatusServiceUnavailable, http.StatusGatewayTimeout, http.StatusOK},
+			expectedCode: http.StatusOK,
+			expectedReqs: 3,
+			expectedWait: []time.Duration{time.Second, 2 * time.Second},
+		},
+		{
+			name:         "gives up after max retries and returns the last response",
+			statuses:     []int{http.StatusBadGateway, http.StatusBadGateway, http.StatusGatewayTimeout, http.StatusOK},
+			expectedCode: http.StatusGatewayTimeout,
+			expectedReqs: 3,
+			expectedWait: []time.Duration{time.Second, 2 * time.Second},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			upstream := &recordingRoundTripper{statuses: tc.statuses}
+			var waits []time.Duration
+			rt := &graphQLRetryTransport{
+				upstream:     upstream,
+				maxRetries:   2,
+				initialDelay: time.Second,
+				sleep: func(_ context.Context, d time.Duration) error {
+					waits = append(waits, d)
+					return nil
+				},
+			}
+			req, err := http.NewRequest(http.MethodPost, "https://api.github.com/graphql", bytes.NewBufferString(reqBody))
+			if err != nil {
+				t.Fatal(err)
+			}
+			resp, err := rt.RoundTrip(req)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			defer resp.Body.Close()
+			if resp.StatusCode != tc.expectedCode {
+				t.Errorf("expected status %d, got %d", tc.expectedCode, resp.StatusCode)
+			}
+			if len(upstream.bodies) != tc.expectedReqs {
+				t.Errorf("expected %d requests, got %d", tc.expectedReqs, len(upstream.bodies))
+			}
+			for i, b := range upstream.bodies {
+				if b != reqBody {
+					t.Errorf("request %d: body was not replayed, got %q", i, b)
+				}
+			}
+			if diff := cmp.Diff(tc.expectedWait, waits); diff != "" {
+				t.Errorf("unexpected backoff (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestGraphQLRetryTransportStopsWhenContextIsDone(t *testing.T) {
+	upstream := &recordingRoundTripper{statuses: []int{http.StatusBadGateway, http.StatusOK}}
+	rt := newGraphQLRetryTransport(upstream)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.github.com/graphql", bytes.NewBufferString("{}"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rt.RoundTrip(req); !errors.Is(err, context.Canceled) {
+		t.Errorf("expected context.Canceled, got %v", err)
+	}
+	if len(upstream.bodies) != 1 {
+		t.Errorf("expected a single request, got %d", len(upstream.bodies))
+	}
+}
+
+func TestGraphQLRetryTransportPreservesHeadersWithAppsAuth(t *testing.T) {
+	// The apps-auth setup swaps the upstream of the header transport, which must
+	// remain underneath the retry transport so preview headers are still sent.
+	var gotAccept []string
+	final := roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+		gotAccept = r.Header.Values("Accept")
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("{}")), Header: http.Header{}}, nil
+	})
+	header := newAddHeaderTransport(http.DefaultTransport)
+	rt := newGraphQLRetryTransport(header)
+	header.upstream = final
+	req, _ := http.NewRequest(http.MethodPost, "https://api.github.com/graphql", bytes.NewBufferString("{}"))
+	resp, err := rt.RoundTrip(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if len(gotAccept) != 2 {
+		t.Errorf("expected preview Accept headers, got %v", gotAccept)
+	}
+}
+
+type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripperFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+func TestGraphQLRetryTransportCallerHandledGatewayTimeouts(t *testing.T) {
+	testCases := []struct {
+		name         string
+		statuses     []int
+		expectedCode int
+		expectedReqs int
+	}{
+		{
+			name:         "502 is returned to the caller without retrying",
+			statuses:     []int{http.StatusBadGateway, http.StatusOK},
+			expectedCode: http.StatusBadGateway,
+			expectedReqs: 1,
+		},
+		{
+			name:         "504 is returned to the caller without retrying",
+			statuses:     []int{http.StatusGatewayTimeout, http.StatusOK},
+			expectedCode: http.StatusGatewayTimeout,
+			expectedReqs: 1,
+		},
+		{
+			name:         "503 is still retried",
+			statuses:     []int{http.StatusServiceUnavailable, http.StatusOK},
+			expectedCode: http.StatusOK,
+			expectedReqs: 2,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			upstream := &recordingRoundTripper{statuses: tc.statuses}
+			rt := newGraphQLRetryTransport(upstream)
+			rt.sleep = func(context.Context, time.Duration) error { return nil }
+			ctx := WithCallerHandledGatewayTimeouts(context.Background())
+			if !CallerHandlesGatewayTimeouts(ctx) || CallerHandlesGatewayTimeouts(context.Background()) {
+				t.Fatal("CallerHandlesGatewayTimeouts does not reflect the context")
+			}
+			req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.github.com/graphql", bytes.NewBufferString("{}"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			resp, err := rt.RoundTrip(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			resp.Body.Close()
+			if resp.StatusCode != tc.expectedCode {
+				t.Errorf("expected status %d, got %d", tc.expectedCode, resp.StatusCode)
+			}
+			if len(upstream.bodies) != tc.expectedReqs {
+				t.Errorf("expected %d requests, got %d", tc.expectedReqs, len(upstream.bodies))
+			}
+		})
+	}
+}
