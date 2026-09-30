@@ -1698,6 +1698,10 @@ func loadWithYamlOpts(yamlOpts []yaml.JSONOpt, prowConfig, jobConfig string, sup
 
 // ReadJobConfig reads the JobConfig yaml, but does not expand or validate it.
 func ReadJobConfig(jobConfig string, yamlOpts ...yaml.JSONOpt) (JobConfig, error) {
+	return readJobConfig(jobConfig, filepath.Walk, yamlOpts...)
+}
+
+func readJobConfig(jobConfig string, walk func(string, filepath.WalkFunc) error, yamlOpts ...yaml.JSONOpt) (JobConfig, error) {
 	stat, err := os.Stat(jobConfig)
 	if err != nil {
 		return JobConfig{}, err
@@ -1724,10 +1728,11 @@ func ReadJobConfig(jobConfig string, yamlOpts ...yaml.JSONOpt) (JobConfig, error
 	allStart := time.Now()
 	jc := JobConfig{}
 	var errs []error
-	err = filepath.Walk(jobConfig, func(path string, info os.FileInfo, err error) error {
+	err = walk(jobConfig, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			logrus.WithError(err).Errorf("walking path %q.", path)
-			// bad file should not stop us from parsing the directory.
+			// Continue to find any other errors, but reject the partial result after the walk
+			// to avoid losing arbitrary part of the config, e.g. if this is a dir
+			errs = append(errs, fmt.Errorf("walking path %q: %w", path, err))
 			return nil
 		}
 

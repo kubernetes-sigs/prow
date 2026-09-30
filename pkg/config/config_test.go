@@ -3689,6 +3689,30 @@ bar_jobs.yaml`,
 	}
 }
 
+func TestReadJobConfigRejectsWalkErrors(t *testing.T) {
+	jobConfigDir := t.TempDir()
+	jobConfig := filepath.Join(jobConfigDir, "jobs.yaml")
+	if err := os.WriteFile(jobConfig, []byte(`periodics:
+- name: loaded-before-walk-error
+`), 0600); err != nil {
+		t.Fatalf("write job config: %v", err)
+	}
+
+	walkError := errors.New("checkout changed during walk")
+	walk := func(root string, walkFn filepath.WalkFunc) error {
+		if err := filepath.Walk(root, walkFn); err != nil {
+			return err
+		}
+		// Model a git-sync checkout disappearing after some valid files have
+		// already been loaded. filepath.Walk reports this through its callback.
+		return walkFn(filepath.Join(root, "vanished.yaml"), nil, walkError)
+	}
+
+	if _, err := readJobConfig(jobConfigDir, walk); !errors.Is(err, walkError) {
+		t.Fatalf("expected walk error, got %v", err)
+	}
+}
+
 func TestBrancher_Intersects(t *testing.T) {
 	testCases := []struct {
 		name   string
