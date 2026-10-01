@@ -25,6 +25,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sirupsen/logrus"
+	logrustest "github.com/sirupsen/logrus/hooks/test"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -261,7 +263,7 @@ func TestSync(t *testing.T) {
 
 			fakeProwJobClient := newCreateTrackingClient(jobs)
 			fc := &fakeCron{}
-			if err := sync(fakeProwJobClient, &cfg, fc, now); err != nil {
+			if _, err := sync(fakeProwJobClient, &cfg, fc, now); err != nil {
 				t.Fatalf("Didn't expect error: %v", err)
 			}
 
@@ -395,7 +397,7 @@ func TestSyncMinimumInterval(t *testing.T) {
 		}
 		fakeProwJobClient := newCreateTrackingClient(jobs)
 		fc := &fakeCron{}
-		if err := sync(fakeProwJobClient, &cfg, fc, now); err != nil {
+		if _, err := sync(fakeProwJobClient, &cfg, fc, now); err != nil {
 			t.Fatalf("For case %s, didn't expect error: %v", tc.testName, err)
 		}
 
@@ -478,7 +480,7 @@ func TestSyncCron(t *testing.T) {
 		}
 		fakeProwJobClient := newCreateTrackingClient(jobs)
 		fc := &fakeCron{}
-		if err := sync(fakeProwJobClient, &cfg, fc, now); err != nil {
+		if _, err := sync(fakeProwJobClient, &cfg, fc, now); err != nil {
 			t.Fatalf("For case %s, didn't expect error: %v", tc.testName, err)
 		}
 
@@ -617,5 +619,64 @@ func newCreateTrackingClient(objs []client.Object) *createTrackingClient {
 	return &createTrackingClient{
 		Client:  fakectrlruntimeclient.NewClientBuilder().WithObjects(objs...).Build(),
 		created: make([]ctrlruntimeclient.Object, 0),
+	}
+}
+
+// staticCron reports a fixed set of cron periodics as queued.
+type staticCron struct{ queued []string }
+
+func (staticCron) SyncConfig(*config.Config) error { return nil }
+func (c staticCron) QueuedJobs() []string          { return c.queued }
+
+func TestSyncStatsAndPerJobLogLevel(t *testing.T) {
+	now := time.Now()
+	finished := func(name string, started time.Time) client.Object {
+		completed := metav1.NewTime(started.Add(time.Minute))
+		return &prowapi.ProwJob{
+			ObjectMeta: metav1.ObjectMeta{Name: name + "-run", Namespace: "prowjobs"},
+			Spec:       prowapi.ProwJobSpec{Type: prowapi.PeriodicJob, Job: name},
+			Status:     prowapi.ProwJobStatus{StartTime: metav1.NewTime(started), CompletionTime: &completed},
+		}
+	}
+	cfg := config.Config{
+		ProwConfig: config.ProwConfig{ProwJobNamespace: "prowjobs"},
+		JobConfig: config.JobConfig{Periodics: []config.Periodic{
+			{JobBase: config.JobBase{Name: "interval-never-run"}},
+			{JobBase: config.JobBase{Name: "interval-ran-recently"}},
+			{JobBase: config.JobBase{Name: "cron-queued"}, Cron: "@every 1m"},
+			{JobBase: config.JobBase{Name: "cron-not-queued-1"}, Cron: "0 0 * * *"},
+			{JobBase: config.JobBase{Name: "cron-not-queued-2"}, Cron: "0 0 * * *"},
+		}},
+	}
+	cfg.Periodics[0].SetInterval(time.Hour)
+	cfg.Periodics[1].SetInterval(time.Hour)
+	pjClient := newCreateTrackingClient([]client.Object{
+		finished("interval-ran-recently", now.Add(-10*time.Minute)),
+		finished("cron-queued", now.Add(-time.Hour)),
+		finished("cron-not-queued-1", now.Add(-time.Hour)),
+		finished("cron-not-queued-2", now.Add(-time.Hour)),
+	})
+
+	hook := logrustest.NewGlobal()
+	defer hook.Reset()
+	oldLevel := logrus.GetLevel()
+	logrus.SetLevel(logrus.DebugLevel)
+	defer logrus.SetLevel(oldLevel)
+
+	stats, err := sync(pjClient, &cfg, staticCron{queued: []string{"cron-queued"}}, now)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := syncStats{triggered: 2, cronNotQueued: 2, notDue: 1}
+	if stats != want {
+		t.Errorf("expected stats %+v, got %+v", want, stats)
+	}
+
+	// Per-job decisions must not be logged at debug or above: there is one
+	// line per periodic per tick.
+	for _, e := range hook.AllEntries() {
+		if e.Message == "Skipping cron periodic" || e.Message == "Trigger time has not yet been reached." {
+			t.Errorf("%q was logged at %s, expected trace", e.Message, e.Level)
+		}
 	}
 }

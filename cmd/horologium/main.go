@@ -144,10 +144,11 @@ func main() {
 	}
 	interrupts.TickLiteral(func() {
 		start := time.Now()
-		if err := sync(cluster.GetClient(), configAgent.Config(), cr, start); err != nil {
+		stats, err := sync(cluster.GetClient(), configAgent.Config(), cr, start)
+		if err != nil {
 			logrus.WithError(err).Error("Error syncing periodic jobs.")
 		}
-		logrus.WithField("duration", time.Since(start)).Info("Synced periodic jobs")
+		logrus.WithFields(stats.fields()).WithField("duration", time.Since(start)).Info("Synced periodic jobs")
 	}, tickInterval)
 }
 
@@ -156,10 +157,30 @@ type cronClient interface {
 	QueuedJobs() []string
 }
 
-func sync(prowJobClient ctrlruntimeclient.Client, cfg *config.Config, cr cronClient, now time.Time) error {
+// syncStats summarises one sync. Per-job decisions are logged at trace level
+// only, since there is one log line per periodic per tick.
+type syncStats struct {
+	// triggered is the number of ProwJobs created.
+	triggered int
+	// cronNotQueued is the number of cron periodics whose schedule has not fired.
+	cronNotQueued int
+	// notDue is the number of periodics evaluated but not yet due.
+	notDue int
+}
+
+func (s syncStats) fields() logrus.Fields {
+	return logrus.Fields{
+		"periodics-triggered":       s.triggered,
+		"cron-periodics-not-queued": s.cronNotQueued,
+		"periodics-not-due":         s.notDue,
+	}
+}
+
+func sync(prowJobClient ctrlruntimeclient.Client, cfg *config.Config, cr cronClient, now time.Time) (syncStats, error) {
+	var stats syncStats
 	jobs := &prowapi.ProwJobList{}
 	if err := prowJobClient.List(context.TODO(), jobs, ctrlruntimeclient.InNamespace(cfg.ProwJobNamespace)); err != nil {
-		return fmt.Errorf("error listing prow jobs: %w", err)
+		return stats, fmt.Errorf("error listing prow jobs: %w", err)
 	}
 	latestJobs := pjutil.GetLatestProwJobs(jobs.Items, prowapi.PeriodicJob)
 
@@ -195,22 +216,13 @@ func sync(prowJobClient ctrlruntimeclient.Client, cfg *config.Config, cr cronCli
 		case cronTriggers.Has(p.Name):
 			shouldTrigger = j.Complete()
 		default:
-			if !cronTriggers.Has(p.Name) {
-				logger.WithFields(logrus.Fields{
-					"previous-found": previousFound,
-					"should-trigger": shouldTrigger,
-					"name":           p.Name,
-					"job":            p.JobBase.Name,
-				}).Info("Skipping cron periodic")
-			}
+			// A cron periodic whose schedule has not fired yet.
+			stats.cronNotQueued++
+			logger.Trace("Skipping cron periodic")
 			continue
 		}
 		if !shouldTrigger {
-			logger.WithFields(logrus.Fields{
-				"previous-found": previousFound,
-				"name":           p.Name,
-				"job":            p.JobBase.Name,
-			}).Debug("Trigger time has not yet been reached.")
+			logger.Trace("Trigger time has not yet been reached.")
 		}
 
 		var labels map[string]string
@@ -231,14 +243,18 @@ func sync(prowJobClient ctrlruntimeclient.Client, cfg *config.Config, cr cronCli
 			).Info("Triggering new run.")
 			if err := prowJobClient.Create(context.TODO(), &prowJob); err != nil {
 				errs = append(errs, err)
+			} else {
+				stats.triggered++
 			}
+		} else {
+			stats.notDue++
 		}
 	}
 
 	if len(errs) > 0 {
-		return fmt.Errorf("failed to create %d prowjobs: %v", len(errs), errs)
+		return stats, fmt.Errorf("failed to create %d prowjobs: %v", len(errs), errs)
 	}
-	return nil
+	return stats, nil
 }
 
 func shouldTriggerFailedRun(j v1.ProwJob, p config.Periodic, now time.Time, logger *logrus.Entry, labels *map[string]string) bool {
