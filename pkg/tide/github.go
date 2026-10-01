@@ -21,6 +21,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -168,6 +169,29 @@ func (gi *GitHubProvider) prMergeMethod(crc *CodeReviewCommon) *types.PullReques
 	return gi.mergeChecker.prMergeMethod(gi.cfg().Tide, crc)
 }
 
+const (
+	// maxSearchPageSize is the number of PRs requested per search page. Each PR
+	// node is expensive (commits, status contexts, check runs, labels and
+	// mergeability), so this is kept well below GitHub's maximum of 100.
+	maxSearchPageSize = 37
+	// minSearchPageSize is the smallest page size search will shrink to when
+	// GitHub keeps timing out while resolving a page.
+	minSearchPageSize = 5
+)
+
+// gatewayTimeoutRe matches the errors returned by the GraphQL client when
+// GitHub fails to resolve a query within its time limit. The underlying client
+// does not expose the HTTP status code, only this formatted message.
+var gatewayTimeoutRe = regexp.MustCompile(`non-200 OK status code: 50[24]\b`)
+
+// isGatewayTimeout reports whether err indicates that GitHub gave up resolving
+// the query (502 Bad Gateway / 504 Gateway Timeout). These are typically caused
+// by a page of results that is too expensive to compute in time, so retrying
+// the same page with fewer results is likely to succeed.
+func isGatewayTimeout(err error) bool {
+	return err != nil && gatewayTimeoutRe.MatchString(err.Error())
+}
+
 func (gi *GitHubProvider) search(query querier, log *logrus.Entry, q string, start, end time.Time, org string) ([]PullRequest, error) {
 	start = floor(start)
 	end = floor(end)
@@ -178,19 +202,38 @@ func (gi *GitHubProvider) search(query querier, log *logrus.Entry, q string, sta
 	})
 	requestStart := time.Now()
 	var cursor *githubql.String
+	pageSize := maxSearchPageSize
 	vars := map[string]interface{}{
-		"query":        githubql.String(datedQuery(q, start, end)),
-		"searchCursor": cursor,
+		"query":          githubql.String(datedQuery(q, start, end)),
+		"searchCursor":   cursor,
+		"searchPageSize": githubql.Int(pageSize),
 	}
 
 	var totalCost, remaining int
 	var ret []PullRequest
-	var sq searchQuery
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 	for {
+		// Use a fresh result for every request so that a failed or retried
+		// request can never leak nodes from a previous page.
+		var sq searchQuery
+		// While the page can still shrink, handle gateway timeouts here instead
+		// of letting the client resend the identical (too expensive) request.
+		// At the minimum page size fall back to the client's normal retries.
+		reqCtx := ctx
+		if pageSize > minSearchPageSize {
+			reqCtx = github.WithCallerHandledGatewayTimeouts(ctx)
+		}
 		log.Debug("Sending query")
-		if err := query(ctx, &sq, vars, org); err != nil {
+		if err := query(reqCtx, &sq, vars, org); err != nil {
+			if isGatewayTimeout(err) && pageSize > minSearchPageSize && ctx.Err() == nil {
+				// GitHub could not resolve this page in time. Cursors are
+				// offset based, so retry the same cursor with a smaller page.
+				pageSize = max(pageSize/2, minSearchPageSize)
+				vars["searchPageSize"] = githubql.Int(pageSize)
+				log.WithError(err).WithField("search_page_size", pageSize).Warn("Search page timed out, retrying with a smaller page size.")
+				continue
+			}
 			if cursor != nil {
 				err = fmt.Errorf("cursor: %q, err: %w", *cursor, err)
 			}
@@ -209,10 +252,11 @@ func (gi *GitHubProvider) search(query querier, log *logrus.Entry, q string, sta
 		log = log.WithField("searchCursor", *cursor)
 	}
 	log.WithFields(logrus.Fields{
-		"duration":       time.Since(requestStart).String(),
-		"pr_found_count": len(ret),
-		"cost":           totalCost,
-		"remaining":      remaining,
+		"duration":         time.Since(requestStart).String(),
+		"pr_found_count":   len(ret),
+		"search_page_size": pageSize,
+		"cost":             totalCost,
+		"remaining":        remaining,
 	}).Debug("Finished query")
 	return ret, nil
 }

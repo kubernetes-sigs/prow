@@ -4815,3 +4815,394 @@ func TestAllowInDryRunOnlyForTokenAcquisition(t *testing.T) {
 		})
 	}
 }
+
+type recordingRoundTripper struct {
+	statuses []int
+	// errs optionally makes call i fail with a transport error.
+	errs   []error
+	bodies []string
+	// respBodies are the response bodies handed out, to check they get closed.
+	respBodies []*trackingBody
+}
+
+type trackingBody struct {
+	io.Reader
+	closed bool
+}
+
+func (b *trackingBody) Close() error {
+	b.closed = true
+	return nil
+}
+
+func (r *recordingRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	var body string
+	if req.Body != nil {
+		b, err := io.ReadAll(req.Body)
+		if err != nil {
+			return nil, err
+		}
+		body = string(b)
+	}
+	r.bodies = append(r.bodies, body)
+	i := len(r.bodies) - 1
+	if i < len(r.errs) && r.errs[i] != nil {
+		return nil, r.errs[i]
+	}
+	code := r.statuses[i]
+	respBody := &trackingBody{Reader: strings.NewReader("{}")}
+	r.respBodies = append(r.respBodies, respBody)
+	return &http.Response{
+		StatusCode: code,
+		Status:     fmt.Sprintf("%d %s", code, http.StatusText(code)),
+		Body:       respBody,
+		Header:     http.Header{},
+		Request:    req,
+	}, nil
+}
+
+func TestGraphQLRetryTransport(t *testing.T) {
+	const reqBody = `{"query":"{ viewer { login } }"}`
+	testCases := []struct {
+		name         string
+		statuses     []int
+		expectedCode int
+		expectedReqs int
+		expectedWait []time.Duration
+	}{
+		{
+			name:         "success is not retried",
+			statuses:     []int{http.StatusOK},
+			expectedCode: http.StatusOK,
+			expectedReqs: 1,
+		},
+		{
+			name:         "non-retryable errors are not retried",
+			statuses:     []int{http.StatusInternalServerError},
+			expectedCode: http.StatusInternalServerError,
+			expectedReqs: 1,
+		},
+		{
+			name:         "502 then success",
+			statuses:     []int{http.StatusBadGateway, http.StatusOK},
+			expectedCode: http.StatusOK,
+			expectedReqs: 2,
+			expectedWait: []time.Duration{time.Second},
+		},
+		{
+			name:         "503 and 504 are retried with exponential backoff",
+			statuses:     []int{http.StatusServiceUnavailable, http.StatusGatewayTimeout, http.StatusOK},
+			expectedCode: http.StatusOK,
+			expectedReqs: 3,
+			expectedWait: []time.Duration{time.Second, 2 * time.Second},
+		},
+		{
+			name:         "gives up after max retries and returns the last response",
+			statuses:     []int{http.StatusBadGateway, http.StatusBadGateway, http.StatusGatewayTimeout, http.StatusOK},
+			expectedCode: http.StatusGatewayTimeout,
+			expectedReqs: 3,
+			expectedWait: []time.Duration{time.Second, 2 * time.Second},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			upstream := &recordingRoundTripper{statuses: tc.statuses}
+			var waits []time.Duration
+			rt := &graphQLRetryTransport{
+				upstream:     upstream,
+				maxRetries:   2,
+				initialDelay: time.Second,
+				sleep: func(_ context.Context, d time.Duration) error {
+					waits = append(waits, d)
+					return nil
+				},
+			}
+			req, err := http.NewRequest(http.MethodPost, "https://api.github.com/graphql", bytes.NewBufferString(reqBody))
+			if err != nil {
+				t.Fatal(err)
+			}
+			resp, err := rt.RoundTrip(req)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			defer resp.Body.Close()
+			if resp.StatusCode != tc.expectedCode {
+				t.Errorf("expected status %d, got %d", tc.expectedCode, resp.StatusCode)
+			}
+			if len(upstream.bodies) != tc.expectedReqs {
+				t.Errorf("expected %d requests, got %d", tc.expectedReqs, len(upstream.bodies))
+			}
+			for i, b := range upstream.bodies {
+				if b != reqBody {
+					t.Errorf("request %d: body was not replayed, got %q", i, b)
+				}
+			}
+			if diff := cmp.Diff(tc.expectedWait, waits); diff != "" {
+				t.Errorf("unexpected backoff (-want +got):\n%s", diff)
+			}
+			// Every response except the one returned must be closed so the
+			// connection can be reused.
+			for i, b := range upstream.respBodies[:len(upstream.respBodies)-1] {
+				if !b.closed {
+					t.Errorf("response %d was retried but its body was not closed", i)
+				}
+			}
+			if upstream.respBodies[len(upstream.respBodies)-1].closed {
+				t.Error("the returned response body must not be closed by the transport")
+			}
+		})
+	}
+}
+
+func TestGraphQLRetryTransportStopsWhenContextIsDone(t *testing.T) {
+	upstream := &recordingRoundTripper{statuses: []int{http.StatusBadGateway, http.StatusOK}}
+	rt := newGraphQLRetryTransport(upstream)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.github.com/graphql", bytes.NewBufferString("{}"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rt.RoundTrip(req); !errors.Is(err, context.Canceled) {
+		t.Errorf("expected context.Canceled, got %v", err)
+	}
+	if len(upstream.bodies) != 1 {
+		t.Errorf("expected a single request, got %d", len(upstream.bodies))
+	}
+}
+
+func TestGraphQLRetryTransportPreservesHeadersWithAppsAuth(t *testing.T) {
+	// The apps-auth setup swaps the upstream of the header transport, which must
+	// remain underneath the retry transport so preview headers are still sent.
+	var gotAccept []string
+	final := roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+		gotAccept = r.Header.Values("Accept")
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("{}")), Header: http.Header{}}, nil
+	})
+	header := newAddHeaderTransport(http.DefaultTransport)
+	rt := newGraphQLRetryTransport(header)
+	header.upstream = final
+	req, _ := http.NewRequest(http.MethodPost, "https://api.github.com/graphql", bytes.NewBufferString("{}"))
+	resp, err := rt.RoundTrip(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if len(gotAccept) != 2 {
+		t.Errorf("expected preview Accept headers, got %v", gotAccept)
+	}
+}
+
+type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripperFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+func TestGraphQLRetryTransportCallerHandledGatewayTimeouts(t *testing.T) {
+	testCases := []struct {
+		name         string
+		statuses     []int
+		expectedCode int
+		expectedReqs int
+	}{
+		{
+			name:         "502 is returned to the caller without retrying",
+			statuses:     []int{http.StatusBadGateway, http.StatusOK},
+			expectedCode: http.StatusBadGateway,
+			expectedReqs: 1,
+		},
+		{
+			name:         "504 is returned to the caller without retrying",
+			statuses:     []int{http.StatusGatewayTimeout, http.StatusOK},
+			expectedCode: http.StatusGatewayTimeout,
+			expectedReqs: 1,
+		},
+		{
+			name:         "503 is still retried",
+			statuses:     []int{http.StatusServiceUnavailable, http.StatusOK},
+			expectedCode: http.StatusOK,
+			expectedReqs: 2,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			upstream := &recordingRoundTripper{statuses: tc.statuses}
+			rt := newGraphQLRetryTransport(upstream)
+			rt.sleep = func(context.Context, time.Duration) error { return nil }
+			ctx := WithCallerHandledGatewayTimeouts(context.Background())
+			if !CallerHandlesGatewayTimeouts(ctx) || CallerHandlesGatewayTimeouts(context.Background()) {
+				t.Fatal("CallerHandlesGatewayTimeouts does not reflect the context")
+			}
+			req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.github.com/graphql", bytes.NewBufferString("{}"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			resp, err := rt.RoundTrip(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			resp.Body.Close()
+			if resp.StatusCode != tc.expectedCode {
+				t.Errorf("expected status %d, got %d", tc.expectedCode, resp.StatusCode)
+			}
+			if len(upstream.bodies) != tc.expectedReqs {
+				t.Errorf("expected %d requests, got %d", tc.expectedReqs, len(upstream.bodies))
+			}
+		})
+	}
+}
+
+func TestNewGraphQLRetryTransportDefaults(t *testing.T) {
+	rt := newGraphQLRetryTransport(http.DefaultTransport)
+	if rt.maxRetries != graphQLMaxRetries || rt.initialDelay != graphQLRetryInitialDelay || rt.sleep == nil {
+		t.Errorf("unexpected defaults: maxRetries=%d initialDelay=%s sleepSet=%t", rt.maxRetries, rt.initialDelay, rt.sleep != nil)
+	}
+	// The worst case (every attempt a ~10s gateway timeout plus all backoff)
+	// must fit in the http.Client timeout, which covers all retries.
+	const gatewayTimeout = 11 * time.Second
+	worst := time.Duration(graphQLMaxRetries+1) * gatewayTimeout
+	for i, d := 0, graphQLRetryInitialDelay; i < graphQLMaxRetries; i, d = i+1, d*2 {
+		worst += d
+	}
+	if worst >= MaxRequestTime {
+		t.Errorf("worst-case GraphQL retry time %s exceeds MaxRequestTime %s", worst, MaxRequestTime)
+	}
+}
+
+func TestSleepWithContext(t *testing.T) {
+	if err := sleepWithContext(context.Background(), time.Millisecond); err != nil {
+		t.Errorf("expected nil after the timer fired, got %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := sleepWithContext(ctx, time.Hour); !errors.Is(err, context.Canceled) {
+		t.Errorf("expected context.Canceled, got %v", err)
+	}
+}
+
+// nonRewindableBody is a request body http.NewRequest cannot create a GetBody
+// for, so the request can only be sent once.
+type nonRewindableBody struct{ io.Reader }
+
+func (nonRewindableBody) Close() error { return nil }
+
+func TestGraphQLRetryTransportEdgeCases(t *testing.T) {
+	noSleep := func(context.Context, time.Duration) error { return nil }
+	transportErr := errors.New("connection reset by peer")
+	testCases := []struct {
+		name         string
+		statuses     []int
+		errs         []error
+		makeRequest  func(t *testing.T) *http.Request
+		expectedCode int
+		expectedErr  error
+		expectedReqs int
+	}{
+		{
+			name:     "request body without GetBody is sent once and never retried",
+			statuses: []int{http.StatusBadGateway, http.StatusOK},
+			makeRequest: func(t *testing.T) *http.Request {
+				req, err := http.NewRequest(http.MethodPost, "https://api.github.com/graphql", nonRewindableBody{strings.NewReader("{}")})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if req.GetBody != nil {
+					t.Fatal("test setup: expected request without GetBody")
+				}
+				return req
+			},
+			expectedCode: http.StatusBadGateway,
+			expectedReqs: 1,
+		},
+		{
+			name:     "request without a body is retried as is",
+			statuses: []int{http.StatusServiceUnavailable, http.StatusOK},
+			makeRequest: func(t *testing.T) *http.Request {
+				req, err := http.NewRequest(http.MethodGet, "https://api.github.com/graphql", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return req
+			},
+			expectedCode: http.StatusOK,
+			expectedReqs: 2,
+		},
+		{
+			name:     "request with http.NoBody is retried",
+			statuses: []int{http.StatusGatewayTimeout, http.StatusOK},
+			makeRequest: func(t *testing.T) *http.Request {
+				req, err := http.NewRequest(http.MethodPost, "https://api.github.com/graphql", http.NoBody)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return req
+			},
+			expectedCode: http.StatusOK,
+			expectedReqs: 2,
+		},
+		{
+			name:     "failure to rewind the body is returned",
+			statuses: []int{http.StatusBadGateway, http.StatusOK},
+			makeRequest: func(t *testing.T) *http.Request {
+				req, err := http.NewRequest(http.MethodPost, "https://api.github.com/graphql", bytes.NewBufferString("{}"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				req.GetBody = func() (io.ReadCloser, error) { return nil, transportErr }
+				return req
+			},
+			expectedErr:  transportErr,
+			expectedReqs: 1,
+		},
+		{
+			name: "transport errors are returned without retrying",
+			errs: []error{transportErr},
+			makeRequest: func(t *testing.T) *http.Request {
+				req, err := http.NewRequest(http.MethodPost, "https://api.github.com/graphql", bytes.NewBufferString("{}"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				return req
+			},
+			expectedErr:  transportErr,
+			expectedReqs: 1,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			upstream := &recordingRoundTripper{statuses: tc.statuses, errs: tc.errs}
+			rt := newGraphQLRetryTransport(upstream)
+			rt.sleep = noSleep
+			resp, err := rt.RoundTrip(tc.makeRequest(t))
+			if tc.expectedErr != nil {
+				if !errors.Is(err, tc.expectedErr) {
+					t.Errorf("expected error %v, got %v", tc.expectedErr, err)
+				}
+				if resp != nil {
+					t.Errorf("expected no response alongside an error, got status %d", resp.StatusCode)
+				}
+			} else {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				defer resp.Body.Close()
+				if resp.StatusCode != tc.expectedCode {
+					t.Errorf("expected status %d, got %d", tc.expectedCode, resp.StatusCode)
+				}
+			}
+			if len(upstream.bodies) != tc.expectedReqs {
+				t.Errorf("expected %d requests, got %d", tc.expectedReqs, len(upstream.bodies))
+			}
+			// Responses that were discarded in favour of a retry or an error
+			// must be closed.
+			for i, b := range upstream.respBodies {
+				if resp != nil && i == len(upstream.respBodies)-1 {
+					continue
+				}
+				if !b.closed {
+					t.Errorf("response %d was discarded but its body was not closed", i)
+				}
+			}
+		})
+	}
+}

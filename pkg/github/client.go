@@ -619,7 +619,8 @@ func NewClientFromOptions(fields logrus.Fields, options ClientOptions) (TokenGen
 		Transport: options.BaseRoundTripper,
 		Timeout:   options.MaxRequestTime,
 	}
-	graphQLTransport := newAddHeaderTransport(options.BaseRoundTripper)
+	graphQLHeaderTransport := newAddHeaderTransport(options.BaseRoundTripper)
+	graphQLTransport := newGraphQLRetryTransport(graphQLHeaderTransport)
 	c := &client{
 		logger: logrus.WithFields(fields).WithField("client", "github"),
 		gqlc: &graphQLGitHubAppsAuthClientWrapper{Client: githubql.NewEnterpriseClient(
@@ -659,7 +660,7 @@ func NewClientFromOptions(fields logrus.Fields, options ClientOptions) (TokenGen
 			return nil, nil, nil, fmt.Errorf("failed to construct apps auth roundtripper: %w", err)
 		}
 		httpClient.Transport = appsTransport
-		graphQLTransport.upstream = appsTransport
+		graphQLHeaderTransport.upstream = appsTransport
 
 		// Use github apps auth for git actions
 		// https://docs.github.com/en/free-pro-team@latest/developers/apps/authenticating-with-github-apps#http-based-git-access-by-an-installation=
@@ -745,6 +746,134 @@ func (s *addHeaderTransport) RoundTrip(r *http.Request) (*http.Response, error) 
 	}
 
 	return s.upstream.RoundTrip(r)
+}
+
+const (
+	// graphQLMaxRetries is the number of times a GraphQL request is retried
+	// after a transient 5xx response. GitHub unavailability is not rare, so
+	// this rides out roughly a minute of backoff (2+4+8+16+32s). Worst case,
+	// with every attempt being a ~10s gateway timeout, a request takes ~2m,
+	// which stays within MaxRequestTime (the http.Client timeout covers all
+	// retries). Callers that can do better than resending the same request
+	// can opt out for 502/504 with WithCallerHandledGatewayTimeouts.
+	graphQLMaxRetries = 5
+	// graphQLRetryInitialDelay is the delay before the first retry; it doubles
+	// on every subsequent retry.
+	graphQLRetryInitialDelay = 2 * time.Second
+)
+
+// graphQLRetryTransport implements http.RoundTripper
+var _ http.RoundTripper = &graphQLRetryTransport{}
+
+// graphQLRetryTransport retries GraphQL requests that fail with a transient
+// server error (502, 503 or 504). The REST client has its own retry logic in
+// requestRetryWithContext, but the GraphQL client talks to the transport
+// directly and would otherwise surface every transient failure to callers.
+type graphQLRetryTransport struct {
+	upstream     http.RoundTripper
+	maxRetries   int
+	initialDelay time.Duration
+	// sleep waits for d or until ctx is done, whichever comes first. It is
+	// overridable for tests.
+	sleep func(ctx context.Context, d time.Duration) error
+}
+
+func newGraphQLRetryTransport(upstream http.RoundTripper) *graphQLRetryTransport {
+	return &graphQLRetryTransport{
+		upstream:     upstream,
+		maxRetries:   graphQLMaxRetries,
+		initialDelay: graphQLRetryInitialDelay,
+		sleep:        sleepWithContext,
+	}
+}
+
+func sleepWithContext(ctx context.Context, d time.Duration) error {
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-t.C:
+		return nil
+	}
+}
+
+func isRetryableGraphQLStatus(code int) bool {
+	switch code {
+	case http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
+		return true
+	}
+	return false
+}
+
+type callerHandlesGatewayTimeoutsKey struct{}
+
+// WithCallerHandledGatewayTimeouts returns a context that disables the GraphQL
+// client's automatic retries of 502 Bad Gateway and 504 Gateway Timeout
+// responses for requests made with it. Use it when the caller has a better
+// recovery strategy than resending the identical request, e.g. requesting a
+// smaller page: GitHub returns these when a query cannot be resolved within its
+// time limit, so an identical retry usually just times out again.
+// Other transient errors (503) are still retried.
+func WithCallerHandledGatewayTimeouts(ctx context.Context) context.Context {
+	return context.WithValue(ctx, callerHandlesGatewayTimeoutsKey{}, true)
+}
+
+// CallerHandlesGatewayTimeouts reports whether ctx was created with
+// WithCallerHandledGatewayTimeouts.
+func CallerHandlesGatewayTimeouts(ctx context.Context) bool {
+	v, _ := ctx.Value(callerHandlesGatewayTimeoutsKey{}).(bool)
+	return v
+}
+
+func (t *graphQLRetryTransport) shouldRetry(r *http.Request, code int) bool {
+	if !isRetryableGraphQLStatus(code) {
+		return false
+	}
+	if (code == http.StatusBadGateway || code == http.StatusGatewayTimeout) && CallerHandlesGatewayTimeouts(r.Context()) {
+		return false
+	}
+	return true
+}
+
+func (t *graphQLRetryTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	// Without a way to rewind the body the request can only be sent once.
+	if r.Body != nil && r.Body != http.NoBody && r.GetBody == nil {
+		return t.upstream.RoundTrip(r)
+	}
+
+	backoff := t.initialDelay
+	for retries := 0; ; retries++ {
+		req := r
+		if retries > 0 && r.GetBody != nil {
+			body, err := r.GetBody()
+			if err != nil {
+				return nil, fmt.Errorf("failed to rewind GraphQL request body for retry: %w", err)
+			}
+			req = r.Clone(r.Context())
+			req.Body = body
+		}
+
+		resp, err := t.upstream.RoundTrip(req)
+		if err != nil || !t.shouldRetry(r, resp.StatusCode) || retries >= t.maxRetries {
+			return resp, err
+		}
+
+		logrus.WithFields(logrus.Fields{
+			"client":      "github",
+			"status_code": resp.StatusCode,
+			"retry":       retries + 1,
+			"backoff":     backoff.String(),
+		}).Debug("Retrying GraphQL request after transient server error")
+		// Drain so the connection can be reused.
+		_, _ = io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
+
+		if err := t.sleep(r.Context(), backoff); err != nil {
+			return nil, err
+		}
+		backoff *= 2
+	}
 }
 
 // NewClient creates a new fully operational GitHub client.
