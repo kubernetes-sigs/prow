@@ -37,6 +37,11 @@ import (
 	"sigs.k8s.io/prow/pkg/statusreconciler/migrator"
 )
 
+const (
+	defaultMaxReconcileAttempts = 5
+	defaultReconcileRetryDelay = 30 * time.Second
+)
+
 // NewController constructs a new controller to reconcile stauses on config change
 func NewController(continueOnError bool, addedPresubmitDenylist, addedPresubmitDenylistAll sets.Set[string], opener io.Opener, configOpts configflagutil.ConfigOptions, statusURI string, prowJobClient prowv1.ProwJobInterface, githubClient github.Client, pluginAgent *plugins.ConfigAgent) *Controller {
 	sc := &statusController{
@@ -50,6 +55,8 @@ func NewController(continueOnError bool, addedPresubmitDenylist, addedPresubmitD
 		continueOnError:           continueOnError,
 		addedPresubmitDenylist:    addedPresubmitDenylist,
 		addedPresubmitDenylistAll: addedPresubmitDenylistAll,
+		maxReconcileAttempts:      defaultMaxReconcileAttempts,
+		reconcileRetryDelay:       defaultReconcileRetryDelay,
 		prowJobTriggerer: &kubeProwJobTriggerer{
 			prowJobClient: prowJobClient,
 			githubClient:  githubClient,
@@ -149,6 +156,8 @@ type Controller struct {
 	continueOnError           bool
 	addedPresubmitDenylist    sets.Set[string]
 	addedPresubmitDenylistAll sets.Set[string]
+	maxReconcileAttempts      int
+	reconcileRetryDelay       time.Duration
 	prowJobTriggerer          prowJobTriggerer
 	githubClient              githubClient
 	statusMigrator            statusMigrator
@@ -165,19 +174,95 @@ func (c *Controller) Run(ctx context.Context) {
 		return
 	}
 
+	// Coalesce pending updates so reconciliation can catch up without blocking delivery.
+	latest := make(chan config.Config, 1)
+	push := func(after config.Config) {
+		// A single producer can replace the pending config without blocking.
+		select {
+		case <-latest:
+		default:
+		}
+		latest <- after
+	}
+
+	// The first delta starts from the saved config, or an empty config on first start.
+	var lastReconciled *config.Config
+	select {
+	case delta := <-changes:
+		before := delta.Before
+		lastReconciled = &before
+		push(delta.After)
+	case <-ctx.Done():
+		logrus.Info("status-reconciler is shutting down...")
+		return
+	}
+
+	// Drain updates independently so reconciliation cannot cause delivery timeouts.
+	go func() {
+		for {
+			select {
+			case delta := <-changes:
+				push(delta.After)
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
 	for {
 		select {
-		case change := <-changes:
-			start := time.Now()
-			log := logrus.WithField("old_config_revision", change.Before.ConfigVersionSHA).WithField("config_revision", change.After.ConfigVersionSHA)
-			if err := c.reconcile(change, log); err != nil {
-				log.WithError(err).Error("Error reconciling statuses.")
+		case after := <-latest:
+			// Empty revisions cannot identify duplicate configs.
+			if lastReconciled.ConfigVersionSHA != "" && after.ConfigVersionSHA == lastReconciled.ConfigVersionSHA {
+				continue
 			}
+			start := time.Now()
+			// A delta's Before may include changes we missed (kubernetes-sigs/prow#848).
+			delta := config.Delta{Before: *lastReconciled, After: after}
+			log := logrus.WithField("old_config_revision", delta.Before.ConfigVersionSHA).WithField("config_revision", delta.After.ConfigVersionSHA)
+			if err := c.reconcileWithRetry(ctx, delta, log); err != nil {
+				if ctx.Err() != nil {
+					// Preserve the baseline when shutdown interrupts retries.
+					continue
+				}
+				// Advance the baseline even on failure to unblock later config changes.
+				log.WithError(err).Error("Giving up reconciling statuses after retries; skipping this transition to avoid blocking later config changes")
+			}
+			reconciled := after
+			lastReconciled = &reconciled
 			log.WithField("duration", fmt.Sprintf("%v", time.Since(start))).Info("Statuses reconciled")
 			c.statusClient.Save()
 		case <-ctx.Done():
 			logrus.Info("status-reconciler is shutting down...")
 			return
+		}
+	}
+}
+
+// reconcileWithRetry bounds retries so persistent failures cannot block later configs.
+func (c *Controller) reconcileWithRetry(ctx context.Context, delta config.Delta, log *logrus.Entry) error {
+	attempts := c.maxReconcileAttempts
+	if attempts <= 0 {
+		attempts = defaultMaxReconcileAttempts
+	}
+	delay := c.reconcileRetryDelay
+	if delay <= 0 {
+		delay = defaultReconcileRetryDelay
+	}
+
+	var err error
+	for attempt := 1; ; attempt++ {
+		if err = c.reconcile(delta, log); err == nil {
+			return nil
+		}
+		if attempt >= attempts {
+			return err
+		}
+		log.WithError(err).WithField("attempt", attempt).Warn("Error reconciling statuses; will retry.")
+		select {
+		case <-time.After(delay):
+		case <-ctx.Done():
+			return err
 		}
 	}
 }
@@ -256,7 +341,11 @@ func (c *Controller) triggerNewPresubmits(addedPresubmits map[string][]config.Pr
 			logger := log.WithFields(logrus.Fields{"org": org, "repo": repo, "number": number, "branch": branch})
 			toTrigger, err := pjutil.FilterPresubmits(filter, changes, branch, presubmits, logger)
 			if err != nil {
-				return err
+				triggerErrors = append(triggerErrors, fmt.Errorf("failed to filter presubmits for %s#%d: %w", orgrepo, pr.Number, err))
+				if !c.continueOnError {
+					return utilerrors.NewAggregate(triggerErrors)
+				}
+				continue
 			}
 			if err := c.triggerIfTrusted(org, repo, pr, toTrigger); err != nil {
 				triggerErrors = append(triggerErrors, fmt.Errorf("failed to trigger jobs for %s#%d: %w", orgrepo, pr.Number, err))
