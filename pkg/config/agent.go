@@ -35,15 +35,16 @@ type Delta struct {
 	Before, After Config
 }
 
-// DeltaChan is a channel to receive config delta events when config changes.
-type DeltaChan = chan<- Delta
+// DeltaChan is receive-only so subscribers cannot interfere with delivery.
+type DeltaChan = <-chan Delta
 
 // Agent watches a path and automatically loads the config stored
 // therein.
 type Agent struct {
-	mut           sync.RWMutex // do not export Lock, etc methods
-	c             *Config
-	subscriptions []DeltaChan
+	mut sync.RWMutex // do not export Lock, etc methods
+	c   *Config
+	// Single-slot buffers let Set coalesce updates for slow subscribers.
+	subscriptions []chan Delta
 }
 
 // IsConfigMapMount determines whether the provided directory is a configmap mounted directory
@@ -378,14 +379,14 @@ func (ca *Agent) Start(prowConfig, jobConfig string, additionalProwConfigDirs []
 	return nil
 }
 
-// Subscribe registers the channel for messages on config reload.
-// The caller can expect a copy of the previous and current config
-// to be sent down the subscribed channel when a new configuration
-// is loaded.
-func (ca *Agent) Subscribe(subscription DeltaChan) {
+// Subscribe returns config changes. Coalescing preserves the earliest unread
+// Before and latest After so slow subscribers can reconcile the full change.
+func (ca *Agent) Subscribe() DeltaChan {
 	ca.mut.Lock()
 	defer ca.mut.Unlock()
+	subscription := make(chan Delta, 1)
 	ca.subscriptions = append(ca.subscriptions, subscription)
+	return subscription
 }
 
 // Getter returns the current Config in a thread-safe manner.
@@ -410,26 +411,31 @@ func (ca *Agent) Set(c *Config) {
 	delta := Delta{oldConfig, *c}
 	ca.c = c
 	for _, subscription := range ca.subscriptions {
-		go func(sub DeltaChan) { // wait a minute to send each event
-			end := time.NewTimer(time.Minute)
-			select {
-			case sub <- delta:
-			case <-end.C:
-			}
-			if !end.Stop() { // prevent new events
-				<-end.C // drain the pending event
-			}
-		}(subscription)
+		deliverDelta(subscription, delta)
 	}
 }
 
-// SetWithoutBroadcast sets the config, but does not broadcast the event to
-// those listening for config reload changes. This is useful if you want to
-// modify the Config in the Agent, from the point of view of the subscriber to
-// the new one that was detected from the DeltaChan; if you just used Set()
-// instead of this in such a situation, you would end up clogging the DeltaChan
-// because you would be acting as both the consumer and producer of the
-// DeltaChan.
+// deliverDelta preserves the earliest unread Before when coalescing updates.
+// Set holds ca.mut, so no other producer can refill the single-slot buffer;
+// delivery succeeds within two attempts.
+func deliverDelta(sub chan Delta, delta Delta) {
+	for {
+		select {
+		case sub <- delta:
+			return
+		default:
+			select {
+			case pending := <-sub:
+				delta = Delta{Before: pending.Before, After: delta.After}
+			default:
+				// The subscriber may have drained the slot after the send attempt.
+			}
+		}
+	}
+}
+
+// SetWithoutBroadcast updates config without notifying subscribers, avoiding
+// feedback loops when a subscriber applies a received config.
 func (ca *Agent) SetWithoutBroadcast(c *Config) {
 	ca.mut.Lock()
 	defer ca.mut.Unlock()
