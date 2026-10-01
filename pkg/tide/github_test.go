@@ -18,14 +18,19 @@ package tide
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"slices"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	githubql "github.com/shurcooL/githubv4"
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -835,5 +840,141 @@ func TestDeleteReportIssueComment(t *testing.T) {
 				t.Errorf("expected issue comments: %+v, got issue comments: %+v", tc.expectedIssueComments, ghc.issueComments)
 			}
 		})
+	}
+}
+
+// nginxErrorPage mimics the body GitHub returns alongside gateway errors.
+func nginxErrorPage(code int) string {
+	return fmt.Sprintf("<html>\r\n<head><title>%[1]d %[2]s</title></head>\r\n<body>\r\n<center><h1>%[1]d %[2]s</h1></center>\r\n<hr><center>nginx</center>\r\n</body>\r\n</html>\r\n", code, http.StatusText(code))
+}
+
+// newTestGitHubClient returns a real prow GitHub client whose GraphQL and REST
+// endpoints point at server.
+func newTestGitHubClient(t *testing.T, server *httptest.Server) github.Client {
+	t.Helper()
+	ghc, err := github.NewClient(func() []byte { return []byte("token") }, func(b []byte) []byte { return b }, server.URL, server.URL)
+	if err != nil {
+		t.Fatalf("failed to create GitHub client: %v", err)
+	}
+	return ghc
+}
+
+// TestIsGatewayTimeoutMatchesGraphQLClientErrors guards isGatewayTimeout
+// against changes to the error message of the underlying GraphQL library: the
+// library does not expose the HTTP status code, so we have to match on the
+// string it produces.
+func TestIsGatewayTimeoutMatchesGraphQLClientErrors(t *testing.T) {
+	for _, tc := range []struct {
+		code int
+		want bool
+	}{
+		{code: http.StatusBadGateway, want: true},
+		{code: http.StatusGatewayTimeout, want: true},
+		{code: http.StatusInternalServerError, want: false},
+	} {
+		t.Run(http.StatusText(tc.code), func(t *testing.T) {
+			var calls int
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				calls++
+				w.Header().Set("Content-Type", "text/html")
+				w.WriteHeader(tc.code)
+				fmt.Fprint(w, nginxErrorPage(tc.code))
+			}))
+			defer server.Close()
+			ghc := newTestGitHubClient(t, server)
+
+			// Same opt-out search() uses, so the client returns the 502/504
+			// immediately instead of retrying with backoff.
+			ctx := github.WithCallerHandledGatewayTimeouts(context.Background())
+			vars := map[string]interface{}{
+				"query":          githubql.String("is:pr"),
+				"searchCursor":   (*githubql.String)(nil),
+				"searchPageSize": githubql.Int(maxSearchPageSize),
+			}
+			err := ghc.QueryWithGitHubAppsSupport(ctx, &searchQuery{}, vars, "")
+			if err == nil {
+				t.Fatal("expected an error from the GraphQL client")
+			}
+			if got := isGatewayTimeout(err); got != tc.want {
+				t.Errorf("isGatewayTimeout(%q) = %t, want %t; has the GraphQL library changed its error format?", err, got, tc.want)
+			}
+			if calls != 1 {
+				t.Errorf("expected exactly 1 request, got %d", calls)
+			}
+		})
+	}
+}
+
+// TestSearchShrinksPageAgainstGitHubServer runs search() end to end through the
+// real GitHub and GraphQL clients against a server that, like GitHub, cannot
+// resolve pages larger than a threshold in time.
+func TestSearchShrinksPageAgainstGitHubServer(t *testing.T) {
+	const (
+		maxResolvablePageSize = 18
+		totalPRs              = 40
+	)
+	type gqlRequest struct {
+		Query     string `json:"query"`
+		Variables struct {
+			SearchCursor   *string `json:"searchCursor"`
+			SearchPageSize int     `json:"searchPageSize"`
+		} `json:"variables"`
+	}
+	var pageSizes []int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req gqlRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Errorf("failed to decode GraphQL request: %v", err)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		if !strings.Contains(req.Query, "$searchPageSize:Int!") || !strings.Contains(req.Query, "first: $searchPageSize") {
+			t.Errorf("query does not declare and use $searchPageSize: %s", req.Query)
+		}
+		size := req.Variables.SearchPageSize
+		pageSizes = append(pageSizes, size)
+		if size > maxResolvablePageSize {
+			w.WriteHeader(http.StatusBadGateway)
+			fmt.Fprint(w, nginxErrorPage(http.StatusBadGateway))
+			return
+		}
+		offset := 0
+		if req.Variables.SearchCursor != nil {
+			offset, _ = strconv.Atoi(*req.Variables.SearchCursor)
+		}
+		end := min(offset+size, totalPRs)
+		var nodes []map[string]interface{}
+		for n := offset + 1; n <= end; n++ {
+			nodes = append(nodes, map[string]interface{}{"number": n})
+		}
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"data": map[string]interface{}{
+				"rateLimit": map[string]interface{}{"cost": 1, "remaining": 5000},
+				"search": map[string]interface{}{
+					"pageInfo": map[string]interface{}{"hasNextPage": end < totalPRs, "endCursor": strconv.Itoa(end)},
+					"nodes":    nodes,
+				},
+			},
+		})
+	}))
+	defer server.Close()
+	ghc := newTestGitHubClient(t, server)
+
+	prs, err := (&GitHubProvider{}).search(ghc.QueryWithGitHubAppsSupport, logrus.WithField("test", t.Name()), "is:pr", time.Time{}, time.Now(), "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(prs) != totalPRs {
+		t.Fatalf("expected %d PRs, got %d", totalPRs, len(prs))
+	}
+	for i, pr := range prs {
+		if int(pr.Number) != i+1 {
+			t.Fatalf("PRs skipped or duplicated: position %d has PR %d", i, pr.Number)
+		}
+	}
+	// One 502 at the default size, then the shrunk size for every page; the
+	// client must not have retried the 502 itself.
+	if diff := cmp.Diff([]int{maxSearchPageSize, 18, 18, 18}, pageSizes); diff != "" {
+		t.Errorf("unexpected page sizes requested (-want +got):\n%s", diff)
 	}
 }

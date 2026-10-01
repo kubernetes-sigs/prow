@@ -750,9 +750,13 @@ func (s *addHeaderTransport) RoundTrip(r *http.Request) (*http.Response, error) 
 
 const (
 	// graphQLMaxRetries is the number of times a GraphQL request is retried
-	// after a transient 5xx response. GraphQL gateway timeouts take ~10s each,
-	// so this is deliberately much lower than DefaultMaxRetries.
-	graphQLMaxRetries = 2
+	// after a transient 5xx response. GitHub unavailability is not rare, so
+	// this rides out roughly a minute of backoff (2+4+8+16+32s). Worst case,
+	// with every attempt being a ~10s gateway timeout, a request takes ~2m,
+	// which stays within MaxRequestTime (the http.Client timeout covers all
+	// retries). Callers that can do better than resending the same request
+	// can opt out for 502/504 with WithCallerHandledGatewayTimeouts.
+	graphQLMaxRetries = 5
 	// graphQLRetryInitialDelay is the delay before the first retry; it doubles
 	// on every subsequent retry.
 	graphQLRetryInitialDelay = 2 * time.Second
