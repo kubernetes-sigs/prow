@@ -2352,7 +2352,8 @@ func (c *Configuration) mergeFrom(other *Configuration) error {
 
 	diff := cmp.Diff(other, &Configuration{Approve: other.Approve, Bugzilla: other.Bugzilla,
 		ExternalPlugins: other.ExternalPlugins, Label: Label{RestrictedLabels: other.Label.RestrictedLabels},
-		Lgtm: other.Lgtm, Plugins: other.Plugins, Triggers: other.Triggers, Welcome: other.Welcome},
+		Lgtm: other.Lgtm, Plugins: other.Plugins, Triggers: other.Triggers, Welcome: other.Welcome,
+		MilestoneApplier: other.MilestoneApplier},
 		config.DefaultDiffOpts...)
 
 	if diff != "" {
@@ -2383,6 +2384,10 @@ func (c *Configuration) mergeFrom(other *Configuration) error {
 		errs = append(errs, fmt.Errorf("failed to merge .label from supplemental config: %w", err))
 	}
 
+	if err := c.mergeMilestoneApplierFrom(other.MilestoneApplier); err != nil {
+		errs = append(errs, fmt.Errorf("failed to merge .milestone_applier from supplemental config: %w", err))
+	}
+
 	return utilerrors.NewAggregate(errs)
 }
 
@@ -2398,6 +2403,23 @@ func (c *Configuration) mergeExternalPluginsFrom(other map[string][]ExternalPlug
 			continue
 		}
 		c.ExternalPlugins[orgOrRepo] = config
+	}
+
+	return utilerrors.NewAggregate(errs)
+}
+
+func (c *Configuration) mergeMilestoneApplierFrom(other map[string]BranchToMilestone) error {
+	if c.MilestoneApplier == nil && other != nil {
+		c.MilestoneApplier = make(map[string]BranchToMilestone)
+	}
+
+	var errs []error
+	for orgOrRepo, branchToMilestone := range other {
+		if _, ok := c.MilestoneApplier[orgOrRepo]; ok {
+			errs = append(errs, fmt.Errorf("found duplicate config for milestone_applier.%s", orgOrRepo))
+			continue
+		}
+		c.MilestoneApplier[orgOrRepo] = branchToMilestone
 	}
 
 	return utilerrors.NewAggregate(errs)
@@ -2504,7 +2526,8 @@ func getLabelConfigFromRestrictedLabelsSlice(s []RestrictedLabel, label string) 
 func (c *Configuration) HasConfigFor() (global bool, orgs sets.Set[string], repos sets.Set[string]) {
 	equals := reflect.DeepEqual(c,
 		&Configuration{Approve: c.Approve, Bugzilla: c.Bugzilla, ExternalPlugins: c.ExternalPlugins,
-			Label: Label{RestrictedLabels: c.Label.RestrictedLabels}, Lgtm: c.Lgtm, Plugins: c.Plugins,
+			Label: Label{RestrictedLabels: c.Label.RestrictedLabels}, Lgtm: c.Lgtm,
+			MilestoneApplier: c.MilestoneApplier, Plugins: c.Plugins,
 			Triggers: c.Triggers, Welcome: c.Welcome})
 
 	if !equals || c.Bugzilla.Default != nil {
@@ -2583,6 +2606,14 @@ func (c *Configuration) HasConfigFor() (global bool, orgs sets.Set[string], repo
 	}
 
 	for orgOrRepo := range c.ExternalPlugins {
+		if strings.Contains(orgOrRepo, "/") {
+			repos.Insert(orgOrRepo)
+		} else {
+			orgs.Insert(orgOrRepo)
+		}
+	}
+
+	for orgOrRepo := range c.MilestoneApplier {
 		if strings.Contains(orgOrRepo, "/") {
 			repos.Insert(orgOrRepo)
 		} else {
