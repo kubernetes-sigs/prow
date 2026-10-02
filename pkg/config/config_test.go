@@ -3214,6 +3214,40 @@ tide:
 			},
 		},
 		{
+			name: "tide rejects negative max query concurrency",
+			prowConfig: `
+tide:
+  max_query_concurrency: -1
+`,
+			expectError: true,
+		},
+		{
+			name: "tide preserves unlimited max query concurrency",
+			prowConfig: `
+tide:
+  max_query_concurrency: 0
+`,
+			verify: func(c *Config) error {
+				if got := c.Tide.MaxQueryConcurrency; got != 0 {
+					return fmt.Errorf("expected max query concurrency 0, got %d", got)
+				}
+				return nil
+			},
+		},
+		{
+			name: "tide preserves positive max query concurrency",
+			prowConfig: `
+tide:
+  max_query_concurrency: 5
+`,
+			verify: func(c *Config) error {
+				if got := c.Tide.MaxQueryConcurrency; got != 5 {
+					return fmt.Errorf("expected max query concurrency 5, got %d", got)
+				}
+				return nil
+			},
+		},
+		{
 			name: "tide target_url and target_urls conflict",
 			prowConfig: `
 tide:

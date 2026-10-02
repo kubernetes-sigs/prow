@@ -31,6 +31,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"text/template"
 	"time"
 
@@ -806,6 +807,10 @@ type fgc struct {
 	queryCalls    int
 	issueComments map[int][]github.IssueComment
 
+	queryRelease        <-chan struct{}
+	inFlightQueries     int
+	peakInFlightQueries int
+
 	expectedSHA          string
 	skipExpectedShaCheck bool
 	combinedStatus       map[string]string
@@ -837,9 +842,21 @@ func (f *fgc) QueryWithGitHubAppsSupport(ctx context.Context, q any, vars map[st
 	}
 
 	f.lock.Lock()
-	defer f.lock.Unlock()
 	f.queryCalls++
+	f.inFlightQueries++
+	f.peakInFlightQueries = max(f.peakInFlightQueries, f.inFlightQueries)
+	f.lock.Unlock()
 
+	// Hold queries open without holding the lock so tests can observe overlap.
+	if f.queryRelease != nil {
+		<-f.queryRelease
+	}
+
+	f.lock.Lock()
+	defer func() {
+		f.inFlightQueries--
+		f.lock.Unlock()
+	}()
 	for _, pr := range f.prs[org] {
 		sq.Search.Nodes = append(
 			sq.Search.Nodes,
@@ -849,6 +866,22 @@ func (f *fgc) QueryWithGitHubAppsSupport(ctx context.Context, q any, vars map[st
 		)
 	}
 	return nil
+}
+
+func testQueryConcurrency(t *testing.T, ghc *fgc, query func()) int {
+	t.Helper()
+	synctest.Test(t, func(t *testing.T) {
+		release := make(chan struct{})
+		ghc.queryRelease = release
+		go func() {
+			// Let every runnable query reach the fake before releasing any.
+			synctest.Wait()
+			close(release)
+		}()
+
+		query()
+	})
+	return ghc.peakInFlightQueries
 }
 
 func (f *fgc) Merge(org, repo string, number int, details github.MergeDetails) error {
@@ -4881,52 +4914,85 @@ func TestPickSmallestPassingNumber(t *testing.T) {
 func TestQueryShardsByOrgWhenAppsAuthIsEnabledOnly(t *testing.T) {
 	t.Parallel()
 
+	orgPR := testPR("org", "repo", "A", 1, githubql.MergeableStateMergeable)
+	otherOrgPR := testPR("other-org", "repo", "B", 2, githubql.MergeableStateMergeable)
+	thirdOrgPR := testPR("third-org", "repo", "C", 3, githubql.MergeableStateMergeable)
+	expectedPRs := map[string]CodeReviewCommon{
+		"org/repo#1":       *CodeReviewCommonFromPullRequest(orgPR),
+		"other-org/repo#2": *CodeReviewCommonFromPullRequest(otherOrgPR),
+		"third-org/repo#3": *CodeReviewCommonFromPullRequest(thirdOrgPR),
+	}
+
 	testCases := []struct {
 		name                     string
 		usesGitHubAppsAuth       bool
+		maxQueryConcurrency      int
 		prs                      map[string][]PullRequest
 		expectedNumberOfApiCalls int
+		expectedPeakConcurrency  int
 	}{
 		{
-			name:               "Apps auth is used, one call per org",
-			usesGitHubAppsAuth: true,
+			name:                "Apps auth with MaxQueryConcurrency=0 runs all org queries concurrently",
+			usesGitHubAppsAuth:  true,
+			maxQueryConcurrency: 0,
 			prs: map[string][]PullRequest{
-				"org":       {*testPR("org", "repo", "A", 5, githubql.MergeableStateMergeable)},
-				"other-org": {*testPR("other-org", "repo", "A", 5, githubql.MergeableStateMergeable)},
+				"org":       {*orgPR},
+				"other-org": {*otherOrgPR},
+				"third-org": {*thirdOrgPR},
 			},
-			expectedNumberOfApiCalls: 2,
+			expectedNumberOfApiCalls: 3,
+			expectedPeakConcurrency:  3,
 		},
 		{
-			name:               "Apps auth is unused, one call for all orgs",
-			usesGitHubAppsAuth: false,
-			prs: map[string][]PullRequest{"": {
-				*testPR("org", "repo", "A", 5, githubql.MergeableStateMergeable),
-				*testPR("other-org", "repo", "A", 5, githubql.MergeableStateMergeable),
-			}},
+			name:                "Apps auth with MaxQueryConcurrency=1 returns all PRs from three orgs",
+			usesGitHubAppsAuth:  true,
+			maxQueryConcurrency: 1,
+			prs: map[string][]PullRequest{
+				"org":       {*orgPR},
+				"other-org": {*otherOrgPR},
+				"third-org": {*thirdOrgPR},
+			},
+			expectedNumberOfApiCalls: 3,
+			expectedPeakConcurrency:  1,
+		},
+		{
+			name:                     "Apps auth is unused, one call for all orgs",
+			usesGitHubAppsAuth:       false,
+			prs:                      map[string][]PullRequest{"": {*orgPR, *otherOrgPR, *thirdOrgPR}},
 			expectedNumberOfApiCalls: 1,
+			expectedPeakConcurrency:  1,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			ghc := &fgc{prs: tc.prs}
 			provider := &GitHubProvider{
 				cfg: func() *config.Config {
 					return &config.Config{ProwConfig: config.ProwConfig{Tide: config.Tide{
-						TideGitHubConfig: config.TideGitHubConfig{Queries: []config.TideQuery{{Orgs: []string{"org", "other-org"}}}}}}}
+						MaxQueryConcurrency: tc.maxQueryConcurrency,
+						TideGitHubConfig:    config.TideGitHubConfig{Queries: []config.TideQuery{{Orgs: []string{"org", "other-org", "third-org"}}}}}}}
 				},
-				ghc:                &fgc{prs: tc.prs},
+				ghc:                ghc,
 				usesGitHubAppsAuth: tc.usesGitHubAppsAuth,
 				logger:             logrus.WithField("test", tc.name),
 			}
 
-			prs, err := provider.Query()
+			var prs map[string]CodeReviewCommon
+			var err error
+			peak := testQueryConcurrency(t, ghc, func() {
+				prs, err = provider.Query()
+			})
 			if err != nil {
 				t.Fatalf("query() failed: %v", err)
 			}
-			if n := len(prs); n != 2 {
-				t.Errorf("expected to get two prs back, got %d", n)
+			if peak != tc.expectedPeakConcurrency {
+				t.Errorf("peak in-flight queries = %d, want %d", peak, tc.expectedPeakConcurrency)
 			}
-			if diff := cmp.Diff(tc.expectedNumberOfApiCalls, provider.ghc.(*fgc).queryCalls); diff != "" {
+			if diff := cmp.Diff(expectedPRs, prs); diff != "" {
+				t.Errorf("PRs differ (-want +got): %s", diff)
+			}
+			if diff := cmp.Diff(tc.expectedNumberOfApiCalls, ghc.queryCalls); diff != "" {
 				t.Errorf("expectedNumberOfApiCallsByOrg differs from actual: %s", diff)
 			}
 		})
