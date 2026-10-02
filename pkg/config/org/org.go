@@ -55,6 +55,28 @@ type RepoCreateOptions struct {
 	LicenseTemplate   *string `json:"license_template,omitempty"`
 }
 
+// ForkConfig declares that a repository should be created as a fork of an upstream.
+//
+// Metadata behavior for forks:
+//   - Forks initially inherit metadata (description, has_issues, etc.) from the upstream.
+//   - If a metadata field is set in config, it overrides the inherited/current value.
+//   - If a metadata field is not set (nil), the fork keeps its current value.
+//   - Some metadata changes may be restricted by GitHub (e.g., public forks cannot be
+//     made private on GitHub.com). Such restrictions vary by GitHub edition (Enterprise
+//     may allow more). Restricted changes will result in an API error.
+//
+// See https://docs.github.com/en/rest/repos/forks
+type ForkConfig struct {
+	// From specifies the upstream repository in "owner/repo" format.
+	// The config key name will be used as the fork's name (via GitHub's fork API name parameter).
+	From string `json:"from"`
+
+	// DefaultBranchOnly forks only the default branch when true.
+	// This only takes effect when the fork is first created; changing it for an
+	// existing fork has no effect (GitHub applies it only at fork creation time).
+	DefaultBranchOnly bool `json:"default_branch_only,omitempty"`
+}
+
 // Repo declares metadata about the GitHub repository
 //
 // See https://developer.github.com/v3/repos/#edit
@@ -80,6 +102,10 @@ type Repo struct {
 	Collaborators map[string]github.RepoPermissionLevel `json:"collaborators,omitempty"`
 
 	OnCreate *RepoCreateOptions `json:"on_create,omitempty"`
+
+	// Fork configures this repository as a fork of an upstream repository.
+	// See https://docs.github.com/en/rest/repos/forks
+	Fork *ForkConfig `json:"fork,omitempty"`
 }
 
 var privateFieldDeprecationWarningLast time.Time
