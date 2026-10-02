@@ -2336,6 +2336,42 @@ func TestMergeFrom(t *testing.T) {
 			supplementalConfigs: []Configuration{{ExternalPlugins: map[string][]ExternalPlugin{"foo/bar": {{Name: "refresh", Endpoint: "http://refresh", Events: []string{"issue_comment"}}}}}},
 			errorExpected:       true,
 		},
+		{
+			name: "MilestoneApplier config gets merged",
+			in: Configuration{
+				MilestoneApplier: map[string]BranchToMilestone{
+					"foo/bar": {"main": "v1.0"},
+				},
+			},
+			supplementalConfigs: []Configuration{{MilestoneApplier: map[string]BranchToMilestone{
+				"foo/baz": {"main": "v0.1", "release-0.1": "v0.1"},
+			}}},
+			expected: Configuration{
+				MilestoneApplier: map[string]BranchToMilestone{
+					"foo/bar": {"main": "v1.0"},
+					"foo/baz": {"main": "v0.1", "release-0.1": "v0.1"},
+				},
+			},
+		},
+		{
+			name:                "main config has no MilestoneApplier config, supplemental config has, it gets merged",
+			supplementalConfigs: []Configuration{{MilestoneApplier: map[string]BranchToMilestone{"foo/bar": {"main": "v1.0"}}}},
+			expected: Configuration{
+				MilestoneApplier: map[string]BranchToMilestone{
+					"foo/bar": {"main": "v1.0"},
+				},
+			},
+		},
+		{
+			name: "MilestoneApplier can't merge duplicated configs",
+			in: Configuration{
+				MilestoneApplier: map[string]BranchToMilestone{
+					"foo/bar": {"main": "v1.0"},
+				},
+			},
+			supplementalConfigs: []Configuration{{MilestoneApplier: map[string]BranchToMilestone{"foo/bar": {"main": "v1.0"}}}},
+			errorExpected:       true,
+		},
 	}
 
 	for _, tc := range testCases {
