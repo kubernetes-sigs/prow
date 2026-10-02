@@ -23,6 +23,40 @@ approve:
       # RequireSelfApproval disables automatic approval from PR authors with approval rights.
       # Otherwise the plugin assumes the author of the PR with approval rights approves the changes in the PR.
       require_self_approval: false
+assign:
+    "":
+        # Restrict restricts who may run /assign on issues: non-org-members are
+        # restricted according to Action, unless the issue has one of the
+        # ExemptLabels. The restriction is enabled when this field is present.
+        # It only applies to issues: on pull requests /assign is never restricted,
+        # so anyone can still /assign a reviewer or an approver.
+        # Only the membership of the commenter in the org that owns the repository
+        # is checked, not the membership of the users being assigned:
+        # - "/assign" (self-assignment) by a non-member is restricted.
+        # - "/assign @user" by a non-member is restricted, even when @user is an
+        # org member.
+        # - "/assign @user" by an org member is not restricted, even when @user is
+        # not an org member.
+        # - "/unassign" is never restricted.
+        # The usual rules still apply to the users being assigned: they must be
+        # org members, repo collaborators or have commented on the issue.
+        restrict:
+            # Action is what happens when a non-org-member uses /assign on an issue
+            # that has none of the ExemptLabels. This field is required. Valid values:
+            # - "warn": the users are assigned and the plugin posts a comment telling
+            # the commenter that they are not an org member, pointing to issues with
+            # the ExemptLabels if any are configured.
+            # - "block": nobody is assigned and the plugin posts a comment explaining
+            # that only org members can use /assign on the issue.
+            action: ' '
+            # ExemptLabels is a list of labels that exempt an issue from the
+            # restriction. On an issue with any of these labels (matched
+            # case-insensitively), anyone can use /assign.
+            # For example, setting this to ["good first issue"] lets non-members
+            # assign themselves to issues labeled "good first issue" while still
+            # restricting drive-by assigns on other issues.
+            exempt_labels:
+                - ""
 blockades:
     - # BlockRegexps are regular expressions matching the file paths to block.
       blockregexps:

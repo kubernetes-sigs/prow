@@ -17,12 +17,17 @@ limitations under the License.
 package assign
 
 import (
+	"errors"
 	"sort"
+	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/sirupsen/logrus"
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	"sigs.k8s.io/prow/pkg/github"
+	"sigs.k8s.io/prow/pkg/plugins"
 )
 
 type fakeClient struct {
@@ -32,8 +37,14 @@ type fakeClient struct {
 	requested    map[string]int
 	unrequested  map[string]int
 	contributors map[string]bool
+	members      map[string]bool
+	labels       []github.Label
 
-	commented bool
+	commented      bool
+	comment        string
+	memberChecks   []string
+	memberCheckErr error
+	labelCheckErr  error
 }
 
 func (c *fakeClient) UnassignIssue(owner, repo string, number int, assignees []string) error {
@@ -92,12 +103,29 @@ func (c *fakeClient) UnrequestReview(org, repo string, number int, logins []stri
 
 func (c *fakeClient) CreateComment(owner, repo string, number int, comment string) error {
 	c.commented = comment != ""
+	c.comment = comment
 	return nil
+}
+
+func (c *fakeClient) GetIssueLabels(org, repo string, number int) ([]github.Label, error) {
+	if c.labelCheckErr != nil {
+		return nil, c.labelCheckErr
+	}
+	return c.labels, nil
+}
+
+func (c *fakeClient) IsMember(org, user string) (bool, error) {
+	c.memberChecks = append(c.memberChecks, user)
+	if c.memberCheckErr != nil {
+		return false, c.memberCheckErr
+	}
+	return c.members[user], nil
 }
 
 func newFakeClient(contribs []string) *fakeClient {
 	c := &fakeClient{
 		contributors: make(map[string]bool),
+		members:      make(map[string]bool),
 		requested:    make(map[string]int),
 		unrequested:  make(map[string]int),
 		assigned:     make(map[string]int),
@@ -395,7 +423,7 @@ func TestAssignAndReview(t *testing.T) {
 			Repo:   github.Repo{Name: "repo", Owner: github.User{Login: "org"}},
 			Number: 5,
 		}
-		if err := handle(newAssignHandler(e, fc, logrus.WithField("plugin", pluginName))); err != nil {
+		if err := handle(newAssignHandler(e, fc, logrus.WithField("plugin", pluginName), &plugins.Assign{})); err != nil {
 			t.Errorf("For case %s, didn't expect error from handle: %v", tc.name, err)
 			continue
 		}
@@ -449,5 +477,295 @@ func TestAssignAndReview(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+func TestAssignRestrict(t *testing.T) {
+	block := &plugins.Assign{Restrict: &plugins.AssignRestrict{Action: plugins.AssignActionBlock}}
+	warn := &plugins.Assign{Restrict: &plugins.AssignRestrict{Action: plugins.AssignActionWarn}}
+	blockExempt := &plugins.Assign{Restrict: &plugins.AssignRestrict{Action: plugins.AssignActionBlock, ExemptLabels: []string{"good first issue"}}}
+	warnExempt := &plugins.Assign{Restrict: &plugins.AssignRestrict{Action: plugins.AssignActionWarn, ExemptLabels: []string{"good first issue"}}}
+
+	const (
+		blockComment = "Only [org members](https://github.com/orgs/org/people) can use `/assign` on this issue."
+		warnComment  = "Note that you are not a member of the **org** organization."
+	)
+
+	testcases := []struct {
+		name           string
+		body           string
+		commenter      string
+		isPR           bool
+		cfg            *plugins.Assign
+		labels         []github.Label
+		memberCheckErr error
+		labelCheckErr  error
+
+		assigned       []string
+		unassigned     []string
+		commentContain string
+		// memberChecks lists the users whose org membership is looked up.
+		memberChecks []string
+		expectErr    bool
+	}{
+		// No restriction configured: behavior is unchanged.
+		{
+			name:      "no restriction: non-member self-assigns",
+			body:      "/assign",
+			commenter: "outsider",
+			cfg:       &plugins.Assign{},
+			assigned:  []string{"outsider"},
+		},
+		// Pull requests are never restricted.
+		{
+			name:      "block, PR: non-member assigns an approver",
+			body:      "/assign @member1",
+			commenter: "outsider",
+			isPR:      true,
+			cfg:       block,
+			assigned:  []string{"member1"},
+		},
+		{
+			name:      "block, PR: non-member self-assigns",
+			body:      "/assign",
+			commenter: "outsider",
+			isPR:      true,
+			cfg:       block,
+			assigned:  []string{"outsider"},
+		},
+		{
+			name:      "warn, PR: non-member self-assigns without a warning",
+			body:      "/assign",
+			commenter: "outsider",
+			isPR:      true,
+			cfg:       warn,
+			assigned:  []string{"outsider"},
+		},
+		// Org members are not restricted.
+		{
+			name:         "block: member self-assigns",
+			body:         "/assign",
+			commenter:    "member1",
+			cfg:          block,
+			assigned:     []string{"member1"},
+			memberChecks: []string{"member1"},
+		},
+		{
+			name:         "warn: member self-assigns without a warning",
+			body:         "/assign",
+			commenter:    "member1",
+			cfg:          warn,
+			assigned:     []string{"member1"},
+			memberChecks: []string{"member1"},
+		},
+		{
+			name:         "block: member assigns a non-member",
+			body:         "/assign @outsider",
+			commenter:    "member1",
+			cfg:          block,
+			assigned:     []string{"outsider"},
+			memberChecks: []string{"member1"},
+		},
+		{
+			name:         "warn: member assigns a non-member without a warning",
+			body:         "/assign @outsider",
+			commenter:    "member1",
+			cfg:          warn,
+			assigned:     []string{"outsider"},
+			memberChecks: []string{"member1"},
+		},
+		{
+			name:         "block: member assigns several users with one membership check",
+			body:         "/assign @member2 @outsider @outsider2",
+			commenter:    "member1",
+			cfg:          block,
+			assigned:     []string{"member2", "outsider", "outsider2"},
+			memberChecks: []string{"member1"},
+		},
+		{
+			name:           "block: users GitHub rejects are still reported for a member",
+			body:           "/assign @evil",
+			commenter:      "member1",
+			cfg:            block,
+			commentContain: "GitHub didn't allow me to assign the following users: evil.",
+			memberChecks:   []string{"member1"},
+		},
+		{
+			name:         "block: member on an issue without an exempt label",
+			body:         "/assign",
+			commenter:    "member1",
+			cfg:          blockExempt,
+			labels:       []github.Label{{Name: "kind/bug"}},
+			assigned:     []string{"member1"},
+			memberChecks: []string{"member1"},
+		},
+		// Non-members are restricted on issues.
+		{
+			name:           "block: non-member self-assign is rejected",
+			body:           "/assign",
+			commenter:      "outsider",
+			cfg:            block,
+			commentContain: blockComment,
+			memberChecks:   []string{"outsider"},
+		},
+		{
+			name:           "warn: non-member self-assign is assigned with a nudge",
+			body:           "/assign",
+			commenter:      "outsider",
+			cfg:            warn,
+			assigned:       []string{"outsider"},
+			commentContain: warnComment,
+			memberChecks:   []string{"outsider"},
+		},
+		{
+			name:           "block: non-member assigns a member is rejected",
+			body:           "/assign @member1",
+			commenter:      "outsider",
+			cfg:            block,
+			commentContain: blockComment,
+			memberChecks:   []string{"outsider"},
+		},
+		{
+			name:           "warn: non-member assigns a member with a nudge",
+			body:           "/assign @member1",
+			commenter:      "outsider",
+			cfg:            warn,
+			assigned:       []string{"member1"},
+			commentContain: warnComment,
+			memberChecks:   []string{"outsider"},
+		},
+		{
+			name:           "block: non-member assigns several users, nobody is assigned",
+			body:           "/assign @member1 @outsider",
+			commenter:      "outsider",
+			cfg:            block,
+			commentContain: blockComment,
+			memberChecks:   []string{"outsider"},
+		},
+		{
+			name:       "block: unassign is not restricted",
+			body:       "/unassign",
+			commenter:  "outsider",
+			cfg:        block,
+			unassigned: []string{"outsider"},
+		},
+		{
+			name:       "warn: unassign is not restricted",
+			body:       "/unassign @member1",
+			commenter:  "outsider",
+			cfg:        warn,
+			unassigned: []string{"member1"},
+		},
+		// Exempt labels.
+		{
+			name:      "block: exempt label lets a non-member self-assign",
+			body:      "/assign",
+			commenter: "outsider",
+			cfg:       blockExempt,
+			labels:    []github.Label{{Name: "good first issue"}},
+			assigned:  []string{"outsider"},
+		},
+		{
+			name:      "block: exempt label matches case-insensitively",
+			body:      "/assign",
+			commenter: "outsider",
+			cfg:       blockExempt,
+			labels:    []github.Label{{Name: "Good First Issue"}},
+			assigned:  []string{"outsider"},
+		},
+		{
+			name:      "warn: exempt label has no nudge",
+			body:      "/assign",
+			commenter: "outsider",
+			cfg:       warnExempt,
+			labels:    []github.Label{{Name: "good first issue"}},
+			assigned:  []string{"outsider"},
+		},
+		{
+			name:           "block: other labels do not exempt the issue",
+			body:           "/assign",
+			commenter:      "outsider",
+			cfg:            blockExempt,
+			labels:         []github.Label{{Name: "help wanted"}},
+			commentContain: "can use `/assign` on this issue, unless it has one of the following labels: `good first issue`.",
+			memberChecks:   []string{"outsider"},
+		},
+		{
+			name:           "warn: exempt labels are suggested in the nudge",
+			body:           "/assign",
+			commenter:      "outsider",
+			cfg:            warnExempt,
+			labels:         []github.Label{{Name: "kind/bug"}},
+			assigned:       []string{"outsider"},
+			commentContain: "this issue has not been marked as available for new contributors. If you are new to this project, issues labeled `good first issue` are a good place to start.",
+			memberChecks:   []string{"outsider"},
+		},
+		// Errors: nobody is assigned and the error is returned.
+		{
+			name:           "warn: IsMember error propagates and nobody is assigned",
+			body:           "/assign",
+			commenter:      "someone",
+			cfg:            warn,
+			memberCheckErr: errors.New("api rate limit"),
+			memberChecks:   []string{"someone"},
+			expectErr:      true,
+		},
+		{
+			name:           "block: IsMember error propagates and nobody is assigned",
+			body:           "/assign @member1",
+			commenter:      "someone",
+			cfg:            block,
+			memberCheckErr: errors.New("api rate limit"),
+			memberChecks:   []string{"someone"},
+			expectErr:      true,
+		},
+		{
+			name:          "GetIssueLabels error propagates and nobody is assigned",
+			body:          "/assign",
+			commenter:     "someone",
+			cfg:           blockExempt,
+			labelCheckErr: errors.New("api error"),
+			expectErr:     true,
+		},
+	}
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			fc := newFakeClient(nil)
+			for _, m := range []string{"member1", "member2", "evil"} {
+				fc.members[m] = true
+			}
+			fc.labels = tc.labels
+			fc.memberCheckErr = tc.memberCheckErr
+			fc.labelCheckErr = tc.labelCheckErr
+			e := github.GenericCommentEvent{
+				Body:   tc.body,
+				User:   github.User{Login: tc.commenter},
+				Repo:   github.Repo{Name: "repo", Owner: github.User{Login: "org"}},
+				Number: 5,
+				IsPR:   tc.isPR,
+			}
+			err := handle(newAssignHandler(e, fc, logrus.WithField("plugin", pluginName), tc.cfg))
+			if tc.expectErr && err == nil {
+				t.Error("expected error but got none")
+			}
+			if !tc.expectErr && err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+			if diff := cmp.Diff(tc.memberChecks, fc.memberChecks); diff != "" {
+				t.Errorf("unexpected org membership checks (-want +got):\n%s", diff)
+			}
+			if tc.commentContain == "" && fc.commented {
+				t.Errorf("expected no comment, got %q", fc.comment)
+			}
+			if tc.commentContain != "" && !strings.Contains(fc.comment, tc.commentContain) {
+				t.Errorf("expected comment to contain %q, got %q", tc.commentContain, fc.comment)
+			}
+			if diff := cmp.Diff(sets.New(tc.assigned...), sets.KeySet(fc.assigned)); diff != "" {
+				t.Errorf("unexpected assignees (-want +got):\n%s", diff)
+			}
+			if diff := cmp.Diff(sets.New(tc.unassigned...), sets.KeySet(fc.unassigned)); diff != "" {
+				t.Errorf("unexpected unassigned users (-want +got):\n%s", diff)
+			}
+		})
 	}
 }
