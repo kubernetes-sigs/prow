@@ -285,6 +285,11 @@ type Owners struct {
 	// Filenames allows configuring repos to use a separate set of filenames for
 	// any plugin that interacts with these files. Keys are in "org" or "org/repo" format.
 	Filenames map[string]ownersconfig.Filenames `json:"filenames,omitempty"`
+
+	// IgnoreMergeCommits is a list of org and org/repo strings specifying
+	// repos where the owners-label plugin should skip labeling on any
+	// pull request push that contains merge commits.
+	IgnoreMergeCommits []string `json:"ignore_merge_commits,omitempty"`
 }
 
 // OwnersFilenames determines which filenames to use for OWNERS and OWNERS_ALIASES for a repo.
@@ -309,20 +314,26 @@ func (c *Configuration) OwnersFilenames(org, repo string) ownersconfig.Filenames
 // at the top of markdown (*.md) files. These function like OWNERS files but only apply to the file
 // itself.
 func (c *Configuration) MDYAMLEnabled(org, repo string) bool {
-	full := fmt.Sprintf("%s/%s", org, repo)
-	for _, elem := range c.Owners.MDYAMLRepos {
-		if elem == org || elem == full {
-			return true
-		}
-	}
-	return false
+	return orgRepoListed(c.Owners.MDYAMLRepos, org, repo)
 }
 
 // SkipCollaborators returns a boolean denoting if collaborator cross-checks are enabled for
 // the passed repo. If it's true, approve and lgtm plugins rely solely on OWNERS files.
 func (c *Configuration) SkipCollaborators(org, repo string) bool {
+	return orgRepoListed(c.Owners.SkipCollaborators, org, repo)
+}
+
+// IgnoreMergeCommitsFor returns a boolean denoting if the owners-label plugin should skip
+// labeling on pull request pushes that contain merge commits for the passed repo.
+func (c *Configuration) IgnoreMergeCommitsFor(org, repo string) bool {
+	return orgRepoListed(c.Owners.IgnoreMergeCommits, org, repo)
+}
+
+// orgRepoListed returns a boolean denoting if the passed repo is present in
+// the list, either as its org or as its full org/repo name.
+func orgRepoListed(list []string, org, repo string) bool {
 	full := fmt.Sprintf("%s/%s", org, repo)
-	for _, elem := range c.Owners.SkipCollaborators {
+	for _, elem := range list {
 		if elem == org || elem == full {
 			return true
 		}
