@@ -678,7 +678,7 @@ func TestGetFailedActionRunsByHeadBranchPagination(t *testing.T) {
 	}
 }
 
-func TestGetPendingApprovalActionRunsPagination(t *testing.T) {
+func TestListWorkflowRunsByHeadBranch(t *testing.T) {
 	const (
 		org     = "k8s"
 		repo    = "kuber"
@@ -687,28 +687,48 @@ func TestGetPendingApprovalActionRunsPagination(t *testing.T) {
 	)
 	pages := map[string]WorkflowRuns{
 		"": {WorkflowRuns: []WorkflowRun{
-			{ID: 1, HeadSha: headSHA, Event: "pull_request", Status: "completed", Conclusion: "action_required"},
+			{ID: 1, HeadSha: headSHA, Event: "pull_request", Status: "in_progress"},
 			{ID: 2, HeadSha: headSHA, Event: "schedule", Status: "completed", Conclusion: "action_required"},
 		}},
 		"2": {WorkflowRuns: []WorkflowRun{
-			{ID: 3, HeadSha: headSHA, Event: "release", Status: "completed", Conclusion: "action_required"},
-			{ID: 4, HeadSha: headSHA, Event: "pull_request_target", Status: "completed", Conclusion: "action_required"},
+			{ID: 3, HeadSha: headSHA, Event: "pull_request_target", Status: "completed", Conclusion: "action_required"},
 		}},
 	}
 	ts := httptest.NewTLSServer(workflowRunPages(t, pages, headSHA, branch))
 	defer ts.Close()
 
-	runs, err := getClient(ts.URL).GetPendingApprovalActionRuns(org, repo, branch, headSHA)
+	runs, err := getClient(ts.URL).ListWorkflowRunsByHeadBranch(org, repo, branch, headSHA)
 	if err != nil {
 		t.Fatalf("Did not expect error, got %v", err)
 	}
-	expectedIDs := []int{1, 4}
+	expectedIDs := []int{1, 3}
 	var ids []int
 	for _, run := range runs {
 		ids = append(ids, run.ID)
 	}
 	if !reflect.DeepEqual(ids, expectedIDs) {
 		t.Errorf("Expected runs %v, got %v", expectedIDs, ids)
+	}
+}
+
+func TestIsPendingApprovalRun(t *testing.T) {
+	testCases := []struct {
+		name     string
+		run      WorkflowRun
+		expected bool
+	}{
+		{name: "pull request run at the gate", run: WorkflowRun{Event: "pull_request", Status: "completed", Conclusion: "action_required"}, expected: true},
+		{name: "pull request target run at the gate", run: WorkflowRun{Event: "pull_request_target", Status: "completed", Conclusion: "action_required"}, expected: true},
+		{name: "run of another event", run: WorkflowRun{Event: "schedule", Status: "completed", Conclusion: "action_required"}},
+		{name: "failed run", run: WorkflowRun{Event: "pull_request", Status: "completed", Conclusion: "failure"}},
+		{name: "run in progress", run: WorkflowRun{Event: "pull_request", Status: "in_progress"}},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := IsPendingApprovalRun(tc.run); got != tc.expected {
+				t.Errorf("Expected %t, got %t", tc.expected, got)
+			}
+		})
 	}
 }
 
@@ -4239,117 +4259,6 @@ func TestCollaboratorMethodsDryRun(t *testing.T) {
 	// Verify no API calls were made
 	if callCount > 0 {
 		t.Errorf("Expected 0 API calls in dry-run mode, but got %d", callCount)
-	}
-}
-
-func TestGetPendingApprovalActionRuns(t *testing.T) {
-	const (
-		org     = "k8s"
-		repo    = "kuber"
-		branch  = "pr-branch"
-		headSHA = "abc123"
-	)
-	// A run that waits for approval has status "completed" and conclusion
-	// "action_required". The status field never has the value
-	// "action_required".
-	var (
-		pendingRun1   = WorkflowRun{ID: 1, HeadSha: headSHA, Event: "pull_request", Status: "completed", Conclusion: "action_required"}
-		pendingRun2   = WorkflowRun{ID: 2, HeadSha: headSHA, Event: "pull_request_target", Status: "completed", Conclusion: "action_required"}
-		otherEventRun = WorkflowRun{ID: 3, HeadSha: headSHA, Event: "schedule", Status: "completed", Conclusion: "action_required"}
-	)
-	testCases := []struct {
-		name          string
-		queryResponse WorkflowRuns
-		expectedRuns  []WorkflowRun
-	}{
-		{
-			name: "single pending run",
-			queryResponse: WorkflowRuns{
-				WorkflowRuns: []WorkflowRun{pendingRun1},
-			},
-			expectedRuns: []WorkflowRun{pendingRun1},
-		},
-		{
-			name: "multiple pending runs",
-			queryResponse: WorkflowRuns{
-				WorkflowRuns: []WorkflowRun{pendingRun1, pendingRun2},
-			},
-			expectedRuns: []WorkflowRun{pendingRun1, pendingRun2},
-		},
-		{
-			name: "no pending runs",
-			queryResponse: WorkflowRuns{
-				WorkflowRuns: []WorkflowRun{},
-			},
-			expectedRuns: []WorkflowRun{},
-		},
-		{
-			name: "run of another event is dropped",
-			queryResponse: WorkflowRuns{
-				WorkflowRuns: []WorkflowRun{pendingRun1, otherEventRun, pendingRun2},
-			},
-			expectedRuns: []WorkflowRun{pendingRun1, pendingRun2},
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if r.Method != http.MethodGet {
-					t.Errorf("Expected GET method, got %s", r.Method)
-				}
-				expectedPath := fmt.Sprintf("/repos/%s/%s/actions/runs", org, repo)
-				if r.URL.Path != expectedPath {
-					t.Errorf("Expected path %s, got %s", expectedPath, r.URL.Path)
-				}
-
-				// Check query parameters
-				query := r.URL.Query()
-				if query.Get("head_sha") != headSHA {
-					t.Errorf("Expected query parameter head_sha=%s, got %s", headSHA, query.Get("head_sha"))
-				}
-				// The API matches "event" as an exact string and has no
-				// syntax for more than one value. The client filters the
-				// events itself.
-				if query.Has("event") {
-					t.Errorf("Expected no query parameter event, got %q", query.Get("event"))
-				}
-				if query.Get("branch") != branch {
-					t.Errorf("Expected query parameter branch=%s, got %s", branch, query.Get("branch"))
-				}
-				if query.Get("status") != "action_required" {
-					t.Errorf("Expected query parameter status=action_required, got %s", query.Get("status"))
-				}
-
-				// Prepare response
-				b, err := json.Marshal(&tc.queryResponse)
-				if err != nil {
-					t.Fatalf("Unexpected error marshalling JSON: %v", err)
-				}
-				w.Header().Set("Content-Type", "application/json")
-				fmt.Fprint(w, string(b))
-			}))
-			defer ts.Close()
-
-			c := getClient(ts.URL)
-			runs, err := c.GetPendingApprovalActionRuns(org, repo, branch, headSHA)
-			if err != nil {
-				t.Errorf("Did not expect error, got %v", err)
-			}
-
-			// Check if the returned runs match the expected runs
-			if len(runs) != len(tc.expectedRuns) {
-				t.Errorf("Expected %d runs, got %d", len(tc.expectedRuns), len(runs))
-			}
-			for i, run := range runs {
-				if i < len(tc.expectedRuns) {
-					expectedRun := tc.expectedRuns[i]
-					if !reflect.DeepEqual(run, expectedRun) {
-						t.Errorf("Run %v does not match expected run %v", run, expectedRun)
-					}
-				}
-			}
-		})
 	}
 }
 

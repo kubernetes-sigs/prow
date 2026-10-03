@@ -305,7 +305,7 @@ type Client interface {
 	Used() bool
 	TriggerGitHubWorkflow(org, repo string, id int) error
 	TriggerFailedGitHubWorkflow(org, repo string, id int) error
-	GetPendingApprovalActionRuns(org, repo, branchName, headSHA string) ([]WorkflowRun, error)
+	ListWorkflowRunsByHeadBranch(org, repo, branchName, headSHA string) ([]WorkflowRun, error)
 	ApproveGitHubWorkflowRun(org, repo string, id int) error
 }
 
@@ -2424,20 +2424,18 @@ func (c *client) TriggerFailedGitHubWorkflow(org, repo string, id int) error {
 	return err
 }
 
-// GetPendingApprovalActionRuns retrieves workflow runs that are pending approval for a given PR head SHA
+// ListWorkflowRunsByHeadBranch retrieves the workflow runs of a pull request
+// for the given head SHA, whatever their status.
 //
 // See https://docs.github.com/en/rest/actions/workflow-runs#list-workflow-runs-for-a-repository
-func (c *client) GetPendingApprovalActionRuns(org, repo, branchName, headSHA string) ([]WorkflowRun, error) {
-	durationLogger := c.log("GetPendingApprovalActionRuns", org, repo)
+func (c *client) ListWorkflowRunsByHeadBranch(org, repo, branchName, headSHA string) ([]WorkflowRun, error) {
+	durationLogger := c.log("ListWorkflowRunsByHeadBranch", org, repo)
 	defer durationLogger()
 
-	// The "status" parameter is overloaded: the value "action_required" matches
-	// the conclusion of the run, not its status.
 	runs, err := c.listWorkflowRuns(org, repo, url.Values{
 		"per_page": []string{"100"},
 		"head_sha": []string{headSHA},
 		"branch":   []string{branchName},
-		"status":   []string{"action_required"},
 	})
 
 	prRuns := []WorkflowRun{}
@@ -2448,6 +2446,14 @@ func (c *client) GetPendingApprovalActionRuns(org, repo, branchName, headSHA str
 	}
 
 	return prRuns, err
+}
+
+// IsPendingApprovalRun reports whether GitHub holds this run at the approval
+// gate. Such a run has status "completed" and conclusion "action_required".
+// The status field never has the value "action_required".
+func IsPendingApprovalRun(run WorkflowRun) bool {
+	return slices.Contains(pullRequestWorkflowRunEvents, run.Event) &&
+		run.Conclusion == "action_required"
 }
 
 // ApproveGitHubWorkflowRun approves a pending workflow run
