@@ -79,18 +79,40 @@ func (o *ConfigOptions) ValidateConfigOptional() error {
 	return nil
 }
 
-func (o *ConfigOptions) ConfigAgent(reuse ...*config.Agent) (*config.Agent, error) {
-	var ca *config.Agent
-	if n := len(reuse); n > 1 {
-		return nil, fmt.Errorf("got more than one (%d) config agents to re-use", n)
-	} else if n == 1 {
-		ca = reuse[0]
-	} else {
-		ca = &config.Agent{}
-	}
-	return o.ConfigAgentWithAdditionals(ca, nil)
+type ConfigAgentOption func(*configAgentOptions)
+
+type configAgentOptions struct {
+	onError     func(error)
+	additionals []func(*config.Config) error
+	reuse       *config.Agent
 }
 
-func (o *ConfigOptions) ConfigAgentWithAdditionals(ca *config.Agent, additionals []func(*config.Config) error) (*config.Agent, error) {
-	return ca, ca.Start(o.ConfigPath, o.JobConfigPath, o.SupplementalProwConfigDirs.Strings(), o.SupplementalProwConfigsFileNameSuffix, additionals...)
+func WithErrorHandler(fn func(error)) ConfigAgentOption {
+	return func(options *configAgentOptions) {
+		options.onError = fn
+	}
+}
+
+func WithAdditionals(additionals ...func(*config.Config) error) ConfigAgentOption {
+	return func(options *configAgentOptions) {
+		options.additionals = additionals
+	}
+}
+
+func WithReuseAgent(agent *config.Agent) ConfigAgentOption {
+	return func(options *configAgentOptions) {
+		options.reuse = agent
+	}
+}
+
+func (o *ConfigOptions) ConfigAgent(agentOptions ...ConfigAgentOption) (*config.Agent, error) {
+	options := configAgentOptions{}
+	for _, agentOption := range agentOptions {
+		agentOption(&options)
+	}
+	ca := options.reuse
+	if ca == nil {
+		ca = &config.Agent{}
+	}
+	return ca, ca.StartWithErrorHandler(options.onError, o.ConfigPath, o.JobConfigPath, o.SupplementalProwConfigDirs.Strings(), o.SupplementalProwConfigsFileNameSuffix, options.additionals...)
 }

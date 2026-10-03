@@ -185,6 +185,7 @@ func main() {
 
 	// Start serving liveness endpoint /healthz.
 	healthHTTP := pjutil.NewHealthOnPort(o.instrumentationOptions.HealthPort)
+	healthHTTP.ServeLive()
 
 	lis, err := net.Listen("tcp", ":"+strconv.Itoa(o.port))
 	if err != nil {
