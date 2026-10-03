@@ -1209,6 +1209,24 @@ type Spyglass struct {
 	// Keys represent aliases and their values are the authoritative
 	// bucket names they will be substituted with
 	BucketAliases map[string]string `json:"bucket_aliases,omitempty"`
+	// AdditionalHistoryBuckets is a list of extra storage buckets that deck scans
+	// when rendering job history, merged by build ID with the primary bucket from
+	// the URL. If a bucket requires dedicated credentials, reference the Kubernetes
+	// secret that holds them via GCSCredentialsSecret or S3CredentialsSecret.
+	AdditionalHistoryBuckets []AdditionalHistoryBucket `json:"additional_history_buckets,omitempty"`
+}
+
+// AdditionalHistoryBucket configures an extra storage bucket for job history merging.
+// GCSCredentialsSecret and S3CredentialsSecret are mutually exclusive.
+type AdditionalHistoryBucket struct {
+	// Bucket is the storage URI, e.g. "gs://my-bucket" or "s3://my-bucket".
+	Bucket string `json:"bucket"`
+	// GCSCredentialsSecret selects the key within a Kubernetes secret that holds
+	// GCS credentials for this bucket. Mutually exclusive with S3CredentialsSecret.
+	GCSCredentialsSecret *v1.SecretKeySelector `json:"gcs_credentials_secret,omitempty"`
+	// S3CredentialsSecret selects the key within a Kubernetes secret that holds
+	// S3 credentials for this bucket. Mutually exclusive with GCSCredentialsSecret.
+	S3CredentialsSecret *v1.SecretKeySelector `json:"s3_credentials_secret,omitempty"`
 }
 
 type GCSBrowserPrefixes map[string]string
@@ -1355,6 +1373,9 @@ func (d *Deck) shouldValidateStorageBuckets() bool {
 
 func calculateStorageBuckets(c *Config) sets.Set[string] {
 	knownBuckets := sets.New[string](c.Deck.AdditionalAllowedBuckets...)
+	for _, b := range c.Deck.Spyglass.AdditionalHistoryBuckets {
+		knownBuckets.Insert(stripProviderPrefixFromBucket(b.Bucket))
+	}
 	for _, dc := range c.Plank.DefaultDecorationConfigs {
 		if dc.Config != nil && dc.Config.GCSConfiguration != nil && dc.Config.GCSConfiguration.Bucket != "" {
 			knownBuckets.Insert(stripProviderPrefixFromBucket(dc.Config.GCSConfiguration.Bucket))
