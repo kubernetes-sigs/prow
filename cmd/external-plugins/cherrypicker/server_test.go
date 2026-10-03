@@ -44,6 +44,8 @@ type fghc struct {
 	sync.Mutex
 	pr       *github.PullRequest
 	isMember bool
+	// per-user override of isMember
+	members map[string]bool
 
 	diff       []byte
 	patch      []byte
@@ -51,6 +53,7 @@ type fghc struct {
 	prs        []github.PullRequest
 	prComments []github.IssueComment
 	prLabels   []github.Label
+	prEvents   []github.ListedIssueEvent
 	orgMembers []github.TeamMember
 	issues     []github.Issue
 }
@@ -116,6 +119,9 @@ func (f *fghc) CreateComment(org, repo string, number int, comment string) error
 func (f *fghc) IsMember(org, user string) (bool, error) {
 	f.Lock()
 	defer f.Unlock()
+	if ok, found := f.members[user]; found {
+		return ok, nil
+	}
 	return f.isMember, nil
 }
 
@@ -212,6 +218,12 @@ func (f *fghc) GetIssueLabels(org, repo string, number int) ([]github.Label, err
 	f.Lock()
 	defer f.Unlock()
 	return f.prLabels, nil
+}
+
+func (f *fghc) ListIssueEvents(org, repo string, number int) ([]github.ListedIssueEvent, error) {
+	f.Lock()
+	defer f.Unlock()
+	return f.prEvents, nil
 }
 
 func (f *fghc) ListOrgMembers(org, role string) ([]github.TeamMember, error) {
@@ -1462,4 +1474,276 @@ func (p *prNumberGenerator) GetPRNumber() int {
 	defer p.Unlock()
 	p.prNumber = p.prNumber + 10
 	return p.prNumber
+}
+
+func TestHandlePullRequestLabelAdded_Requester(t *testing.T) {
+	t.Parallel()
+
+	botUser := &github.UserData{Login: "ci-robot"}
+
+	testCases := []struct {
+		name     string
+		members  map[string]bool
+		sender   github.User
+		allowAll bool
+		// expected requester in the "once the present PR merges" comment,
+		// empty means the request is rejected
+		requester string
+	}{
+		{
+			name:      "member author, member labeler: labeler is requester",
+			members:   map[string]bool{"dev": true, "approver": true},
+			sender:    github.User{Login: "approver"},
+			requester: "approver",
+		},
+		{
+			name:      "non-member author, member labeler: labeler is requester",
+			members:   map[string]bool{"dev": false, "approver": true},
+			sender:    github.User{Login: "approver"},
+			requester: "approver",
+		},
+		{
+			name:      "member author, non-member labeler: author is requester",
+			members:   map[string]bool{"dev": true, "outsider": false},
+			sender:    github.User{Login: "outsider"},
+			requester: "dev",
+		},
+		{
+			name:    "non-member author, non-member labeler: rejected",
+			members: map[string]bool{"dev": false, "outsider": false},
+			sender:  github.User{Login: "outsider"},
+		},
+		{
+			name:      "member author labels own PR: author is requester",
+			members:   map[string]bool{"dev": true},
+			sender:    github.User{Login: "dev"},
+			requester: "dev",
+		},
+		{
+			name:      "no sender: author is requester",
+			members:   map[string]bool{"dev": true},
+			requester: "dev",
+		},
+		{
+			name:    "no sender, non-member author: rejected",
+			members: map[string]bool{"dev": false},
+		},
+		{
+			name:      "member author, github app labeler: author is requester",
+			members:   map[string]bool{"dev": true, "some-app[bot]": true},
+			sender:    github.User{Login: "some-app[bot]", Type: github.UserTypeBot},
+			requester: "dev",
+		},
+		{
+			name:      "non-member author, github app labeler: author is requester",
+			members:   map[string]bool{"dev": false, "some-app[bot]": true},
+			sender:    github.User{Login: "some-app[bot]", Type: github.UserTypeBot},
+			requester: "dev",
+		},
+		{
+			name:      "member author, prow bot labeler: author is requester",
+			members:   map[string]bool{"dev": true, "ci-robot": true},
+			sender:    github.User{Login: "ci-robot"},
+			requester: "dev",
+		},
+		{
+			name:      "allow all, non-member labeler: labeler is requester",
+			members:   map[string]bool{"dev": false, "outsider": false},
+			sender:    github.User{Login: "outsider"},
+			allowAll:  true,
+			requester: "outsider",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			prNumber := fakePR.GetPRNumber()
+			ghc := &fghc{members: tc.members}
+			s := &Server{
+				botUser:     botUser,
+				ghc:         ghc,
+				labelPrefix: defaultLabelPrefix,
+				allowAll:    tc.allowAll,
+			}
+
+			event := github.PullRequestEvent{
+				Action: github.PullRequestActionLabeled,
+				Label:  github.Label{Name: "cherrypick/release-1.9"},
+				Sender: tc.sender,
+				PullRequest: github.PullRequest{
+					Number: prNumber,
+					Merged: false,
+					User:   github.User{Login: "dev"},
+					Base: github.PullRequestBranch{
+						Ref: "master",
+						Repo: github.Repo{
+							Owner: github.User{Login: "foo"},
+							Name:  "bar",
+						},
+					},
+				},
+			}
+
+			if _, err := s.handlePullRequest(logrus.NewEntry(logrus.StandardLogger()), event); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(ghc.comments) != 1 {
+				t.Fatalf("expected exactly one comment, got %v", ghc.comments)
+			}
+			if tc.requester == "" {
+				if !strings.Contains(ghc.comments[0], "only [foo]") {
+					t.Fatalf("expected org membership rejection, got %v", ghc.comments[0])
+				}
+				return
+			}
+			want := fmt.Sprintf("@%s once the present PR merges", tc.requester)
+			if !strings.Contains(ghc.comments[0], want) {
+				t.Fatalf("expected %q in comment, got %v", want, ghc.comments[0])
+			}
+		})
+	}
+}
+
+func TestCherryPickPRClosedLabelRequesterV2(t *testing.T) {
+	t.Parallel()
+	testCherryPickPRClosedLabelRequester(localgit.NewV2, t)
+}
+
+func testCherryPickPRClosedLabelRequester(clients localgit.Clients, t *testing.T) {
+	lg, c := makeFakeRepoWithCommit(clients, t)
+	if err := lg.CheckoutNewBranch("foo", "bar", "release-1.5"); err != nil {
+		t.Fatalf("Checking out pull branch: %v", err)
+	}
+
+	botUser := &github.UserData{Login: "ci-robot", Email: "ci-robot@users.noreply.github.com"}
+	labeled := func(actor github.User) github.ListedIssueEvent {
+		return github.ListedIssueEvent{
+			Event: github.IssueActionLabeled,
+			Actor: actor,
+			Label: github.Label{Name: "cherrypick/release-1.5"},
+		}
+	}
+
+	testCases := []struct {
+		name       string
+		author     string
+		orgMembers []string
+		events     []github.ListedIssueEvent
+		assignee   string // empty means no cherry-pick PR is expected
+	}{
+		{
+			name:       "member labeler is assigned",
+			author:     "dev",
+			orgMembers: []string{"dev", "approver"},
+			events:     []github.ListedIssueEvent{labeled(github.User{Login: "approver"})},
+			assignee:   "approver",
+		},
+		{
+			name:       "member labeler on non-member author PR",
+			author:     "outsider",
+			orgMembers: []string{"approver"},
+			events:     []github.ListedIssueEvent{labeled(github.User{Login: "approver"})},
+			assignee:   "approver",
+		},
+		{
+			name:       "non-member labeler falls back to member author",
+			author:     "dev",
+			orgMembers: []string{"dev"},
+			events:     []github.ListedIssueEvent{labeled(github.User{Login: "triager"})},
+			assignee:   "dev",
+		},
+		{
+			name:       "neither member is rejected",
+			author:     "outsider",
+			orgMembers: []string{"dev"},
+			events:     []github.ListedIssueEvent{labeled(github.User{Login: "triager"})},
+		},
+		{
+			name:       "last labeled event wins",
+			author:     "dev",
+			orgMembers: []string{"dev", "approver", "releaser"},
+			events: []github.ListedIssueEvent{
+				labeled(github.User{Login: "approver"}),
+				{Event: github.IssueActionUnlabeled, Actor: github.User{Login: "approver"}, Label: github.Label{Name: "cherrypick/release-1.5"}},
+				labeled(github.User{Login: "releaser"}),
+			},
+			assignee: "releaser",
+		},
+		{
+			name:       "bot labeler falls back to author",
+			author:     "dev",
+			orgMembers: []string{"dev", "ci-robot"},
+			events:     []github.ListedIssueEvent{labeled(github.User{Login: "ci-robot"})},
+			assignee:   "dev",
+		},
+		{
+			name:       "no events falls back to author",
+			author:     "dev",
+			orgMembers: []string{"dev"},
+			assignee:   "dev",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			prNumber := fakePR.GetPRNumber()
+			var members []github.TeamMember
+			for _, m := range tc.orgMembers {
+				members = append(members, github.TeamMember{Login: m})
+			}
+			ghc := &fghc{
+				orgMembers: members,
+				prLabels:   []github.Label{{Name: "cherrypick/release-1.5"}},
+				prEvents:   tc.events,
+				patch:      patch,
+			}
+			s := &Server{
+				botUser:        botUser,
+				gc:             c,
+				pusher:         fakePusher{},
+				ghc:            ghc,
+				tokenGenerator: func() []byte { return []byte("sha=abcdefg") },
+				log:            logrus.StandardLogger().WithField("client", "cherrypicker"),
+
+				prowAssignments: true,
+				labelPrefix:     defaultLabelPrefix,
+			}
+
+			event := github.PullRequestEvent{
+				Action: github.PullRequestActionClosed,
+				PullRequest: github.PullRequest{
+					User: github.User{Login: tc.author},
+					Base: github.PullRequestBranch{
+						Ref: "master",
+						Repo: github.Repo{
+							Owner: github.User{Login: "foo"},
+							Name:  "bar",
+						},
+					},
+					Number:   prNumber,
+					Merged:   true,
+					MergeSHA: new(string),
+					Title:    "This is a fix for Y",
+				},
+			}
+
+			if _, err := s.handlePullRequest(logrus.NewEntry(logrus.StandardLogger()), event); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if tc.assignee == "" {
+				if len(ghc.prs) != 0 {
+					t.Fatalf("expected no cherry-pick PR, got %d", len(ghc.prs))
+				}
+				return
+			}
+			if len(ghc.prs) != 1 {
+				t.Fatalf("expected 1 cherry-pick PR, got %d", len(ghc.prs))
+			}
+			want := []github.User{{Login: tc.assignee}}
+			if got := ghc.prs[0].Assignees; !cmp.Equal(got, want) {
+				t.Errorf("expected assignees %v, got %v", want, got)
+			}
+		})
+	}
 }
