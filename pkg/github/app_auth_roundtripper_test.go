@@ -18,6 +18,7 @@ package github
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/json"
@@ -29,6 +30,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/sirupsen/logrus"
 	"k8s.io/utils/ptr"
 )
@@ -141,6 +143,32 @@ func TestAppsAuth(t *testing.T) {
 				expectedGHCacheHeaderValue := "ci-app - org"
 				if val := r[0].Header.Get("X-PROW-GHCACHE-TOKEN-BUDGET-IDENTIFIER"); val != expectedGHCacheHeaderValue {
 					return fmt.Errorf("expected X-PROW-GHCACHE-TOKEN-BUDGET-IDENTIFIER header %q to be %q", val, expectedGHCacheHeaderValue)
+				}
+				return nil
+			},
+		},
+		{
+			name:                "App installation auth success for GraphQL query, everything served from cache",
+			cachedAppSlug:       ptr.To("ci-app"),
+			cachedInstallations: map[string]AppInstallation{"org": {ID: 1}},
+			cachedTokens:        map[int64]*AppInstallationToken{1: {Token: "the-token", ExpiresAt: time.Now().Add(time.Hour)}},
+			doRequest: func(c Client) error {
+				return c.QueryWithGitHubAppsSupport(context.Background(), &struct{}{}, nil, "org")
+			},
+			responses: map[string]*http.Response{"": {
+				StatusCode: 200,
+				Body:       io.NopCloser(strings.NewReader("{}")),
+			}},
+			verifyRequests: func(r []*http.Request) error {
+				if n := len(r); n != 1 {
+					return fmt.Errorf("expected exactly one request, got %d", n)
+				}
+				if val := r[0].Header.Get("Authorization"); val != "Bearer the-token" {
+					return fmt.Errorf("expected the Authorization header %q to be 'Bearer the-token'", val)
+				}
+				expectedAccept := []string{"application/vnd.github.antiope-preview+json", "application/vnd.github.merge-info-preview+json"}
+				if diff := cmp.Diff(expectedAccept, r[0].Header.Values("Accept")); diff != "" {
+					return fmt.Errorf("unexpected Accept headers (-want +got):\n%s", diff)
 				}
 				return nil
 			},
@@ -456,6 +484,47 @@ func validateAppsRoundTripper(t *testing.T, ghClient interface{}) *appsRoundTrip
 		t.Fatalf("the ghclients didn't get configured to use the appsRoundTripper, found %T instead", ghClient.(*client).client.(*ghThrottler).http.(*http.Client).Transport)
 	}
 	return ghClient.(*client).client.(*ghThrottler).http.(*http.Client).Transport.(*appsRoundTripper)
+}
+
+func TestAppsAuthGraphQLRetry(t *testing.T) {
+	rsaKey, err := rsa.GenerateKey(rand.Reader, 1024)
+	if err != nil {
+		t.Fatalf("Failed to generate RSA key: %v", err)
+	}
+	_, _, ghClient, err := NewAppsAuthClientWithFields(logrus.Fields{}, func(b []byte) []byte { return b }, "13", func() *rsa.PrivateKey { return rsaKey }, "", "https://api.github.com")
+	if err != nil {
+		t.Fatalf("failed to construct client: %v", err)
+	}
+	ghClient.(*client).initialDelay = time.Millisecond
+
+	appsRoundTripper := validateAppsRoundTripper(t, ghClient)
+	appsRoundTripper.appSlug = "ci-app"
+	appsRoundTripper.installations = map[string]AppInstallation{"org": {ID: 1}}
+	appsRoundTripper.tokens = map[int64]*AppInstallationToken{1: {Token: "the-token", ExpiresAt: time.Now().Add(time.Hour)}}
+	var requests []*http.Request
+	appsRoundTripper.upstream = testRoundTripper{func(r *http.Request) (*http.Response, error) {
+		requests = append(requests, r)
+		if len(requests) == 1 {
+			return &http.Response{StatusCode: 503, Status: "503 Service Unavailable", Body: io.NopCloser(strings.NewReader("<html>"))}, nil
+		}
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader("{}"))}, nil
+	}}
+
+	if err := ghClient.QueryWithGitHubAppsSupport(context.Background(), &struct{}{}, nil, "org"); err != nil {
+		t.Fatalf("query failed: %v", err)
+	}
+	if n := len(requests); n != 2 {
+		t.Fatalf("expected 2 requests, got %d", n)
+	}
+	expectedAccept := []string{"application/vnd.github.antiope-preview+json", "application/vnd.github.merge-info-preview+json"}
+	for i, r := range requests {
+		if val := r.Header.Get("Authorization"); val != "Bearer the-token" {
+			t.Errorf("request %d: expected the Authorization header %q to be 'Bearer the-token'", i, val)
+		}
+		if diff := cmp.Diff(expectedAccept, r.Header.Values("Accept")); diff != "" {
+			t.Errorf("request %d: unexpected Accept headers (-want +got):\n%s", i, diff)
+		}
+	}
 }
 
 func TestAppsRoundTripperThreadSafety(t *testing.T) {

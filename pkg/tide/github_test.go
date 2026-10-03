@@ -63,9 +63,7 @@ func TestSearch(t *testing.T) {
 		return sq
 	}
 
-	gatewayErr := func(code int) error {
-		return fmt.Errorf("non-200 OK status code: %d %s body: %q", code, http.StatusText(code), "<html>...</html>")
-	}
+	gatewayErr := github.NewGraphQLServerError
 
 	cases := []struct {
 		name    string
@@ -266,25 +264,6 @@ func TestSearch(t *testing.T) {
 				t.Errorf("expected %d queries, got %d", len(tc.cursors), i)
 			}
 		})
-	}
-}
-
-func TestIsGatewayTimeout(t *testing.T) {
-	for _, tc := range []struct {
-		err  error
-		want bool
-	}{
-		{err: nil, want: false},
-		{err: errors.New(`non-200 OK status code: 502 Bad Gateway body: "<html>"`), want: true},
-		{err: fmt.Errorf("cursor: %q, err: %w", "abc", errors.New(`non-200 OK status code: 504 Gateway Timeout body: ""`)), want: true},
-		{err: errors.New(`non-200 OK status code: 503 Service Unavailable body: ""`), want: false},
-		{err: errors.New(`non-200 OK status code: 500 Internal Server Error body: ""`), want: false},
-		{err: errors.New(`non-200 OK status code: 5021 Weird body: ""`), want: false},
-		{err: errors.New("context deadline exceeded"), want: false},
-	} {
-		if got := isGatewayTimeout(tc.err); got != tc.want {
-			t.Errorf("isGatewayTimeout(%v) = %v, want %v", tc.err, got, tc.want)
-		}
 	}
 }
 
@@ -852,17 +831,23 @@ func nginxErrorPage(code int) string {
 // endpoints point at server.
 func newTestGitHubClient(t *testing.T, server *httptest.Server) github.Client {
 	t.Helper()
-	ghc, err := github.NewClient(func() []byte { return []byte("token") }, func(b []byte) []byte { return b }, server.URL, server.URL)
+	_, _, ghc, err := github.NewClientFromOptions(logrus.Fields{}, github.ClientOptions{
+		Censor:          func(b []byte) []byte { return b },
+		GetToken:        func() []byte { return []byte("token") },
+		GraphqlEndpoint: server.URL,
+		Bases:           []string{server.URL},
+		// Keep the client's GraphQL retry backoff short.
+		InitialDelay: time.Millisecond,
+	})
 	if err != nil {
 		t.Fatalf("failed to create GitHub client: %v", err)
 	}
 	return ghc
 }
 
-// TestIsGatewayTimeoutMatchesGraphQLClientErrors guards isGatewayTimeout
-// against changes to the error message of the underlying GraphQL library: the
-// library does not expose the HTTP status code, so we have to match on the
-// string it produces.
+// TestIsGatewayTimeoutMatchesGraphQLClientErrors checks that isGatewayTimeout
+// recognizes the errors the real GraphQL client returns, i.e. that the typed
+// server error survives the GraphQL library and net/http.
 func TestIsGatewayTimeoutMatchesGraphQLClientErrors(t *testing.T) {
 	for _, tc := range []struct {
 		code int
@@ -975,6 +960,36 @@ func TestSearchShrinksPageAgainstGitHubServer(t *testing.T) {
 	// One 502 at the default size, then the shrunk size for every page; the
 	// client must not have retried the 502 itself.
 	if diff := cmp.Diff([]int{maxSearchPageSize, 18, 18, 18}, pageSizes); diff != "" {
+		t.Errorf("unexpected page sizes requested (-want +got):\n%s", diff)
+	}
+}
+
+// TestSearchGivesUpAgainstFailingGitHubServer bounds the number of requests
+// search() makes when every page times out: one per page size while shrinking,
+// then the client's own retries at the minimum size.
+func TestSearchGivesUpAgainstFailingGitHubServer(t *testing.T) {
+	var pageSizes []int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Variables struct {
+				SearchPageSize int `json:"searchPageSize"`
+			} `json:"variables"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Errorf("failed to decode GraphQL request: %v", err)
+		}
+		pageSizes = append(pageSizes, req.Variables.SearchPageSize)
+		w.WriteHeader(http.StatusBadGateway)
+		fmt.Fprint(w, nginxErrorPage(http.StatusBadGateway))
+	}))
+	defer server.Close()
+	ghc := newTestGitHubClient(t, server)
+
+	_, err := (&GitHubProvider{}).search(ghc.QueryWithGitHubAppsSupport, logrus.WithField("test", t.Name()), "is:pr", time.Time{}, time.Now(), "")
+	if !isGatewayTimeout(err) {
+		t.Errorf("expected a gateway timeout error, got %v", err)
+	}
+	if diff := cmp.Diff([]int{maxSearchPageSize, 18, 9, minSearchPageSize, minSearchPageSize, minSearchPageSize}, pageSizes); diff != "" {
 		t.Errorf("unexpected page sizes requested (-want +got):\n%s", diff)
 	}
 }
