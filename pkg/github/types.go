@@ -1827,3 +1827,38 @@ type BlameRange struct {
 	AuthorLogin  string
 	Date         time.Time
 }
+
+// OrganizationRole represents an organization role
+type OrganizationRole struct {
+	ID          int      `json:"id"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Permissions []string `json:"permissions"`
+}
+
+// OrganizationRoleAssignmentType is how a team or user holds an organization role.
+type OrganizationRoleAssignmentType string
+
+// Possible organization role assignment types.
+const (
+	RoleAssignmentDirect   OrganizationRoleAssignmentType = "direct"
+	RoleAssignmentIndirect OrganizationRoleAssignmentType = "indirect"
+	RoleAssignmentMixed    OrganizationRoleAssignmentType = "mixed"
+)
+
+// OrganizationRoleAssignment represents a role assignment to a team or user.
+// For teams: id, slug, assignment are populated. For users: id, login, assignment are populated.
+type OrganizationRoleAssignment struct {
+	ID         int                            `json:"id"`
+	Login      string                         `json:"login,omitempty"`
+	Slug       string                         `json:"slug,omitempty"`
+	Assignment OrganizationRoleAssignmentType `json:"assignment,omitempty"`
+}
+
+// IsDirect reports whether the role is held directly, including "mixed" (direct +
+// inherited) assignments. Only a purely "indirect" assignment (inherited from a
+// parent team, or held via team membership) is not direct. Reconciliation manages
+// direct assignments and must leave indirect ones untouched.
+func (a OrganizationRoleAssignment) IsDirect() bool {
+	return a.Assignment != RoleAssignmentIndirect
+}
