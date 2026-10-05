@@ -1647,6 +1647,15 @@ var (
 	forkWaitInterval = 10 * time.Second
 )
 
+// warnIfDefaultBranchOnlyIgnored notes that default_branch_only only applies when a fork
+// is first created; GitHub ignores it for an existing fork, so reconfiguring it on an
+// already-existing fork is a silent no-op. peribolos is declarative, so surface it.
+func warnIfDefaultBranchOnlyIgnored(logger *logrus.Entry, fork *org.ForkConfig) {
+	if fork != nil && fork.DefaultBranchOnly {
+		logger.Warn("default_branch_only is set but the fork already exists; it only applies at fork creation time and is ignored now")
+	}
+}
+
 // configureForks creates repository forks from upstream repositories as specified in the config.
 // This function only creates forks - it does not delete existing forks that are not in the config.
 // Returns a mapping of config repo names to actual GitHub repo names (for forks that were renamed).
@@ -1789,6 +1798,7 @@ func configureForks(client forkClient, orgName string, orgConfig org.Config) (ma
 			} else {
 				forkNames[repoName] = existing.Name
 				repoLogger.Debug("fork already exists with correct upstream")
+				warnIfDefaultBranchOnlyIgnored(repoLogger, repoCfg.Fork)
 			}
 			continue
 		}
@@ -1801,6 +1811,7 @@ func configureForks(client forkClient, orgName string, orgConfig org.Config) (ma
 		if actualName, ok := forkParentIndex()[expectedUpstream]; ok {
 			forkNames[repoName] = actualName
 			repoLogger.WithField("actual_name", actualName).Info("fork of upstream already exists with different name")
+			warnIfDefaultBranchOnlyIgnored(repoLogger, repoCfg.Fork)
 			continue
 		}
 
