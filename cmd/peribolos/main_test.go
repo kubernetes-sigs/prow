@@ -6988,6 +6988,36 @@ func TestConfigureOrg(t *testing.T) {
 	}
 }
 
+// TestConfigureOrgSkipsCollaboratorsForConflictedFork asserts that when both --fix-forks
+// and --fix-collaborators run, a repo flagged as a fork conflict is skipped by the
+// collaborators loop. The embedded github.Client is nil, so any collaborator call would
+// panic; the absence of a panic (plus the surfaced fork error) proves the skip.
+func TestConfigureOrgSkipsCollaboratorsForConflictedFork(t *testing.T) {
+	cfg := org.Config{
+		Repos: map[string]org.Repo{
+			// Config asks for a fork named "my-fork", but the org already has a non-fork
+			// repo by that name, so configureForks flags it as a conflict. It also declares
+			// collaborators so that, absent the skip, reconciliation would be attempted.
+			"my-fork": {
+				Fork:          &org.ForkConfig{From: "upstream-org/upstream-repo"},
+				Collaborators: map[string]github.RepoPermissionLevel{"someone": github.Write},
+			},
+		},
+	}
+	client := &forkOnlyConfigureOrgClient{
+		repos:     []github.Repo{{Name: "my-fork", Fork: false}},
+		fullRepos: map[string]github.FullRepo{},
+	}
+
+	err := configureOrg(options{fixForks: true, fixCollaborators: true}, client, "test-org", cfg)
+	if err == nil {
+		t.Fatal("expected the fork conflict to surface as an error, got none")
+	}
+	if !strings.Contains(err.Error(), "already exists but is not a fork") {
+		t.Errorf("error %q does not mention the fork conflict", err.Error())
+	}
+}
+
 // Test that users with pending org invitations are skipped for role assignment
 func TestConfigureRoleUserAssignmentsSkipsPendingInvitees(t *testing.T) {
 	client := &fakeOrgRolesClient{
