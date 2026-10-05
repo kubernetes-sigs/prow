@@ -485,6 +485,11 @@ func dumpOrgConfig(client dumpClient, orgName string, ignoreSecretTeams bool, ig
 		if full.Fork && full.Parent.FullName != "" {
 			repoConfig.Fork = &org.ForkConfig{From: full.Parent.FullName}
 			logrus.WithFields(logrus.Fields{"repo": full.FullName, "upstream": full.Parent.FullName}).Debug("Recording fork upstream.")
+		} else if full.Fork {
+			// GitHub reports this repo as a fork but did not return a parent full name
+			// (e.g. the parent was deleted). Omitting the fork block would make a later
+			// apply treat it as a regular repo, so surface the dropped relationship.
+			logrus.WithField("repo", full.FullName).Warn("repo is a fork but its upstream (parent) is empty; omitting the fork block from the dump")
 		}
 
 		// Get direct collaborators (explicitly added)
