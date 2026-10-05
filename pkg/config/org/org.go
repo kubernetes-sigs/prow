@@ -78,6 +78,19 @@ type ForkConfig struct {
 	DefaultBranchOnly bool `json:"default_branch_only,omitempty"`
 }
 
+// Upstream parses From into its owner and repo components. From must be exactly
+// "owner/repo" with both parts non-empty; any other shape (including "", "a" or
+// "a/b/c") is an error. This is the single place the owner/repo invariant is enforced,
+// so callers do not re-parse the raw string and the normalization cannot drift between
+// call sites.
+func (f ForkConfig) Upstream() (owner, repo string, err error) {
+	parts := strings.Split(f.From, "/")
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return "", "", fmt.Errorf("invalid fork from format %q, expected 'owner/repo'", f.From)
+	}
+	return parts[0], parts[1], nil
+}
+
 // Repo declares metadata about the GitHub repository
 //
 // See https://developer.github.com/v3/repos/#edit

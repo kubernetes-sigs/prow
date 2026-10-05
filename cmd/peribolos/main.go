@@ -1634,9 +1634,8 @@ func configureForks(client forkClient, orgName string, orgConfig org.Config) (ma
 		if repoCfg.Fork == nil {
 			continue
 		}
-		parts := strings.Split(repoCfg.Fork.From, "/")
-		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
-			validationErrors = append(validationErrors, fmt.Errorf("invalid fork from format %q for repo %s, expected 'owner/repo'", repoCfg.Fork.From, repoName))
+		if _, _, err := repoCfg.Fork.Upstream(); err != nil {
+			validationErrors = append(validationErrors, fmt.Errorf("repo %s: %w", repoName, err))
 			continue
 		}
 		upstream := strings.ToLower(repoCfg.Fork.From)
@@ -1734,15 +1733,17 @@ func configureForks(client forkClient, orgName string, orgConfig org.Config) (ma
 			"upstream": repoCfg.Fork.From,
 		})
 
-		parts := strings.Split(repoCfg.Fork.From, "/")
-		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
-			// The validation loop above already rejected malformed values; this guards
-			// against a future refactor that separates the two loops, avoiding an
-			// index-out-of-range panic on parts[1].
-			allErrors = append(allErrors, fmt.Errorf("invalid fork from format %q for repo %s, expected 'owner/repo'", repoCfg.Fork.From, repoName))
+		upstreamOwner, upstreamRepo, err := repoCfg.Fork.Upstream()
+		if err != nil {
+			// The validation loop above already rejected malformed values; re-checking
+			// here keeps the parsed owner/repo local and guards a future refactor that
+			// separates the two loops. It should be unreachable in a single pass.
+			allErrors = append(allErrors, fmt.Errorf("repo %s: %w", repoName, err))
 			continue
 		}
-		expectedUpstream := strings.ToLower(fmt.Sprintf("%s/%s", parts[0], parts[1]))
+		// Same normalization as the validation loop above (both lower-case the raw
+		// "owner/repo" string), so the key cannot drift from upstreamToConfig's.
+		expectedUpstream := strings.ToLower(repoCfg.Fork.From)
 
 		// GitHub treats repository names as case-insensitive.
 		repoNameLower := strings.ToLower(repoName)
@@ -1785,7 +1786,7 @@ func configureForks(client forkClient, orgName string, orgConfig org.Config) (ma
 
 		// No fork of this upstream exists - create it
 		repoLogger.Info("creating fork from upstream")
-		createdName, err := client.CreateForkInOrg(parts[0], parts[1], orgName, repoCfg.Fork.DefaultBranchOnly, repoName)
+		createdName, err := client.CreateForkInOrg(upstreamOwner, upstreamRepo, orgName, repoCfg.Fork.DefaultBranchOnly, repoName)
 		if err != nil {
 			repoLogger.WithError(err).Error("failed to create fork")
 			allErrors = append(allErrors, err)
