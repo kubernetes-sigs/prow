@@ -4814,7 +4814,13 @@ func (c *client) CreateFork(owner, repo string) (string, error) {
 // The name parameter specifies the desired name for the fork:
 //   - If empty, GitHub uses the upstream repository name (or appends a suffix on conflict).
 //   - If specified, GitHub uses this exact name. If a repository with this name already
-//     exists, the API will return an error (it will not automatically rename the fork).
+//     exists, the API returns an error (HTTP 403 "Name already exists on this account");
+//     it does not automatically rename the fork.
+//
+// Note: forking is keyed on the fork name, not the upstream. Forking an upstream the org
+// has already forked, under a new name, creates a SECOND fork rather than returning the
+// existing one, so callers must detect an existing fork by upstream before creating to
+// stay idempotent (see configureForks in cmd/peribolos).
 //
 // See https://docs.github.com/en/rest/repos/forks#create-a-fork
 func (c *client) CreateForkInOrg(owner, repo, targetOrg string, defaultBranchOnly bool, name string) (string, error) {
@@ -4853,9 +4859,9 @@ func (c *client) CreateForkInOrg(owner, repo, targetOrg string, defaultBranchOnl
 		exitCodes:   []int{202},
 	}, &resp)
 
-	// there are many reasons why GitHub may end up forking the
-	// repo under a different name -- the repo got re-named, the
-	// target org already has a fork with that name, etc
+	// With an explicit name GitHub creates the fork with exactly that name (or errors
+	// if it is taken; see the doc comment), so on success resp.Name equals the requested
+	// name. We return it from the response rather than echoing the input for robustness.
 	return resp.Name, err
 }
 

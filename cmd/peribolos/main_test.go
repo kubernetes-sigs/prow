@@ -7598,6 +7598,27 @@ func TestConfigureForks(t *testing.T) {
 			expectedConflicts: []string{"my-fork"},
 			expectedForks:     nil,
 		},
+		{
+			// The config name is free, so we fall through to the fork index. But a
+			// GetRepo fails while building that index, so an existing fork of the
+			// requested upstream may have gone undetected. Creating now could produce a
+			// duplicate (GitHub forks again under an explicit name rather than returning
+			// the existing fork), so configureForks must refuse to create and error out.
+			description:   "skip-on-uncertainty: GetRepo failure building the fork index blocks creation",
+			errorContains: "fork index is incomplete",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					"my-fork": {Fork: &org.ForkConfig{From: upstream}},
+				},
+			},
+			existingRepos: map[string]github.Repo{
+				// An existing fork the index build must read; its GetRepo fails below.
+				"other-fork": {Name: "other-fork", Fork: true},
+			},
+			getRepoErr:    errors.New("GitHub API unavailable"),
+			expectError:   true,
+			expectedForks: nil, // must NOT create while the fork index is incomplete
+		},
 	}
 
 	for _, tc := range testCases {

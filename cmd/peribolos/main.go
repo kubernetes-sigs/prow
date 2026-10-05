@@ -1640,7 +1640,7 @@ func configureForks(client forkClient, orgName string, orgConfig org.Config) (ma
 			if first > second {
 				first, second = second, first
 			}
-			validationErrors = append(validationErrors, fmt.Errorf("multiple config entries (%s, %s) fork from the same upstream %s, only one fork per upstream is allowed per org", first, second, repoCfg.Fork.From))
+			validationErrors = append(validationErrors, fmt.Errorf("multiple config entries (%s, %s) fork from the same upstream %s; peribolos manages at most one fork per upstream per org so the upstream-to-fork mapping stays unambiguous", first, second, repoCfg.Fork.From))
 			continue
 		}
 		upstreamToConfig[upstream] = repoName
@@ -1671,13 +1671,18 @@ func configureForks(client forkClient, orgName string, orgConfig org.Config) (ma
 	// forkParentIndex lazily maps lower(upstream full name) -> actual fork repo name
 	// for every fork already present in the org. It is consulted only when the cheap
 	// candidate check (config key / upstream repo name) does not find the fork, so
-	// forks whose name is neither of those (GitHub appended a suffix on conflict, or
-	// the fork was created outside peribolos) are still recognized and repeated runs
-	// stay a no-op. It is built once from repoList and cached; a per-fork GetRepo
-	// failure is logged and that fork is skipped (falling back to the create path,
-	// which GitHub treats idempotently). Cost is bounded by the number of forks, and
-	// is paid only on runs that create a fork or hit this arbitrary-name case.
+	// forks whose name is neither of those (created outside peribolos, or renamed) are
+	// still recognized and repeated runs stay a no-op. It is built once from repoList
+	// and cached. Cost is bounded by the number of forks, and is paid only on runs that
+	// create a fork or hit this arbitrary-name case.
+	//
+	// If a per-fork GetRepo fails, the index is incomplete: an existing fork of some
+	// upstream may be missing from the map. forkIndexIncomplete records this so the
+	// create path can refuse to create rather than risk a duplicate -- GitHub's fork
+	// API honors an explicit name and forks again instead of returning the existing
+	// fork, so a missed existing fork would otherwise become a second fork.
 	var forkParentByUpstream map[string]string
+	var forkIndexIncomplete bool
 	forkParentIndex := func() map[string]string {
 		if forkParentByUpstream != nil {
 			return forkParentByUpstream
@@ -1689,7 +1694,8 @@ func configureForks(client forkClient, orgName string, orgConfig org.Config) (ma
 			}
 			full, err := client.GetRepo(orgName, repo.Name)
 			if err != nil {
-				logrus.WithError(err).WithField("repo", repo.Name).Warn("failed to get fork parent while checking fork idempotency; its fork may be re-requested")
+				forkIndexIncomplete = true
+				logrus.WithError(err).WithField("repo", repo.Name).Warn("failed to get fork parent while building the fork index; new-fork creation is blocked this run to avoid creating a duplicate")
 				continue
 			}
 			if full.Parent.FullName != "" {
@@ -1699,8 +1705,10 @@ func configureForks(client forkClient, orgName string, orgConfig org.Config) (ma
 		return forkParentByUpstream
 	}
 
-	// forkNames maps config repo name -> actual GitHub repo name.
-	// This is needed because GitHub may rename forks to avoid conflicts.
+	// forkNames maps a config repo name -> the actual GitHub repo name. They differ
+	// only when an existing fork of the requested upstream was adopted under a name
+	// other than the config key (via forkParentIndex below); configureRepos,
+	// configureCollaborators and configureTeamRepos then act on the real repo name.
 	forkNames := make(map[string]string)
 	// conflicted holds config names whose repo already exists but is not the requested
 	// fork (not a fork, or a fork of a different upstream). They are returned so the
@@ -1754,6 +1762,17 @@ func configureForks(client forkClient, orgName string, orgConfig org.Config) (ma
 		if actualName, ok := forkParentIndex()[expectedUpstream]; ok {
 			forkNames[repoName] = actualName
 			repoLogger.WithField("actual_name", actualName).Info("fork of upstream already exists with different name")
+			continue
+		}
+
+		// The upstream was not found in the fork index. If the index is incomplete (a
+		// GetRepo failed while building it), we cannot be sure the upstream is not
+		// already forked under an unread name, and creating now could produce a
+		// duplicate fork. Refuse to create and surface an error instead.
+		if forkIndexIncomplete {
+			err := fmt.Errorf("refusing to create fork %s: the fork index is incomplete (a GetRepo call failed), so an existing fork of %s may not have been detected; re-run once the GitHub API is healthy", repoName, repoCfg.Fork.From)
+			repoLogger.Error(err.Error())
+			allErrors = append(allErrors, err)
 			continue
 		}
 
