@@ -6827,16 +6827,21 @@ type fakeForkClient struct {
 	getRepoErr    error
 	getReposErr   error
 	renameForkTo  string // if set, simulate GitHub renaming the fork to this name
+	dryRunCreate  bool   // if set, CreateForkInOrg returns an empty name (as the real client does in dry-run)
+	getRepoCalls  int    // number of GetRepo calls made
 }
 
 func (f *fakeForkClient) GetRepo(owner, name string) (github.FullRepo, error) {
+	f.getRepoCalls++
 	if f.getRepoErr != nil {
 		return github.FullRepo{}, f.getRepoErr
 	}
 	if repo, ok := f.fullRepos[name]; ok {
 		return repo, nil
 	}
-	return github.FullRepo{}, fmt.Errorf("repo not found: %s/%s", owner, name)
+	// GitHub returns 404 for a missing repo; return a real NotFound so callers that poll
+	// (waitForFork) keep polling rather than treating it as a fatal error.
+	return github.FullRepo{}, github.NewNotFound()
 }
 
 func (f *fakeForkClient) GetRepos(org string, isUser bool) ([]github.Repo, error) {
@@ -6853,6 +6858,11 @@ func (f *fakeForkClient) GetRepos(org string, isUser bool) ([]github.Repo, error
 func (f *fakeForkClient) CreateForkInOrg(owner, repo, targetOrg string, defaultBranchOnly bool, name string) (string, error) {
 	if f.createForkErr != nil {
 		return "", f.createForkErr
+	}
+	if f.dryRunCreate {
+		// Mirror the real client's dry-run path: no HTTP request, empty name returned,
+		// and the fork is not made available.
+		return "", nil
 	}
 	f.createdForks = append(f.createdForks, forkCreation{
 		upstream:          fmt.Sprintf("%s/%s", owner, repo),
@@ -7194,6 +7204,38 @@ func TestConfigureOrgValidatesBeforeForks(t *testing.T) {
 	}
 	if client.createForkCalled {
 		t.Error("CreateForkInOrg was called despite invalid config: validation must run before fork actuation")
+	}
+}
+
+// TestConfigureForksDryRun covers the default (dry-run) mode: the client's
+// CreateForkInOrg returns an empty name without issuing a request, and configureForks
+// must then skip waitForFork (no GetRepo poll) and map the config key to itself.
+func TestConfigureForksDryRun(t *testing.T) {
+	client := &fakeForkClient{
+		repos:        map[string]github.Repo{}, // no existing forks -> fork index build does no GetRepo
+		dryRunCreate: true,
+	}
+	cfg := org.Config{
+		Repos: map[string]org.Repo{
+			"my-fork": {Fork: &org.ForkConfig{From: "upstream-org/upstream-repo"}},
+		},
+	}
+
+	forkNames, conflicted, err := configureForks(client, "test-org", cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got, ok := forkNames["my-fork"]; !ok || got != "my-fork" {
+		t.Errorf("forkNames[\"my-fork\"] = %q (present=%v), want it mapped to itself", got, ok)
+	}
+	if client.getRepoCalls != 0 {
+		t.Errorf("dry-run must not wait for the fork, but GetRepo was called %d times", client.getRepoCalls)
+	}
+	if len(client.createdForks) != 0 {
+		t.Errorf("dry-run must not record an actual fork creation, got %v", client.createdForks)
+	}
+	if conflicted.Len() != 0 {
+		t.Errorf("unexpected conflicts: %v", sets.List(conflicted))
 	}
 }
 

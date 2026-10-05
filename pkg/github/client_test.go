@@ -3729,6 +3729,29 @@ func TestCreateForkInOrgWithoutName(t *testing.T) {
 	}
 }
 
+func TestCreateForkInOrgDryRun(t *testing.T) {
+	var called bool
+	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		t.Errorf("dry-run must not issue an HTTP request, but got %s %s", r.Method, r.URL.Path)
+		w.WriteHeader(202)
+	}))
+	defer ts.Close()
+	c := getClient(ts.URL)
+	c.dry = true
+
+	name, err := c.CreateForkInOrg("upstream-org", "upstream-repo", "target-org", true, "my-fork")
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if name != "" {
+		t.Errorf("dry-run must return an empty name, got %q", name)
+	}
+	if called {
+		t.Error("dry-run must not call the GitHub API")
+	}
+}
+
 // TestCreateForkInOrgUsesTargetOrgToken ensures the fork request is scoped to the
 // target org (where the fork is created), not the upstream owner. The org drives
 // GitHub App installation-token selection; scoping it to the upstream owner breaks
