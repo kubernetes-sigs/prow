@@ -1257,7 +1257,7 @@ func configureOrg(opt options, client github.Client, orgName string, orgConfig o
 			// Skip repos flagged as fork conflicts: we must not reconcile access onto a
 			// repo configureForks has already rejected as the wrong fork.
 			if conflictedForks.Has(repoName) {
-				logrus.WithField("repo", repoName).Debug("skipping collaborators for repo flagged as a fork conflict")
+				logrus.WithField("repo", repoName).Debug("skipping collaborators for repo excluded by fork reconciliation (conflict or unverified fork); see fork errors for the reason")
 				continue
 			}
 			if err := configureCollaborators(client, orgName, repoName, repo, forkNames); err != nil {
@@ -1447,7 +1447,7 @@ func configureRepos(opt options, client repoClient, orgName string, orgConfig or
 		// non-fork or a fork of a different upstream). The fork error is deferred, so
 		// without this we would mutate a repo already rejected as the wrong fork.
 		if conflictedForks.Has(wantName) {
-			logrus.WithField("repo", wantName).Debug("skipping repo flagged as a fork conflict")
+			logrus.WithField("repo", wantName).Debug("skipping repo excluded by fork reconciliation (conflict or unverified fork); see fork errors for the reason")
 			continue
 		}
 		// Determine the actual GitHub repo name (may differ for forks)
@@ -1598,16 +1598,23 @@ func waitForFork(client forkClient, org, repo string, timeout, interval time.Dur
 
 // checkExistingConfigRepo evaluates the repo that already occupies the fork's
 // configured name. It returns nil when that repo is already a fork of the requested
-// upstream (the desired state), and a conflict error otherwise: when the repo is not
-// a fork, or is a fork of a different upstream. specifiedUpstream is echoed verbatim
-// in the diagnostic; expectedUpstream is its normalized form used for the comparison.
+// upstream (the desired state). It returns an error otherwise: a conflict when the repo
+// is not a fork or is a fork of a different upstream, or a verification failure when the
+// repo's upstream cannot be read (GetRepo failed). The caller excludes the repo from
+// reconciliation in both cases, but the two are phrased distinctly so a transient fetch
+// failure is not mistaken for a real config conflict. specifiedUpstream is echoed
+// verbatim in the diagnostic; expectedUpstream is its normalized form used for the
+// comparison.
 func checkExistingConfigRepo(client forkClient, orgName, repoName, specifiedUpstream, expectedUpstream string, existing github.Repo) error {
 	if !existing.Fork {
 		return fmt.Errorf("repo %s already exists but is not a fork", repoName)
 	}
 	full, err := client.GetRepo(orgName, existing.Name)
 	if err != nil {
-		return fmt.Errorf("failed to get repo info for %s: %w", existing.Name, err)
+		// Verification failure, not a conflict: we could not read the existing repo's
+		// upstream, so we cannot confirm it is the configured fork. The caller skips its
+		// reconciliation this run as a precaution; this is retryable.
+		return fmt.Errorf("could not verify existing repo %s is the configured fork, skipping its reconciliation this run (retryable, not a config conflict): %w", existing.Name, err)
 	}
 	if strings.ToLower(full.Parent.FullName) == expectedUpstream {
 		return nil // already a fork of the requested upstream

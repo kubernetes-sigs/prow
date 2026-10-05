@@ -7341,7 +7341,7 @@ func TestConfigureForks(t *testing.T) {
 		},
 		{
 			description:   "GetRepo failure when checking existing fork parent",
-			errorContains: "failed to get repo info for",
+			errorContains: "could not verify existing repo",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
 					forkName: {Fork: &org.ForkConfig{From: upstream}},
