@@ -115,9 +115,13 @@ type Repo struct {
 	// Collaborators is a map of username to their permission level for this repository
 	Collaborators map[string]github.RepoPermissionLevel `json:"collaborators,omitempty"`
 
+	// OnCreate applies only when peribolos creates a non-fork repository. It is mutually
+	// exclusive with Fork: a fork is created via the GitHub fork API, which has no
+	// auto_init/gitignore/license fields, so setting both is rejected by validation.
 	OnCreate *RepoCreateOptions `json:"on_create,omitempty"`
 
 	// Fork configures this repository as a fork of an upstream repository.
+	// Mutually exclusive with OnCreate (see above).
 	// See https://docs.github.com/en/rest/repos/forks
 	Fork *ForkConfig `json:"fork,omitempty"`
 }

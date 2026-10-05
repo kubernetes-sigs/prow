@@ -1350,6 +1350,7 @@ func newRepoCreateRequest(name string, definition org.Repo) github.RepoCreateReq
 func validateRepos(repos map[string]org.Repo) error {
 	seen := map[string]string{}
 	var dups []string
+	var forkOnCreate []string
 
 	for wantName, repo := range repos {
 		toCheck := append([]string{wantName}, repo.Previously...)
@@ -1364,13 +1365,24 @@ func validateRepos(repos map[string]org.Repo) error {
 			seen[normName] = name
 		}
 
+		// Fork and OnCreate are mutually exclusive creation strategies: a fork is created
+		// via the GitHub fork API, whose request has no auto_init/gitignore/license
+		// fields, so OnCreate would be silently ignored. Reject the combination rather
+		// than let it look like it takes effect.
+		if repo.Fork != nil && repo.OnCreate != nil {
+			forkOnCreate = append(forkOnCreate, wantName)
+		}
 	}
 
+	var errs []error
 	if len(dups) > 0 {
-		return fmt.Errorf("found duplicate repo names (GitHub repo names are case-insensitive): %s", strings.Join(dups, ", "))
+		errs = append(errs, fmt.Errorf("found duplicate repo names (GitHub repo names are case-insensitive): %s", strings.Join(dups, ", ")))
 	}
-
-	return nil
+	if len(forkOnCreate) > 0 {
+		sort.Strings(forkOnCreate)
+		errs = append(errs, fmt.Errorf("repos set both fork and on_create, which are mutually exclusive (forks are created via the fork API and cannot apply on_create: auto_init/gitignore/license): %s", strings.Join(forkOnCreate, ", ")))
+	}
+	return utilerrors.NewAggregate(errs)
 }
 
 // setIfChanged returns want when it is set and differs from current, else nil.

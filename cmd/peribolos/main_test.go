@@ -5030,6 +5030,28 @@ func TestValidateRepos(t *testing.T) {
 				"repo": {Previously: []string{"REPO"}},
 			},
 		},
+		{
+			description: "rejects repo with both fork and on_create",
+			config: map[string]org.Repo{
+				"forked": {
+					Fork:     &org.ForkConfig{From: "octocat/Hello-World"},
+					OnCreate: &org.RepoCreateOptions{AutoInit: new(true)},
+				},
+			},
+			expectError: true,
+		},
+		{
+			description: "allows fork without on_create",
+			config: map[string]org.Repo{
+				"forked": {Fork: &org.ForkConfig{From: "octocat/Hello-World"}},
+			},
+		},
+		{
+			description: "allows on_create without fork",
+			config: map[string]org.Repo{
+				"plain": {OnCreate: &org.RepoCreateOptions{AutoInit: new(true)}},
+			},
+		},
 	}
 
 	for _, tc := range testCases {
