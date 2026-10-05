@@ -1658,7 +1658,18 @@ func warnIfDefaultBranchOnlyIgnored(logger *logrus.Entry, fork *org.ForkConfig) 
 
 // configureForks creates repository forks from upstream repositories as specified in the config.
 // This function only creates forks - it does not delete existing forks that are not in the config.
-// Returns a mapping of config repo names to actual GitHub repo names (for forks that were renamed).
+//
+// It returns three values:
+//   - forkNames: a map from each fork config repo name to its actual GitHub repo name. These
+//     differ when an existing fork was adopted under a name other than the config key; callers
+//     (configureRepos, configureCollaborators, configureTeamRepos) must reconcile the actual name.
+//   - conflicted: the set of config repo names that could not be reconciled as the requested fork
+//     (name already taken by a non-fork or a fork of a different upstream, the upstream could not
+//     be verified, or two entries resolve to the same repo). Callers MUST skip these so a repo
+//     already rejected here is not mutated by a later subsystem.
+//   - error: an aggregate of all per-fork failures. It is deliberately deferred (the function keeps
+//     going after a per-fork error) so a single bad entry does not hide problems with the others;
+//     callers must still treat a non-nil error as a failure of the run.
 //
 // Known limitation: fork creation and waiting are serialized. Each new fork is requested and then
 // polled for availability before the next is requested, so creating many new forks in one run can
