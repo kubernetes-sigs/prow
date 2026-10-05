@@ -1813,6 +1813,37 @@ func configureForks(client forkClient, orgName string, orgConfig org.Config) (ma
 		repoLogger.Info("fork created successfully")
 	}
 
+	// A fork adopted under a name other than its config key must not land on a name that
+	// another config entry already manages. Each config entry reconciles the physical
+	// repo given by its effective actual name (forkNames[key] when a fork was adopted,
+	// otherwise the key itself). If two entries share that name, configureRepos,
+	// configureCollaborators and configureTeamRepos would reconcile one repository from
+	// two configs, thrashing its metadata/access in map-iteration order with no error.
+	// Detect the collision, flag both entries so neither mutates the repo, and surface it.
+	// Config keys are sorted so the diagnostic is deterministic.
+	seenActual := make(map[string]string, len(orgConfig.Repos)) // lower(actual name) -> owning config key
+	cfgNames := make([]string, 0, len(orgConfig.Repos))
+	for repoName := range orgConfig.Repos {
+		cfgNames = append(cfgNames, repoName)
+	}
+	sort.Strings(cfgNames)
+	for _, repoName := range cfgNames {
+		if conflicted.Has(repoName) {
+			continue
+		}
+		actual := repoName
+		if mapped, ok := forkNames[repoName]; ok {
+			actual = mapped
+		}
+		actualLower := strings.ToLower(actual)
+		if owner, ok := seenActual[actualLower]; ok {
+			allErrors = append(allErrors, fmt.Errorf("config entries %s and %s both resolve to repository %s (a fork was adopted under a name another entry already manages); rename one entry or remove the duplicate", owner, repoName, actual))
+			conflicted.Insert(owner, repoName)
+			continue
+		}
+		seenActual[actualLower] = repoName
+	}
+
 	return forkNames, conflicted, utilerrors.NewAggregate(allErrors)
 }
 

@@ -7619,6 +7619,33 @@ func TestConfigureForks(t *testing.T) {
 			expectError:   true,
 			expectedForks: nil, // must NOT create while the fork index is incomplete
 		},
+		{
+			// A fork is adopted under a name ("upstream-repo") that another config entry
+			// manages directly. Both entries would reconcile the same physical repo, so
+			// configureForks must flag both as conflicts and error rather than silently
+			// letting them thrash each other's metadata.
+			description:   "collision: adopted fork name equals another config entry's key",
+			errorContains: "both resolve to repository",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					// config key is free; adopts the existing fork named "upstream-repo"
+					"repo-a": {Fork: &org.ForkConfig{From: upstream}},
+					// a separate entry directly manages that same repo
+					"upstream-repo": {Description: new("plain entry managing the same repo")},
+				},
+			},
+			existingRepos: map[string]github.Repo{
+				"upstream-repo": {Name: "upstream-repo", Fork: true},
+			},
+			fullRepos: map[string]github.FullRepo{
+				"upstream-repo": {
+					Repo: github.Repo{Name: "upstream-repo", Fork: true, Parent: github.ParentRepo{FullName: upstream}},
+				},
+			},
+			expectError:       true,
+			expectedConflicts: []string{"repo-a", "upstream-repo"},
+			expectedForks:     nil, // adoption, no create
+		},
 	}
 
 	for _, tc := range testCases {
