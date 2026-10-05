@@ -1507,7 +1507,7 @@ func configureRepos(opt options, client repoClient, orgName string, orgConfig or
 		if existing == nil {
 			// Skip repos that should be created as forks - they're handled by configureForks
 			if isFork {
-				repoLogger.Debug("repo has fork_from set, skipping creation (will be handled by --fix-forks)")
+				repoLogger.Warn("repo declares a fork block but --fix-forks is not set; skipping creation (pass --fix-forks to create forks)")
 				continue
 			}
 			if wantRepo.Archived != nil && *wantRepo.Archived {
