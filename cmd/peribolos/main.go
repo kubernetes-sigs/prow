@@ -1637,6 +1637,12 @@ func checkExistingConfigRepo(client forkClient, orgName, repoName, specifiedUpst
 // configureForks creates repository forks from upstream repositories as specified in the config.
 // This function only creates forks - it does not delete existing forks that are not in the config.
 // Returns a mapping of config repo names to actual GitHub repo names (for forks that were renamed).
+//
+// Known limitation: fork creation and waiting are serialized. Each new fork is requested and then
+// polled for availability before the next is requested, so creating many new forks in one run can
+// block for up to (number of new forks) * the per-fork wait timeout. Introducing a few forks per
+// run is fine, and existing forks are detected without any wait; batching the create and wait
+// phases to let forks propagate concurrently is left as a future improvement.
 func configureForks(client forkClient, orgName string, orgConfig org.Config) (map[string]string, sets.Set[string], error) {
 	// Validate all fork configs before making any API calls.
 	// This catches format errors and duplicate upstreams cheaply.
