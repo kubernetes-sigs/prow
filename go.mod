@@ -3,7 +3,7 @@ module sigs.k8s.io/prow
 go 1.26.4
 
 require (
-	cloud.google.com/go/auth v0.23.2
+	cloud.google.com/go/auth v0.24.0
 	cloud.google.com/go/cloudbuild v1.34.0
 	cloud.google.com/go/pubsub/v2 v2.7.0
 	cloud.google.com/go/secretmanager v1.21.0
@@ -68,10 +68,10 @@ require (
 	golang.org/x/text v0.42.0
 	golang.org/x/time v0.16.0
 	gomodules.xyz/jsonpatch/v2 v2.5.0
-	google.golang.org/api v0.297.0
+	google.golang.org/api v0.300.0
 	google.golang.org/genproto v0.0.0-20260825221802-da73d73af1c5
 	google.golang.org/genproto/googleapis/api v0.0.0-20260825221802-da73d73af1c5
-	google.golang.org/grpc v1.83.2
+	google.golang.org/grpc v1.84.0
 	google.golang.org/protobuf v1.36.12
 	gopkg.in/fsnotify.v1 v1.4.7
 	gopkg.in/ini.v1 v1.67.3
@@ -87,8 +87,8 @@ require (
 require (
 	bitbucket.org/creachadair/stringset v0.0.11 // indirect
 	cloud.google.com/go v0.123.0 // indirect
-	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
-	cloud.google.com/go/compute/metadata v0.9.0 // indirect
+	cloud.google.com/go/auth/oauth2adapt v0.3.0 // indirect
+	cloud.google.com/go/compute/metadata v0.10.0 // indirect
 	cloud.google.com/go/iam v1.13.0 // indirect
 	cloud.google.com/go/longrunning v1.2.0 // indirect
 	dario.cat/mergo v1.0.2 // indirect
@@ -122,10 +122,10 @@ require (
 	github.com/google/gnostic-models v0.7.0 // indirect
 	github.com/google/go-querystring v1.2.0 // indirect
 	github.com/google/pprof v0.0.0-20250403155104-27863c87afa6 // indirect
-	github.com/google/s2a-go v0.1.9 // indirect
+	github.com/google/s2a-go v0.1.10 // indirect
 	github.com/google/wire v0.7.0 // indirect
-	github.com/googleapis/enterprise-certificate-proxy v0.3.21 // indirect
-	github.com/googleapis/gax-go/v2 v2.24.0 // indirect
+	github.com/googleapis/enterprise-certificate-proxy v0.3.22 // indirect
+	github.com/googleapis/gax-go/v2 v2.26.2 // indirect
 	github.com/gorilla/handlers v1.5.2 // indirect
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0 // indirect
@@ -163,7 +163,7 @@ require (
 	golang.org/x/term v0.46.0 // indirect
 	golang.org/x/tools v0.49.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260825221802-da73d73af1c5 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260921155816-b14227669459 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	k8s.io/apiextensions-apiserver v0.37.0 // indirect
