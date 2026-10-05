@@ -1634,6 +1634,14 @@ func checkExistingConfigRepo(client forkClient, orgName, repoName, specifiedUpst
 	return fmt.Errorf("repo %s exists as fork of %s, but config specifies %s", repoName, full.Parent.FullName, specifiedUpstream)
 }
 
+// forkWaitTimeout and forkWaitInterval bound how long configureForks waits for a newly
+// created fork to become available (GitHub creates forks asynchronously). They are
+// variables rather than constants so tests can shorten them.
+var (
+	forkWaitTimeout  = 5 * time.Minute
+	forkWaitInterval = 10 * time.Second
+)
+
 // configureForks creates repository forks from upstream repositories as specified in the config.
 // This function only creates forks - it does not delete existing forks that are not in the config.
 // Returns a mapping of config repo names to actual GitHub repo names (for forks that were renamed).
@@ -1821,7 +1829,7 @@ func configureForks(client forkClient, orgName string, orgConfig org.Config) (ma
 
 		// Wait for the fork to become available (GitHub creates forks asynchronously)
 		repoLogger.Info("waiting for fork to become available")
-		if err := waitForFork(client, orgName, createdName, 5*time.Minute, 10*time.Second); err != nil {
+		if err := waitForFork(client, orgName, createdName, forkWaitTimeout, forkWaitInterval); err != nil {
 			repoLogger.WithError(err).Error("fork creation timed out")
 			allErrors = append(allErrors, err)
 			continue

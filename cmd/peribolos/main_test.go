@@ -6829,6 +6829,8 @@ type fakeForkClient struct {
 	renameForkTo  string // if set, simulate GitHub renaming the fork to this name
 	dryRunCreate  bool   // if set, CreateForkInOrg returns an empty name (as the real client does in dry-run)
 	getRepoCalls  int    // number of GetRepo calls made
+
+	forkNeverAvailable bool // if set, a created fork is never added to fullRepos, so waitForFork times out
 }
 
 func (f *fakeForkClient) GetRepo(owner, name string) (github.FullRepo, error) {
@@ -6875,6 +6877,11 @@ func (f *fakeForkClient) CreateForkInOrg(owner, repo, targetOrg string, defaultB
 	}
 	if f.renameForkTo != "" {
 		createdName = f.renameForkTo
+	}
+	if f.forkNeverAvailable {
+		// Simulate an async fork that never finishes propagating: return the created
+		// name but never make it available, so waitForFork polls until it times out.
+		return createdName, nil
 	}
 	// Simulate fork becoming available for waitForFork
 	if f.fullRepos == nil {
@@ -7236,6 +7243,36 @@ func TestConfigureForksDryRun(t *testing.T) {
 	}
 	if conflicted.Len() != 0 {
 		t.Errorf("unexpected conflicts: %v", sets.List(conflicted))
+	}
+}
+
+// TestConfigureForksCreateTimeout covers the create-then-timeout path: CreateForkInOrg
+// succeeds but the fork never becomes available, so waitForFork times out. configureForks
+// must surface the timeout error and must not record a forkNames mapping for the repo.
+func TestConfigureForksCreateTimeout(t *testing.T) {
+	origTimeout, origInterval := forkWaitTimeout, forkWaitInterval
+	forkWaitTimeout, forkWaitInterval = 30*time.Millisecond, 5*time.Millisecond
+	defer func() { forkWaitTimeout, forkWaitInterval = origTimeout, origInterval }()
+
+	client := &fakeForkClient{
+		repos:              map[string]github.Repo{}, // no existing forks
+		forkNeverAvailable: true,
+	}
+	cfg := org.Config{
+		Repos: map[string]org.Repo{
+			"my-fork": {Fork: &org.ForkConfig{From: "upstream-org/upstream-repo"}},
+		},
+	}
+
+	forkNames, _, err := configureForks(client, "test-org", cfg)
+	if err == nil || !strings.Contains(err.Error(), "timeout waiting for fork") {
+		t.Fatalf("expected a timeout error, got %v", err)
+	}
+	if _, ok := forkNames["my-fork"]; ok {
+		t.Errorf("a fork whose creation timed out must not be recorded in forkNames, got %v", forkNames)
+	}
+	if len(client.createdForks) != 1 {
+		t.Errorf("expected the create to have been attempted exactly once, got %d", len(client.createdForks))
 	}
 }
 
