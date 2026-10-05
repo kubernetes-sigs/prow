@@ -638,6 +638,7 @@ func (sc *statusController) sync(pool map[string]CodeReviewCommon, blocks blocke
 }
 
 func (sc *statusController) search() []CodeReviewCommon {
+	const controller = "status"
 	rawQueries := sc.config().Tide.Queries
 	if len(rawQueries) == 0 {
 		return nil
@@ -667,6 +668,7 @@ func (sc *statusController) search() []CodeReviewCommon {
 	var prs []CodeReviewCommon
 	var errs []error
 	var lock sync.Mutex
+	var shards queryShardCounts
 
 	// Use the group only to limit concurrency; errors are collected in errs.
 	g := new(errgroup.Group)
@@ -690,7 +692,17 @@ func (sc *statusController) search() []CodeReviewCommon {
 			sc.storedStateLock.Unlock()
 
 			result, err := sc.ghProvider.search(sc.ghc.QueryWithGitHubAppsSupport, sc.logger, query, latestPR.Time, now, org)
-			log.WithField("duration", time.Since(now).String()).WithField("result_count", len(result)).Debug("Searched for open PRs.")
+			duration := time.Since(now)
+			log.WithField("duration", duration.String()).WithField("result_count", len(result)).Debug("Searched for open PRs.")
+			resultLabel := queryResult(err, len(result))
+			tideMetrics.queryDuration.WithLabelValues(controller, resultLabel).Observe(duration.Seconds())
+			tideMetrics.queryPRsReturned.WithLabelValues(controller).Observe(float64(len(result)))
+			if err != nil {
+				tideMetrics.queryErrors.WithLabelValues(controller, "", org, classifyQueryError(err)).Inc()
+			}
+			if resultLabel == "partial" {
+				tideMetrics.queryPartialResults.WithLabelValues(controller, "", org).Inc()
+			}
 
 			func() {
 				sc.storedStateLock.Lock()
@@ -715,6 +727,7 @@ func (sc *statusController) search() []CodeReviewCommon {
 
 			lock.Lock()
 			defer lock.Unlock()
+			shards.add(resultLabel)
 
 			for _, pr := range result {
 				prs = append(prs, *CodeReviewCommonFromPullRequest(&pr))
@@ -725,6 +738,7 @@ func (sc *statusController) search() []CodeReviewCommon {
 
 	}
 	_ = g.Wait()
+	shards.report(controller)
 
 	err := utilerrors.NewAggregate(errs)
 	if err != nil {

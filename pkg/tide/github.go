@@ -102,9 +102,11 @@ func (gi *GitHubProvider) blockers() (blockers.Blockers, error) {
 
 // Query gets all open PRs based on tide configuration.
 func (gi *GitHubProvider) Query() (map[string]CodeReviewCommon, error) {
+	const controller = "sync"
 	var lock sync.Mutex
 	prs := make(map[string]CodeReviewCommon)
 	var errs []error
+	var shards queryShardCounts
 
 	// Use the group only to limit concurrency; errors are collected in errs.
 	g := new(errgroup.Group)
@@ -125,16 +127,30 @@ func (gi *GitHubProvider) Query() (map[string]CodeReviewCommon, error) {
 		for org, q := range queries {
 			org, q, i := org, q, i
 			g.Go(func() error {
+				start := time.Now()
 				results, err := gi.search(gi.ghc.QueryWithGitHubAppsSupport, gi.logger, q, time.Time{}, time.Now(), org)
-
+				duration := time.Since(start)
+				result := queryResult(err, len(results))
+				queryID := strconv.Itoa(i)
+				// Preserve the existing counter's success/error labels, including
+				// counting searches with partial results as errors.
 				resultString := "success"
 				if err != nil {
 					resultString = "error"
 				}
-				tideMetrics.queryResults.WithLabelValues(strconv.Itoa(i), org, resultString).Inc()
+				tideMetrics.queryResults.WithLabelValues(queryID, org, resultString).Inc()
+				tideMetrics.queryDuration.WithLabelValues(controller, result).Observe(duration.Seconds())
+				tideMetrics.queryPRsReturned.WithLabelValues(controller).Observe(float64(len(results)))
+				if err != nil {
+					tideMetrics.queryErrors.WithLabelValues(controller, queryID, org, classifyQueryError(err)).Inc()
+				}
+				if result == "partial" {
+					tideMetrics.queryPartialResults.WithLabelValues(controller, queryID, org).Inc()
+				}
 
 				lock.Lock()
 				defer lock.Unlock()
+				shards.add(result)
 				if err != nil && len(results) == 0 {
 					gi.logger.WithField("query", q).WithField("org", org).WithError(err).Warn("Failed to execute query.")
 					errs = append(errs, fmt.Errorf("query %d, err: %w", i, err))
@@ -159,8 +175,76 @@ func (gi *GitHubProvider) Query() (map[string]CodeReviewCommon, error) {
 		}
 	}
 	_ = g.Wait()
+	shards.report(controller)
 
 	return prs, utilerrors.NewAggregate(errs)
+}
+
+type queryShardCounts struct {
+	success, partial, failed int
+}
+
+// add must be called while holding the controller's results lock.
+func (s *queryShardCounts) add(result string) {
+	switch result {
+	case "error":
+		s.failed++
+	case "partial":
+		s.partial++
+	default:
+		s.success++
+	}
+}
+
+func (s *queryShardCounts) report(controller string) {
+	tideMetrics.queryShards.WithLabelValues(controller, "success").Set(float64(s.success))
+	tideMetrics.queryShards.WithLabelValues(controller, "partial").Set(float64(s.partial))
+	tideMetrics.queryShards.WithLabelValues(controller, "error").Set(float64(s.failed))
+	if total := s.success + s.partial + s.failed; total > 0 {
+		tideMetrics.poolCompletenessRatio.WithLabelValues(controller).Set(float64(s.success) / float64(total))
+	}
+}
+
+func queryResult(err error, resultCount int) string {
+	if err == nil {
+		return "success"
+	}
+	if resultCount == 0 {
+		return "error"
+	}
+	return "partial"
+}
+
+func classifyQueryError(err error) string {
+	if err == nil {
+		return ""
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return "context_deadline"
+	}
+	if errors.Is(err, context.Canceled) {
+		return "context_canceled"
+	}
+	msg := err.Error()
+	if strings.Contains(msg, "Client.Timeout") || strings.Contains(msg, "request canceled") {
+		return "client_timeout"
+	}
+	if strings.Contains(msg, "connection refused") || strings.Contains(msg, "connection reset") || strings.Contains(msg, "no such host") || strings.Contains(msg, "EOF") {
+		return "connection"
+	}
+	if strings.Contains(msg, "Resource limits") || strings.Contains(msg, "resource limits") {
+		return "resource_limits"
+	}
+	if strings.Contains(msg, "abuse detection") || strings.Contains(msg, "secondary rate limit") {
+		return "secondary_rate_limit"
+	}
+	if strings.Contains(msg, "API rate limit") {
+		return "rate_limit"
+	}
+	if strings.Contains(msg, "502") || strings.Contains(msg, "503") || strings.Contains(msg, "504") || strings.Contains(msg, "500") {
+		return "server_error"
+	}
+	return "other"
 }
 
 func (gi *GitHubProvider) GetRef(org, repo, ref string) (string, error) {
