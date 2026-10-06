@@ -48,6 +48,11 @@ type JobSpec struct {
 
 	DecorationConfig *prowapi.DecorationConfig `json:"decoration_config,omitempty"`
 
+	// TriggerComment, when set, references the GitHub comment whose command
+	// triggered this job. It is only set for comment-triggered presubmits and
+	// is nil otherwise.
+	TriggerComment *prowapi.TriggerComment `json:"trigger_comment,omitempty"`
+
 	// we need to keep track of the agent until we
 	// migrate everyone away from using the $BUILD_NUMBER
 	// environment variable
@@ -64,6 +69,7 @@ func NewJobSpec(spec prowapi.ProwJobSpec, buildID, prowJobID string) JobSpec {
 		Refs:             spec.Refs,
 		ExtraRefs:        spec.ExtraRefs,
 		DecorationConfig: spec.DecorationConfig,
+		TriggerComment:   spec.TriggerComment,
 		agent:            spec.Agent,
 	}
 }
@@ -109,6 +115,9 @@ const (
 	PullPullShaEnv = "PULL_PULL_SHA"
 	PullHeadRefEnv = "PULL_HEAD_REF"
 	PullTitleEnv   = "PULL_TITLE"
+
+	TriggerCommentIDEnv  = "TRIGGER_COMMENT_ID"
+	TriggerCommentURLEnv = "TRIGGER_COMMENT_URL"
 )
 
 // EnvForSpec returns a mapping of environment variables
@@ -180,6 +189,16 @@ func EnvForSpec(spec JobSpec) (map[string]string, error) {
 	env[PullHeadRefEnv] = spec.Refs.Pulls[0].HeadRef
 	env[PullTitleEnv] = spec.Refs.Pulls[0].Title
 
+	// Only set for jobs triggered by a comment command (e.g. /test, /retest).
+	if spec.TriggerComment != nil {
+		if spec.TriggerComment.ID != 0 {
+			env[TriggerCommentIDEnv] = strconv.Itoa(spec.TriggerComment.ID)
+		}
+		if spec.TriggerComment.HTMLURL != "" {
+			env[TriggerCommentURLEnv] = spec.TriggerComment.HTMLURL
+		}
+	}
+
 	return env, nil
 }
 
@@ -187,7 +206,7 @@ func EnvForSpec(spec JobSpec) (map[string]string, error) {
 func EnvForType(jobType prowapi.ProwJobType) []string {
 	baseEnv := []string{CI, JobNameEnv, JobSpecEnv, JobTypeEnv, ProwJobIDEnv, BuildIDEnv, ProwBuildIDEnv}
 	refsEnv := []string{RepoOwnerEnv, RepoNameEnv, SrcBaseEnv, SrcHostEnv, PullBaseRefEnv, PullBaseShaEnv, PullRefsEnv}
-	pullEnv := []string{PullNumberEnv, PullPullShaEnv, PullHeadRefEnv, PullTitleEnv}
+	pullEnv := []string{PullNumberEnv, PullPullShaEnv, PullHeadRefEnv, PullTitleEnv, TriggerCommentIDEnv, TriggerCommentURLEnv}
 
 	switch jobType {
 	case prowapi.PeriodicJob:

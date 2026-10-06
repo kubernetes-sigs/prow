@@ -342,6 +342,16 @@ the build.
 | `PULL_PULL_SHA` |          |            |       |     ✓     | Pull request head SHA.                                                  | `qwe456`                               |
 | `PULL_HEAD_REF` |          |            |       |     ✓     | Pull request branch name.                                               | `fixup-some-stuff`                     |
 | `PULL_TITLE`    |          |            |       |     ✓     | Pull request title.                                               | `Add  something`                     |
+| `TRIGGER_COMMENT_ID`  |    |            |       |     ✓     | ID of the GitHub comment whose command triggered the job. Only set when the job was triggered by a comment (e.g. `/test`, `/retest`). | `987654321`                          |
+| `TRIGGER_COMMENT_URL` |    |            |       |     ✓     | HTML URL of the GitHub comment whose command triggered the job. Only set for comment-triggered jobs. | `https://github.com/org/repo/pull/5#issuecomment-987654321` |
+
+Note: `TRIGGER_COMMENT_ID` and `TRIGGER_COMMENT_URL` (and the corresponding
+`trigger_comment` object with `id` / `html_url` fields in `JOB_SPEC`) are only
+present for presubmits that were triggered by a comment command. They are absent
+for jobs triggered automatically (on PR creation/update, by Tide, or for
+periodics). The ID alone is ambiguous about the comment kind, so consumers that
+need to call the GitHub API should prefer the URL or combine the ID with the
+refs in `JOB_SPEC`.
 
 Examples of the JSON-encoded job specification follow for the different
 job types:
