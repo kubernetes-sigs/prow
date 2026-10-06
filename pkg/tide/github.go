@@ -21,7 +21,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -269,17 +268,12 @@ const (
 	minSearchPageSize = 5
 )
 
-// gatewayTimeoutRe matches the errors returned by the GraphQL client when
-// GitHub fails to resolve a query within its time limit. The underlying client
-// does not expose the HTTP status code, only this formatted message.
-var gatewayTimeoutRe = regexp.MustCompile(`non-200 OK status code: 50[24]\b`)
-
 // isGatewayTimeout reports whether err indicates that GitHub gave up resolving
 // the query (502 Bad Gateway / 504 Gateway Timeout). These are typically caused
 // by a page of results that is too expensive to compute in time, so retrying
 // the same page with fewer results is likely to succeed.
 func isGatewayTimeout(err error) bool {
-	return err != nil && gatewayTimeoutRe.MatchString(err.Error())
+	return github.IsGatewayTimeout(err)
 }
 
 func (gi *GitHubProvider) search(query querier, log *logrus.Entry, q string, start, end time.Time, org string) ([]PullRequest, error) {
