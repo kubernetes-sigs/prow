@@ -264,7 +264,7 @@ const (
 	// mergeability), so this is kept well below GitHub's maximum of 100.
 	maxSearchPageSize = 37
 	// minSearchPageSize is the smallest page size search will shrink to when
-	// GitHub keeps timing out while resolving a page.
+	// GitHub keeps timing out or exceeding resource limits while resolving a page.
 	minSearchPageSize = 5
 )
 
@@ -274,6 +274,13 @@ const (
 // the same page with fewer results is likely to succeed.
 func isGatewayTimeout(err error) bool {
 	return github.IsGatewayTimeout(err)
+}
+
+// isSearchResourceLimit matches GitHub's per-query resource exhaustion error.
+// The GraphQL client exposes only the error message, including for HTTP 200
+// responses with partial data. Rate limits require different recovery.
+func isSearchResourceLimit(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "Resource limits for this query exceeded")
 }
 
 func (gi *GitHubProvider) search(query querier, log *logrus.Entry, q string, start, end time.Time, org string) ([]PullRequest, error) {
@@ -310,12 +317,13 @@ func (gi *GitHubProvider) search(query querier, log *logrus.Entry, q string, sta
 		}
 		log.Debug("Sending query")
 		if err := query(reqCtx, &sq, vars, org); err != nil {
-			if isGatewayTimeout(err) && pageSize > minSearchPageSize && ctx.Err() == nil {
-				// GitHub could not resolve this page in time. Cursors are
-				// offset based, so retry the same cursor with a smaller page.
+			if (isGatewayTimeout(err) || isSearchResourceLimit(err)) && pageSize > minSearchPageSize && ctx.Err() == nil {
+				// GitHub could not resolve this page within its time or resource
+				// limits. Cursors are offset based, so retry the same cursor with
+				// a smaller page, discarding any data from the failed response.
 				pageSize = max(pageSize/2, minSearchPageSize)
 				vars["searchPageSize"] = githubql.Int(pageSize)
-				log.WithError(err).WithField("search_page_size", pageSize).Warn("Search page timed out, retrying with a smaller page size.")
+				log.WithError(err).WithField("search_page_size", pageSize).Warn("Search page exceeded time or resource limits, retrying with a smaller page size.")
 				continue
 			}
 			if cursor != nil {
