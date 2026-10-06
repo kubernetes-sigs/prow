@@ -69,6 +69,7 @@ type Configuration struct {
 
 	// Built-in plugins specific configuration.
 	Approve              []Approve                    `json:"approve,omitempty"`
+	Assign               map[string]*Assign           `json:"assign,omitempty"`
 	Blockades            []Blockade                   `json:"blockades,omitempty"`
 	Blunderbuss          Blunderbuss                  `json:"blunderbuss,omitempty"`
 	Rifle                Rifle                        `json:"rifle,omitempty"`
@@ -100,6 +101,64 @@ type Configuration struct {
 	Override             Override                     `json:"override,omitempty"`
 	Help                 Help                         `json:"help,omitempty"`
 	InvalidCommitMsg     []InvalidCommitMsg           `json:"invalid_commit_msg,omitempty"`
+}
+
+// AssignAction defines what the assign plugin does when a user that the
+// restriction does not allow uses /assign on an issue.
+type AssignAction string
+
+const (
+	// AssignActionWarn assigns the users anyway and posts a comment telling
+	// the commenter that they are not an org member.
+	AssignActionWarn AssignAction = "warn"
+	// AssignActionBlock does not assign anyone and posts a comment explaining
+	// why.
+	AssignActionBlock AssignAction = "block"
+)
+
+// Assign specifies configuration for the assign plugin.
+//
+// The configuration is a map keyed by "org" or "org/repo" (or "*" for all
+// repos). A key for "org/repo" takes precedence over a key for "org", which
+// takes precedence over "*". The most specific entry is used as a whole, so an
+// empty entry for "org/repo" disables a restriction configured for "org".
+type Assign struct {
+	// Restrict restricts who may run /assign on issues: non-org-members are
+	// restricted according to Action, unless the issue has one of the
+	// ExemptLabels. The restriction is enabled when this field is present.
+	// It only applies to issues: on pull requests /assign is never restricted,
+	// so anyone can still /assign a reviewer or an approver.
+	// Only the membership of the commenter in the org that owns the repository
+	// is checked, not the membership of the users being assigned:
+	// - "/assign" (self-assignment) by a non-member is restricted.
+	// - "/assign @user" by a non-member is restricted, even when @user is an
+	// org member.
+	// - "/assign @user" by an org member is not restricted, even when @user is
+	// not an org member.
+	// - "/unassign" is never restricted.
+	// The usual rules still apply to the users being assigned: they must be
+	// org members, repo collaborators or have commented on the issue.
+	Restrict *AssignRestrict `json:"restrict,omitempty"`
+}
+
+// AssignRestrict configures how the assign plugin restricts /assign on issues
+// by users who are not org members.
+type AssignRestrict struct {
+	// Action is what happens when a non-org-member uses /assign on an issue
+	// that has none of the ExemptLabels. This field is required. Valid values:
+	// - "warn": the users are assigned and the plugin posts a comment telling
+	// the commenter that they are not an org member, pointing to issues with
+	// the ExemptLabels if any are configured.
+	// - "block": nobody is assigned and the plugin posts a comment explaining
+	// that only org members can use /assign on the issue.
+	Action AssignAction `json:"action"`
+	// ExemptLabels is a list of labels that exempt an issue from the
+	// restriction. On an issue with any of these labels (matched
+	// case-insensitively), anyone can use /assign.
+	// For example, setting this to ["good first issue"] lets non-members
+	// assign themselves to issues labeled "good first issue" while still
+	// restricting drive-by assigns on other issues.
+	ExemptLabels []string `json:"exempt_labels,omitzero"`
 }
 
 type Help struct {
@@ -1112,6 +1171,21 @@ func (c *Configuration) LgtmFor(org, repo string) *Lgtm {
 	return &Lgtm{}
 }
 
+// AssignFor finds the Assign config for a repo, if one exists.
+// Repo-level config is prioritized over org-level config.
+func (c *Configuration) AssignFor(org, repo string) *Assign {
+	if c.Assign[fmt.Sprintf("%s/%s", org, repo)] != nil {
+		return c.Assign[fmt.Sprintf("%s/%s", org, repo)]
+	}
+	if c.Assign[org] != nil {
+		return c.Assign[org]
+	}
+	if c.Assign["*"] != nil {
+		return c.Assign["*"]
+	}
+	return &Assign{}
+}
+
 // TriggerFor finds the Trigger for a repo, if one exists
 // a trigger can be listed for the repo itself or for the
 // owning organization
@@ -1608,6 +1682,22 @@ func validateTrigger(triggers []Trigger) error {
 	return nil
 }
 
+func validateAssign(assign map[string]*Assign) error {
+	for key, cfg := range assign {
+		if cfg == nil || cfg.Restrict == nil {
+			continue
+		}
+		switch cfg.Restrict.Action {
+		case AssignActionWarn, AssignActionBlock:
+		case "":
+			return fmt.Errorf("assign[%q].restrict: action is required, must be %q or %q", key, AssignActionWarn, AssignActionBlock)
+		default:
+			return fmt.Errorf("assign[%q].restrict: invalid action %q, must be %q or %q", key, cfg.Restrict.Action, AssignActionWarn, AssignActionBlock)
+		}
+	}
+	return nil
+}
+
 var validInvalidCommitMsgChecks = sets.New[string]("fixupPrefix", "issueClosingKeywords")
 
 func validateInvalidCommitMsg(cfgs []InvalidCommitMsg) error {
@@ -1752,6 +1842,9 @@ func (c *Configuration) Validate() error {
 		return err
 	}
 	if err := validateTrigger(c.Triggers); err != nil {
+		return err
+	}
+	if err := validateAssign(c.Assign); err != nil {
 		return err
 	}
 	if err := validateRepoDupes(c.Approve); err != nil {
@@ -2350,7 +2443,7 @@ type Override struct {
 func (c *Configuration) mergeFrom(other *Configuration) error {
 	var errs []error
 
-	diff := cmp.Diff(other, &Configuration{Approve: other.Approve, Bugzilla: other.Bugzilla,
+	diff := cmp.Diff(other, &Configuration{Approve: other.Approve, Assign: other.Assign, Bugzilla: other.Bugzilla,
 		ExternalPlugins: other.ExternalPlugins, Label: Label{RestrictedLabels: other.Label.RestrictedLabels},
 		Lgtm: other.Lgtm, Plugins: other.Plugins, Triggers: other.Triggers, Welcome: other.Welcome},
 		config.DefaultDiffOpts...)
@@ -2381,6 +2474,27 @@ func (c *Configuration) mergeFrom(other *Configuration) error {
 
 	if err := c.Label.mergeFrom(&other.Label); err != nil {
 		errs = append(errs, fmt.Errorf("failed to merge .label from supplemental config: %w", err))
+	}
+
+	if err := c.mergeAssignFrom(other.Assign); err != nil {
+		errs = append(errs, fmt.Errorf("failed to merge .assign from supplemental config: %w", err))
+	}
+
+	return utilerrors.NewAggregate(errs)
+}
+
+func (c *Configuration) mergeAssignFrom(other map[string]*Assign) error {
+	if c.Assign == nil && other != nil {
+		c.Assign = make(map[string]*Assign)
+	}
+
+	var errs []error
+	for orgOrRepo, config := range other {
+		if _, ok := c.Assign[orgOrRepo]; ok {
+			errs = append(errs, fmt.Errorf("found duplicate config for assign.%s", orgOrRepo))
+			continue
+		}
+		c.Assign[orgOrRepo] = config
 	}
 
 	return utilerrors.NewAggregate(errs)
@@ -2503,7 +2617,7 @@ func getLabelConfigFromRestrictedLabelsSlice(s []RestrictedLabel, label string) 
 
 func (c *Configuration) HasConfigFor() (global bool, orgs sets.Set[string], repos sets.Set[string]) {
 	equals := reflect.DeepEqual(c,
-		&Configuration{Approve: c.Approve, Bugzilla: c.Bugzilla, ExternalPlugins: c.ExternalPlugins,
+		&Configuration{Approve: c.Approve, Assign: c.Assign, Bugzilla: c.Bugzilla, ExternalPlugins: c.ExternalPlugins,
 			Label: Label{RestrictedLabels: c.Label.RestrictedLabels}, Lgtm: c.Lgtm, Plugins: c.Plugins,
 			Triggers: c.Triggers, Welcome: c.Welcome})
 
@@ -2584,6 +2698,16 @@ func (c *Configuration) HasConfigFor() (global bool, orgs sets.Set[string], repo
 
 	for orgOrRepo := range c.ExternalPlugins {
 		if strings.Contains(orgOrRepo, "/") {
+			repos.Insert(orgOrRepo)
+		} else {
+			orgs.Insert(orgOrRepo)
+		}
+	}
+
+	for orgOrRepo := range c.Assign {
+		if orgOrRepo == "*" {
+			global = true
+		} else if strings.Contains(orgOrRepo, "/") {
 			repos.Insert(orgOrRepo)
 		} else {
 			orgs.Insert(orgOrRepo)

@@ -2064,6 +2064,7 @@ func TestHasConfigFor(t *testing.T) {
 				fuzzedConfig.Triggers = nil
 				fuzzedConfig.Welcome = nil
 				fuzzedConfig.ExternalPlugins = nil
+				fuzzedConfig.Assign = nil
 				return fuzzedConfig, !reflect.DeepEqual(fuzzedConfig, &Configuration{}), nil, nil
 			},
 		},
@@ -2193,6 +2194,34 @@ func TestHasConfigFor(t *testing.T) {
 			},
 		},
 		{
+			name: "Any config with assign is considered to be for the orgs and repos references there",
+			resultGenerator: func(fuzzedConfig *Configuration) (toCheck *Configuration, expectGlobal bool, expectOrgs sets.Set[string], expectRepos sets.Set[string]) {
+				fuzzedConfig = &Configuration{Assign: fuzzedConfig.Assign}
+				expectOrgs, expectRepos = sets.Set[string]{}, sets.Set[string]{}
+
+				for orgOrRepo := range fuzzedConfig.Assign {
+					if orgOrRepo == "*" {
+						expectGlobal = true
+					} else if strings.Contains(orgOrRepo, "/") {
+						expectRepos.Insert(orgOrRepo)
+					} else {
+						expectOrgs.Insert(orgOrRepo)
+					}
+				}
+				return fuzzedConfig, expectGlobal, expectOrgs, expectRepos
+			},
+		},
+		{
+			name: "Assign config for the global, org and repo scopes is recognized",
+			resultGenerator: func(_ *Configuration) (toCheck *Configuration, expectGlobal bool, expectOrgs sets.Set[string], expectRepos sets.Set[string]) {
+				return &Configuration{Assign: map[string]*Assign{
+					"*":        {},
+					"org":      {Restrict: &AssignRestrict{Action: AssignActionWarn}},
+					"org/repo": {Restrict: &AssignRestrict{Action: AssignActionBlock}},
+				}}, true, sets.New("org"), sets.New("org/repo")
+			},
+		},
+		{
 			name: "Any config with label.restricted_labels is considered to be for the org and repos references there",
 			resultGenerator: func(fuzzedConfig *Configuration) (toCheck *Configuration, expectGlobal bool, expectOrgs sets.Set[string], expectRepos sets.Set[string]) {
 				fuzzedConfig = &Configuration{Label: fuzzedConfig.Label}
@@ -2316,6 +2345,26 @@ func TestMergeFrom(t *testing.T) {
 					RestrictedLabels: map[string][]RestrictedLabel{"org": {{Label: "cherry-pick-approved", AllowedTeams: []string{"patch-managers"}}}},
 				},
 			},
+		},
+		{
+			name:                "Assign config gets merged",
+			in:                  Configuration{Assign: map[string]*Assign{"org": {Restrict: &AssignRestrict{Action: AssignActionWarn}}}},
+			supplementalConfigs: []Configuration{{Assign: map[string]*Assign{"org/repo": {Restrict: &AssignRestrict{Action: AssignActionBlock}}}}},
+			expected: Configuration{Assign: map[string]*Assign{
+				"org":      {Restrict: &AssignRestrict{Action: AssignActionWarn}},
+				"org/repo": {Restrict: &AssignRestrict{Action: AssignActionBlock}},
+			}},
+		},
+		{
+			name:                "main config has no Assign config, supplemental config has, it gets merged",
+			supplementalConfigs: []Configuration{{Assign: map[string]*Assign{"org/repo": {Restrict: &AssignRestrict{Action: AssignActionBlock}}}}},
+			expected:            Configuration{Assign: map[string]*Assign{"org/repo": {Restrict: &AssignRestrict{Action: AssignActionBlock}}}},
+		},
+		{
+			name:                "Assign can't merge duplicated configs",
+			in:                  Configuration{Assign: map[string]*Assign{"org/repo": {Restrict: &AssignRestrict{Action: AssignActionWarn}}}},
+			supplementalConfigs: []Configuration{{Assign: map[string]*Assign{"org/repo": {Restrict: &AssignRestrict{Action: AssignActionBlock}}}}},
+			errorExpected:       true,
 		},
 		{
 			name:                "main config has no ExternalPlugins config, supplemental config has, it gets merged",
@@ -3021,6 +3070,175 @@ func TestInvalidCommitMsgFor(t *testing.T) {
 			result := test.config.InvalidCommitMsgFor(test.org, test.repo)
 			if !reflect.DeepEqual(*result, test.expected) {
 				t.Errorf("expected %+v, got %+v", test.expected, *result)
+			}
+		})
+	}
+}
+
+func TestValidateAssign(t *testing.T) {
+	tests := []struct {
+		name        string
+		config      string
+		expectedErr string
+	}{
+		{
+			name: "no restriction",
+			config: `assign:
+  org/repo: {}`,
+		},
+		{
+			name: "null restriction",
+			config: `assign:
+  org/repo:
+    restrict:`,
+		},
+		{
+			name: "warn",
+			config: `assign:
+  org:
+    restrict:
+      action: warn`,
+		},
+		{
+			name: "block with exempt labels",
+			config: `assign:
+  org/repo:
+    restrict:
+      action: block
+      exempt_labels: ["good first issue"]`,
+		},
+		{
+			name: "missing action",
+			config: `assign:
+  org/repo:
+    restrict:
+      exempt_labels: ["good first issue"]`,
+			expectedErr: `assign["org/repo"].restrict: action is required, must be "warn" or "block"`,
+		},
+		{
+			name: "empty restriction has no action",
+			config: `assign:
+  org:
+    restrict: {}`,
+			expectedErr: `assign["org"].restrict: action is required, must be "warn" or "block"`,
+		},
+		{
+			name: "invalid action",
+			config: `assign:
+  org/repo:
+    restrict:
+      action: deny`,
+			expectedErr: `assign["org/repo"].restrict: invalid action "deny", must be "warn" or "block"`,
+		},
+		{
+			name: "action is case-sensitive",
+			config: `assign:
+  org/repo:
+    restrict:
+      action: Block`,
+			expectedErr: `assign["org/repo"].restrict: invalid action "Block", must be "warn" or "block"`,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var config Configuration
+			if err := yaml.Unmarshal([]byte(test.config), &config); err != nil {
+				t.Fatalf("failed to unmarshal config: %v", err)
+			}
+			var errMsg string
+			if err := validateAssign(config.Assign); err != nil {
+				errMsg = err.Error()
+			}
+			if errMsg != test.expectedErr {
+				t.Errorf("expected error %q, got %q", test.expectedErr, errMsg)
+			}
+		})
+	}
+}
+
+func TestAssignFor(t *testing.T) {
+	orgCfg := &Assign{Restrict: &AssignRestrict{Action: AssignActionWarn}}
+	repoCfg := &Assign{Restrict: &AssignRestrict{Action: AssignActionBlock, ExemptLabels: []string{"good first issue"}}}
+	globalCfg := &Assign{Restrict: &AssignRestrict{Action: AssignActionWarn, ExemptLabels: []string{"help wanted"}}}
+	optOut := &Assign{}
+
+	tests := []struct {
+		name     string
+		config   map[string]*Assign
+		org      string
+		repo     string
+		expected *Assign
+	}{
+		{
+			name:     "no config",
+			org:      "org",
+			repo:     "repo",
+			expected: &Assign{},
+		},
+		{
+			name:     "org level config applies to all repos in the org",
+			config:   map[string]*Assign{"org": orgCfg},
+			org:      "org",
+			repo:     "repo",
+			expected: orgCfg,
+		},
+		{
+			name:     "repo level config",
+			config:   map[string]*Assign{"org/repo": repoCfg},
+			org:      "org",
+			repo:     "repo",
+			expected: repoCfg,
+		},
+		{
+			name:     "repo level config takes precedence over org level config",
+			config:   map[string]*Assign{"org": orgCfg, "org/repo": repoCfg},
+			org:      "org",
+			repo:     "repo",
+			expected: repoCfg,
+		},
+		{
+			name:     "org level config is used for repos without their own config",
+			config:   map[string]*Assign{"org": orgCfg, "org/repo": repoCfg},
+			org:      "org",
+			repo:     "other",
+			expected: orgCfg,
+		},
+		{
+			name:     "empty repo level config opts the repo out of the org level restriction",
+			config:   map[string]*Assign{"org": orgCfg, "org/repo": optOut},
+			org:      "org",
+			repo:     "repo",
+			expected: optOut,
+		},
+		{
+			name:     "org level config takes precedence over global config",
+			config:   map[string]*Assign{"*": globalCfg, "org": orgCfg},
+			org:      "org",
+			repo:     "repo",
+			expected: orgCfg,
+		},
+		{
+			name:     "global config is used when there is no org or repo config",
+			config:   map[string]*Assign{"*": globalCfg, "org": orgCfg},
+			org:      "other-org",
+			repo:     "repo",
+			expected: globalCfg,
+		},
+		{
+			name:     "config for another org is not used",
+			config:   map[string]*Assign{"other-org": orgCfg, "other-org/repo": repoCfg},
+			org:      "org",
+			repo:     "repo",
+			expected: &Assign{},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			config := Configuration{Assign: test.config}
+			if diff := cmp.Diff(test.expected, config.AssignFor(test.org, test.repo)); diff != "" {
+				t.Errorf("unexpected assign config (-want +got):\n%s", diff)
 			}
 		})
 	}
