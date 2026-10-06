@@ -655,6 +655,7 @@ func equalRequiredPullRequestReviews(state *github.RequiredPullRequestReviews, r
 		return state.DismissStaleReviews == request.DismissStaleReviews &&
 			state.RequireCodeOwnerReviews == request.RequireCodeOwnerReviews &&
 			state.RequiredApprovingReviewCount == request.RequiredApprovingReviewCount &&
+			state.RequireLastPushApproval == request.RequireLastPushApproval &&
 			equalDismissalRestrictions(state.DismissalRestrictions, &request.DismissalRestrictions) &&
 			equalBypassRestrictions(state.BypassRestrictions, &request.BypassRestrictions)
 	default:

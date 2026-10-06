@@ -89,6 +89,17 @@ func TestMakeReviews(t *testing.T) {
 			},
 		},
 		{
+			name: "require last push approval set",
+			input: &branchprotection.ReviewPolicy{
+				Approvals:               &one,
+				RequireLastPushApproval: &yes,
+			},
+			expected: &github.RequiredPullRequestReviewsRequest{
+				RequiredApprovingReviewCount: 1,
+				RequireLastPushApproval:      true,
+			},
+		},
+		{
 			name: "set all",
 			input: &branchprotection.ReviewPolicy{
 				Approvals:     &one,

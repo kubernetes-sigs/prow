@@ -2279,6 +2279,18 @@ func TestEqualRequiredPullRequestReviews(t *testing.T) {
 			expected: false,
 		},
 		{
+			name: "not matching on last push approval",
+			state: &github.RequiredPullRequestReviews{
+				RequiredApprovingReviewCount: 1,
+				RequireLastPushApproval:      true,
+			},
+			request: &github.RequiredPullRequestReviewsRequest{
+				RequiredApprovingReviewCount: 1,
+				RequireLastPushApproval:      false,
+			},
+			expected: false,
+		},
+		{
 			name: "not matching on restrictions",
 			state: &github.RequiredPullRequestReviews{
 				DismissStaleReviews:          true,

@@ -640,6 +640,7 @@ type RequiredPullRequestReviews struct {
 	DismissStaleReviews          bool                   `json:"dismiss_stale_reviews"`
 	RequireCodeOwnerReviews      bool                   `json:"require_code_owner_reviews"`
 	RequiredApprovingReviewCount int                    `json:"required_approving_review_count"`
+	RequireLastPushApproval      bool                   `json:"require_last_push_approval"`
 	BypassRestrictions           *BypassRestrictions    `json:"bypass_pull_request_allowances"`
 }
 
@@ -695,6 +696,7 @@ type RequiredPullRequestReviewsRequest struct {
 	DismissStaleReviews          bool                         `json:"dismiss_stale_reviews"`
 	RequireCodeOwnerReviews      bool                         `json:"require_code_owner_reviews"`
 	RequiredApprovingReviewCount int                          `json:"required_approving_review_count"`
+	RequireLastPushApproval      bool                         `json:"require_last_push_approval"`
 	BypassRestrictions           BypassRestrictionsRequest    `json:"bypass_pull_request_allowances"`
 }
 

@@ -142,6 +142,7 @@ func makeReviews(rp *branchprotection.ReviewPolicy) *github.RequiredPullRequestR
 		DismissStaleReviews:          makeBool(rp.DismissStale),
 		RequireCodeOwnerReviews:      makeBool(rp.RequireOwners),
 		RequiredApprovingReviewCount: *rp.Approvals,
+		RequireLastPushApproval:      makeBool(rp.RequireLastPushApproval),
 	}
 	if rp.DismissalRestrictions != nil {
 		rprr.DismissalRestrictions = *makeDismissalRestrictions(rp.DismissalRestrictions)
