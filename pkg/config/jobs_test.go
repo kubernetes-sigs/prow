@@ -602,6 +602,106 @@ func TestMergePreset(t *testing.T) {
 			},
 			shouldError: true,
 		},
+		{
+			name:      "included preset is applied without matching its labels",
+			jobLabels: map[string]string{"foo": "bar"},
+			pod:       &coreapi.PodSpec{},
+			presets: []Preset{
+				{
+					Labels:         map[string]string{"foo": "bar"},
+					Volumes:        []coreapi.Volume{{Name: "outer"}},
+					IncludePresets: map[string]string{"base": "true"},
+				},
+				{
+					Labels:  map[string]string{"base": "true"},
+					Volumes: []coreapi.Volume{{Name: "inner"}},
+				},
+			},
+			numVol: 2,
+		},
+		{
+			name:      "nested includes",
+			jobLabels: map[string]string{"foo": "bar"},
+			pod:       &coreapi.PodSpec{},
+			presets: []Preset{
+				{
+					Labels:         map[string]string{"foo": "bar"},
+					IncludePresets: map[string]string{"a": "1"},
+				},
+				{
+					Labels:         map[string]string{"a": "1"},
+					Volumes:        []coreapi.Volume{{Name: "a"}},
+					IncludePresets: map[string]string{"b": "2"},
+				},
+				{
+					Labels:      map[string]string{"b": "2"},
+					Tolerations: []coreapi.Toleration{{Key: "b"}},
+				},
+			},
+			numVol:         1,
+			numTolerations: 1,
+		},
+		{
+			name:      "include of a preset that does not match the job is not applied on its own",
+			jobLabels: map[string]string{"foo": "bar"},
+			pod:       &coreapi.PodSpec{},
+			presets: []Preset{
+				{
+					Labels:  map[string]string{"foo": "bar"},
+					Volumes: []coreapi.Volume{{Name: "outer"}},
+				},
+				{
+					Labels:         map[string]string{"other": "x"},
+					IncludePresets: map[string]string{"foo": "bar"},
+					Volumes:        []coreapi.Volume{{Name: "inner"}},
+				},
+			},
+			numVol: 1,
+		},
+		{
+			name:      "missing included preset",
+			jobLabels: map[string]string{"foo": "bar"},
+			pod:       &coreapi.PodSpec{},
+			presets: []Preset{
+				{
+					Labels:         map[string]string{"foo": "bar"},
+					IncludePresets: map[string]string{"missing": "true"},
+				},
+			},
+			shouldError: true,
+		},
+		{
+			name:      "include cycle",
+			jobLabels: map[string]string{"foo": "bar"},
+			pod:       &coreapi.PodSpec{},
+			presets: []Preset{
+				{
+					Labels:         map[string]string{"foo": "bar"},
+					IncludePresets: map[string]string{"a": "1"},
+				},
+				{
+					Labels:         map[string]string{"a": "1"},
+					IncludePresets: map[string]string{"foo": "bar"},
+				},
+			},
+			shouldError: true,
+		},
+		{
+			name:      "job matching both outer and included preset errors on duplicates",
+			jobLabels: map[string]string{"foo": "bar", "base": "true"},
+			pod:       &coreapi.PodSpec{},
+			presets: []Preset{
+				{
+					Labels:         map[string]string{"foo": "bar"},
+					IncludePresets: map[string]string{"base": "true"},
+				},
+				{
+					Labels:  map[string]string{"base": "true"},
+					Volumes: []coreapi.Volume{{Name: "inner"}},
+				},
+			},
+			shouldError: true,
+		},
 	}
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {

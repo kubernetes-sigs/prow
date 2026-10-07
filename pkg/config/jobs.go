@@ -48,17 +48,36 @@ type Preset struct {
 	Volumes      []v1.Volume       `json:"volumes"`
 	VolumeMounts []v1.VolumeMount  `json:"volumeMounts"`
 	Tolerations  []v1.Toleration   `json:"tolerations,omitempty"`
+	// IncludePresets pulls the env, volumes, volumeMounts and tolerations of
+	// other presets into this one. Each entry is a label pair (label: value)
+	// that identifies the included preset by one of its labels. The labels of
+	// included presets are not used for matching jobs. Included presets may
+	// themselves include other presets.
+	IncludePresets map[string]string `json:"includePresets,omitempty"`
+}
+
+// presetMatches returns whether all labels of the preset are set on the job.
+func presetMatches(preset Preset, labels map[string]string) bool {
+	for l, v := range preset.Labels {
+		if v2, ok := labels[l]; !ok || v2 != v {
+			return false
+		}
+	}
+	return true
 }
 
 func mergePreset(preset Preset, labels map[string]string, podSpec *v1.PodSpec) error {
+	if !presetMatches(preset, labels) {
+		return nil
+	}
+	return applyPreset(preset, podSpec)
+}
+
+// applyPreset adds the contents of the preset to the podSpec without checking labels.
+func applyPreset(preset Preset, podSpec *v1.PodSpec) error {
 	containers := podSpec.Containers
 	volumes := &podSpec.Volumes
 	tolerations := &podSpec.Tolerations
-	for l, v := range preset.Labels {
-		if v2, ok := labels[l]; !ok || v2 != v {
-			return nil
-		}
-	}
 	for _, e1 := range preset.Env {
 		for i := range containers {
 			for _, e2 := range containers[i].Env {
