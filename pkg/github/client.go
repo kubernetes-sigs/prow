@@ -1242,8 +1242,8 @@ func (c *client) requestRetryWithContext(ctx context.Context, method, path, acce
 			} else if resp.StatusCode < 500 {
 				// Normal, happy case.
 				break
-			} else {
-				// Retry 500 after a break.
+			} else if retries+1 < c.maxRetries {
+				// Retry 5xx after a break only when another attempt remains.
 				c.logger.WithField("backoff", backoff.String()).Debug("Retrying 5XX")
 				c.time.Sleep(backoff)
 				backoff *= 2
