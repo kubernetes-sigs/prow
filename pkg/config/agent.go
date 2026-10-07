@@ -417,21 +417,20 @@ func (ca *Agent) Set(c *Config) {
 
 // deliverDelta preserves the earliest unread Before when coalescing updates.
 // Set holds ca.mut, so no other producer can refill the single-slot buffer;
-// delivery succeeds within two attempts.
+// the final send cannot block after the pending delta is drained.
 func deliverDelta(sub chan Delta, delta Delta) {
-	for {
-		select {
-		case sub <- delta:
-			return
-		default:
-			select {
-			case pending := <-sub:
-				delta = Delta{Before: pending.Before, After: delta.After}
-			default:
-				// The subscriber may have drained the slot after the send attempt.
-			}
-		}
+	select {
+	case sub <- delta:
+		return
+	default:
 	}
+	select {
+	case pending := <-sub:
+		delta.Before = pending.Before
+	default:
+		// The subscriber may have drained the slot after the send attempt.
+	}
+	sub <- delta
 }
 
 // SetWithoutBroadcast updates config without notifying subscribers, avoiding

@@ -16,7 +16,11 @@ limitations under the License.
 
 package config
 
-import "testing"
+import (
+	"strconv"
+	"testing"
+	"time"
+)
 
 func cfg(sha string) *Config {
 	return &Config{ProwConfig: ProwConfig{ConfigVersionSHA: sha}}
@@ -61,9 +65,97 @@ func TestSetDeliversChainedDeltasWhenDrained(t *testing.T) {
 		{"v2", "v3"},
 	} {
 		agent.Set(cfg(want.after))
-		got := <-sub // Drain before the next Set to prevent coalescing.
+		got := receiveDelta(t, sub) // Drain before the next Set to prevent coalescing.
 		if got.Before.ConfigVersionSHA != want.before || got.After.ConfigVersionSHA != want.after {
 			t.Errorf("delta = {%q -> %q}, want {%q -> %q}", got.Before.ConfigVersionSHA, got.After.ConfigVersionSHA, want.before, want.after)
 		}
+	}
+}
+
+func TestSetPreservesDeltaChainDuringConcurrentReceive(t *testing.T) {
+	agent := &Agent{}
+	agent.Set(cfg("0"))
+	sub := agent.Subscribe()
+
+	for i := range 1000 {
+		before := strconv.Itoa(2 * i)
+		pending := strconv.Itoa(2*i + 1)
+		after := strconv.Itoa(2*i + 2)
+		agent.Set(cfg(pending))
+
+		// Race a receive against replacement of a full buffer.
+		start := make(chan struct{})
+		received := make(chan Delta, 1)
+		sent := make(chan struct{})
+		go func() {
+			<-start
+			received <- <-sub
+		}()
+		go func() {
+			<-start
+			agent.Set(cfg(after))
+			close(sent)
+		}()
+		close(start)
+
+		got := receiveDelta(t, received)
+		if got.Before.ConfigVersionSHA != before {
+			t.Fatalf("iteration %d: Before = %q, want %q", i, got.Before.ConfigVersionSHA, before)
+		}
+		switch got.After.ConfigVersionSHA {
+		case pending:
+			got = receiveDelta(t, sub)
+			if got.Before.ConfigVersionSHA != pending || got.After.ConfigVersionSHA != after {
+				t.Fatalf("iteration %d: delta = {%q -> %q}, want {%q -> %q}", i, got.Before.ConfigVersionSHA, got.After.ConfigVersionSHA, pending, after)
+			}
+		case after:
+		default:
+			t.Fatalf("iteration %d: After = %q, want %q or %q", i, got.After.ConfigVersionSHA, pending, after)
+		}
+		<-sent
+	}
+
+	select {
+	case extra := <-sub:
+		t.Fatalf("unexpected extra delta: before=%q after=%q", extra.Before.ConfigVersionSHA, extra.After.ConfigVersionSHA)
+	default:
+	}
+}
+
+func TestSetCoalescesSubscribersIndependently(t *testing.T) {
+	agent := &Agent{}
+	agent.Set(cfg("0"))
+	fast := agent.Subscribe()
+	slow := agent.Subscribe()
+	slowBefore := "0"
+
+	for i := 1; i <= 6; i++ {
+		after := strconv.Itoa(i)
+		agent.Set(cfg(after))
+		got := receiveDelta(t, fast)
+		before := strconv.Itoa(i - 1)
+		if got.Before.ConfigVersionSHA != before || got.After.ConfigVersionSHA != after {
+			t.Fatalf("fast subscriber: delta = {%q -> %q}, want {%q -> %q}", got.Before.ConfigVersionSHA, got.After.ConfigVersionSHA, before, after)
+		}
+
+		// Let the slow subscriber catch up without another Set.
+		if i%3 == 0 {
+			got = receiveDelta(t, slow)
+			if got.Before.ConfigVersionSHA != slowBefore || got.After.ConfigVersionSHA != after {
+				t.Fatalf("slow subscriber: delta = {%q -> %q}, want {%q -> %q}", got.Before.ConfigVersionSHA, got.After.ConfigVersionSHA, slowBefore, after)
+			}
+			slowBefore = after
+		}
+	}
+}
+
+func receiveDelta(t *testing.T, sub DeltaChan) Delta {
+	t.Helper()
+	select {
+	case delta := <-sub:
+		return delta
+	case <-time.After(10 * time.Second):
+		t.Fatal("timed out waiting for config delta")
+		return Delta{}
 	}
 }
