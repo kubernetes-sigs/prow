@@ -21,7 +21,7 @@ const addTestExpanders = (): void => {
   for (const row of Array.from(rows)) {
     row.onclick = () => {
       const sibling = row.nextElementSibling;
-      const icon = row.querySelector('i')!;
+      const icon = row.querySelector<HTMLElement>('i.arrow-icon')!;
       if (sibling.classList.contains('hidden')) {
         sibling.classList.remove('hidden');
         icon.innerText = 'expand_less';
@@ -51,8 +51,40 @@ const addStdoutStderrOpeners = (): void => {
   }
 };
 
+// Delegated to the container instead of one listener per icon: a run can have
+// thousands of tests, so thousands of copy icons.
+const addCopyTestNameButtons = (): void => {
+  const container = document.getElementById('junit-container');
+  if (!container) {
+    return;
+  }
+  // Capture clicks before the row's expand/collapse handler receives them.
+  container.addEventListener('click', async (e) => {
+    const button = (e.target as HTMLElement).closest<HTMLButtonElement>('button.copy-test-name');
+    if (!button) {
+      return;
+    }
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(button.dataset.testName!);
+      button.textContent = 'check';
+      button.title = 'Test name copied';
+    } catch {
+      // Also handles browsers or contexts where navigator.clipboard is absent.
+      button.textContent = 'error_outline';
+      button.title = 'Could not copy test name';
+    } finally {
+      setTimeout(() => {
+        button.textContent = 'content_copy';
+        button.title = 'Copy test name';
+      }, 1000);
+    }
+  }, true);
+};
+
 const loaded = (): void => {
   addTestExpanders();
+  addCopyTestNameButtons();
   addStdoutStderrOpeners();
   addSectionExpanders();
 };
