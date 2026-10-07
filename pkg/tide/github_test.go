@@ -64,6 +64,7 @@ func TestSearch(t *testing.T) {
 	}
 
 	gatewayErr := github.NewGraphQLServerError
+	resourceErr := errors.New("Resource limits for this query exceeded.")
 
 	cases := []struct {
 		name    string
@@ -78,6 +79,7 @@ func TestSearch(t *testing.T) {
 		errs      []error
 		expected  []PullRequest
 		err       bool
+		wantErr   error
 	}{
 		{
 			name:    "single page works",
@@ -197,6 +199,74 @@ func TestSearch(t *testing.T) {
 			expected: makePRs(1, 2, 3, 4, 5, 6),
 		},
 		{
+			name:      "resource limit on first page is retried with a smaller page",
+			start:     earlier,
+			end:       now,
+			q:         datedQuery(q, earlier, now),
+			cursors:   []*githubql.String{nil, nil},
+			pageSizes: []int{37, 18},
+			sqs: []searchQuery{
+				makeQuery(false, "", 999),
+				makeQuery(false, "", 1, 2),
+			},
+			errs:     []error{resourceErr, nil},
+			expected: makePRs(1, 2),
+		},
+		{
+			name:  "resource limit on later page retries the same cursor and keeps the smaller page",
+			start: earlier,
+			end:   now,
+			q:     datedQuery(q, earlier, now),
+			cursors: []*githubql.String{
+				nil,
+				githubql.NewString("first"),
+				githubql.NewString("first"),
+				githubql.NewString("second"),
+			},
+			pageSizes: []int{37, 37, 18, 18},
+			sqs: []searchQuery{
+				makeQuery(true, "first", 1, 2),
+				makeQuery(false, "", 999),
+				makeQuery(true, "second", 3, 4),
+				makeQuery(false, "", 5, 6),
+			},
+			errs:     []error{nil, resourceErr, nil, nil},
+			expected: makePRs(1, 2, 3, 4, 5, 6),
+		},
+		{
+			name:  "persistent resource limit preserves earlier pages and stops at the minimum size",
+			start: earlier,
+			end:   now,
+			q:     datedQuery(q, earlier, now),
+			cursors: []*githubql.String{
+				nil,
+				githubql.NewString("first"),
+				githubql.NewString("first"),
+				githubql.NewString("first"),
+				githubql.NewString("first"),
+			},
+			pageSizes: []int{37, 37, 18, 9, 5},
+			sqs: []searchQuery{
+				makeQuery(true, "first", 1, 2),
+				{}, {}, {}, {},
+			},
+			errs:     []error{nil, resourceErr, resourceErr, resourceErr, resourceErr},
+			expected: makePRs(1, 2),
+			err:      true,
+			wantErr:  resourceErr,
+		},
+		{
+			name:      "rate limit is not retried with a smaller page",
+			start:     earlier,
+			end:       now,
+			q:         datedQuery(q, earlier, now),
+			cursors:   []*githubql.String{nil},
+			pageSizes: []int{37},
+			sqs:       []searchQuery{{}},
+			errs:      []error{errors.New("API rate limit exceeded")},
+			err:       true,
+		},
+		{
 			name:      "gives up after shrinking to the minimum page size",
 			start:     earlier,
 			end:       now,
@@ -241,11 +311,8 @@ func TestSearch(t *testing.T) {
 				err := tc.errs[i]
 				sq := tc.sqs[i]
 				i++
-				if err != nil {
-					return err
-				}
 				*ret = sq
-				return nil
+				return err
 			}
 			prs, err := client.search(querier, logrus.WithField("test", tc.name), q, tc.start, tc.end, "")
 			switch {
@@ -255,6 +322,9 @@ func TestSearch(t *testing.T) {
 				}
 			case tc.err:
 				t.Errorf("failed to receive expected error")
+			}
+			if tc.wantErr != nil && !errors.Is(err, tc.wantErr) {
+				t.Errorf("expected error wrapping %v, got %v", tc.wantErr, err)
 			}
 
 			if !reflect.DeepEqual(tc.expected, prs) {
@@ -887,6 +957,53 @@ func TestIsGatewayTimeoutMatchesGraphQLClientErrors(t *testing.T) {
 				t.Errorf("expected exactly 1 request, got %d", calls)
 			}
 		})
+	}
+}
+
+// TestSearchShrinksPageOnGraphQLResourceLimit exercises resource errors returned
+// with HTTP 200 through the real GitHub and GraphQL clients, including partial
+// data that must be discarded before retrying the page.
+func TestSearchShrinksPageOnGraphQLResourceLimit(t *testing.T) {
+	var pageSizes []int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Variables struct {
+				SearchCursor   *string `json:"searchCursor"`
+				SearchPageSize int     `json:"searchPageSize"`
+			} `json:"variables"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Errorf("failed to decode GraphQL request: %v", err)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		if req.Variables.SearchCursor != nil {
+			t.Errorf("expected first-page cursor, got %q", *req.Variables.SearchCursor)
+		}
+		pageSizes = append(pageSizes, req.Variables.SearchPageSize)
+		w.Header().Set("Content-Type", "application/json")
+		if req.Variables.SearchPageSize > 18 {
+			fmt.Fprint(w, `{"data":{"search":{"nodes":[{"number":999}]}},"errors":[{"message":"Resource limits for this query exceeded."}]}`)
+			return
+		}
+		fmt.Fprint(w, `{"data":{"search":{"pageInfo":{"hasNextPage":false},"nodes":[{"number":1},{"number":2}]}}}`)
+	}))
+	defer server.Close()
+	ghc := newTestGitHubClient(t, server)
+
+	prs, err := (&GitHubProvider{}).search(ghc.QueryWithGitHubAppsSupport, logrus.WithField("test", t.Name()), "is:pr", time.Time{}, time.Now(), "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var numbers []int
+	for _, pr := range prs {
+		numbers = append(numbers, int(pr.Number))
+	}
+	if diff := cmp.Diff([]int{1, 2}, numbers); diff != "" {
+		t.Errorf("unexpected PRs (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff([]int{37, 18}, pageSizes); diff != "" {
+		t.Errorf("unexpected page sizes (-want +got):\n%s", diff)
 	}
 }
 
