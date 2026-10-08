@@ -37,6 +37,7 @@ import (
 	"sigs.k8s.io/prow/pkg/pjutil/pprof"
 	"sigs.k8s.io/prow/pkg/scheduler"
 
+	"sigs.k8s.io/prow/pkg/config"
 	"sigs.k8s.io/prow/pkg/flagutil"
 	prowflagutil "sigs.k8s.io/prow/pkg/flagutil"
 	configflagutil "sigs.k8s.io/prow/pkg/flagutil/config"
@@ -127,7 +128,16 @@ func main() {
 		logrus.WithError(err).Fatal("Error starting config agent.")
 	}
 	cfg := configAgent.Config
+	// Subscribe before initializing clients so changes during startup also
+	// trigger a restart.
+	configChanges := make(chan config.Delta, 1)
+	configAgent.Subscribe(configChanges)
 	o.kubernetes.SetDisabledClusters(sets.New(cfg().DisabledClusters...))
+	clusterWatcher := disabledClustersWatcher{
+		changes:   configChanges,
+		terminate: interrupts.Terminate,
+	}
+	interrupts.Run(clusterWatcher.run)
 
 	var logOpts []zap.Opts
 	if cfg().LogLevel == "debug" {
@@ -226,4 +236,37 @@ func main() {
 	}
 
 	logrus.Info("Controller ended gracefully")
+}
+
+type disabledClustersWatcher struct {
+	changes   <-chan config.Delta
+	terminate func()
+}
+
+// run restarts PCM when a config reload changes the disabled-cluster set.
+func (w *disabledClustersWatcher) run(ctx context.Context) {
+	for {
+		if ctx.Err() != nil {
+			return
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case change, ok := <-w.changes:
+			if !ok {
+				return
+			}
+			before := sets.New(change.Before.DisabledClusters...)
+			after := sets.New(change.After.DisabledClusters...)
+			if before.Equal(after) {
+				continue
+			}
+			logrus.WithFields(logrus.Fields{
+				"disabledClustersBefore": sets.List(before),
+				"disabledClustersAfter":  sets.List(after),
+			}).Info("Disabled clusters changed, exiting to trigger a restart")
+			w.terminate()
+			return
+		}
+	}
 }
