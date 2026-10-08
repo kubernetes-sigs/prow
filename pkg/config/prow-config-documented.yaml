@@ -71,8 +71,10 @@ branch-protection:
                             required_linear_history: false
                             # RequiredPullRequestReviews specifies github approval/review criteria.
                             required_pull_request_reviews:
-                                # BypassRestrictions appends users/teams that are allowed to bypass PR restrictions
+                                # BypassRestrictions appends apps/users/teams that are allowed to bypass PR restrictions
                                 bypass_pull_request_allowances:
+                                    apps:
+                                        - ""
                                     teams:
                                         - ""
                                     users:
@@ -129,8 +131,10 @@ branch-protection:
                     required_linear_history: false
                     # RequiredPullRequestReviews specifies github approval/review criteria.
                     required_pull_request_reviews:
-                        # BypassRestrictions appends users/teams that are allowed to bypass PR restrictions
+                        # BypassRestrictions appends apps/users/teams that are allowed to bypass PR restrictions
                         bypass_pull_request_allowances:
+                            apps:
+                                - ""
                             teams:
                                 - ""
                             users:
@@ -175,8 +179,10 @@ branch-protection:
             required_linear_history: false
             # RequiredPullRequestReviews specifies github approval/review criteria.
             required_pull_request_reviews:
-                # BypassRestrictions appends users/teams that are allowed to bypass PR restrictions
+                # BypassRestrictions appends apps/users/teams that are allowed to bypass PR restrictions
                 bypass_pull_request_allowances:
+                    apps:
+                        - ""
                     teams:
                         - ""
                     users:
@@ -230,8 +236,10 @@ branch-protection:
     required_linear_history: false
     # RequiredPullRequestReviews specifies github approval/review criteria.
     required_pull_request_reviews:
-        # BypassRestrictions appends users/teams that are allowed to bypass PR restrictions
+        # BypassRestrictions appends apps/users/teams that are allowed to bypass PR restrictions
         bypass_pull_request_allowances:
+            apps:
+                - ""
             teams:
                 - ""
             users:

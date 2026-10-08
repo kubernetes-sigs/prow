@@ -685,13 +685,13 @@ func equalBypassRestrictions(state *github.BypassRestrictions, request *github.B
 	case state == nil && request == nil:
 		return true
 	case state == nil && request != nil:
-		// when there are no restrictions on users or teams, GitHub will
+		// when there are no restrictions on apps, users or teams, GitHub will
 		// omit the fields from the response we get when asking for the
 		// current state. If we _are_ making a request but it has no real
 		// effect, this is identical to making no request for restriction.
-		return request.Users == nil && request.Teams == nil
+		return request.Apps == nil && request.Users == nil && request.Teams == nil
 	case state != nil && request != nil:
-		return equalTeams(state.Teams, request.Teams) && equalUsers(state.Users, request.Users)
+		return equalApps(state.Apps, request.Apps) && equalTeams(state.Teams, request.Teams) && equalUsers(state.Users, request.Users)
 	default:
 		return false
 	}

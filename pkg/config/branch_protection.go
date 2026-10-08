@@ -96,7 +96,7 @@ type ReviewPolicy struct {
 	Approvals *int `json:"required_approving_review_count,omitempty"`
 	// RequireLastPushApproval overrides whether the most recent push must be approved by someone other than the person who pushed it if set
 	RequireLastPushApproval *bool `json:"require_last_push_approval,omitempty"`
-	// BypassRestrictions appends users/teams that are allowed to bypass PR restrictions
+	// BypassRestrictions appends apps/users/teams that are allowed to bypass PR restrictions
 	BypassRestrictions *BypassRestrictions `json:"bypass_pull_request_allowances,omitempty"`
 }
 
@@ -108,8 +108,9 @@ type DismissalRestrictions struct {
 }
 
 // BypassRestrictions defines who can bypass PR restrictions
-// Users and Teams items are appended to parent lists.
+// Apps, Users and Teams items are appended to parent lists.
 type BypassRestrictions struct {
+	Apps  []string `json:"apps,omitempty"`
 	Users []string `json:"users,omitempty"`
 	Teams []string `json:"teams,omitempty"`
 }
@@ -202,6 +203,7 @@ func mergeBypassRestrictions(parent, child *BypassRestrictions) *BypassRestricti
 		return child
 	}
 	return &BypassRestrictions{
+		Apps:  unionStrings(parent.Apps, child.Apps),
 		Users: unionStrings(parent.Users, child.Users),
 		Teams: unionStrings(parent.Teams, child.Teams),
 	}

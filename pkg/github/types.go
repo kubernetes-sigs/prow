@@ -650,8 +650,9 @@ type DismissalRestrictions struct {
 	Teams []Team `json:"teams,omitempty"`
 }
 
-// BypassRestrictions exposes bypass option in github for a pull request to people/teams.
+// BypassRestrictions exposes bypass option in github for a pull request to apps/people/teams.
 type BypassRestrictions struct {
+	Apps  []App  `json:"apps,omitempty"`
 	Users []User `json:"users,omitempty"`
 	Teams []Team `json:"teams,omitempty"`
 }
@@ -712,12 +713,14 @@ type DismissalRestrictionsRequest struct {
 	Teams *[]string `json:"teams,omitempty"`
 }
 
-// BypassRestrictionsRequest tells github to restrict PR bypass activity to people/teams.
+// BypassRestrictionsRequest tells github to restrict PR bypass activity to apps/people/teams.
 //
 // Use *[]string in order to distinguish unset and empty list.
 // This is needed by bypass_pull_request_allowances to distinguish
-// do not restrict (empty object) and restrict everyone (nil user/teams list)
+// do not restrict (empty object) and restrict everyone (nil apps/user/teams list)
 type BypassRestrictionsRequest struct {
+	// Apps is a list of app slugs
+	Apps *[]string `json:"apps,omitempty"`
 	// Users is a list of user logins
 	Users *[]string `json:"users,omitempty"`
 	// Teams is a list of team slugs
