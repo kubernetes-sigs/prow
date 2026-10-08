@@ -3729,6 +3729,27 @@ func TestCreateForkInOrgWithoutName(t *testing.T) {
 	}
 }
 
+// TestCreateForkInOrgEmptyResponseName ensures a real 202 whose body omits the name falls
+// back to the requested name rather than returning "". The empty string is the dry-run
+// sentinel (see TestCreateForkInOrgDryRun), so a real creation must never return it, or the
+// caller (configureForks) would mistake the fork for a dry-run plan and skip waiting for it.
+func TestCreateForkInOrgEmptyResponseName(t *testing.T) {
+	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(202)
+		w.Write([]byte(`{}`)) // valid 202 but no "name" field
+	}))
+	defer ts.Close()
+	c := getClient(ts.URL)
+
+	name, err := c.CreateForkInOrg("upstream-org", "upstream-repo", "target-org", false, "my-fork")
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+	if name != "my-fork" {
+		t.Errorf("expected fallback to the requested name %q, got %q", "my-fork", name)
+	}
+}
+
 func TestCreateForkInOrgDryRun(t *testing.T) {
 	var called bool
 	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

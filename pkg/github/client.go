@@ -4861,8 +4861,13 @@ func (c *client) CreateForkInOrg(owner, repo, targetOrg string, defaultBranchOnl
 
 	// With an explicit name GitHub creates the fork with exactly that name (or errors
 	// if it is taken; see the doc comment), so on success resp.Name equals the requested
-	// name. We return it from the response rather than echoing the input for robustness.
-	return resp.Name, err
+	// name. Prefer the response value, but fall back to the requested name if the 202 body
+	// omits it: the empty string is the dry-run sentinel (see the c.dry branch above), so a
+	// real creation must never return "" or the caller would mistake it for a dry run.
+	if resp.Name != "" {
+		return resp.Name, err
+	}
+	return name, err
 }
 
 // EnsureFork checks to see that there is a fork of org/repo in the forkedUsers repositories.
