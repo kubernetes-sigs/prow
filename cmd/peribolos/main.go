@@ -1182,7 +1182,7 @@ func orgFailedInvitations(opt options, client failedInviteClient, orgName string
 	return result, nil
 }
 
-func configureOrg(opt options, client github.Client, orgName string, orgConfig org.Config) error {
+func configureOrg(opt options, client github.Client, orgName string, orgConfig org.Config) (retErr error) {
 	// Validate role configuration early (before any API calls), but only when we are
 	// actually going to reconcile roles. Like the other subsystems, role config is not
 	// validated unless its --fix flag is set, so a run without --fix-org-roles (even a
@@ -1246,6 +1246,16 @@ func configureOrg(opt options, client github.Client, orgName string, orgConfig o
 			logrus.WithError(forkErr).Error("errors configuring some forks, continuing with partial results")
 		}
 	}
+
+	// Fork errors are deferred so the other subsystems still run, but they must always be
+	// surfaced, even when a later subsystem also fails. Without this, an error from
+	// configureRepos/configureCollaborators/configureTeamRepos would return first and the
+	// root-cause fork error (logged above) would be dropped from the returned error.
+	defer func() {
+		if forkErr != nil {
+			retErr = utilerrors.NewAggregate([]error{retErr, fmt.Errorf("failed to configure %s forks: %w", orgName, forkErr)})
+		}
+	}()
 
 	// Create repositories in the org
 	if !opt.fixRepos {
@@ -1311,11 +1321,8 @@ func configureOrg(opt options, client github.Client, orgName string, orgConfig o
 		return fmt.Errorf("failed to configure %s organization roles: %w", orgName, err)
 	}
 
-	// Fork errors were deferred so the other subsystems could still run; surface them
-	// now as a non-zero result regardless of which subsystems were enabled.
-	if forkErr != nil {
-		return fmt.Errorf("failed to configure %s forks: %w", orgName, forkErr)
-	}
+	// A deferred fork error (if any) is aggregated into the returned error by the defer
+	// registered after configureForks, so it is surfaced even on this clean-exit path.
 	return nil
 }
 

@@ -7071,6 +7071,38 @@ func TestConfigureOrgSkipsCollaboratorsForConflictedFork(t *testing.T) {
 	}
 }
 
+// TestConfigureOrgSurfacesForkErrorAlongsideLaterError asserts the deferred fork error is
+// aggregated into the returned error even when a later subsystem also fails. Without the
+// aggregation the configureRepos error would return first and the root-cause fork error
+// (only logged) would be dropped.
+func TestConfigureOrgSurfacesForkErrorAlongsideLaterError(t *testing.T) {
+	archived := true
+	cfg := org.Config{
+		Repos: map[string]org.Repo{
+			// Malformed fork -> deferred fork error from configureForks.
+			"bad-fork": {Fork: &org.ForkConfig{From: "no-slash"}},
+			// Nonexistent repo marked archived -> configureRepos error, raised without any
+			// client call (so the embedded nil github.Client is never dereferenced).
+			"ghost": {Archived: &archived},
+		},
+	}
+	client := &forkOnlyConfigureOrgClient{
+		repos:     []github.Repo{},
+		fullRepos: map[string]github.FullRepo{},
+	}
+
+	err := configureOrg(options{fixForks: true, fixRepos: true}, client, "test-org", cfg)
+	if err == nil {
+		t.Fatal("expected an error, got none")
+	}
+	if !strings.Contains(err.Error(), "failed to configure test-org forks") {
+		t.Errorf("returned error must surface the deferred fork error, got %q", err.Error())
+	}
+	if !strings.Contains(err.Error(), "failed to configure test-org repos") {
+		t.Errorf("returned error must also surface the later repos error, got %q", err.Error())
+	}
+}
+
 // Test that users with pending org invitations are skipped for role assignment
 func TestConfigureRoleUserAssignmentsSkipsPendingInvitees(t *testing.T) {
 	client := &fakeOrgRolesClient{
