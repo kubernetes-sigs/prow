@@ -138,6 +138,7 @@ func main() {
 
 	// Start serving liveness endpoint /healthz.
 	health := pjutil.NewHealthOnPort(o.instrumentationOptions.HealthPort)
+	health.ServeLive()
 
 	configAgent, err := o.config.ConfigAgent()
 	if err != nil {
