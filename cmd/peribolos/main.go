@@ -1576,6 +1576,13 @@ func configureRepos(opt options, client repoClient, orgName string, orgConfig or
 				if _, err := client.UpdateRepo(orgName, existing.Name, delta); err != nil {
 					repoLogger.WithError(err).Error("failed to update repository")
 					allErrors = append(allErrors, err)
+				} else if isFork && opt.confirm && delta.Name != nil && forkNames != nil {
+					// The fork was just renamed to its config key. The access subsystems
+					// (collaborators, team repos) run after configureRepos and resolve names
+					// through forkNames, so update the mapping to the new name; otherwise they
+					// would target the pre-rename name, which no longer exists (404 on grants,
+					// and a spurious removal of the team's access on the real repo).
+					forkNames[strings.ToLower(wantName)] = wantName
 				}
 			}
 		}

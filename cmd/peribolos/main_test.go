@@ -4977,6 +4977,39 @@ func TestConfigureReposWithForkNames(t *testing.T) {
 			t.Errorf("fork was not renamed: got %q, want %q (previously should rename the fork to the config key)", repos[0].Name, forkName)
 		}
 	})
+
+	// With --confirm, a fork renamed to its config key must have forkNames updated to the new
+	// name, so the access subsystems (collaborators, team repos), which run after
+	// configureRepos and resolve through forkNames, target the renamed repo rather than the
+	// pre-rename name (which no longer exists -> 404 on grants, spurious team-access removal).
+	t.Run("forkNames is updated to the new name after a confirmed rename", func(t *testing.T) {
+		forkName := "my-fork"
+		actualName := "old-fork-name"
+
+		fc := makeFakeRepoClient(t, github.FullRepo{
+			Repo: github.Repo{
+				Name:   actualName,
+				Fork:   true,
+				Parent: github.ParentRepo{FullName: "upstream-org/upstream-repo"},
+			},
+		})
+		orgConfig := org.Config{
+			Repos: map[string]org.Repo{
+				forkName: {
+					Fork:       &org.ForkConfig{From: "upstream-org/upstream-repo"},
+					Previously: []string{actualName},
+				},
+			},
+		}
+		forkNames := map[string]string{forkName: actualName}
+
+		if err := configureRepos(options{confirm: true}, fc, orgName, orgConfig, forkNames, nil); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got := forkNames[forkName]; got != forkName {
+			t.Errorf("forkNames[%q] = %q after confirmed rename, want %q so later subsystems use the new name", forkName, got, forkName)
+		}
+	})
 }
 
 // TestConfigureCollaboratorsUsesForkName verifies collaborators are managed
