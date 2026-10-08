@@ -47,12 +47,14 @@ import (
 )
 
 type testTime struct {
-	now   time.Time
-	slept time.Duration
+	now    time.Time
+	slept  time.Duration
+	sleeps []time.Duration
 }
 
 func (tt *testTime) Sleep(d time.Duration) {
 	tt.slept = d
+	tt.sleeps = append(tt.sleeps, d)
 }
 func (tt *testTime) Until(t time.Time) time.Duration {
 	return t.Sub(tt.now)
@@ -210,6 +212,88 @@ func TestRetry404(t *testing.T) {
 		t.Errorf("Error from request: %v", err)
 	} else if resp.StatusCode != 200 {
 		t.Errorf("Expected status code 200, got %d", resp.StatusCode)
+	}
+}
+
+func TestRequestRetryWithContextServerErrors(t *testing.T) {
+	testCases := []struct {
+		name             string
+		maxRetries       int
+		successAttempt   int
+		expectedAttempts int
+		expectedStatus   int
+		expectedSleeps   []time.Duration
+		expectedTotal    time.Duration
+	}{
+		{
+			name:             "one failed attempt does not sleep",
+			maxRetries:       1,
+			expectedAttempts: 1,
+			expectedStatus:   http.StatusInternalServerError,
+		},
+		{
+			name:             "eight failed attempts sleep seven times",
+			maxRetries:       8,
+			expectedAttempts: 8,
+			expectedStatus:   http.StatusInternalServerError,
+			expectedSleeps:   []time.Duration{2 * time.Second, 4 * time.Second, 8 * time.Second, 16 * time.Second, 32 * time.Second, 64 * time.Second, 128 * time.Second},
+			expectedTotal:    254 * time.Second,
+		},
+		{
+			name:             "success on a later attempt returns immediately",
+			maxRetries:       8,
+			successAttempt:   3,
+			expectedAttempts: 3,
+			expectedStatus:   http.StatusOK,
+			expectedSleeps:   []time.Duration{2 * time.Second, 4 * time.Second},
+			expectedTotal:    6 * time.Second,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var attempts int
+			ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				attempts++
+				status := http.StatusInternalServerError
+				if attempts == tc.successAttempt {
+					status = http.StatusOK
+				}
+				w.WriteHeader(status)
+				fmt.Fprintf(w, "attempt %d", attempts)
+			}))
+			defer ts.Close()
+			c := getClient(ts.URL)
+			c.maxRetries = tc.maxRetries
+			clock := c.time.(*testTime)
+			resp, err := c.requestRetryWithContext(context.Background(), http.MethodGet, "/", "", "", nil)
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+			defer resp.Body.Close()
+			if attempts != tc.expectedAttempts {
+				t.Errorf("Expected %d attempts, got %d", tc.expectedAttempts, attempts)
+			}
+			if resp.StatusCode != tc.expectedStatus {
+				t.Errorf("Expected status code %d, got %d", tc.expectedStatus, resp.StatusCode)
+			}
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				t.Fatalf("Error reading final response body: %v", err)
+			}
+			if want := fmt.Sprintf("attempt %d", tc.expectedAttempts); string(body) != want {
+				t.Errorf("Expected final response body %q, got %q", want, body)
+			}
+			if diff := cmp.Diff(tc.expectedSleeps, clock.sleeps); diff != "" {
+				t.Errorf("Unexpected sleeps (-expected +got):\n%s", diff)
+			}
+			var total time.Duration
+			for _, sleep := range clock.sleeps {
+				total += sleep
+			}
+			if total != tc.expectedTotal {
+				t.Errorf("Expected total sleep %v, got %v", tc.expectedTotal, total)
+			}
+		})
 	}
 }
 
