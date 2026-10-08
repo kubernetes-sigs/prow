@@ -30,6 +30,8 @@ import (
 	prowlabels "sigs.k8s.io/prow/pkg/labels"
 	"sigs.k8s.io/prow/pkg/pluginhelp"
 	"sigs.k8s.io/prow/pkg/plugins"
+	"sigs.k8s.io/prow/pkg/plugins/approve/approvers"
+	"sigs.k8s.io/prow/pkg/repoowners"
 )
 
 const (
@@ -68,10 +70,12 @@ func helpProvider(config *plugins.Configuration, _ []config.OrgRepo) (*pluginhel
 			AdditionalLabels: []string{"api-review", "community/discussion"},
 			RestrictedLabels: map[string][]plugins.RestrictedLabel{
 				"*": {{
-					Label:        "restricted-label",
-					AllowedTeams: []string{"authorized-team"},
-					AllowedUsers: []string{"alice", "bob"},
-					AssignOn:     []plugins.AssignOnLabel{{Label: "other-label"}},
+					Label:                    "restricted-label",
+					AllowedTeams:             []string{"authorized-team"},
+					AllowedUsers:             []string{"alice", "bob"},
+					AllowApproversFromOwners: true,
+					RemoveOnNewCommits:       true,
+					AssignOn:                 []plugins.AssignOnLabel{{Label: "other-label"}},
 				}},
 			},
 		},
@@ -80,7 +84,7 @@ func helpProvider(config *plugins.Configuration, _ []config.OrgRepo) (*pluginhel
 		logrus.WithError(err).Warnf("cannot generate comments for %s plugin", PluginName)
 	}
 	pluginHelp := &pluginhelp.PluginHelp{
-		Description: "The label plugin provides commands that add or remove certain types of labels. Labels of the following types can be manipulated: 'area/*', 'committee/*', 'kind/*', 'language/*', 'priority/*', 'sig/*', 'triage/*', and 'wg/*'. More labels can be configured to be used via the /label command. Restricted labels are only able to be added by the teams and users present in their configuration, and those users can be automatically assigned when another label is added using the assign_on config.",
+		Description: "The label plugin provides commands that add or remove certain types of labels. Labels of the following types can be manipulated: 'area/*', 'committee/*', 'kind/*', 'language/*', 'priority/*', 'sig/*', 'triage/*', and 'wg/*'. More labels can be configured to be used via the /label command. Restricted labels can be changed by configured users and teams. With allow_approvers_from_owners, a user who can approve every changed PR file can also change the label. With remove_on_new_commits, the label is removed when new commits update a PR. Configured users can be assigned when another label is added using assign_on.",
 		Config: map[string]string{
 			"": configString(labels),
 		},
@@ -90,17 +94,20 @@ func helpProvider(config *plugins.Configuration, _ []config.OrgRepo) (*pluginhel
 		Usage:       "/[remove-](area|committee|kind|language|priority|sig|triage|wg|label) <target>",
 		Description: "Applies or removes a label from one of the recognized types of labels.",
 		Featured:    false,
-		WhoCanUse:   "Anyone can trigger this command on issues and PRs. `triage/accepted` can only be added by org members. Restricted labels are only able to be added by teams and users in their configuration.",
+		WhoCanUse:   "Anyone can trigger this command on issues and PRs. `triage/accepted` can only be added by org members. Restricted labels can be changed by configured teams and users, and by users who can approve every changed PR file when enabled.",
 		Examples:    []string{"/kind bug", "/remove-area prow", "/sig testing", "/language zh", "/label foo-bar-baz"},
 	})
 	return pluginHelp, nil
 }
 
 func handleGenericComment(pc plugins.Agent, e github.GenericCommentEvent) error {
-	return handleComment(pc.GitHubClient, pc.Logger, pc.PluginConfig.Label, &e)
+	return handleCommentWithOwners(pc.GitHubClient, pc.OwnersClient, pc.Logger, pc.PluginConfig.Label, &e)
 }
 
 func handlePullRequest(pc plugins.Agent, e github.PullRequestEvent) error {
+	if e.Action == github.PullRequestActionSynchronize {
+		return removeLabelsOnNewCommits(pc.GitHubClient, pc.PluginConfig.Label, &e)
+	}
 	return handleLabelAdd(pc.GitHubClient, pc.Logger, pc.PluginConfig.Label, &e)
 }
 
@@ -111,8 +118,14 @@ type githubClient interface {
 	RemoveLabel(owner, repo string, number int, label string) error
 	GetRepoLabels(owner, repo string) ([]github.Label, error)
 	GetIssueLabels(org, repo string, number int) ([]github.Label, error)
+	GetPullRequest(org, repo string, number int) (*github.PullRequest, error)
+	GetPullRequestChanges(org, repo string, number int) ([]github.PullRequestChange, error)
 	TeamBySlugHasMember(org string, teamSlug string, memberLogin string) (bool, error)
 	AssignIssue(owner, repo string, number int, assignees []string) error
+}
+
+type ownersClient interface {
+	LoadRepoOwners(org, repo, base string) (repoowners.RepoOwner, error)
 }
 
 // Get Labels from Regexp matches
@@ -145,6 +158,10 @@ func getLabelsFromGenericMatches(matches [][]string, labelFilter func(string) bo
 }
 
 func handleComment(gc githubClient, log *logrus.Entry, config plugins.Label, e *github.GenericCommentEvent) error {
+	return handleCommentWithOwners(gc, nil, log, config, e)
+}
+
+func handleCommentWithOwners(gc githubClient, oc ownersClient, log *logrus.Entry, config plugins.Label, e *github.GenericCommentEvent) error {
 	if e.Action != github.GenericCommentActionCreated {
 		return nil
 	}
@@ -193,6 +210,37 @@ func handleComment(gc githubClient, log *logrus.Entry, config plugins.Label, e *
 		additionalLabelSet.Insert(strings.ToLower(label))
 	}
 	restrictedLabels := config.RestrictedLabelsFor(e.Repo.Owner.Login, e.Repo.Name)
+	var ownersChecked, approverForAllFiles bool
+	isOwnersApproverForAllFiles := func() (bool, error) {
+		if ownersChecked {
+			return approverForAllFiles, nil
+		}
+		if oc == nil {
+			return false, fmt.Errorf("owners client is unavailable")
+		}
+		pr, err := gc.GetPullRequest(org, repo, e.Number)
+		if err != nil {
+			return false, fmt.Errorf("get pull request: %w", err)
+		}
+		owners, err := oc.LoadRepoOwners(org, repo, pr.Base.Ref)
+		if err != nil {
+			return false, fmt.Errorf("load repo owners: %w", err)
+		}
+		changes, err := gc.GetPullRequestChanges(org, repo, e.Number)
+		if err != nil {
+			return false, fmt.Errorf("get pull request changes: %w", err)
+		}
+		userSet := sets.New(user)
+		approverForAllFiles = len(changes) > 0
+		for _, change := range changes {
+			if approvers.CaseInsensitiveIntersection(owners.Approvers(change.Filename).Set(), userSet).Len() == 0 {
+				approverForAllFiles = false
+				break
+			}
+		}
+		ownersChecked = true
+		return approverForAllFiles, nil
+	}
 	labelFilter := func(label string) bool {
 		label = strings.ToLower(label)
 		_, restrictedLabel := restrictedLabels[label]
@@ -247,6 +295,15 @@ func handleComment(gc githubClient, log *logrus.Entry, config plugins.Label, e *
 			log.WithError(err).WithField("label", labelToAdd).Error("failed to check if user can set label")
 			continue
 		}
+		if !canSetLabel && e.IsPR && restrictedLabels[labelToAdd].AllowApproversFromOwners {
+			canSetLabel, err = isOwnersApproverForAllFiles()
+			if err != nil {
+				return err
+			}
+			if !canSetLabel {
+				canNotSetLabelReason += " You are also not an OWNERS approver for every file changed by this PR."
+			}
+		}
 
 		if !canSetLabel {
 			gc.CreateComment(org, repo, e.Number, plugins.FormatResponseRaw(bodyWithoutComments, e.HTMLURL, e.User.Login, canNotSetLabelReason))
@@ -273,6 +330,15 @@ func handleComment(gc githubClient, log *logrus.Entry, config plugins.Label, e *
 		if err != nil {
 			log.WithError(err).WithField("label", labelToRemove).Error("failed to check if user can set label")
 			continue
+		}
+		if !canSetLabel && e.IsPR && restrictedLabels[labelToRemove].AllowApproversFromOwners {
+			canSetLabel, err = isOwnersApproverForAllFiles()
+			if err != nil {
+				return err
+			}
+			if !canSetLabel {
+				canNotSetLabelReason += " You are also not an OWNERS approver for every file changed by this PR."
+			}
 		}
 
 		if !canSetLabel {
@@ -365,6 +431,38 @@ func handleLabelAdd(gc githubClient, log *logrus.Entry, config plugins.Label, e 
 				if err := gc.AssignIssue(org, repo, number, restrictedLabel.AllowedUsers); err != nil {
 					log.WithError(err).WithField("label", restrictedLabel.Label).Error("GitHub failed to assign reviewers for the label")
 				}
+			}
+		}
+	}
+	return nil
+}
+
+func removeLabelsOnNewCommits(gc githubClient, config plugins.Label, e *github.PullRequestEvent) error {
+	if e.PullRequest.Merged {
+		return nil
+	}
+
+	org := e.Repo.Owner.Login
+	repo := e.Repo.Name
+	number := e.PullRequest.Number
+	labelsToRemove := sets.New[string]()
+	for name, restrictedLabel := range config.RestrictedLabelsFor(org, repo) {
+		if restrictedLabel.RemoveOnNewCommits {
+			labelsToRemove.Insert(name)
+		}
+	}
+	if labelsToRemove.Len() == 0 {
+		return nil
+	}
+
+	issueLabels, err := gc.GetIssueLabels(org, repo, number)
+	if err != nil {
+		return fmt.Errorf("get PR labels: %w", err)
+	}
+	for _, label := range issueLabels {
+		if labelsToRemove.Has(strings.ToLower(label.Name)) {
+			if err := gc.RemoveLabel(org, repo, number, label.Name); err != nil {
+				return fmt.Errorf("remove %q label: %w", label.Name, err)
 			}
 		}
 	}

@@ -2681,6 +2681,21 @@ func TestRestrictedLabelsFor(t *testing.T) {
 	}
 }
 
+func TestRestrictedLabelFlagsMerge(t *testing.T) {
+	config := Label{RestrictedLabels: map[string][]RestrictedLabel{
+		"*":        {{Label: "reviewed", AllowApproversFromOwners: true}},
+		"org":      {{Label: "reviewed", RemoveOnNewCommits: true}},
+		"org/repo": {{Label: "reviewed"}},
+	}}
+	label := config.RestrictedLabelsFor("org", "repo")["reviewed"]
+	if !label.AllowApproversFromOwners {
+		t.Error("allow_approvers_from_owners was not preserved")
+	}
+	if !label.RemoveOnNewCommits {
+		t.Error("remove_on_new_commits was not preserved")
+	}
+}
+
 func TestConfigMapSpecIsAllowed(t *testing.T) {
 	testCases := []struct {
 		name     string
