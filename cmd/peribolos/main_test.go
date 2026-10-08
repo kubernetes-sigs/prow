@@ -4318,6 +4318,59 @@ func TestConfigureTeamRepos(t *testing.T) {
 				{Name: "normal", Permissions: github.RepoPermissions{Pull: true, Triage: true, Push: true}},
 			}},
 		},
+		{
+			// configureForks lower-cases the skip set; the actual GitHub repo name may differ
+			// in case. The have-loop must still recognize it as skipped, or the team loses its
+			// access on a repo configureForks explicitly rejected.
+			name:        "conflicted fork skip is case-insensitive against the actual repo name",
+			githubTeams: map[string]github.Team{"team": {ID: 1, Slug: "team"}},
+			teamName:    "team",
+			team: org.Team{
+				Repos: map[string]github.RepoPermissionLevel{
+					"normal": github.Write,
+				},
+			},
+			conflictedForks: sets.New[string]("conflict-fork"),
+			existingRepos: map[string][]github.Repo{"team": {
+				{Name: "Conflict-Fork", Permissions: github.RepoPermissions{Pull: true, Triage: true, Push: true, Maintain: true, Admin: true}},
+			}},
+			expected: map[string][]github.Repo{"team": {
+				{Name: "Conflict-Fork", Permissions: github.RepoPermissions{Pull: true, Triage: true, Push: true, Maintain: true, Admin: true}},
+				{Name: "normal", Permissions: github.RepoPermissions{Pull: true, Triage: true, Push: true}},
+			}},
+		},
+		{
+			// A team referencing a conflicted fork by a different case must still be skipped
+			// from want, so it is not granted access on a rejected repo.
+			name:        "conflicted fork referenced by team with different case is skipped from want",
+			githubTeams: map[string]github.Team{"team": {ID: 1, Slug: "team"}},
+			teamName:    "team",
+			team: org.Team{
+				Repos: map[string]github.RepoPermissionLevel{
+					"Conflict-Fork": github.Admin,
+				},
+			},
+			conflictedForks: sets.New[string]("conflict-fork"),
+			existingRepos:   map[string][]github.Repo{"team": {}},
+			expected:        map[string][]github.Repo{"team": {}},
+		},
+		{
+			// A valid fork referenced by a different case must resolve to its real GitHub name
+			// via the (case-insensitive) forkNames mapping.
+			name:        "fork reference resolves case-insensitively to the real fork name",
+			githubTeams: map[string]github.Team{"team": {ID: 1, Slug: "team"}},
+			teamName:    "team",
+			team: org.Team{
+				Repos: map[string]github.RepoPermissionLevel{
+					"My-Fork": github.Admin,
+				},
+			},
+			forkNames:     map[string]string{"my-fork": "actual-fork"},
+			existingRepos: map[string][]github.Repo{"team": {}},
+			expected: map[string][]github.Repo{"team": {
+				{Name: "actual-fork", Permissions: github.RepoPermissions{Pull: true, Triage: true, Push: true, Maintain: true, Admin: true}},
+			}},
+		},
 	}
 
 	for _, testCase := range testCases {
@@ -7246,7 +7299,9 @@ func TestConfigureOrgValidatesBeforeForks(t *testing.T) {
 
 // TestConfigureForksDryRun covers the default (dry-run) mode: the client's
 // CreateForkInOrg returns an empty name without issuing a request, and configureForks
-// must then skip waitForFork (no GetRepo poll) and map the config key to itself.
+// must then skip waitForFork (no GetRepo poll). Because the fork does not actually exist
+// yet, the config name must NOT be mapped in forkNames and must be reported in the skip set
+// so downstream subsystems do not reconcile against a repo that was never created.
 func TestConfigureForksDryRun(t *testing.T) {
 	client := &fakeForkClient{
 		repos:        map[string]github.Repo{}, // no existing forks -> fork index build does no GetRepo
@@ -7258,21 +7313,21 @@ func TestConfigureForksDryRun(t *testing.T) {
 		},
 	}
 
-	forkNames, conflicted, err := configureForks(client, "test-org", cfg)
+	forkNames, skip, err := configureForks(client, "test-org", cfg)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if got, ok := forkNames["my-fork"]; !ok || got != "my-fork" {
-		t.Errorf("forkNames[\"my-fork\"] = %q (present=%v), want it mapped to itself", got, ok)
+	if got, ok := forkNames["my-fork"]; ok {
+		t.Errorf("forkNames[\"my-fork\"] = %q, want no mapping (fork not created in dry-run)", got)
+	}
+	if !skip.Has("my-fork") {
+		t.Errorf("dry-run fork should be in the skip set, got %v", sets.List(skip))
 	}
 	if client.getRepoCalls != 0 {
 		t.Errorf("dry-run must not wait for the fork, but GetRepo was called %d times", client.getRepoCalls)
 	}
 	if len(client.createdForks) != 0 {
 		t.Errorf("dry-run must not record an actual fork creation, got %v", client.createdForks)
-	}
-	if conflicted.Len() != 0 {
-		t.Errorf("unexpected conflicts: %v", sets.List(conflicted))
 	}
 }
 
@@ -7294,12 +7349,15 @@ func TestConfigureForksCreateTimeout(t *testing.T) {
 		},
 	}
 
-	forkNames, _, err := configureForks(client, "test-org", cfg)
+	forkNames, skip, err := configureForks(client, "test-org", cfg)
 	if err == nil || !strings.Contains(err.Error(), "timeout waiting for fork") {
 		t.Fatalf("expected a timeout error, got %v", err)
 	}
 	if _, ok := forkNames["my-fork"]; ok {
 		t.Errorf("a fork whose creation timed out must not be recorded in forkNames, got %v", forkNames)
+	}
+	if !skip.Has("my-fork") {
+		t.Errorf("a fork whose creation timed out must be in the skip set so downstream skips it, got %v", sets.List(skip))
 	}
 	if len(client.createdForks) != 1 {
 		t.Errorf("expected the create to have been attempted exactly once, got %d", len(client.createdForks))
@@ -7538,7 +7596,7 @@ func TestConfigureForks(t *testing.T) {
 			expectedForkNames: map[string]string{"my-fork": "my-fork-1"},
 		},
 		{
-			description:   "validation rejects invalid format before any API calls",
+			description:   "invalid format is flagged but does not disable the other valid forks",
 			errorContains: "invalid fork from format",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
@@ -7546,9 +7604,13 @@ func TestConfigureForks(t *testing.T) {
 					"invalid-fork": {Fork: &org.ForkConfig{From: "no-slash"}}, // Invalid format
 				},
 			},
-			existingRepos: map[string]github.Repo{},
-			expectError:   true,
-			expectedForks: nil, // No forks created because validation fails before API calls
+			existingRepos:     map[string]github.Repo{},
+			expectError:       true,
+			expectedConflicts: []string{"invalid-fork"},
+			// The malformed entry is flagged (error + skip) but a single bad entry must not
+			// abort conflict detection/creation for the valid ones, so good-fork is created.
+			expectedForks:     []forkCreation{{upstream: "good-org/good-repo", defaultBranchOnly: false, name: "good-fork"}},
+			expectedForkNames: map[string]string{"good-fork": "good-fork"},
 		},
 		{
 			description:   "errors when multiple config entries fork from the same upstream",
