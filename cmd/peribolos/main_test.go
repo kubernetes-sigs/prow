@@ -6612,6 +6612,16 @@ func TestWaitForFork(t *testing.T) {
 			expectError: false,
 		},
 		{
+			// Regression for the off-by-one: an available fork must be detected by the final
+			// check even when the deadline has already elapsed. The old loop tested the
+			// deadline at the top and returned a spurious timeout without ever calling GetRepo.
+			description: "checks at least once even when the timeout has already elapsed",
+			availableAt: 1,
+			timeout:     0,
+			interval:    10 * time.Millisecond,
+			expectError: false,
+		},
+		{
 			description: "times out when fork never appears",
 			availableAt: 9999,
 			timeout:     50 * time.Millisecond,

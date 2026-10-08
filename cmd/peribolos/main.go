@@ -1601,7 +1601,11 @@ func waitForFork(client forkClient, org, repo string, timeout, interval time.Dur
 	deadline := time.Now().Add(timeout)
 	logger := logrus.WithFields(logrus.Fields{"org": org, "repo": repo})
 
-	for time.Now().Before(deadline) {
+	// Check immediately, then after each interval. The deadline is tested after a failed
+	// attempt rather than at the top of the loop, so a fork that becomes available during
+	// the final interval is still detected (checked once more after the last sleep) instead
+	// of being reported as a timeout.
+	for {
 		_, err := client.GetRepo(org, repo)
 		if err == nil {
 			logger.Debug("fork is now available")
@@ -1610,6 +1614,10 @@ func waitForFork(client forkClient, org, repo string, timeout, interval time.Dur
 
 		if !github.IsNotFound(err) {
 			return fmt.Errorf("unexpected error waiting for fork %s/%s: %w", org, repo, err)
+		}
+
+		if !time.Now().Before(deadline) {
+			break
 		}
 
 		logger.Debug("fork not yet available, waiting...")
