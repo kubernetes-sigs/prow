@@ -66,13 +66,6 @@ func presetMatches(preset Preset, labels map[string]string) bool {
 	return true
 }
 
-func mergePreset(preset Preset, labels map[string]string, podSpec *v1.PodSpec) error {
-	if !presetMatches(preset, labels) {
-		return nil
-	}
-	return applyPreset(preset, podSpec)
-}
-
 // applyPreset adds the contents of the preset to the podSpec without checking labels.
 func applyPreset(preset Preset, podSpec *v1.PodSpec) error {
 	containers := podSpec.Containers
