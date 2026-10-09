@@ -274,6 +274,7 @@ type PullRequest struct {
 	// If the PR doesn't have any milestone, `milestone` is null and is unmarshaled to nil.
 	Milestone         *Milestone `json:"milestone,omitempty"`
 	Commits           int        `json:"commits"`
+	ChangedFiles      int        `json:"changed_files"`
 	AuthorAssociation string     `json:"author_association,omitempty"`
 }
 
