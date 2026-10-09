@@ -27,6 +27,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/sirupsen/logrus"
+	logrustest "github.com/sirupsen/logrus/hooks/test"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	klabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -143,19 +144,20 @@ func (foc *fakeOwnersClient) ParseFullConfig(path string) (repoowners.FullConfig
 }
 
 type fakeClient struct {
-	comments         []string
-	statuses         []github.Status
-	branchProtection *github.BranchProtection
-	ps               []config.Presubmit
-	jobs             sets.Set[string]
-	prowJobs         []prowapi.ProwJob
-	owners           ownersClient
-	checkruns        *github.CheckRunList
-	usesAppsAuth     bool
-	nextCheckRunID   int64
-	listCheckRunsErr error
-	app              *github.App
-	getAppErr        error
+	comments                 []string
+	statuses                 []github.Status
+	branchProtection         *github.BranchProtection
+	ps                       []config.Presubmit
+	jobs                     sets.Set[string]
+	prowJobs                 []prowapi.ProwJob
+	owners                   ownersClient
+	checkruns                *github.CheckRunList
+	usesAppsAuth             bool
+	nextCheckRunID           int64
+	listCheckRunsErr         error
+	listTeamMembersBySlugErr error
+	app                      *github.App
+	getAppErr                error
 
 	updateCheckRunErrs map[int64]error
 }
@@ -329,6 +331,9 @@ func (c *fakeClient) ListTeams(org string) ([]github.Team, error) {
 }
 
 func (c *fakeClient) ListTeamMembersBySlug(org, teamSlug, role string) ([]github.TeamMember, error) {
+	if c.listTeamMembersBySlugErr != nil {
+		return nil, c.listTeamMembersBySlugErr
+	}
 	if teamSlug == "team-foo" {
 		return []github.TeamMember{
 			{Login: "user1"},
@@ -1867,6 +1872,245 @@ func TestHandleStickyOverride(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestHandleGenericCommentRationale(t *testing.T) {
+	standardPolicy := plugins.RequireRationale{
+		fakeOrg + "/" + fakeRepo: {
+			"override": {MinLength: 20},
+		},
+	}
+	emergencyPolicy := plugins.RequireRationale{
+		fakeOrg + "/" + fakeRepo: {
+			"override": {
+				MinLength: 20,
+				EmergencyBypass: &plugins.EmergencyBypassConfig{
+					AllowedGitHubTeams: []string{fakeOrg + "/team-foo"},
+				},
+			},
+		},
+	}
+	failedStatus := github.Status{Context: "job-a", State: github.StatusFailure, Description: "Build failed"}
+
+	tests := []struct {
+		name                 string
+		body                 string
+		user                 string
+		pluginConfig         plugins.Configuration
+		teamLookupErr        error
+		wantStatuses         []github.Status
+		wantCommentSubstring string
+	}{
+		{
+			name:         "When the repo has no rationale policy, it should preserve existing override behavior",
+			body:         "/override job-a",
+			user:         adminUser,
+			wantStatuses: []github.Status{{Context: "job-a", State: github.StatusSuccess, Description: statusDescription(adminUser)}},
+		},
+		{
+			name:                 "When rationale is required and /override has none, it should comment without changing statuses",
+			body:                 "/override job-a",
+			user:                 adminUser,
+			pluginConfig:         plugins.Configuration{RequireRationale: standardPolicy},
+			wantStatuses:         []github.Status{failedStatus},
+			wantCommentSubstring: "Rationale required for `/override` in this repository. No status or check-run was updated.",
+		},
+		{
+			name:                 "When invalid /override is combined with /override-cancel, it should block before either status mutation",
+			body:                 "/override-cancel job-a\n/override job-a",
+			user:                 adminUser,
+			pluginConfig:         plugins.Configuration{RequireRationale: standardPolicy},
+			wantStatuses:         []github.Status{failedStatus},
+			wantCommentSubstring: "Rationale required for `/override`",
+		},
+		{
+			name:                 "When rationale is shorter than the minimum, it should comment without changing statuses",
+			body:                 "/override job-a\nReason: retry",
+			user:                 adminUser,
+			pluginConfig:         plugins.Configuration{RequireRationale: standardPolicy},
+			wantStatuses:         []github.Status{failedStatus},
+			wantCommentSubstring: "got 5 non-whitespace Unicode code points; need at least 20",
+		},
+		{
+			name:         "When rationale meets the minimum, it should perform the existing override",
+			body:         "/override job-a\nReason: CI outage on AWS e2e resolved",
+			user:         adminUser,
+			pluginConfig: plugins.Configuration{RequireRationale: standardPolicy},
+			wantStatuses: []github.Status{{Context: "job-a", State: github.StatusSuccess, Description: statusDescription(adminUser)}},
+		},
+		{
+			name: "When an emergency team member provides an incident reason, it should bypass only the minimum length",
+			body: "/override job-a\nEmergency: true\nReason: outage",
+			user: "user1",
+			pluginConfig: plugins.Configuration{
+				Override:         plugins.Override{AllowedGitHubTeams: map[string][]string{fakeOrg + "/" + fakeRepo: {"team-foo"}}},
+				RequireRationale: emergencyPolicy,
+			},
+			wantStatuses: []github.Status{{Context: "job-a", State: github.StatusSuccess, Description: statusDescription("user1")}},
+		},
+		{
+			name:                 "When an emergency team member lacks override permission, it should still reject the command",
+			body:                 "/override job-a\nEmergency: true\nReason: outage",
+			user:                 "user1",
+			pluginConfig:         plugins.Configuration{RequireRationale: emergencyPolicy},
+			wantStatuses:         []github.Status{failedStatus},
+			wantCommentSubstring: "user1 unauthorized",
+		},
+		{
+			name:                 "When an unauthorized user requests emergency bypass, it should not change statuses",
+			body:                 "/override job-a\nEmergency: true\nReason: outage",
+			user:                 "stranger",
+			pluginConfig:         plugins.Configuration{RequireRationale: emergencyPolicy},
+			wantStatuses:         []github.Status{failedStatus},
+			wantCommentSubstring: "not a member of an authorized bypass team",
+		},
+		{
+			name:                 "When emergency team lookup fails, it should fail closed before changing statuses",
+			body:                 "/override job-a\nEmergency: true\nReason: outage",
+			user:                 "user1",
+			pluginConfig:         plugins.Configuration{RequireRationale: emergencyPolicy},
+			teamLookupErr:        errors.New("team API unavailable"),
+			wantStatuses:         []github.Status{failedStatus},
+			wantCommentSubstring: "internal error occurred while validating the rationale policy",
+		},
+		{
+			name: "When /override-sticky is configured alongside /override rationale, it should retain existing behavior",
+			body: "/override-sticky job-a",
+			user: adminUser,
+			pluginConfig: plugins.Configuration{
+				RequireRationale: standardPolicy,
+			},
+			wantStatuses: []github.Status{{Context: "job-a", State: github.StatusSuccess, Description: stickyStatusDescription(adminUser)}},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if test.user == "" {
+				test.user = adminUser
+			}
+			client := &fakeClient{
+				statuses:                 []github.Status{failedStatus},
+				jobs:                     sets.New[string](),
+				listTeamMembersBySlugErr: test.teamLookupErr,
+			}
+			event := github.GenericCommentEvent{
+				IsPR:       true,
+				IssueState: "open",
+				Action:     github.GenericCommentActionCreated,
+				Body:       test.body,
+				Number:     fakePR,
+				User:       github.User{Login: test.user},
+				Repo:       github.Repo{Owner: github.User{Login: fakeOrg}, Name: fakeRepo},
+			}
+
+			err := handleGenericCommentWithClient(client, logrus.NewEntry(logrus.New()), &test.pluginConfig, &event)
+			if err != nil {
+				t.Fatalf("handle generic comment: %v", err)
+			}
+			if diff := cmp.Diff(test.wantStatuses, client.statuses); diff != "" {
+				t.Errorf("status mutation mismatch (-want +got):\n%s", diff)
+			}
+			if test.wantCommentSubstring != "" && !strings.Contains(strings.Join(client.comments, "\n"), test.wantCommentSubstring) {
+				t.Errorf("comments %q do not contain %q", client.comments, test.wantCommentSubstring)
+			}
+			if len(client.jobs) != 0 {
+				t.Errorf("unexpected ProwJob contexts created: %v", sets.List(client.jobs))
+			}
+		})
+	}
+
+	t.Run("When rationale is rejected, it should not update check runs", func(t *testing.T) {
+		checkRuns := &github.CheckRunList{
+			CheckRuns: []github.CheckRun{{
+				ID:         1,
+				Name:       "job-a",
+				Status:     "completed",
+				Conclusion: "failure",
+			}},
+		}
+		wantCheckRuns := &github.CheckRunList{
+			CheckRuns: []github.CheckRun{{
+				ID:         1,
+				Name:       "job-a",
+				Status:     "completed",
+				Conclusion: "failure",
+			}},
+		}
+		client := &fakeClient{
+			statuses:     []github.Status{failedStatus},
+			jobs:         sets.New[string](),
+			checkruns:    checkRuns,
+			usesAppsAuth: true,
+		}
+		event := github.GenericCommentEvent{
+			IsPR:       true,
+			IssueState: "open",
+			Action:     github.GenericCommentActionCreated,
+			Body:       "/override job-a",
+			Number:     fakePR,
+			User:       github.User{Login: adminUser},
+			Repo:       github.Repo{Owner: github.User{Login: fakeOrg}, Name: fakeRepo},
+		}
+		pluginConfig := plugins.Configuration{RequireRationale: standardPolicy}
+
+		if err := handleGenericCommentWithClient(client, logrus.NewEntry(logrus.New()), &pluginConfig, &event); err != nil {
+			t.Fatalf("handle generic comment: %v", err)
+		}
+		if diff := cmp.Diff(wantCheckRuns, client.checkruns); diff != "" {
+			t.Errorf("check run mutation mismatch (-want +got):\n%s", diff)
+		}
+	})
+
+	t.Run("When an authorized emergency bypass is used by the handler, it should write structured audit fields", func(t *testing.T) {
+		client := &fakeClient{
+			statuses: []github.Status{failedStatus},
+			jobs:     sets.New[string](),
+		}
+		event := github.GenericCommentEvent{
+			IsPR:       true,
+			IssueState: "open",
+			Action:     github.GenericCommentActionCreated,
+			Body:       "/override job-a\nEmergency: true\nReason: outage",
+			Number:     fakePR,
+			User:       github.User{Login: "user1"},
+			Repo:       github.Repo{Owner: github.User{Login: fakeOrg}, Name: fakeRepo},
+		}
+		pluginConfig := plugins.Configuration{
+			Override:         plugins.Override{AllowedGitHubTeams: map[string][]string{fakeOrg + "/" + fakeRepo: {"team-foo"}}},
+			RequireRationale: emergencyPolicy,
+		}
+		logger, hook := logrustest.NewNullLogger()
+
+		if err := handleGenericCommentWithClient(client, logrus.NewEntry(logger), &pluginConfig, &event); err != nil {
+			t.Fatalf("handle generic comment: %v", err)
+		}
+		var auditEntry *logrus.Entry
+		for _, entry := range hook.AllEntries() {
+			if entry.Data["event"] == "rationale_emergency_bypass" {
+				auditEntry = entry
+				break
+			}
+		}
+		if auditEntry == nil {
+			t.Fatal("expected an emergency rationale audit entry")
+		}
+		for key, want := range map[string]any{
+			"actor":        "user1",
+			"repo":         fakeOrg + "/" + fakeRepo,
+			"pull_request": fakePR,
+			"command":      "/override",
+			"reason":       "outage",
+			"team_matched": fakeOrg + "/team-foo",
+		} {
+			if got := auditEntry.Data[key]; got != want {
+				t.Errorf("audit field %q: got %v, want %v", key, got, want)
+			}
+		}
+		if strings.Contains(auditEntry.Message, "outage") {
+			t.Errorf("reason text should be a structured field, not part of the log message: %q", auditEntry.Message)
+		}
+	})
 }
 
 func TestHandleStickyCancel(t *testing.T) {

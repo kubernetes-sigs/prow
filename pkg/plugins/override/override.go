@@ -310,17 +310,48 @@ func handleGenericComment(pc plugins.Agent, e github.GenericCommentEvent) error 
 		prowJobClient: pc.ProwJobClient,
 		ownersClient:  pc.OwnersClient,
 	}
+	return handleGenericCommentWithClient(c, pc.Logger, pc.PluginConfig, &e)
+}
 
-	options := pc.PluginConfig.Override
+func handleGenericCommentWithClient(oc overrideClient, logger *logrus.Entry, pluginConfig *plugins.Configuration, e *github.GenericCommentEvent) error {
+	if pluginConfig == nil {
+		pluginConfig = &plugins.Configuration{}
+	}
+	options := pluginConfig.Override
+	if e.Action == github.GenericCommentActionCreated && e.IsPR && e.IssueState == "open" {
+		org := e.Repo.Owner.Login
+		repo := e.Repo.Name
+		if settings, required := pluginConfig.RequireRationaleFor(org, repo, "override"); required && len(overrideRe.FindAllStringSubmatch(e.Body, -1)) > 0 {
+			context := plugins.RationaleContext{
+				Command:     "/override",
+				Actor:       e.User.Login,
+				Org:         org,
+				Repo:        repo,
+				PullRequest: e.Number,
+			}
+			if _, err := plugins.ValidateRationale(e.Body, context, settings, oc, logger); err != nil {
+				if logger != nil {
+					logger.WithError(err).WithFields(logrus.Fields{
+						"actor":        e.User.Login,
+						"repo":         org + "/" + repo,
+						"pull_request": e.Number,
+						"command":      context.Command,
+					}).Warn("Blocking command because rationale validation failed")
+				}
+				response := plugins.RationaleErrorComment(context.Command, "No status or check-run was updated.", settings, err)
+				return oc.CreateComment(org, repo, e.Number, plugins.FormatResponseRaw(e.Body, e.HTMLURL, e.User.Login, response))
+			}
+		}
+	}
 
 	// process all three handlers, we can have cancellations, overrides, and sticky overrides in the same comment
-	if err := handleOverrideCancel(c, pc.Logger, &e, options); err != nil {
+	if err := handleOverrideCancel(oc, logger, e, options); err != nil {
 		return err
 	}
-	if err := handle(c, pc.Logger, &e, options, true); err != nil {
+	if err := handle(oc, logger, e, options, true); err != nil {
 		return err
 	}
-	return handle(c, pc.Logger, &e, options, false)
+	return handle(oc, logger, e, options, false)
 }
 
 func isAuthorized(oc overrideClient, log *logrus.Entry, org, repo, user string, options plugins.Override, pr *github.PullRequest) bool {
