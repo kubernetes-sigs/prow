@@ -242,6 +242,8 @@ contains one or more of the following phrases:
 * `/retest` : When posting `/retest`, two types of jobs will be triggered:
   * all jobs that have run and failed will run unconditionally
   * any not-yet-executed automatically run jobs will run conditionally
+  Some repositories may also require a rationale before processing `/retest`;
+  see [command rationale enforcement](/docs/components/plugins/rationale-enforcement/).
 * `/test all` : When posting `/test all`, all automatically run jobs will run
    conditionally.
 
