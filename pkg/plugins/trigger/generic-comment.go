@@ -69,6 +69,28 @@ func handleGenericComment(c Client, cp commentPruner, trigger plugins.Trigger, g
 		c.Logger.Debug("Comment doesn't match any triggering regex, skipping.")
 		return nil
 	}
+	// FilterPresubmits receives the raw comment body, so validate that same body
+	// to prevent a fenced /retest from bypassing rationale when another command
+	// causes this handler to proceed.
+	if settings, required := c.PluginConfig.RequireRationaleFor(org, repo, "retest"); required && pjutil.RetestRe.MatchString(gc.Body) {
+		context := plugins.RationaleContext{
+			Command:     "/retest",
+			Actor:       commentAuthor,
+			Org:         org,
+			Repo:        repo,
+			PullRequest: number,
+		}
+		if _, err := plugins.ValidateRationale(gc.Body, context, settings, c.GitHubClient, c.Logger); err != nil {
+			c.Logger.WithError(err).WithFields(logrus.Fields{
+				"actor":        commentAuthor,
+				"repo":         org + "/" + repo,
+				"pull_request": number,
+				"command":      context.Command,
+			}).Warn("Blocking command because rationale validation failed")
+			response := plugins.RationaleErrorComment(context.Command, "No CI job was queued.", settings, err)
+			return c.GitHubClient.CreateComment(org, repo, number, plugins.FormatResponseRaw(gc.Body, gc.HTMLURL, commentAuthor, response))
+		}
+	}
 
 	// Skip untrusted users comments.
 	trustedResponse, err := TrustedUser(c.GitHubClient, trigger.OnlyOrgMembers, trigger.TrustedApps, trigger.TrustedOrg, commentAuthor, org, repo)

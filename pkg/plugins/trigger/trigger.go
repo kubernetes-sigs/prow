@@ -166,6 +166,7 @@ type githubClient interface {
 	BotUserChecker() (func(candidate string) bool, error)
 	IsCollaborator(org, repo, user string) (bool, error)
 	IsMember(org, user string) (bool, error)
+	ListTeamMembersBySlug(org, teamSlug, role string) ([]github.TeamMember, error)
 	GetPullRequest(org, repo string, number int) (*github.PullRequest, error)
 	GetFailedActionRunsByHeadBranch(org, repo, branchName, headSHA string) ([]github.WorkflowRun, error)
 	GetRef(org, repo, ref string) (string, error)
@@ -202,6 +203,7 @@ type Client struct {
 	GitHubClient  githubClient
 	ProwJobClient prowJobClient
 	Config        *config.Config
+	PluginConfig  *plugins.Configuration
 	Logger        *logrus.Entry
 	GitClient     git.ClientFactory
 }
@@ -217,6 +219,7 @@ func getClient(pc plugins.Agent) Client {
 	return Client{
 		GitHubClient:  pc.GitHubClient,
 		Config:        pc.Config,
+		PluginConfig:  pc.PluginConfig,
 		ProwJobClient: pc.ProwJobClient,
 		Logger:        pc.Logger,
 		GitClient:     pc.GitClient,
