@@ -156,8 +156,8 @@ func (ga *Agent) HandleLogin(client OAuthClient, secure bool) http.HandlerFunc {
 		oauthSession.Options.Secure = secure
 		oauthSession.Options.HttpOnly = true
 		if err != nil {
-			ga.serverErrorAndPrint(w, "Creating new OAuth session", err)
-			return
+			// New always returns a session; a decode error only means the existing cookie is invalid (e.g. stale signing key). Continue with this empty session so we can overwrite it.
+			ga.logger.WithError(err).Warning("Failed to decode existing OAuth session cookie, using new session.")
 		}
 		oauthSession.Options.MaxAge = 10 * 60
 		oauthSession.Values[stateKey] = state
@@ -179,6 +179,7 @@ func (ga *Agent) HandleLogin(client OAuthClient, secure bool) http.HandlerFunc {
 func (ga *Agent) GetLogin(r *http.Request, identifier AuthenticatedUserIdentifier) (string, error) {
 	session, err := ga.gc.CookieStore.Get(r, tokenSession)
 	if err != nil {
+		ga.logger.WithError(err).Warning("Failed to decode existing token session cookie.")
 		return "", err
 	}
 	token, ok := session.Values[tokenKey].(*oauth2.Token)
@@ -198,8 +199,8 @@ func (ga *Agent) HandleLogout(client OAuthClient) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		accessTokenSession, err := ga.gc.CookieStore.Get(r, tokenSession)
 		if err != nil {
-			ga.serverErrorAndPrint(w, "get cookie", err)
-			return
+			// Get always returns a session; a decode error only means the existing cookie is invalid (e.g. stale signing key). Continue with this empty session so logout can expire it.
+			ga.logger.WithError(err).Warning("Failed to decode existing token session cookie during logout.")
 		}
 		// Clear session
 		accessTokenSession.Options.MaxAge = -1
@@ -286,8 +287,8 @@ func (ga *Agent) HandleRedirect(client OAuthClient, identifier AuthenticatedUser
 		session.Options.Secure = secure
 		session.Options.HttpOnly = true
 		if err != nil {
-			ga.serverErrorAndPrint(w, "Create new session", err)
-			return
+			// New always returns a session; a decode error only means the existing cookie is invalid (e.g. stale signing key). Continue with this empty session so we can overwrite it.
+			ga.logger.WithError(err).Warning("Failed to decode existing token session cookie, using new session.")
 		}
 
 		session.Values[tokenKey] = token
