@@ -25,6 +25,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
@@ -103,6 +104,7 @@ func main() {
 	defer interrupts.WaitForGracefulShutdown()
 
 	// Expose prometheus and pprof metrics
+	prometheus.MustRegister(configAgent)
 	metrics.ExposeMetrics("sub", configAgent.Config().PushGateway, o.instrumentationOptions.MetricsPort)
 	pprof.Instrument(o.instrumentationOptions)
 

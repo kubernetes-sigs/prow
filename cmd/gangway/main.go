@@ -27,6 +27,7 @@ import (
 	"time"
 
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
@@ -181,6 +182,7 @@ func main() {
 		gw.InRepoConfigGetter = ircc
 	}
 
+	prometheus.MustRegister(configAgent)
 	metrics.ExposeMetrics("gangway", configAgent.Config().PushGateway, o.instrumentationOptions.MetricsPort)
 
 	// Start serving liveness endpoint /healthz.

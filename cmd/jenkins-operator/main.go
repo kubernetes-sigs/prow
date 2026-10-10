@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/NYTimes/gziphandler"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/labels"
 	"sigs.k8s.io/prow/pkg/pjutil/pprof"
@@ -202,6 +203,7 @@ func main() {
 	}
 
 	// Expose prometheus metrics
+	prometheus.MustRegister(configAgent)
 	m.ExposeMetrics("jenkins-operator", cfg().PushGateway, o.instrumentationOptions.MetricsPort)
 
 	// Serve Jenkins logs here and proxy deck to use this endpoint

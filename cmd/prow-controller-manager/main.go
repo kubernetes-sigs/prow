@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	uberzap "go.uber.org/zap"
 	"k8s.io/apimachinery/pkg/labels"
@@ -227,6 +228,7 @@ func main() {
 	}
 
 	// Expose prometheus metrics
+	prometheus.MustRegister(configAgent)
 	metrics.ExposeMetrics("plank", cfg().PushGateway, o.instrumentationOptions.MetricsPort)
 	// Serve readiness endpoint
 	health.ServeReady()

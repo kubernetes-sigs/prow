@@ -302,6 +302,7 @@ func main() {
 	} else {
 		logrus.Info("No plugins configuration was provided to deck. You must provide one to reuse /test checks for rerun")
 	}
+	prometheus.MustRegister(configAgent)
 	metrics.ExposeMetrics("deck", cfg().PushGateway, o.instrumentation.MetricsPort)
 
 	// signal to the world that we are healthy

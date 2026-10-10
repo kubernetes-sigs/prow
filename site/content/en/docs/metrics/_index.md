@@ -13,6 +13,7 @@ available.
 
 | Component                 | Type      	| Metric                    	    | Labels                	    		| Description                                               	                |
 |---------------------------|---------------|---------------------------------------|-------------------------------------------|-------------------------------------------------------------------------------|
+| Config Agent              | Gauge         | `prow_config_static_job_definition`   | type                                      | Number of static job definitions in the accepted configuration, by job type. |
 | Tide                      | Gauge         | `pooledprs`               	    | org, repo, branch     	    		| The number of PRs in each Tide pool.                      	                |
 |                           | Gauge         | `updatetime`              	    | org, repo, branch     	    		| The last time each Tide pool was synced.                  	                |
 |                           | Gauge         | `syncdur`                 	    |                       	    		| The Tide sync controller loop duration.                   	                |
@@ -67,6 +68,18 @@ available.
 | 			    | Counter	    | `prow_pubsub_response_codes`	    | response_code, subscription		| A counter of the different responses server has responded to Push Events with.|
 | Version		    | Gauge	    | `prow_version`			    | 						| Prow Version.									|
 
+
+## Static job definitions
+
+`prow_config_static_job_definition` reports the number of loaded `periodic`,
+`presubmit`, and `postsubmit` definitions for the config agent registered by each
+component. Counts are updated when the agent accepts a configuration, including
+zero counts when definitions are removed. Jobs discovered through in-repo
+configuration are excluded.
+
+Use the scrape target labels to identify the component and instance. Each replica
+reports its own counts, so summing across replicas counts the same definitions
+multiple times.
 
 ## Pushgateway and Proxy
 

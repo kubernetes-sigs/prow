@@ -25,6 +25,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
@@ -270,6 +271,7 @@ func main() {
 	server := &http.Server{Addr: ":" + strconv.Itoa(o.port), Handler: controllerMux}
 
 	// Push metrics to the configured prometheus pushgateway endpoint or serve them
+	prometheus.MustRegister(configAgent)
 	metrics.ExposeMetrics("tide", cfg().PushGateway, o.instrumentationOptions.MetricsPort)
 
 	start := time.Now()

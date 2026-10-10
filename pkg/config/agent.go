@@ -24,10 +24,17 @@ import (
 	"sync"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/fsnotify.v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"sigs.k8s.io/prow/pkg/interrupts"
+)
+
+var configStaticJobDefinitions = prometheus.NewDesc(
+	"prow_config_static_job_definition",
+	"Number of static job definitions in the accepted configuration, by job type.",
+	[]string{"type"}, nil,
 )
 
 // Delta represents the before and after states of a Config change detected by the Agent.
@@ -39,11 +46,39 @@ type Delta struct {
 type DeltaChan = chan<- Delta
 
 // Agent watches a path and automatically loads the config stored
-// therein.
+// therein. Register an Agent as a prometheus.Collector to expose its static job
+// definition counts.
 type Agent struct {
-	mut           sync.RWMutex // do not export Lock, etc methods
-	c             *Config
-	subscriptions []DeltaChan
+	mut            sync.RWMutex // do not export Lock, etc methods
+	c              *Config
+	subscriptions  []DeltaChan
+	jobDefinitions jobDefinitionCounts
+}
+
+type jobDefinitionCounts struct {
+	periodics   int
+	presubmits  int
+	postsubmits int
+}
+
+// Describe implements prometheus.Collector.
+func (ca *Agent) Describe(ch chan<- *prometheus.Desc) {
+	ch <- configStaticJobDefinitions
+}
+
+// Collect implements prometheus.Collector. Counts are cached when a config is
+// accepted; no metrics are emitted before the first config is accepted.
+func (ca *Agent) Collect(ch chan<- prometheus.Metric) {
+	ca.mut.RLock()
+	counts := ca.jobDefinitions
+	loaded := ca.c != nil
+	ca.mut.RUnlock()
+	if !loaded {
+		return
+	}
+	ch <- prometheus.MustNewConstMetric(configStaticJobDefinitions, prometheus.GaugeValue, float64(counts.periodics), "periodic")
+	ch <- prometheus.MustNewConstMetric(configStaticJobDefinitions, prometheus.GaugeValue, float64(counts.presubmits), "presubmit")
+	ch <- prometheus.MustNewConstMetric(configStaticJobDefinitions, prometheus.GaugeValue, float64(counts.postsubmits), "postsubmit")
 }
 
 // IsConfigMapMount determines whether the provided directory is a configmap mounted directory
@@ -409,6 +444,7 @@ func (ca *Agent) Set(c *Config) {
 	}
 	delta := Delta{oldConfig, *c}
 	ca.c = c
+	ca.jobDefinitions = countJobDefinitions(c)
 	for _, subscription := range ca.subscriptions {
 		go func(sub DeltaChan) { // wait a minute to send each event
 			end := time.NewTimer(time.Minute)
@@ -434,4 +470,21 @@ func (ca *Agent) SetWithoutBroadcast(c *Config) {
 	ca.mut.Lock()
 	defer ca.mut.Unlock()
 	ca.c = c
+	ca.jobDefinitions = countJobDefinitions(c)
+}
+
+func countJobDefinitions(c *Config) jobDefinitionCounts {
+	return jobDefinitionCounts{
+		periodics:   len(c.Periodics),
+		presubmits:  jobCount(c.PresubmitsStatic),
+		postsubmits: jobCount(c.PostsubmitsStatic),
+	}
+}
+
+func jobCount[T any](jobs map[string][]T) int {
+	count := 0
+	for _, jobsForRepo := range jobs {
+		count += len(jobsForRepo)
+	}
+	return count
 }

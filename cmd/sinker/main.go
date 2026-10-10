@@ -122,6 +122,7 @@ func main() {
 		go jobConfigMapMonitor(5*time.Minute, o.config.JobConfigPath)
 	}
 
+	prometheus.MustRegister(configAgent)
 	metrics.ExposeMetrics("sinker", cfg().PushGateway, o.instrumentationOptions.MetricsPort)
 
 	ctrlruntimelog.SetLogger(zap.New(zap.JSONEncoder()))
