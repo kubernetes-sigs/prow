@@ -949,3 +949,114 @@ func TestOrgInvitationGuidance(t *testing.T) {
 		})
 	}
 }
+
+func TestSkipAlreadyRunning(t *testing.T) {
+	t.Parallel()
+	const org, repo, number = "org", "repo", 1
+	const headSHA, baseSHA = "head", "base"
+
+	pj := func(modifier ...func(*prowapi.ProwJob)) *prowapi.ProwJob {
+		job := &prowapi.ProwJob{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "my-pj",
+				Labels: map[string]string{
+					kube.OrgLabel:         org,
+					kube.RepoLabel:        repo,
+					kube.PullLabel:        strconv.Itoa(number),
+					kube.ProwJobTypeLabel: string(prowapi.PresubmitJob),
+				},
+			},
+			Spec: prowapi.ProwJobSpec{
+				Job: "j1",
+				Refs: &prowapi.Refs{
+					Org:     org,
+					Repo:    repo,
+					BaseSHA: baseSHA,
+					Pulls:   []prowapi.Pull{{Number: number, SHA: headSHA}},
+				},
+			},
+		}
+		for _, m := range modifier {
+			m(job)
+		}
+		return job
+	}
+
+	testCases := []struct {
+		name         string
+		pj           *prowapi.ProwJob
+		expectedJobs []string
+	}{
+		{
+			name:         "Job already running for this revision, skipped",
+			pj:           pj(),
+			expectedJobs: []string{"j2"},
+		},
+		{
+			name: "Job running for a different head SHA, triggered",
+			pj: pj(func(pj *prowapi.ProwJob) {
+				pj.Spec.Refs.Pulls[0].SHA = "other"
+			}),
+			expectedJobs: []string{"j1", "j2"},
+		},
+		{
+			name: "Job running for a different base SHA, triggered",
+			pj: pj(func(pj *prowapi.ProwJob) {
+				pj.Spec.Refs.BaseSHA = "other"
+			}),
+			expectedJobs: []string{"j1", "j2"},
+		},
+		{
+			name: "Job completed, triggered",
+			pj: pj(func(pj *prowapi.ProwJob) {
+				pj.Status.CompletionTime = &[]metav1.Time{metav1.Now()}[0]
+			}),
+			expectedJobs: []string{"j1", "j2"},
+		},
+		{
+			name: "Job aborted, triggered",
+			pj: pj(func(pj *prowapi.ProwJob) {
+				pj.Status.State = prowapi.AbortedState
+			}),
+			expectedJobs: []string{"j1", "j2"},
+		},
+		{
+			name: "Job for another PR, triggered",
+			pj: pj(func(pj *prowapi.ProwJob) {
+				pj.Labels[kube.PullLabel] = "99"
+			}),
+			expectedJobs: []string{"j1", "j2"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			client := Client{
+				ProwJobClient: fake.NewSimpleClientset(tc.pj).ProwV1().ProwJobs(""),
+				Logger:        logrus.NewEntry(logrus.New()),
+			}
+			pr := &github.PullRequest{
+				Base: github.PullRequestBranch{
+					Repo: github.Repo{
+						Owner: github.User{Login: org},
+						Name:  repo,
+					},
+				},
+				Head:   github.PullRequestBranch{SHA: headSHA},
+				Number: number,
+			}
+
+			var actual []string
+			for _, presubmit := range skipAlreadyRunning(client, pr, baseSHA, []config.Presubmit{
+				{JobBase: config.JobBase{Name: "j1"}},
+				{JobBase: config.JobBase{Name: "j2"}},
+			}) {
+				actual = append(actual, presubmit.Name)
+			}
+
+			if diff := cmp.Diff(tc.expectedJobs, actual); diff != "" {
+				t.Errorf("unexpected jobs to trigger (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
