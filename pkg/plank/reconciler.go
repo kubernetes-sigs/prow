@@ -465,12 +465,20 @@ func (r *reconciler) syncPendingJob(ctx context.Context, pj *prowv1.ProwJob) (*r
 		id, pn, err := r.startPod(ctx, pj)
 		if err != nil {
 			if !isRequestError(err) {
-				return nil, fmt.Errorf("error starting pod for PJ %s: %w", pj.Name, err)
+				if pj.Status.PendingTime != nil && r.clock.Since(pj.Status.PendingTime.Time) >= r.maxPodPendingTimeout(pj) {
+					pj.SetComplete()
+					pj.Status.State = prowv1.ErrorState
+					pj.Status.Description = fmt.Sprintf("Pod pending timeout: failed to create pod in build cluster: %v", err)
+					r.log.WithFields(pjutil.ProwJobFields(pj)).WithError(err).Info("Marked job as errored: pod creation failed and pending timeout exceeded.")
+				} else {
+					return nil, fmt.Errorf("error starting pod for PJ %s: %w", pj.Name, err)
+				}
+			} else {
+				pj.Status.State = prowv1.ErrorState
+				pj.SetComplete()
+				pj.Status.Description = fmt.Sprintf("Pod can not be created: %v", err)
+				r.log.WithFields(pjutil.ProwJobFields(pj)).WithError(err).Warning("Unprocessable pod.")
 			}
-			pj.Status.State = prowv1.ErrorState
-			pj.SetComplete()
-			pj.Status.Description = fmt.Sprintf("Pod can not be created: %v", err)
-			r.log.WithFields(pjutil.ProwJobFields(pj)).WithError(err).Warning("Unprocessable pod.")
 		} else {
 			pj.Status.BuildID = id
 			pj.Status.PodName = pn
@@ -548,10 +556,7 @@ func (r *reconciler) syncPendingJob(ctx context.Context, pj *prowv1.ProwJob) (*r
 
 		case corev1.PodPending:
 			var requeueAfter time.Duration
-			maxPodPending := r.config().Plank.PodPendingTimeout.Duration
-			if pj.Spec.DecorationConfig != nil && pj.Spec.DecorationConfig.PodPendingTimeout != nil {
-				maxPodPending = pj.Spec.DecorationConfig.PodPendingTimeout.Duration
-			}
+			maxPodPending := r.maxPodPendingTimeout(pj)
 			maxPodUnscheduled := r.config().Plank.PodUnscheduledTimeout.Duration
 			if pj.Spec.DecorationConfig != nil && pj.Spec.DecorationConfig.PodUnscheduledTimeout != nil {
 				maxPodUnscheduled = pj.Spec.DecorationConfig.PodUnscheduledTimeout.Duration
@@ -849,6 +854,14 @@ func (r *reconciler) deletePod(ctx context.Context, pj *prowv1.ProwJob) error {
 
 	r.log.WithFields(pjutil.ProwJobFields(pj)).Info("Deleted stale running pod.")
 	return nil
+}
+
+func (r *reconciler) maxPodPendingTimeout(pj *prowv1.ProwJob) time.Duration {
+	maxPodPending := r.config().Plank.PodPendingTimeout.Duration
+	if pj.Spec.DecorationConfig != nil && pj.Spec.DecorationConfig.PodPendingTimeout != nil {
+		maxPodPending = pj.Spec.DecorationConfig.PodPendingTimeout.Duration
+	}
+	return maxPodPending
 }
 
 func (r *reconciler) startPod(ctx context.Context, pj *prowv1.ProwJob) (string, string, error) {
