@@ -224,8 +224,8 @@ var simplifier = simplifypath.NewSimplifier(l("", // shadow element mimicking th
 	l("command-help"),
 	l("config"),
 	l("configured-jobs",
-		v("org"),
-		v("repo")),
+		v("org",
+			v("repo"))),
 	l("data.js"),
 	l("favicon.ico"),
 	l("github-login",
@@ -233,14 +233,18 @@ var simplifier = simplifypath.NewSimplifier(l("", // shadow element mimicking th
 	l("github-link"),
 	l("git-provider-link"),
 	l("job-history",
-		v("job")),
+		v("job"),
+		l("gs", jobHistoryBucketPath()),
+		l("s3", jobHistoryBucketPath()),
+	),
 	l("log"),
 	l("plugin-config"),
 	l("plugin-help"),
 	l("plugins"),
 	l("pr"),
 	l("pr-data.js"),
-	l("pr-history"),
+	l("pr-history",
+		l("")), // linked to as /pr-history/?org=...
 	l("prowjob"),
 	l("prowjobs.js"),
 	l("rerun"),
@@ -259,9 +263,31 @@ var simplifier = simplifypath.NewSimplifier(l("", // shadow element mimicking th
 	l("tide.js"),
 	l("view",
 		v("job"),
-		l("gs", v("bucket", l("logs", v("job", v("build"))))),
+		l("gs", viewBucketPath()),
+		l("gcs", viewBucketPath()),
+		l("s3", viewBucketPath()),
 	),
 ))
+
+// viewBucketPath matches <bucket>/logs/<job>/<build> (periodics and
+// postsubmits) and <bucket>/pr-logs/... (presubmits).
+func viewBucketPath() simplifypath.Node {
+	return v("bucket",
+		l("logs", v("job", v("build"))),
+		l("pr-logs",
+			l("pull", v("org_repo", v("pr", v("job", v("build"))))),
+			l("directory", v("job", v("build")))),
+	)
+}
+
+// jobHistoryBucketPath matches <bucket>/logs/<job> and
+// <bucket>/pr-logs/directory/<job>.
+func jobHistoryBucketPath() simplifypath.Node {
+	return v("bucket",
+		l("logs", v("job")),
+		l("pr-logs", l("directory", v("job"))),
+	)
+}
 
 // l and v keep the tree legible
 
@@ -1272,6 +1298,12 @@ func handleArtifactView(o options, sg *spyglass.Spyglass, cfg config.Getter) htt
 		var request spyglass.LensRequest
 		if err := json.Unmarshal([]byte(reqString), &request); err != nil {
 			http.Error(w, fmt.Sprintf("Failed to parse request: %v", err), http.StatusBadRequest)
+			return
+		}
+		// The index selects the lens configuration in the lens server, so it
+		// must point at a configured lens with the requested name.
+		if lenses := cfg().Deck.Spyglass.Lenses; request.Index < 0 || request.Index >= len(lenses) || lenses[request.Index].Lens.Name != lensName {
+			http.Error(w, fmt.Sprintf("Invalid lens index %d for lens %q", request.Index, lensName), http.StatusBadRequest)
 			return
 		}
 		if err := validateStoragePath(cfg, request.Source); err != nil {
