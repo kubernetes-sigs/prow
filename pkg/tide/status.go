@@ -100,6 +100,10 @@ type statusUpdate struct {
 	poolPRs          map[string]CodeReviewCommon
 	baseSHAs         map[string]string
 	requiredContexts map[string][]string
+	// excluded contains the PRs that the sync controller excluded from the
+	// pool because it could not determine their merge requirements, mapped to
+	// the reason that is reported on their tide status context.
+	excluded map[string]string
 	sync.Mutex
 	// dontUpdateStatus contains all PRs for which the Tide sync controller
 	// updated the status to success prior to merging. As the name suggests,
@@ -274,7 +278,7 @@ func requirementDiff(pr *PullRequest, q *config.TideQuery, cc contextChecker, me
 // in order to generate a diff for the status description. We choose the query
 // for the repo that the PR is closest to meeting (as determined by the number
 // of unmet/violated requirements).
-func (sc *statusController) expectedStatus(log *logrus.Entry, queryMap *config.QueryMap, crc *CodeReviewCommon, pool map[string]CodeReviewCommon, ccg contextCheckerGetter, blocks blockers.Blockers, baseSHA string) (string, string, error) {
+func (sc *statusController) expectedStatus(log *logrus.Entry, queryMap *config.QueryMap, crc *CodeReviewCommon, pool map[string]CodeReviewCommon, excluded map[string]string, ccg contextCheckerGetter, blocks blockers.Blockers, baseSHA string) (string, string, error) {
 	// Get PullRequest struct for GitHub specific logic
 	pr := crc.GitHub
 	if pr == nil {
@@ -290,6 +294,16 @@ func (sc *statusController) expectedStatus(log *logrus.Entry, queryMap *config.Q
 		return "", "", fmt.Errorf("error checking if merge is allowed: %w", err)
 	} else if reason != "" {
 		log.WithField("reason", reason).Debug("The PR is not mergeable")
+		return github.StatusError, fmt.Sprintf(statusNotInPool, " "+reason), nil
+	}
+
+	// The sync controller could not determine the merge requirements of this
+	// PR and excluded it from the pool. Report the reason instead of the
+	// query diff, which would not name the actual cause. This has to happen
+	// before the context checker is set up, as that can fail for the very
+	// same reason.
+	if reason, ok := excluded[prKey(crc)]; ok {
+		log.WithField("reason", reason).Debug("The PR was excluded from the pool")
 		return github.StatusError, fmt.Sprintf(statusNotInPool, " "+reason), nil
 	}
 
@@ -433,7 +447,7 @@ func targetURL(c *config.Config, crc *CodeReviewCommon, log *logrus.Entry) strin
 }
 
 // setStatues sets GitHub context status.
-func (sc *statusController) setStatuses(all []CodeReviewCommon, pool map[string]CodeReviewCommon, blocks blockers.Blockers, baseSHAs map[string]string, requiredContexts map[string][]string) {
+func (sc *statusController) setStatuses(all []CodeReviewCommon, pool map[string]CodeReviewCommon, blocks blockers.Blockers, baseSHAs map[string]string, requiredContexts map[string][]string, excluded map[string]string) {
 	c := sc.config()
 	// queryMap caches which queries match a repo.
 	// Make a new one each sync loop as queries will change.
@@ -459,7 +473,7 @@ func (sc *statusController) setStatuses(all []CodeReviewCommon, pool map[string]
 
 		cr := contextCheckerGetterFactory(c, sc.gc, org, repo, branch, baseSHAGetter, headSHA, requiredContexts[prKey(pr)])
 
-		wantState, wantDesc, err := sc.expectedStatus(log, queryMap, pr, pool, cr, blocks, baseSHA)
+		wantState, wantDesc, err := sc.expectedStatus(log, queryMap, pr, pool, excluded, cr, blocks, baseSHA)
 		if err != nil {
 			log.WithError(err).Error("getting expected status")
 			return
@@ -614,8 +628,9 @@ func (sc *statusController) waitSync() {
 				baseSHAs = map[string]string{}
 			}
 			requiredContexts := sc.requiredContexts
+			excluded := sc.excluded
 			sc.statusUpdate.Unlock()
-			sc.sync(pool, blocks, baseSHAs, requiredContexts)
+			sc.sync(pool, blocks, baseSHAs, requiredContexts, excluded)
 			return
 		case more := <-sc.newPoolPending:
 			if !more {
@@ -625,7 +640,7 @@ func (sc *statusController) waitSync() {
 	}
 }
 
-func (sc *statusController) sync(pool map[string]CodeReviewCommon, blocks blockers.Blockers, baseSHAs map[string]string, requiredContexts map[string][]string) {
+func (sc *statusController) sync(pool map[string]CodeReviewCommon, blocks blockers.Blockers, baseSHAs map[string]string, requiredContexts map[string][]string, excluded map[string]string) {
 	sc.lastSyncStart = time.Now()
 	defer func() {
 		duration := time.Since(sc.lastSyncStart)
@@ -634,7 +649,7 @@ func (sc *statusController) sync(pool map[string]CodeReviewCommon, blocks blocke
 		tideMetrics.syncHeartbeat.WithLabelValues("status-update").Inc()
 	}()
 
-	sc.setStatuses(sc.search(), pool, blocks, baseSHAs, requiredContexts)
+	sc.setStatuses(sc.search(), pool, blocks, baseSHAs, requiredContexts, excluded)
 }
 
 func (sc *statusController) search() []CodeReviewCommon {
