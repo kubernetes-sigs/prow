@@ -18,6 +18,7 @@ package trigger
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"reflect"
@@ -57,6 +58,15 @@ type fakeCommentPruner struct {
 	called bool
 }
 
+type rationaleTeamLookupErrorClient struct {
+	*fakegithub.FakeClient
+	err error
+}
+
+func (c *rationaleTeamLookupErrorClient) ListTeamMembersBySlug(org, teamSlug, role string) ([]github.TeamMember, error) {
+	return nil, c.err
+}
+
 func (cp *fakeCommentPruner) PruneComments(shouldPrune func(github.IssueComment) bool) {
 	cp.called = true
 }
@@ -75,6 +85,7 @@ type testcase struct {
 	RemovedLabels  []string
 	StartsExactly  string
 	Presubmits     map[string][]config.Presubmit
+	PluginConfig   *plugins.Configuration
 	IssueLabels    []string
 	IgnoreOkToTest bool
 	AddedComment   string
@@ -241,6 +252,48 @@ func TestHandleGenericComment(t *testing.T) {
 			ShouldBuild:   true,
 			StartsExactly: "pull-jib",
 			PruneHelp:     true,
+		},
+		{
+			name:         "When rationale is required and /retest has none, it should comment without creating a ProwJob",
+			Author:       "trusted-member",
+			Body:         "/ok-to-test\n/test job\n/retest",
+			State:        "open",
+			IsPR:         true,
+			AddedComment: "Rationale required for `/retest` in this repository. No CI job was queued.",
+			PluginConfig: &plugins.Configuration{
+				RequireRationale: plugins.RequireRationale{
+					"org/repo": {"retest": {}},
+				},
+			},
+		},
+		{
+			name:         "When a raw fenced /retest reaches the job filter, it should still require rationale",
+			Author:       "trusted-member",
+			Body:         "/test job\n```\n/retest\n```",
+			State:        "open",
+			IsPR:         true,
+			AddedComment: "Rationale required for `/retest` in this repository. No CI job was queued.",
+			PluginConfig: &plugins.Configuration{
+				RequireRationale: plugins.RequireRationale{
+					"org/repo": {"retest": {}},
+				},
+			},
+		},
+		{
+			name:          "When rationale meets the configured minimum, /retest should create the existing ProwJob",
+			Author:        "trusted-member",
+			Body:          "/retest\nReason: CI outage on AWS e2e resolved",
+			State:         "open",
+			IsPR:          true,
+			ShouldBuild:   true,
+			StartsExactly: "pull-jib",
+			PruneHelp:     true,
+			AddedComment:  shouldNotAddComment,
+			PluginConfig: &plugins.Configuration{
+				RequireRationale: plugins.RequireRationale{
+					"org/repo": {"retest": {}},
+				},
+			},
 		},
 		{
 			name: "Retest with one running and one failed, trailing space.",
@@ -1555,6 +1608,7 @@ func TestHandleGenericComment(t *testing.T) {
 				GitHubClient:  g,
 				ProwJobClient: fakeProwJobClient.ProwV1().ProwJobs(fakeConfig.ProwJobNamespace),
 				Config:        fakeConfig,
+				PluginConfig:  tc.PluginConfig,
 				Logger:        logrus.WithField("plugin", PluginName),
 				GitClient:     nil,
 			}
@@ -1673,6 +1727,60 @@ func validate(t *testing.T, actions []clienttesting.Action, g *fakegithub.FakeCl
 		t.Errorf("expected to prune old help comment on successful trigger, but did not")
 	} else if !tc.PruneHelp && cp.called {
 		t.Errorf("expected to not prune old help comment, but did")
+	}
+}
+
+func TestHandleGenericCommentRationaleTeamLookupFailure(t *testing.T) {
+	fakeConfig := &config.Config{ProwConfig: config.ProwConfig{ProwJobNamespace: "prowjobs"}}
+	if err := fakeConfig.SetPresubmits(map[string][]config.Presubmit{"org/repo": {}}); err != nil {
+		t.Fatalf("set presubmits: %v", err)
+	}
+	fakeProwJobClient := fake.NewSimpleClientset()
+	baseClient := fakegithub.NewFakeClient()
+	teamLookupErr := errors.New("team API unavailable")
+	client := Client{
+		GitHubClient: &rationaleTeamLookupErrorClient{
+			FakeClient: baseClient,
+			err:        teamLookupErr,
+		},
+		ProwJobClient: fakeProwJobClient.ProwV1().ProwJobs(fakeConfig.ProwJobNamespace),
+		Config:        fakeConfig,
+		PluginConfig: &plugins.Configuration{
+			RequireRationale: plugins.RequireRationale{
+				"org/repo": {
+					"retest": {
+						EmergencyBypass: &plugins.EmergencyBypassConfig{
+							AllowedGitHubTeams: []string{"org/ci-admins"},
+						},
+					},
+				},
+			},
+		},
+		Logger:    logrus.WithField("plugin", PluginName),
+		GitClient: nil,
+	}
+	event := github.GenericCommentEvent{
+		Action:      github.GenericCommentActionCreated,
+		Repo:        github.Repo{Owner: github.User{Login: "org"}, Name: "repo", FullName: "org/repo"},
+		Body:        "/retest\nEmergency: true\nReason: outage",
+		User:        github.User{Login: "trusted-member"},
+		IssueAuthor: github.User{Login: "trusted-member"},
+		IssueState:  "open",
+		IsPR:        true,
+		Number:      7,
+	}
+
+	if err := handleGenericComment(client, &fakeCommentPruner{}, plugins.Trigger{}, event); err != nil {
+		t.Fatalf("handle generic comment: %v", err)
+	}
+	if actions := fakeProwJobClient.Fake.Actions(); len(actions) != 0 {
+		t.Errorf("ProwJob actions after failed team lookup: got %v, want none", actions)
+	}
+	if len(baseClient.IssueCommentsAdded) != 1 || !strings.Contains(baseClient.IssueCommentsAdded[0], "internal error occurred while validating the rationale policy") {
+		t.Errorf("rationale validation comment: got %v", baseClient.IssueCommentsAdded)
+	}
+	if len(baseClient.IssueLabelsAdded) != 0 || len(baseClient.IssueLabelsRemoved) != 0 || len(baseClient.TriggeredFailedWorkflowRuns) != 0 {
+		t.Errorf("side effects occurred after failed team lookup: labels added=%v, labels removed=%v, workflows=%v", baseClient.IssueLabelsAdded, baseClient.IssueLabelsRemoved, baseClient.TriggeredFailedWorkflowRuns)
 	}
 }
 

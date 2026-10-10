@@ -25,6 +25,11 @@ deployed then the config will be automatically updated once the PR is merged,
 else you will need to run `make update-plugins`. This does not require
 redeploying the binaries, and will take effect within a minute.
 
+## Requiring rationale for commands
+
+See [command rationale enforcement](/docs/components/plugins/rationale-enforcement/)
+for per-repository requirements on `/retest` and `/override` comments.
+
 ## External Plugins
 
 External plugins offer an alternative to compiling a plugin into the `hook` binary. Any web endpoint that can properly handle GitHub webhooks can be configured as an external plugin that `hook` will forward webhooks to. External plugin endpoints are specified per org or org/repo in [`plugins.yaml`](https://github.com/kubernetes/test-infra/blob/master/config/prow/plugins.yaml) under the `external_plugins` field. Specific event types may be optionally specified to filter which events are forwarded to the endpoint.
