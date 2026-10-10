@@ -151,6 +151,77 @@ func TestOwnersFilenames(t *testing.T) {
 	}
 }
 
+func TestOwnersOrgRepoLists(t *testing.T) {
+	cases := []struct {
+		name     string
+		list     []string
+		org      string
+		repo     string
+		expected bool
+	}{
+		{
+			name:     "empty list",
+			org:      "kubernetes",
+			repo:     "test-infra",
+			expected: false,
+		},
+		{
+			name:     "org listed",
+			list:     []string{"kubernetes"},
+			org:      "kubernetes",
+			repo:     "test-infra",
+			expected: true,
+		},
+		{
+			name:     "org/repo listed",
+			list:     []string{"kubernetes/test-infra"},
+			org:      "kubernetes",
+			repo:     "test-infra",
+			expected: true,
+		},
+		{
+			name:     "other repo in the same org listed",
+			list:     []string{"kubernetes/kubernetes"},
+			org:      "kubernetes",
+			repo:     "test-infra",
+			expected: false,
+		},
+		{
+			name:     "other org listed",
+			list:     []string{"kubernetes-sigs", "kubernetes-sigs/test-infra"},
+			org:      "kubernetes",
+			repo:     "test-infra",
+			expected: false,
+		},
+		{
+			name:     "repo name alone is not an org",
+			list:     []string{"test-infra"},
+			org:      "kubernetes",
+			repo:     "test-infra",
+			expected: false,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			accessors := map[string]struct {
+				owners Owners
+				get    func(*Configuration, string, string) bool
+			}{
+				"MDYAMLEnabled":         {owners: Owners{MDYAMLRepos: tc.list}, get: (*Configuration).MDYAMLEnabled},
+				"SkipCollaborators":     {owners: Owners{SkipCollaborators: tc.list}, get: (*Configuration).SkipCollaborators},
+				"IgnoreMergeCommitsFor": {owners: Owners{IgnoreMergeCommits: tc.list}, get: (*Configuration).IgnoreMergeCommitsFor},
+			}
+			for name, accessor := range accessors {
+				cfg := &Configuration{Owners: accessor.owners}
+				if actual := accessor.get(cfg, tc.org, tc.repo); actual != tc.expected {
+					t.Errorf("%s(%q, %q) = %t, expected %t", name, tc.org, tc.repo, actual, tc.expected)
+				}
+			}
+		})
+	}
+}
+
 func TestSetDefault_Maps(t *testing.T) {
 	cases := []struct {
 		name     string
