@@ -22,6 +22,7 @@ TMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/verify-codegen.XXXXXXXX")"
 trap 'rm -rf -- "${TMP_ROOT}"' EXIT
 TMP_ROOT="$(cd "${TMP_ROOT}" && pwd -P)"
 output_paths=(
+  site/content/en/docs/metrics/_index.md
   pkg/apis
   pkg/client
   pkg/config

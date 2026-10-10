@@ -8,65 +8,151 @@ description: >
 # Prometheus Metrics
 
 Some Prow components expose Prometheus metrics that can be used for monitoring
-and alerting. The following table describes the metrics that are currently
-available.
+and alerting. The table below is generated from metric declarations in Prow's
+source code. The source column links to the package that defines each metric;
+shared packages can provide metrics for multiple components.
 
-| Component                 | Type      	| Metric                    	    | Labels                	    		| Description                                               	                |
-|---------------------------|---------------|---------------------------------------|-------------------------------------------|-------------------------------------------------------------------------------|
-| Tide                      | Gauge         | `pooledprs`               	    | org, repo, branch     	    		| The number of PRs in each Tide pool.                      	                |
-|                           | Gauge         | `updatetime`              	    | org, repo, branch     	    		| The last time each Tide pool was synced.                  	                |
-|                           | Gauge         | `syncdur`                 	    |                       	    		| The Tide sync controller loop duration.                   	                |
-|                           | Gauge         | `statusupdatedur`         	    |                       	    		| The Tide status controller loop duration.                 	                |
-|                           | Histogram     | `merges`                  	    | org, repo, branch     	    		| A histogram of the number of PRs in each merge.           	                |
-|                           | Counter       | `tidepoolerrors`                      | org, repo, branch             		| Count of Tide pool sync errors.                                               |
-|                           | Counter       | `tidequeryresults`                    | query_index, org_shard, result		| Count of Tide queries by query index, org shard, and result (success/error).  |
-|                           | Counter       | `tidesyncheartbeat`                   | controller                    		| Count of Tide syncs per controller.                                           |
-|                           | Histogram     | `tide_query_duration_seconds`         | controller, result                        | Duration of individual GitHub search query shards in seconds, including pagination. |
-|                           | Histogram     | `tide_query_prs_returned`             | controller                                | Number of PRs returned per GitHub search query shard, including partial results. |
-|                           | Counter       | `tide_query_errors_total`             | controller, query_id, org_shard, error_class | Count of GitHub search query shard errors, including queries returning partial results. |
-|                           | Counter       | `tide_query_partial_results_total`    | controller, query_id, org_shard            | Count of GitHub search query shards returning both PRs and an error. |
-|                           | Gauge         | `tide_query_shards`                   | controller, result                        | Number of query shards in the most recent search cycle by outcome. |
-|                           | Gauge         | `tide_pool_completeness_ratio`        | controller                                | Fraction of query shards completing without an error in the most recent search cycle with at least one shard. |
-| Hook                      | Counter       | `prow_webhook_counter`    	    | event_type            	    		| The number of GitHub webhooks received by Prow.           	                |
-| Plank/Jenkins-Operator    | Gauge         | `prowjobs`                	    | job_name, type, state 	    		| The number of ProwJobs.                                   	                |
-| Jenkins-Operator          | Counter       | `jenkins_requests`        	    | verb, handler, code   	    		| The number of jenkins requests made by Prow.              	                |
-|                           | Counter       | `jenkins_request_retries` 	    |                       	    		| The number of jenkins request retries Prow has made.      	                |
-|                           | Histogram     | `jenkins_request_latency` 	    | verb, handler         	    		| A histogram of round trip times between Prow and Jenkins. 	                |
-|                           | Histogram     | `resync_period_seconds`   	    |                       	    		| A histogram of the jenkins controller loop duration.      	                |
-| Bugzilla                  | Histogram     | `bugzilla_request_duration`           | method, status                		| Bugzilla request duration by API path.                                        |
-| Sinker                    | Gauge         | `sinker_pods_existing`                |                               		| Number of the existing pods in each sinker cleaning.                          |
-|                           | Gauge         | `sinker_loop_duration_seconds`        |                               		| Time used in each sinker cleaning.                                            |
-|                           | Gauge         | `sinker_pods_removed`                 | reason                        		| Number of pods removed in each sinker cleaning.                               |
-|                           | Gauge         | `sinker_pod_removal_errors`           | reason                        		| Number of errors which occurred in each sinker pod cleaning.                  |
-|                           | Gauge         | `sinker_prow_jobs_existing`           |                               		| Number of the existing prow jobs in each sinker cleaning.                     |
-|                           | Gauge         | `sinker_prow_jobs_cleaned`            | reason                        		| Number of prow jobs cleaned in each sinker cleaning.                          |
-|                           | Gauge         | `sinker_prow_jobs_cleaning_errors`    | reason                        		| Number of errors which occurred in each sinker prow job cleaning.             |
-| Crier   | Histogram | `crier_report_latency`    | reporter                      	| Histogram of time spent reporting, calculated by the time difference between job completion and end of reporting.	|
-|                           | Counter       | `crier_reporting_results`             | reporter, result              		| Count of successful and failed reporting attempts by reporter.                |
-| Flagutil                  | Counter       | `kubernetes_failed_client_creations`  | cluster                       		| The number of clusters for which we failed to create a client.                |
-| Gerrit/Adapter            | Counter       | `gerrit_processing_results`           | instance, repo, result        		| Count of change processing by instance, repo, and result.                     |
-|                           | Histogram     | `gerrit_trigger_latency`              | instance                      		| Histogram of seconds between triggering event and ProwJob creation time.      |
-| Gerrit/Client             | Counter       | `gerrit_query_results`                | instance, repo, result        		| Count of Gerrit API queries by instance, repo, and result.                    |
-| GitHub                    | Gauge         | `github_user_info`                    | token_hash, login, email      		| Metadata about a user, tied to their token hash.                              |
-| GitHub-Server             | Counter       | `prow_webhook_counter`                | event_type                    		| A counter of the webhooks made to prow.                                       |
-|                           | Counter       | `prow_webhook_response_codes`         | response_code                 		| A counter of the different responses hook has responded to webhooks with.     |
-|                           | Histogram     | `prow_plugin_handle_duration_seconds` | event_type, action, plugin, took_action	| How long Prow took to handle an event by plugin, event type and action.	|
-| 			    | Counter	    | `prow_plugin_handle_errors`	    | event_type, action, plugin, took_action	| Prow errors handling an event by plugin, event type and action.		|
-| Jenkins		    | Counter	    | `jenkins_requests`      		    | verb, handler, code			| Number of Jenkins requests made from prow.					|
-|			    | Counter	    | `jenkins_request_retries`		    | 						| Number of Jenkins request retries made from prow.				|
-|			    | Histogram	    | `jenkins_request_latency`       	    | verb, handler				| Time for a request to roundtrip between prow and Jenkins.			|
-| 			    | Histogram	    | `resync_period_seconds`     	    | 						| Time the controller takes to complete one reconciliation loop.		|
-| Jira			    | Histogram	    | `jira_request_duration_seconds`	    | method, path, status			| 										|
-| Kube			    | Gauge	    | `prowjobs`			    | job_namespace, job_name, type, state, org, repo, base_ref, cluster, retest| Number of prowjobs in the system.		|
-|			    | Counter	    | `prowjob_state_transitions`	    | job_namespace, job_name, type, state, org, repo, base_ref, cluster, retest| Number of prowjobs transitioning states. 	|
-| Plugins		    | Gauge	    | `prow_configmap_size_bytes`	    | name, namespace				| Size of data fields in ConfigMaps updated automatically by Prow in bytes.	|
-| Pubsub/Subscriber	    | Counter	    | `prow_pubsub_message_counter`	    | subscription				| A counter of the webhooks made to prow.					|
-|			    | Counter	    | `prow_pubsub_error_counter`	    | subscription, error_type			| A counter of the webhooks made to prow.					|
-|			    | Counter	    | `prow_pubsub_ack_counter`             | subscription				| A counter for message acked made to prow.					|
-| 			    | Counter	    | `prow_pubsub_nack_counter`	    | subscription				| A counter for message nacked made to prow.					|
-| 			    | Counter	    | `prow_pubsub_response_codes`	    | response_code, subscription		| A counter of the different responses server has responded to Push Events with.|
-| Version		    | Gauge	    | `prow_version`			    | 						| Prow Version.									|
+Names identify metric families. Histograms also expose `_bucket`, `_sum`, and
+`_count` series; summaries expose quantiles, `_sum`, and `_count`. Histogram
+buckets have an additional `le` label, and summary quantiles have a `quantile`
+label. Metrics supplied by dependencies, such as Go runtime and process metrics,
+are not listed here.
 
+To update this table after changing metric definitions, run
+`go run ./hack/gen-prow-documented`. This also updates the documented Prow and
+plugin configuration YAML. `make update-codegen` and `make verify-codegen`
+also cover this table.
+
+<!-- BEGIN GENERATED METRICS -->
+
+<!-- Generated by go run ./hack/gen-prow-documented; do not edit this table. -->
+
+| Source | Type | Metric | Labels | Description |
+|---|---|---|---|---|
+| [cmd/gerrit](https://github.com/kubernetes-sigs/prow/blob/main/cmd/gerrit/main.go#L47) | Gauge | `gerrit_disk_free` |  | Free gb on gerrit-cache disk. |
+| [cmd/gerrit](https://github.com/kubernetes-sigs/prow/blob/main/cmd/gerrit/main.go#L59) | Gauge | `gerrit_disk_inode_free` |  | Free inodes on gerrit-cache disk. |
+| [cmd/gerrit](https://github.com/kubernetes-sigs/prow/blob/main/cmd/gerrit/main.go#L67) | Gauge | `gerrit_disk_inode_total` |  | Total inodes on gerrit-cache disk. |
+| [cmd/gerrit](https://github.com/kubernetes-sigs/prow/blob/main/cmd/gerrit/main.go#L63) | Gauge | `gerrit_disk_inode_used` |  | Used inodes on gerrit-cache disk. |
+| [cmd/gerrit](https://github.com/kubernetes-sigs/prow/blob/main/cmd/gerrit/main.go#L55) | Gauge | `gerrit_disk_total` |  | Total gb on gerrit-cache disk. |
+| [cmd/gerrit](https://github.com/kubernetes-sigs/prow/blob/main/cmd/gerrit/main.go#L51) | Gauge | `gerrit_disk_used` |  | Used gb on gerrit-cache disk. |
+| [cmd/ghproxy](https://github.com/kubernetes-sigs/prow/blob/main/cmd/ghproxy/ghproxy.go#L47) | Gauge | `ghcache_disk_free` |  | Free gb on github-cache disk. |
+| [cmd/ghproxy](https://github.com/kubernetes-sigs/prow/blob/main/cmd/ghproxy/ghproxy.go#L59) | Gauge | `ghcache_disk_inode_free` |  | Free inodes on github-cache disk. |
+| [cmd/ghproxy](https://github.com/kubernetes-sigs/prow/blob/main/cmd/ghproxy/ghproxy.go#L67) | Gauge | `ghcache_disk_inode_total` |  | Total inodes on github-cache disk. |
+| [cmd/ghproxy](https://github.com/kubernetes-sigs/prow/blob/main/cmd/ghproxy/ghproxy.go#L63) | Gauge | `ghcache_disk_inode_used` |  | Used inodes on github-cache disk. |
+| [cmd/ghproxy](https://github.com/kubernetes-sigs/prow/blob/main/cmd/ghproxy/ghproxy.go#L55) | Gauge | `ghcache_disk_total` |  | Total gb on github-cache disk. |
+| [cmd/ghproxy](https://github.com/kubernetes-sigs/prow/blob/main/cmd/ghproxy/ghproxy.go#L51) | Gauge | `ghcache_disk_used` |  | Used gb on github-cache disk. |
+| [cmd/moonraker](https://github.com/kubernetes-sigs/prow/blob/main/cmd/moonraker/main.go#L52) | Gauge | `moonraker_disk_free` |  | Free gb on moonraker disk. |
+| [cmd/moonraker](https://github.com/kubernetes-sigs/prow/blob/main/cmd/moonraker/main.go#L64) | Gauge | `moonraker_disk_inode_free` |  | Free inodes on moonraker disk. |
+| [cmd/moonraker](https://github.com/kubernetes-sigs/prow/blob/main/cmd/moonraker/main.go#L72) | Gauge | `moonraker_disk_inode_total` |  | Total inodes on moonraker disk. |
+| [cmd/moonraker](https://github.com/kubernetes-sigs/prow/blob/main/cmd/moonraker/main.go#L68) | Gauge | `moonraker_disk_inode_used` |  | Used inodes on moonraker disk. |
+| [cmd/moonraker](https://github.com/kubernetes-sigs/prow/blob/main/cmd/moonraker/main.go#L60) | Gauge | `moonraker_disk_total` |  | Total gb on moonraker disk. |
+| [cmd/moonraker](https://github.com/kubernetes-sigs/prow/blob/main/cmd/moonraker/main.go#L56) | Gauge | `moonraker_disk_used` |  | Used gb on moonraker disk. |
+| [cmd/sinker](https://github.com/kubernetes-sigs/prow/blob/main/cmd/sinker/main.go#L315) | Gauge | `job_configmap_size` | name | Size of ConfigMap storing central job configuration files (gzipped) in bytes. |
+| [cmd/sinker](https://github.com/kubernetes-sigs/prow/blob/main/cmd/sinker/main.go#L283) | Gauge | `sinker_loop_duration_seconds` |  | Time used in each sinker cleaning. |
+| [cmd/sinker](https://github.com/kubernetes-sigs/prow/blob/main/cmd/sinker/main.go#L293) | Gauge | `sinker_pod_removal_errors` | reason | Number of errors which occurred in each sinker pod cleaning. |
+| [cmd/sinker](https://github.com/kubernetes-sigs/prow/blob/main/cmd/sinker/main.go#L279) | Gauge | `sinker_pods_existing` |  | Number of the existing pods in each sinker cleaning. |
+| [cmd/sinker](https://github.com/kubernetes-sigs/prow/blob/main/cmd/sinker/main.go#L287) | Gauge | `sinker_pods_removed` | reason | Number of pods removed in each sinker cleaning. |
+| [cmd/sinker](https://github.com/kubernetes-sigs/prow/blob/main/cmd/sinker/main.go#L303) | Gauge | `sinker_prow_jobs_cleaned` | reason | Number of prow jobs cleaned in each sinker cleaning. |
+| [cmd/sinker](https://github.com/kubernetes-sigs/prow/blob/main/cmd/sinker/main.go#L309) | Gauge | `sinker_prow_jobs_cleaning_errors` | reason | Number of errors which occurred in each sinker prow job cleaning. |
+| [cmd/sinker](https://github.com/kubernetes-sigs/prow/blob/main/cmd/sinker/main.go#L299) | Gauge | `sinker_prow_jobs_existing` |  | Number of the existing prow jobs in each sinker cleaning. |
+| [pkg/bugzilla](https://github.com/kubernetes-sigs/prow/blob/main/pkg/bugzilla/metrics.go#L23) | Histogram | `bugzilla_request_duration` | method, status | Bugzilla request duration by API path. |
+| [pkg/config](https://github.com/kubernetes-sigs/prow/blob/main/pkg/config/cache.go#L102) | Histogram | `inRepoConfigCache_GetProwYAML_duration` | org, repo | Histogram of seconds spent retrieving the ProwYAML (inrepoconfig), by org and repo. |
+| [pkg/config](https://github.com/kubernetes-sigs/prow/blob/main/pkg/config/cache.go#L95) | Gauge | `inRepoConfigCache_cache_usage_size` | org, repo | Size of the cache (how many entries it is holding) by org and repo. |
+| [pkg/config](https://github.com/kubernetes-sigs/prow/blob/main/pkg/config/cache.go#L81) | Counter | `inRepoConfigCache_evictions_forced` | org, repo | Count of forced cache evictions (due to LRU algorithm) by org and repo. |
+| [pkg/config](https://github.com/kubernetes-sigs/prow/blob/main/pkg/config/cache.go#L88) | Counter | `inRepoConfigCache_evictions_manual` | org, repo | Count of manual cache evictions (due to faulty value construction) by org and repo. |
+| [pkg/config](https://github.com/kubernetes-sigs/prow/blob/main/pkg/config/cache.go#L64) | Counter | `inRepoConfigCache_hits` | org, repo | Count of cache lookup hits by org and repo. |
+| [pkg/config](https://github.com/kubernetes-sigs/prow/blob/main/pkg/config/cache.go#L57) | Counter | `inRepoConfigCache_lookups` | org, repo | Count of cache lookups by org and repo. |
+| [pkg/config](https://github.com/kubernetes-sigs/prow/blob/main/pkg/config/cache.go#L71) | Counter | `inRepoConfigCache_misses` | org, repo | Count of cache lookup misses by org and repo. |
+| [pkg/config](https://github.com/kubernetes-sigs/prow/blob/main/pkg/config/inrepoconfig.go#L60) | Histogram | `inrepoconfig_git_client_acquisition_duration` | org, repo | Seconds taken for acquiring a git client (may include an initial clone operation). |
+| [pkg/config](https://github.com/kubernetes-sigs/prow/blob/main/pkg/config/inrepoconfig.go#L68) | Histogram | `inrepoconfig_git_other_duration` | org, repo | Seconds taken after acquiring a git client and performing all other git operations (to read the ProwYAML of the repo). |
+| [pkg/crier](https://github.com/kubernetes-sigs/prow/blob/main/pkg/crier/metrics.go#L34) | Histogram | `crier_report_latency` | reporter | Histogram of time spent reporting, calculated by the time difference between job completion and end of reporting. |
+| [pkg/crier](https://github.com/kubernetes-sigs/prow/blob/main/pkg/crier/metrics.go#L41) | Counter | `crier_reporting_results` | reporter, result | Count of successful and failed reporting attempts by reporter. |
+| [pkg/flagutil](https://github.com/kubernetes-sigs/prow/blob/main/pkg/flagutil/kubernetes_cluster_clients.go#L352) | Counter | `kubernetes_failed_client_creations` | cluster | The number of clusters for which we failed to create a client. |
+| [pkg/gerrit/adapter](https://github.com/kubernetes-sigs/prow/blob/main/pkg/gerrit/adapter/adapter.go#L72) | Counter | `gerrit_inrepoconfig_results` | org, repo, result | Count of retrieving inrepoconfigs by instance, repo, and result (ERROR or SUCCESS). |
+| [pkg/gerrit/adapter](https://github.com/kubernetes-sigs/prow/blob/main/pkg/gerrit/adapter/adapter.go#L112) | Histogram | `gerrit_instance_change_sync_duration` | org, repo | Histogram of seconds spent syncing changes from a single gerrit instance or repo. Includes gerrit_repo_query_duration and gerrit_instance_process_duration. |
+| [pkg/gerrit/adapter](https://github.com/kubernetes-sigs/prow/blob/main/pkg/gerrit/adapter/adapter.go#L105) | Histogram | `gerrit_instance_process_duration` | org, repo | Histogram of seconds spent processing changes, by instance and repo. This measures the portion of a sync after we&#39;ve queried for changes. |
+| [pkg/gerrit/adapter](https://github.com/kubernetes-sigs/prow/blob/main/pkg/gerrit/adapter/adapter.go#L127) | Histogram | `gerrit_job_creation_duration` | org, repo | Histogram of seconds spent creating a ProwJob object in the K8s API server of the Prow service cluster, by instance and repo. |
+| [pkg/gerrit/adapter](https://github.com/kubernetes-sigs/prow/blob/main/pkg/gerrit/adapter/adapter.go#L122) | Histogram | `gerrit_pickup_change_latency` | org, repo | Histogram of seconds a query result had to wait after it was retrieved from the Gerrit API but before it was picked up for processing by a worker thread. |
+| [pkg/gerrit/adapter](https://github.com/kubernetes-sigs/prow/blob/main/pkg/gerrit/adapter/adapter.go#L97) | Histogram | `gerrit_process_single_change_duration` | org, repo | Histogram of seconds spent processing a single gerrit change, by instance and repo. |
+| [pkg/gerrit/adapter](https://github.com/kubernetes-sigs/prow/blob/main/pkg/gerrit/adapter/adapter.go#L64) | Counter | `gerrit_processing_results` | org, repo, result | Count of change processing by instance, repo, and result (ERROR or SUCCESS). |
+| [pkg/gerrit/adapter](https://github.com/kubernetes-sigs/prow/blob/main/pkg/gerrit/adapter/adapter.go#L117) | Histogram | `gerrit_repo_query_duration` | org, repo, result | Histogram of seconds spent querying a repo&#39;s changes. Includes time spent for rate limiting ourselves. |
+| [pkg/gerrit/adapter](https://github.com/kubernetes-sigs/prow/blob/main/pkg/gerrit/adapter/adapter.go#L90) | Histogram | `gerrit_trigger_help_latency` | org | Histogram of seconds between triggering event (help) and ProwJob creation time. |
+| [pkg/gerrit/adapter](https://github.com/kubernetes-sigs/prow/blob/main/pkg/gerrit/adapter/adapter.go#L80) | Histogram | `gerrit_trigger_latency` | org, repo | Histogram of seconds between triggering event and ProwJob creation time. |
+| [pkg/gerrit/client](https://github.com/kubernetes-sigs/prow/blob/main/pkg/gerrit/client/client.go#L69) | Counter | `gerrit_query_results` | org, repo, result | Count of Gerrit API queries by instance, repo, and result. |
+| [pkg/ghcache](https://github.com/kubernetes-sigs/prow/blob/main/pkg/ghcache/ghcache.go#L141) | Gauge | `concurrent_outbound_requests` |  | How many concurrent requests are in flight to GitHub servers. |
+| [pkg/ghcache](https://github.com/kubernetes-sigs/prow/blob/main/pkg/ghcache/ghcache.go#L153) | Counter | `ghcache_cache_parititions` | token_hash | Which cache partitions exist (deprecated: use ghcache_cache_partitions instead). |
+| [pkg/ghcache](https://github.com/kubernetes-sigs/prow/blob/main/pkg/ghcache/ghcache.go#L161) | Counter | `ghcache_cache_partitions` | token_hash | Which cache partitions exist. |
+| [pkg/ghcache](https://github.com/kubernetes-sigs/prow/blob/main/pkg/ghcache/ghcache.go#L148) | Gauge | `pending_outbound_requests` |  | How many pending requests are waiting to be sent to GitHub servers. |
+| [pkg/git/v2](https://github.com/kubernetes-sigs/prow/blob/main/pkg/git/v2/client_factory.go#L40) | Histogram | `git_ensure_fresh_primary_duration` | org, repo | Histogram of seconds spent ensuring that the primary is fresh, by org and repo. |
+| [pkg/git/v2](https://github.com/kubernetes-sigs/prow/blob/main/pkg/git/v2/client_factory.go#L47) | Histogram | `git_fetch_by_sha_duration` | org, repo | Histogram of seconds spent fetching commit SHAs, by org and repo. |
+| [pkg/git/v2](https://github.com/kubernetes-sigs/prow/blob/main/pkg/git/v2/client_factory.go#L54) | Histogram | `git_secondary_clone_duration` | org, repo | Histogram of seconds spent creating the secondary clone, by org and repo. |
+| [pkg/git/v2](https://github.com/kubernetes-sigs/prow/blob/main/pkg/git/v2/client_factory.go#L61) | Histogram | `sparse_checkout_duration` |  | Histogram of seconds spent performing sparse checkout for a repository |
+| [pkg/github](https://github.com/kubernetes-sigs/prow/blob/main/pkg/github/client.go#L1370) | Gauge | `github_user_info` | token_hash, login, email | Metadata about a user, tied to their token hash. |
+| [pkg/github/ghmetrics](https://github.com/kubernetes-sigs/prow/blob/main/pkg/github/ghmetrics/ghmetrics.go#L95) | Histogram | `ghcache_cache_entry_age_seconds` | token_hash, path, user_agent | The age of cache entries by API path. |
+| [pkg/github/ghmetrics](https://github.com/kubernetes-sigs/prow/blob/main/pkg/github/ghmetrics/ghmetrics.go#L74) | Counter | `ghcache_responses` | mode, path, user_agent, token_hash | How many cache responses of each cache response mode there are. |
+| [pkg/github/ghmetrics](https://github.com/kubernetes-sigs/prow/blob/main/pkg/github/ghmetrics/ghmetrics.go#L52) | Histogram | `github_request_duration` | token_hash, path, status, user_agent | GitHub request duration by API path. |
+| [pkg/github/ghmetrics](https://github.com/kubernetes-sigs/prow/blob/main/pkg/github/ghmetrics/ghmetrics.go#L84) | Histogram | `github_request_timeouts` | token_hash, path, user_agent | GitHub request timeout by API path. |
+| [pkg/github/ghmetrics](https://github.com/kubernetes-sigs/prow/blob/main/pkg/github/ghmetrics/ghmetrics.go#L63) | Histogram | `github_request_wait_duration_seconds` | token_hash, request_type, api | GitHub request wait duration before sending to API in seconds |
+| [pkg/github/ghmetrics](https://github.com/kubernetes-sigs/prow/blob/main/pkg/github/ghmetrics/ghmetrics.go#L32) | Gauge | `github_token_reset` | token_hash, api_version, ratelimit_resource | Last reported GitHub token reset time. |
+| [pkg/github/ghmetrics](https://github.com/kubernetes-sigs/prow/blob/main/pkg/github/ghmetrics/ghmetrics.go#L42) | Gauge | `github_token_usage` | token_hash, api_version, ratelimit_resource | How many GitHub token requests are remaining for the current hour. |
+| [pkg/githubeventserver](https://github.com/kubernetes-sigs/prow/blob/main/pkg/githubeventserver/metrics.go#L35) | Histogram | `prow_plugin_handle_duration_seconds` | event_type, action, plugin, took_action | How long Prow took to handle an event by plugin, event type and action. |
+| [pkg/githubeventserver](https://github.com/kubernetes-sigs/prow/blob/main/pkg/githubeventserver/metrics.go#L40) | Counter | `prow_plugin_handle_errors` | event_type, action, plugin, took_action | Prow errors handling an event by plugin, event type and action. |
+| [pkg/githubeventserver](https://github.com/kubernetes-sigs/prow/blob/main/pkg/githubeventserver/metrics.go#L27) | Counter | `prow_webhook_counter` | event_type | A counter of the webhooks made to prow. |
+| [pkg/githubeventserver](https://github.com/kubernetes-sigs/prow/blob/main/pkg/githubeventserver/metrics.go#L31) | Counter | `prow_webhook_response_codes` | response_code | A counter of the different responses hook has responded to webhooks with. |
+| [pkg/jenkins](https://github.com/kubernetes-sigs/prow/blob/main/pkg/jenkins/metrics.go#L37) | Histogram | `jenkins_request_latency` | verb, handler | Time for a request to roundtrip between prow and Jenkins. |
+| [pkg/jenkins](https://github.com/kubernetes-sigs/prow/blob/main/pkg/jenkins/metrics.go#L33) | Counter | `jenkins_request_retries` |  | Number of Jenkins request retries made from prow. |
+| [pkg/jenkins](https://github.com/kubernetes-sigs/prow/blob/main/pkg/jenkins/metrics.go#L22) | Counter | `jenkins_requests` | verb, handler, code | Number of Jenkins requests made from prow. |
+| [pkg/jenkins](https://github.com/kubernetes-sigs/prow/blob/main/pkg/jenkins/metrics.go#L47) | Histogram | `resync_period_seconds` |  | Time the controller takes to complete one reconciliation loop. |
+| [pkg/jira](https://github.com/kubernetes-sigs/prow/blob/main/pkg/jira/metrics.go#L33) | Histogram | `jira_request_duration_seconds` | method, path, status |  |
+| [pkg/kube](https://github.com/kubernetes-sigs/prow/blob/main/pkg/kube/metrics.go#L51) | Counter | `prowjob_state_transitions` | job_namespace, job_name, type, state, org, repo, base_ref, cluster, retest | Number of prowjobs transitioning states. |
+| [pkg/kube](https://github.com/kubernetes-sigs/prow/blob/main/pkg/kube/metrics.go#L47) | Gauge | `prowjobs` | job_namespace, job_name, type, state, org, repo, base_ref, cluster, retest | Number of prowjobs in the system. |
+| [pkg/metrics/prowjobs](https://github.com/kubernetes-sigs/prow/blob/main/pkg/metrics/prowjobs/collector.go#L118) | Histogram | `prow_job_runtime_seconds` | job_namespace, job_name, type, last_state, state, org, repo, base_ref |  |
+| [pkg/plugins](https://github.com/kubernetes-sigs/prow/blob/main/pkg/plugins/plugins.go#L573) | Gauge | `prow_configmap_size_bytes` | name, namespace | Size of data fields in ConfigMaps updated automatically by Prow in bytes. |
+| [pkg/pubsub/subscriber](https://github.com/kubernetes-sigs/prow/blob/main/pkg/pubsub/subscriber/metrics.go#L45) | Counter | `prow_pubsub_ack_counter` | subscription | A counter for message acked made to prow. |
+| [pkg/pubsub/subscriber](https://github.com/kubernetes-sigs/prow/blob/main/pkg/pubsub/subscriber/metrics.go#L39) | Counter | `prow_pubsub_error_counter` | subscription, error_type | A counter of the webhooks made to prow. |
+| [pkg/pubsub/subscriber](https://github.com/kubernetes-sigs/prow/blob/main/pkg/pubsub/subscriber/metrics.go#L35) | Counter | `prow_pubsub_message_counter` | subscription | A counter of the webhooks made to prow. |
+| [pkg/pubsub/subscriber](https://github.com/kubernetes-sigs/prow/blob/main/pkg/pubsub/subscriber/metrics.go#L49) | Counter | `prow_pubsub_nack_counter` | subscription | A counter for message nacked made to prow. |
+| [pkg/pubsub/subscriber](https://github.com/kubernetes-sigs/prow/blob/main/pkg/pubsub/subscriber/metrics.go#L55) | Counter | `prow_pubsub_response_codes` | response_code, subscription | A counter of the different responses server has responded to Push Events with. |
+| [pkg/tide](https://github.com/kubernetes-sigs/prow/blob/main/pkg/tide/tide.go#L254) | Histogram | `merges` | org, repo, branch | Histogram of merges where values are the number of PRs merged together. |
+| [pkg/tide](https://github.com/kubernetes-sigs/prow/blob/main/pkg/tide/tide.go#L237) | Gauge | `pooledprs` | org, repo, branch | Number of PRs in each Tide pool. |
+| [pkg/tide](https://github.com/kubernetes-sigs/prow/blob/main/pkg/tide/tide.go#L297) | Gauge | `statusupdatedur` |  | The duration of the last loop of the status update controller. |
+| [pkg/tide](https://github.com/kubernetes-sigs/prow/blob/main/pkg/tide/tide.go#L293) | Gauge | `syncdur` |  | The duration of the last loop of the sync controller. |
+| [pkg/tide](https://github.com/kubernetes-sigs/prow/blob/main/pkg/tide/tide.go#L386) | Gauge | `tide_pool_batch_pending_prs` | org, repo, branch | Number of PRs in a pending batch test in each pool. |
+| [pkg/tide](https://github.com/kubernetes-sigs/prow/blob/main/pkg/tide/tide.go#L347) | Gauge | `tide_pool_completeness_ratio` | controller | Fraction of query shards that completed fully. |
+| [pkg/tide](https://github.com/kubernetes-sigs/prow/blob/main/pkg/tide/tide.go#L362) | Gauge | `tide_pool_missing_prs` | org, repo, branch | Number of PRs with missing or failed tests in each pool. High values indicate testing bottlenecks. |
+| [pkg/tide](https://github.com/kubernetes-sigs/prow/blob/main/pkg/tide/tide.go#L370) | Gauge | `tide_pool_pending_prs` | org, repo, branch | Number of PRs with pending tests in each pool. |
+| [pkg/tide](https://github.com/kubernetes-sigs/prow/blob/main/pkg/tide/tide.go#L378) | Gauge | `tide_pool_successful_prs` | org, repo, branch | Number of PRs with all tests passing in each pool. |
+| [pkg/tide](https://github.com/kubernetes-sigs/prow/blob/main/pkg/tide/tide.go#L308) | Histogram | `tide_query_duration_seconds` | controller, result | Duration of individual Tide GitHub search queries per shard. |
+| [pkg/tide](https://github.com/kubernetes-sigs/prow/blob/main/pkg/tide/tide.go#L323) | Counter | `tide_query_errors_total` | controller, query_id, org_shard, error_class | Count of Tide query errors per shard. |
+| [pkg/tide](https://github.com/kubernetes-sigs/prow/blob/main/pkg/tide/tide.go#L332) | Counter | `tide_query_partial_results_total` | controller, query_id, org_shard | Count of Tide queries that returned partial results. |
+| [pkg/tide](https://github.com/kubernetes-sigs/prow/blob/main/pkg/tide/tide.go#L316) | Histogram | `tide_query_prs_returned` | controller | Number of PRs returned per Tide query shard. |
+| [pkg/tide](https://github.com/kubernetes-sigs/prow/blob/main/pkg/tide/tide.go#L340) | Gauge | `tide_query_shards` | controller, result | Number of query shards in the most recent search cycle by outcome. |
+| [pkg/tide](https://github.com/kubernetes-sigs/prow/blob/main/pkg/tide/tide.go#L353) | Counter | `tide_retests_total` | org, repo, branch, action | Total number of test retriggers by org, repo, branch, and action. Incremented when Tide triggers tests for PRs that need retesting. Action is either TRIGGER (serial) or TRIGGER_BATCH (batch). |
+| [pkg/tide](https://github.com/kubernetes-sigs/prow/blob/main/pkg/tide/tide.go#L282) | Counter | `tide_search_merged_prs_total` | org, repo | Count of already merged PRs returned by the open PR search and kept out of the Tide pool, which happens when the search index lags behind a merge. |
+| [pkg/tide](https://github.com/kubernetes-sigs/prow/blob/main/pkg/tide/tide.go#L264) | Counter | `tidepoolerrors` | org, repo, branch | Count of Tide pool sync errors. |
+| [pkg/tide](https://github.com/kubernetes-sigs/prow/blob/main/pkg/tide/tide.go#L273) | Counter | `tidequeryresults` | query_index, org_shard, result | Count of Tide queries by query index, org shard, and result (success/error). |
+| [pkg/tide](https://github.com/kubernetes-sigs/prow/blob/main/pkg/tide/tide.go#L302) | Counter | `tidesyncheartbeat` | controller | Count of Tide syncs per controller. |
+| [pkg/tide](https://github.com/kubernetes-sigs/prow/blob/main/pkg/tide/tide.go#L245) | Gauge | `updatetime` | org, repo, branch | The last time each subpool was synced. (Used to determine &#39;pooledprs&#39; freshness.) |
+| [pkg/version](https://github.com/kubernetes-sigs/prow/blob/main/pkg/version/metrics.go#L25) | Gauge | `prow_version` |  | Prow version. |
+
+<!-- END GENERATED METRICS -->
+
+## Metrics with runtime definitions
+
+The [HTTP metrics helpers](https://github.com/kubernetes-sigs/prow/blob/main/pkg/metrics/http.go)
+use a prefix supplied by the component:
+
+| Type | Metric | Labels | Description |
+|---|---|---|---|
+| Histogram | `<prefix>_http_request_duration_seconds` | path, method, status, user_agent | HTTP request duration in seconds. |
+| Histogram | `<prefix>_http_response_size_bytes` | path, method, status, user_agent | HTTP response size in bytes. |
+| Counter | `<prefix>_error_rate` | error | Number of errors by type. |
+
+[Exporter](/docs/components/optional/exporter/) exposes `prow_job_labels` and
+`prow_job_annotations` gauges. Both include `job_name`, `job_namespace`, and
+`job_agent` labels, plus labels derived from each ProwJob's Kubernetes labels or
+annotations. These custom collectors and the HTTP helpers are documented here
+separately because their names or label sets depend on runtime inputs.
 
 ## Pushgateway and Proxy
 
