@@ -71,8 +71,10 @@ branch-protection:
                             required_linear_history: false
                             # RequiredPullRequestReviews specifies github approval/review criteria.
                             required_pull_request_reviews:
-                                # BypassRestrictions appends users/teams that are allowed to bypass PR restrictions
+                                # BypassRestrictions appends apps/users/teams that are allowed to bypass PR restrictions
                                 bypass_pull_request_allowances:
+                                    apps:
+                                        - ""
                                     teams:
                                         - ""
                                     users:
@@ -87,6 +89,8 @@ branch-protection:
                                         - ""
                                 # RequireOwners overrides whether CODEOWNERS must approve PRs if set
                                 require_code_owner_reviews: false
+                                # RequireLastPushApproval overrides whether the most recent push must be approved by someone other than the person who pushed it if set
+                                require_last_push_approval: false
                                 # Approvals overrides the number of approvals required if set
                                 required_approving_review_count: 0
                             # RequiredStatusChecks configures github contexts
@@ -127,8 +131,10 @@ branch-protection:
                     required_linear_history: false
                     # RequiredPullRequestReviews specifies github approval/review criteria.
                     required_pull_request_reviews:
-                        # BypassRestrictions appends users/teams that are allowed to bypass PR restrictions
+                        # BypassRestrictions appends apps/users/teams that are allowed to bypass PR restrictions
                         bypass_pull_request_allowances:
+                            apps:
+                                - ""
                             teams:
                                 - ""
                             users:
@@ -143,6 +149,8 @@ branch-protection:
                                 - ""
                         # RequireOwners overrides whether CODEOWNERS must approve PRs if set
                         require_code_owner_reviews: false
+                        # RequireLastPushApproval overrides whether the most recent push must be approved by someone other than the person who pushed it if set
+                        require_last_push_approval: false
                         # Approvals overrides the number of approvals required if set
                         required_approving_review_count: 0
                     # RequiredStatusChecks configures github contexts
@@ -171,8 +179,10 @@ branch-protection:
             required_linear_history: false
             # RequiredPullRequestReviews specifies github approval/review criteria.
             required_pull_request_reviews:
-                # BypassRestrictions appends users/teams that are allowed to bypass PR restrictions
+                # BypassRestrictions appends apps/users/teams that are allowed to bypass PR restrictions
                 bypass_pull_request_allowances:
+                    apps:
+                        - ""
                     teams:
                         - ""
                     users:
@@ -187,6 +197,8 @@ branch-protection:
                         - ""
                 # RequireOwners overrides whether CODEOWNERS must approve PRs if set
                 require_code_owner_reviews: false
+                # RequireLastPushApproval overrides whether the most recent push must be approved by someone other than the person who pushed it if set
+                require_last_push_approval: false
                 # Approvals overrides the number of approvals required if set
                 required_approving_review_count: 0
             # RequiredStatusChecks configures github contexts
@@ -224,8 +236,10 @@ branch-protection:
     required_linear_history: false
     # RequiredPullRequestReviews specifies github approval/review criteria.
     required_pull_request_reviews:
-        # BypassRestrictions appends users/teams that are allowed to bypass PR restrictions
+        # BypassRestrictions appends apps/users/teams that are allowed to bypass PR restrictions
         bypass_pull_request_allowances:
+            apps:
+                - ""
             teams:
                 - ""
             users:
@@ -240,6 +254,8 @@ branch-protection:
                 - ""
         # RequireOwners overrides whether CODEOWNERS must approve PRs if set
         require_code_owner_reviews: false
+        # RequireLastPushApproval overrides whether the most recent push must be approved by someone other than the person who pushed it if set
+        require_last_push_approval: false
         # Approvals overrides the number of approvals required if set
         required_approving_review_count: 0
     # RequiredStatusChecks configures github contexts

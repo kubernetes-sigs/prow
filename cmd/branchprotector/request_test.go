@@ -89,6 +89,17 @@ func TestMakeReviews(t *testing.T) {
 			},
 		},
 		{
+			name: "require last push approval set",
+			input: &branchprotection.ReviewPolicy{
+				Approvals:               &one,
+				RequireLastPushApproval: &yes,
+			},
+			expected: &github.RequiredPullRequestReviewsRequest{
+				RequiredApprovingReviewCount: 1,
+				RequireLastPushApproval:      true,
+			},
+		},
+		{
 			name: "set all",
 			input: &branchprotection.ReviewPolicy{
 				Approvals:     &one,
@@ -99,6 +110,7 @@ func TestMakeReviews(t *testing.T) {
 					Teams: []string{"megacorp", "startup"},
 				},
 				BypassRestrictions: &branchprotection.BypassRestrictions{
+					Apps:  []string{"bypass-app", "other-app"},
 					Users: []string{"fred", "jane"},
 					Teams: []string{"megacorp", "startup"},
 				},
@@ -112,6 +124,7 @@ func TestMakeReviews(t *testing.T) {
 					Users: &[]string{"fred", "jane"},
 				},
 				BypassRestrictions: github.BypassRestrictionsRequest{
+					Apps:  &[]string{"bypass-app", "other-app"},
 					Teams: &[]string{"megacorp", "startup"},
 					Users: &[]string{"fred", "jane"},
 				},

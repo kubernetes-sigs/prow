@@ -94,7 +94,9 @@ type ReviewPolicy struct {
 	RequireOwners *bool `json:"require_code_owner_reviews,omitempty"`
 	// Approvals overrides the number of approvals required if set
 	Approvals *int `json:"required_approving_review_count,omitempty"`
-	// BypassRestrictions appends users/teams that are allowed to bypass PR restrictions
+	// RequireLastPushApproval overrides whether the most recent push must be approved by someone other than the person who pushed it if set
+	RequireLastPushApproval *bool `json:"require_last_push_approval,omitempty"`
+	// BypassRestrictions appends apps/users/teams that are allowed to bypass PR restrictions
 	BypassRestrictions *BypassRestrictions `json:"bypass_pull_request_allowances,omitempty"`
 }
 
@@ -106,8 +108,9 @@ type DismissalRestrictions struct {
 }
 
 // BypassRestrictions defines who can bypass PR restrictions
-// Users and Teams items are appended to parent lists.
+// Apps, Users and Teams items are appended to parent lists.
 type BypassRestrictions struct {
+	Apps  []string `json:"apps,omitempty"`
 	Users []string `json:"users,omitempty"`
 	Teams []string `json:"teams,omitempty"`
 }
@@ -170,11 +173,12 @@ func mergeReviewPolicy(parent, child *ReviewPolicy) *ReviewPolicy {
 		return child
 	}
 	return &ReviewPolicy{
-		DismissalRestrictions: mergeDismissalRestrictions(parent.DismissalRestrictions, child.DismissalRestrictions),
-		DismissStale:          selectBool(parent.DismissStale, child.DismissStale),
-		RequireOwners:         selectBool(parent.RequireOwners, child.RequireOwners),
-		Approvals:             selectInt(parent.Approvals, child.Approvals),
-		BypassRestrictions:    mergeBypassRestrictions(parent.BypassRestrictions, child.BypassRestrictions),
+		DismissalRestrictions:   mergeDismissalRestrictions(parent.DismissalRestrictions, child.DismissalRestrictions),
+		DismissStale:            selectBool(parent.DismissStale, child.DismissStale),
+		RequireOwners:           selectBool(parent.RequireOwners, child.RequireOwners),
+		Approvals:               selectInt(parent.Approvals, child.Approvals),
+		RequireLastPushApproval: selectBool(parent.RequireLastPushApproval, child.RequireLastPushApproval),
+		BypassRestrictions:      mergeBypassRestrictions(parent.BypassRestrictions, child.BypassRestrictions),
 	}
 }
 
@@ -199,6 +203,7 @@ func mergeBypassRestrictions(parent, child *BypassRestrictions) *BypassRestricti
 		return child
 	}
 	return &BypassRestrictions{
+		Apps:  unionStrings(parent.Apps, child.Apps),
 		Users: unionStrings(parent.Users, child.Users),
 		Teams: unionStrings(parent.Teams, child.Teams),
 	}

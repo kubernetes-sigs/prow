@@ -93,6 +93,14 @@ branch-protection:
           - those
         require_code_owner_reviews: true  # require a code owner approval
         required_approving_review_count: 1 # number of approvals
+        require_last_push_approval: true # the most recent push must be approved by someone other than the pusher
+        bypass_pull_request_allowances: # allow bypassing pull request requirements
+          apps:
+          - github-prow-app
+          users:
+          - her
+          teams:
+          - them
       required_status_checks:
         strict: false # require pr branch to be up to date
         contexts: # checks which must be green to merge
