@@ -2061,6 +2061,7 @@ func TestHasConfigFor(t *testing.T) {
 				fuzzedConfig.Approve = nil
 				fuzzedConfig.Label.RestrictedLabels = nil
 				fuzzedConfig.Lgtm = nil
+				fuzzedConfig.MilestoneApplier = nil
 				fuzzedConfig.Triggers = nil
 				fuzzedConfig.Welcome = nil
 				fuzzedConfig.ExternalPlugins = nil
@@ -2173,6 +2174,22 @@ func TestHasConfigFor(t *testing.T) {
 					}
 				}
 
+				return fuzzedConfig, false, expectOrgs, expectRepos
+			},
+		},
+		{
+			name: "Any config with milestone-applier is considered to be for the orgs and repos references there",
+			resultGenerator: func(fuzzedConfig *Configuration) (toCheck *Configuration, expectGlobal bool, expectOrgs sets.Set[string], expectRepos sets.Set[string]) {
+				fuzzedConfig = &Configuration{MilestoneApplier: fuzzedConfig.MilestoneApplier}
+				expectOrgs, expectRepos = sets.Set[string]{}, sets.Set[string]{}
+
+				for orgOrRepo := range fuzzedConfig.MilestoneApplier {
+					if strings.Contains(orgOrRepo, "/") {
+						expectRepos.Insert(orgOrRepo)
+					} else {
+						expectOrgs.Insert(orgOrRepo)
+					}
+				}
 				return fuzzedConfig, false, expectOrgs, expectRepos
 			},
 		},
@@ -2334,6 +2351,42 @@ func TestMergeFrom(t *testing.T) {
 				},
 			},
 			supplementalConfigs: []Configuration{{ExternalPlugins: map[string][]ExternalPlugin{"foo/bar": {{Name: "refresh", Endpoint: "http://refresh", Events: []string{"issue_comment"}}}}}},
+			errorExpected:       true,
+		},
+		{
+			name: "MilestoneApplier config gets merged",
+			in: Configuration{
+				MilestoneApplier: map[string]BranchToMilestone{
+					"foo/bar": {"main": "v1.0"},
+				},
+			},
+			supplementalConfigs: []Configuration{{MilestoneApplier: map[string]BranchToMilestone{
+				"foo/baz": {"main": "v0.1", "release-0.1": "v0.1"},
+			}}},
+			expected: Configuration{
+				MilestoneApplier: map[string]BranchToMilestone{
+					"foo/bar": {"main": "v1.0"},
+					"foo/baz": {"main": "v0.1", "release-0.1": "v0.1"},
+				},
+			},
+		},
+		{
+			name:                "main config has no MilestoneApplier config, supplemental config has, it gets merged",
+			supplementalConfigs: []Configuration{{MilestoneApplier: map[string]BranchToMilestone{"foo/bar": {"main": "v1.0"}}}},
+			expected: Configuration{
+				MilestoneApplier: map[string]BranchToMilestone{
+					"foo/bar": {"main": "v1.0"},
+				},
+			},
+		},
+		{
+			name: "MilestoneApplier can't merge duplicated configs",
+			in: Configuration{
+				MilestoneApplier: map[string]BranchToMilestone{
+					"foo/bar": {"main": "v1.0"},
+				},
+			},
+			supplementalConfigs: []Configuration{{MilestoneApplier: map[string]BranchToMilestone{"foo/bar": {"main": "v1.0"}}}},
 			errorExpected:       true,
 		},
 	}
