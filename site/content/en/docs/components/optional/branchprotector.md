@@ -93,9 +93,9 @@ branch-protection:
           - those
         require_code_owner_reviews: true  # require a code owner approval
         required_approving_review_count: 1 # number of approvals
-        require_last_push_approval: true # the most recent push must be approved by someone other than the pusher
+        require_last_push_approval: true # the most recent push must be approved by someone other than the pusher (left untouched on GitHub if unset)
         bypass_pull_request_allowances: # allow bypassing pull request requirements
-          apps:
+          apps: # left untouched on GitHub if unset, use [] to remove all apps
           - github-prow-app
           users:
           - her

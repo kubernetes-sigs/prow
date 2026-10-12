@@ -73,8 +73,10 @@ branch-protection:
                             required_pull_request_reviews:
                                 # BypassRestrictions appends apps/users/teams that are allowed to bypass PR restrictions
                                 bypass_pull_request_allowances:
-                                    apps:
-                                        - ""
+                                    # Apps appends apps that are allowed to bypass PR restrictions.
+                                    # If unset, the apps currently configured on GitHub are left untouched,
+                                    # set it to an empty list to remove them.
+                                    apps: null
                                     teams:
                                         - ""
                                     users:
@@ -89,7 +91,8 @@ branch-protection:
                                         - ""
                                 # RequireOwners overrides whether CODEOWNERS must approve PRs if set
                                 require_code_owner_reviews: false
-                                # RequireLastPushApproval overrides whether the most recent push must be approved by someone other than the person who pushed it if set
+                                # RequireLastPushApproval overrides whether the most recent push must be approved by someone other than the person who pushed it if set.
+                                # If unset, the setting currently configured on GitHub is left untouched.
                                 require_last_push_approval: false
                                 # Approvals overrides the number of approvals required if set
                                 required_approving_review_count: 0
@@ -133,8 +136,10 @@ branch-protection:
                     required_pull_request_reviews:
                         # BypassRestrictions appends apps/users/teams that are allowed to bypass PR restrictions
                         bypass_pull_request_allowances:
-                            apps:
-                                - ""
+                            # Apps appends apps that are allowed to bypass PR restrictions.
+                            # If unset, the apps currently configured on GitHub are left untouched,
+                            # set it to an empty list to remove them.
+                            apps: null
                             teams:
                                 - ""
                             users:
@@ -149,7 +154,8 @@ branch-protection:
                                 - ""
                         # RequireOwners overrides whether CODEOWNERS must approve PRs if set
                         require_code_owner_reviews: false
-                        # RequireLastPushApproval overrides whether the most recent push must be approved by someone other than the person who pushed it if set
+                        # RequireLastPushApproval overrides whether the most recent push must be approved by someone other than the person who pushed it if set.
+                        # If unset, the setting currently configured on GitHub is left untouched.
                         require_last_push_approval: false
                         # Approvals overrides the number of approvals required if set
                         required_approving_review_count: 0
@@ -181,8 +187,10 @@ branch-protection:
             required_pull_request_reviews:
                 # BypassRestrictions appends apps/users/teams that are allowed to bypass PR restrictions
                 bypass_pull_request_allowances:
-                    apps:
-                        - ""
+                    # Apps appends apps that are allowed to bypass PR restrictions.
+                    # If unset, the apps currently configured on GitHub are left untouched,
+                    # set it to an empty list to remove them.
+                    apps: null
                     teams:
                         - ""
                     users:
@@ -197,7 +205,8 @@ branch-protection:
                         - ""
                 # RequireOwners overrides whether CODEOWNERS must approve PRs if set
                 require_code_owner_reviews: false
-                # RequireLastPushApproval overrides whether the most recent push must be approved by someone other than the person who pushed it if set
+                # RequireLastPushApproval overrides whether the most recent push must be approved by someone other than the person who pushed it if set.
+                # If unset, the setting currently configured on GitHub is left untouched.
                 require_last_push_approval: false
                 # Approvals overrides the number of approvals required if set
                 required_approving_review_count: 0
@@ -238,8 +247,10 @@ branch-protection:
     required_pull_request_reviews:
         # BypassRestrictions appends apps/users/teams that are allowed to bypass PR restrictions
         bypass_pull_request_allowances:
-            apps:
-                - ""
+            # Apps appends apps that are allowed to bypass PR restrictions.
+            # If unset, the apps currently configured on GitHub are left untouched,
+            # set it to an empty list to remove them.
+            apps: null
             teams:
                 - ""
             users:
@@ -254,7 +265,8 @@ branch-protection:
                 - ""
         # RequireOwners overrides whether CODEOWNERS must approve PRs if set
         require_code_owner_reviews: false
-        # RequireLastPushApproval overrides whether the most recent push must be approved by someone other than the person who pushed it if set
+        # RequireLastPushApproval overrides whether the most recent push must be approved by someone other than the person who pushed it if set.
+        # If unset, the setting currently configured on GitHub is left untouched.
         require_last_push_approval: false
         # Approvals overrides the number of approvals required if set
         required_approving_review_count: 0

@@ -94,7 +94,8 @@ type ReviewPolicy struct {
 	RequireOwners *bool `json:"require_code_owner_reviews,omitempty"`
 	// Approvals overrides the number of approvals required if set
 	Approvals *int `json:"required_approving_review_count,omitempty"`
-	// RequireLastPushApproval overrides whether the most recent push must be approved by someone other than the person who pushed it if set
+	// RequireLastPushApproval overrides whether the most recent push must be approved by someone other than the person who pushed it if set.
+	// If unset, the setting currently configured on GitHub is left untouched.
 	RequireLastPushApproval *bool `json:"require_last_push_approval,omitempty"`
 	// BypassRestrictions appends apps/users/teams that are allowed to bypass PR restrictions
 	BypassRestrictions *BypassRestrictions `json:"bypass_pull_request_allowances,omitempty"`
@@ -110,9 +111,12 @@ type DismissalRestrictions struct {
 // BypassRestrictions defines who can bypass PR restrictions
 // Apps, Users and Teams items are appended to parent lists.
 type BypassRestrictions struct {
-	Apps  []string `json:"apps,omitempty"`
-	Users []string `json:"users,omitempty"`
-	Teams []string `json:"teams,omitempty"`
+	// Apps appends apps that are allowed to bypass PR restrictions.
+	// If unset, the apps currently configured on GitHub are left untouched,
+	// set it to an empty list to remove them.
+	Apps  *[]string `json:"apps,omitempty"`
+	Users []string  `json:"users,omitempty"`
+	Teams []string  `json:"teams,omitempty"`
 }
 
 // Restrictions limits who can merge
@@ -150,6 +154,19 @@ func unionStrings(parent, child []string) []string {
 	s := sets.New[string](parent...)
 	s.Insert(child...)
 	return sets.List(s)
+}
+
+// unionStringPtrs merges the parent and child items together, preserving
+// the distinction between an unset (nil) and an explicitly empty list
+func unionStringPtrs(parent, child *[]string) *[]string {
+	if child == nil {
+		return parent
+	}
+	if parent == nil {
+		return child
+	}
+	u := sets.List(sets.New[string](*parent...).Insert(*child...))
+	return &u
 }
 
 func mergeContextPolicy(parent, child *ContextPolicy) *ContextPolicy {
@@ -203,7 +220,7 @@ func mergeBypassRestrictions(parent, child *BypassRestrictions) *BypassRestricti
 		return child
 	}
 	return &BypassRestrictions{
-		Apps:  unionStrings(parent.Apps, child.Apps),
+		Apps:  unionStringPtrs(parent.Apps, child.Apps),
 		Users: unionStrings(parent.Users, child.Users),
 		Teams: unionStrings(parent.Teams, child.Teams),
 	}

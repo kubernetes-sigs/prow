@@ -783,6 +783,7 @@ branch-protection:
     required_approving_review_count: 3
     dismiss_stale: false
     require_code_owner_reviews: true
+    require_last_push_approval: true
     dismissal_restrictions:
       users:
       - bob
@@ -830,6 +831,7 @@ branch-protection:
 							DismissStaleReviews:          false,
 							RequireCodeOwnerReviews:      true,
 							RequiredApprovingReviewCount: 3,
+							RequireLastPushApproval:      &yes,
 							DismissalRestrictions: github.DismissalRestrictionsRequest{
 								Users: &[]string{"bob", "jane"},
 								Teams: &[]string{"oncall", "sres"},
@@ -1120,6 +1122,126 @@ branch-protection:
 						EnforceAdmins: &yes,
 						RequiredPullRequestReviews: &github.RequiredPullRequestReviewsRequest{
 							RequiredApprovingReviewCount: 3,
+							RequireLastPushApproval:      &no,
+						},
+					},
+				},
+			},
+		},
+		{
+			name:     "unset last push approval and bypass apps are preserved from current state",
+			branches: []string{"kubernetes/test-infra=master"},
+			config: `
+branch-protection:
+  required_pull_request_reviews:
+    required_approving_review_count: 2
+    bypass_pull_request_allowances:
+      users:
+      - bypass_bob
+  protect: true
+  orgs:
+    kubernetes:
+      repos:
+        test-infra:
+`,
+			branchProtections: map[string]github.BranchProtection{
+				"kubernetes/test-infra=master": {
+					RequiredPullRequestReviews: &github.RequiredPullRequestReviews{
+						RequiredApprovingReviewCount: 1,
+						RequireLastPushApproval:      true,
+						BypassRestrictions: &github.BypassRestrictions{
+							Apps: []github.App{{Slug: "manual-app"}},
+						},
+					},
+				},
+			},
+			expected: []requirements{
+				{
+					Org:    "kubernetes",
+					Repo:   "test-infra",
+					Branch: "master",
+					Request: &github.BranchProtectionRequest{
+						EnforceAdmins: &no,
+						RequiredPullRequestReviews: &github.RequiredPullRequestReviewsRequest{
+							RequiredApprovingReviewCount: 2,
+							RequireLastPushApproval:      &yes,
+							BypassRestrictions: github.BypassRestrictionsRequest{
+								Apps:  &[]string{"manual-app"},
+								Users: &[]string{"bypass_bob"},
+								Teams: &[]string{},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:     "no request if unset last push approval and bypass apps only differ from current state",
+			branches: []string{"kubernetes/test-infra=master"},
+			config: `
+branch-protection:
+  required_pull_request_reviews:
+    required_approving_review_count: 1
+  protect: true
+  orgs:
+    kubernetes:
+      repos:
+        test-infra:
+`,
+			branchProtections: map[string]github.BranchProtection{
+				"kubernetes/test-infra=master": {
+					RequiredPullRequestReviews: &github.RequiredPullRequestReviews{
+						RequiredApprovingReviewCount: 1,
+						RequireLastPushApproval:      true,
+						BypassRestrictions: &github.BypassRestrictions{
+							Apps: []github.App{{Slug: "manual-app"}},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:     "explicitly disabled last push approval and empty bypass apps override current state",
+			branches: []string{"kubernetes/test-infra=master"},
+			config: `
+branch-protection:
+  required_pull_request_reviews:
+    required_approving_review_count: 1
+    require_last_push_approval: false
+    bypass_pull_request_allowances:
+      apps: []
+  protect: true
+  orgs:
+    kubernetes:
+      repos:
+        test-infra:
+`,
+			branchProtections: map[string]github.BranchProtection{
+				"kubernetes/test-infra=master": {
+					RequiredPullRequestReviews: &github.RequiredPullRequestReviews{
+						RequiredApprovingReviewCount: 1,
+						RequireLastPushApproval:      true,
+						BypassRestrictions: &github.BypassRestrictions{
+							Apps: []github.App{{Slug: "manual-app"}},
+						},
+					},
+				},
+			},
+			expected: []requirements{
+				{
+					Org:    "kubernetes",
+					Repo:   "test-infra",
+					Branch: "master",
+					Request: &github.BranchProtectionRequest{
+						EnforceAdmins: &no,
+						RequiredPullRequestReviews: &github.RequiredPullRequestReviewsRequest{
+							RequiredApprovingReviewCount: 1,
+							RequireLastPushApproval:      &no,
+							BypassRestrictions: github.BypassRestrictionsRequest{
+								Apps:  &[]string{},
+								Users: &[]string{},
+								Teams: &[]string{},
+							},
 						},
 					},
 				},
@@ -2296,9 +2418,20 @@ func TestEqualRequiredPullRequestReviews(t *testing.T) {
 			},
 			request: &github.RequiredPullRequestReviewsRequest{
 				RequiredApprovingReviewCount: 1,
-				RequireLastPushApproval:      false,
+				RequireLastPushApproval:      new(bool),
 			},
 			expected: false,
+		},
+		{
+			name: "unset last push approval is ignored",
+			state: &github.RequiredPullRequestReviews{
+				RequiredApprovingReviewCount: 1,
+				RequireLastPushApproval:      true,
+			},
+			request: &github.RequiredPullRequestReviewsRequest{
+				RequiredApprovingReviewCount: 1,
+			},
+			expected: true,
 		},
 		{
 			name: "not matching on restrictions",
