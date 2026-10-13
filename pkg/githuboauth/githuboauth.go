@@ -169,6 +169,7 @@ func (ga *Agent) HandleLogin(client OAuthClient, secure bool) http.HandlerFunc {
 		newClient, err := client.WithFinalRedirectURL(destPage)
 		if err != nil {
 			ga.serverErrorAndPrint(w, "Failed to parse redirect URL", err)
+			return
 		}
 		redirectURL := newClient.AuthCodeURL(state, oauth2.ApprovalForce, oauth2.AccessTypeOnline)
 		http.Redirect(w, r, redirectURL, http.StatusFound)

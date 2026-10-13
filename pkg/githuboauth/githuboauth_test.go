@@ -152,6 +152,25 @@ func TestHandleLogin(t *testing.T) {
 	}
 }
 
+func TestHandleLoginWithInvalidRedirectURL(t *testing.T) {
+	cookie := sessions.NewCookieStore([]byte("secret-key"))
+	mockConfig := getMockConfig(cookie)
+	mockConfig.RedirectURL = "https://example.com/%"
+	mockAgent := NewAgent(mockConfig, logrus.WithField("uni-test", "githuboauth"))
+	oauthClient := NewClient(&oauth2.Config{RedirectURL: mockConfig.RedirectURL})
+
+	mockRequest := httptest.NewRequest(http.MethodGet, "/mock-login?dest=wherever", nil)
+	mockResponse := httptest.NewRecorder()
+
+	mockAgent.HandleLogin(oauthClient, false).ServeHTTP(mockResponse, mockRequest)
+	if mockResponse.Code != http.StatusInternalServerError {
+		t.Errorf("Unexpected status code. Got %v, expected %v", mockResponse.Code, http.StatusInternalServerError)
+	}
+	if location := mockResponse.Header().Get("Location"); location != "" {
+		t.Errorf("Unexpected authorization redirect: %s", location)
+	}
+}
+
 func TestHandleLogout(t *testing.T) {
 	cookie := sessions.NewCookieStore([]byte("secret-key"))
 	mockConfig := getMockConfig(cookie)
