@@ -143,6 +143,10 @@ func (o *options) parseArgs(flags *flag.FlagSet, args []string) error {
 		return fmt.Errorf("--config-path=%s and --dump=%s cannot both be set", o.config, o.dump)
 	}
 
+	if o.reportPath != "" && o.dump != "" {
+		return fmt.Errorf("--report-path=%s cannot be used with --dump=%s: --dump makes no changes to report", o.reportPath, o.dump)
+	}
+
 	if o.dumpFull && o.dump == "" {
 		return errors.New("--dump-full can't be used without --dump")
 	}
@@ -204,42 +208,64 @@ func main() {
 		logrus.WithError(err).Fatal("Failed to load configuration")
 	}
 
-	report := newChangeReport(!o.confirm)
+	// Create the report file before reconciling so a bad path, missing directory
+	// or permissions problem fails fast, rather than after a --confirm run has
+	// already applied changes it cannot reproduce on a re-run.
+	var (
+		reportFile *os.File
+		report     *changeReport
+	)
+	if o.reportPath != "" {
+		reportFile, err = os.Create(o.reportPath)
+		if err != nil {
+			logrus.WithError(err).Fatalf("Failed to create change report file %s", o.reportPath)
+		}
+		report = newChangeReport(!o.confirm)
+	}
+	// When --report-path is unset report stays nil, which every record path treats
+	// as a no-op, so nothing is accumulated for runs that did not opt in.
+
+	var configErr error
 	for name, orgcfg := range cfg.Orgs {
 		if err := configureOrg(o, githubClient, name, orgcfg, report); err != nil {
-			logrus.Fatalf("Configuration failed: %v", err)
+			configErr = err
+			break
 		}
 	}
-	logrus.Info("Finished syncing configuration.")
 
-	emitReport(o, report)
+	// Write the report before exiting, even when an org failed: a --confirm run may
+	// have already applied changes to earlier orgs, and the report is the record of
+	// what it did. os.Exit (via Fatalf) skips deferred calls, so this must run
+	// explicitly before the fatal below.
+	emitReport(reportFile, report)
+
+	if configErr != nil {
+		logrus.Fatalf("Configuration failed: %v", configErr)
+	}
+	logrus.Info("Finished syncing configuration.")
 }
 
 // emitReport writes the end-of-run change report, as machine-readable JSON, to
-// --report-path. It is a no-op unless --report-path is set: peribolos writes
-// nothing to stdout or the log stream for the report, so runs that do not opt in
-// keep their pre-existing output untouched (tooling parsing those streams is
-// unaffected). It never fails the run: the reconciliation has already completed
-// by the time it is called.
-func emitReport(o options, report *changeReport) {
-	if o.reportPath == "" {
+// the file opened for --report-path. It is a no-op when f is nil (the flag was
+// unset): peribolos writes nothing to stdout or the log stream for the report, so
+// runs that do not opt in keep their pre-existing output untouched (tooling
+// parsing those streams is unaffected). The file is opened before reconciliation
+// (see main), so by the time this runs only a write/flush error remains, which it
+// logs without failing the already-completed run.
+func emitReport(f *os.File, report *changeReport) {
+	if f == nil {
 		return
 	}
 	out := report.output()
-	f, err := os.Create(o.reportPath)
-	if err != nil {
-		logrus.WithError(err).Errorf("Failed to create change report file %s", o.reportPath)
-		return
-	}
 	// Check the Close error too: buffered data may only be flushed (and fail, e.g.
 	// ENOSPC) at Close, which would otherwise leave a truncated report unnoticed.
 	writeErr := writeJSONReport(f, out)
 	closeErr := f.Close()
 	switch {
 	case writeErr != nil:
-		logrus.WithError(writeErr).Errorf("Failed to write change report to %s", o.reportPath)
+		logrus.WithError(writeErr).Errorf("Failed to write change report to %s", f.Name())
 	case closeErr != nil:
-		logrus.WithError(closeErr).Errorf("Failed to close change report file %s", o.reportPath)
+		logrus.WithError(closeErr).Errorf("Failed to close change report file %s", f.Name())
 	}
 }
 
@@ -702,6 +728,12 @@ func configureOrgMembers(opt options, client orgClient, orgName string, orgConfi
 	have.normalize()
 	want.normalize()
 
+	// Snapshot the true current membership before any reconciliation-only filtering
+	// below strips it. The report classifies add vs update (and the prior role)
+	// against this, so --ignore-enterprise-teams does not misreport an enterprise
+	// member's demotion as a plain add, or a no-op PUT as an add.
+	reportHave := memberships{members: have.members.Clone(), super: have.super.Clone()}
+
 	if opt.ignoreEnterpriseTeams {
 		allTeams, err := client.ListTeams(orgName)
 		if err != nil {
@@ -788,7 +820,7 @@ func configureOrgMembers(opt options, client orgClient, orgName string, orgConfi
 		}
 		// Record only after the call succeeds (in dry-run the call is a no-op that
 		// returns no error), so the report reflects memberships that actually changed.
-		report.recordMemberAdd(kindOrgMember, orgName, "", user, have, super)
+		report.recordMemberAdd(kindOrgMember, orgName, "", user, reportHave, super)
 		if om.State == github.StatePending {
 			logrus.Infof("Invited %s to %s as a %s", user, orgName, role)
 			// Track the new invitation so role assignment can skip this user
@@ -800,12 +832,12 @@ func configureOrgMembers(opt options, client orgClient, orgName string, orgConfi
 	}
 
 	remover := func(user string) error {
-		report.recordMemberRemove(kindOrgMember, orgName, "", user, have)
-		err := client.RemoveOrgMembership(orgName, user)
-		if err != nil {
+		if err := client.RemoveOrgMembership(orgName, user); err != nil {
 			logrus.WithError(err).Warnf("RemoveOrgMembership(%s, %s) failed", orgName, user)
+			return err
 		}
-		return err
+		report.recordMemberRemove(kindOrgMember, orgName, "", user, reportHave)
+		return nil
 	}
 
 	return configureMembers(have, want, invitees, adder, remover)
@@ -1087,8 +1119,10 @@ func configureTeams(client teamClient, orgName string, orgConfig org.Config, max
 	}
 	// Delete undeclared teams.
 	for slug := range unused {
-		report.record(change{Kind: kindTeam, Org: orgName, Target: teams[slug].Name, Action: actionRemove})
-		if err := client.DeleteTeamBySlug(orgName, slug); err != nil {
+		c := change{Kind: kindTeam, Org: orgName, Target: teams[slug].Name, Action: actionRemove}
+		if err := report.recordOnSuccess(c, func() error {
+			return client.DeleteTeamBySlug(orgName, slug)
+		}); err != nil {
 			str := fmt.Sprintf("%s(%s)", slug, teams[slug].Name)
 			logrus.WithError(err).Warnf("Failed to delete team %s from %s", str, orgName)
 			failures = append(failures, str)
@@ -1166,7 +1200,7 @@ func configureOrgMeta(client orgMetadataClient, orgName string, want org.Metadat
 		if _, err := client.EditOrg(orgName, *cur); err != nil {
 			return fmt.Errorf("failed to edit %s metadata: %w", orgName, err)
 		}
-		report.record(change{Kind: kindOrgMeta, Org: orgName, Target: orgName, Action: actionUpdate, After: changed})
+		report.record(change{Kind: kindOrgMeta, Org: orgName, Target: orgName, Action: actionUpdate, ChangedFields: changed})
 	}
 	return nil
 }
@@ -1411,11 +1445,15 @@ func newRepoUpdateRequest(current github.FullRepo, name string, repo org.Repo) g
 // changedRepoFields returns the json names of the fields set (non-nil pointers)
 // in a repo update delta, for the change report. The names are read from the
 // struct's json tags by reflection, so the report cannot drift from the
-// RepoUpdateRequest definition: every non-nil pointer field is reported. Note
-// that RepoRequest.Defined() (which gates whether the update is applied at all)
-// inspects only a hand-maintained subset of fields, so it is not a complete
-// mirror of this walk; see OCPCRT-788. It intentionally reports field names, not
-// values.
+// RepoUpdateRequest definition: every non-nil pointer field is reported. It
+// intentionally reports field names, not values.
+//
+// This is only reached when RepoUpdateRequest.Defined() is true, which gates
+// whether the update is applied at all. Defined() checks a hand-maintained
+// subset of fields and does not look at SquashMergeCommitTitle or
+// SquashMergeCommitMessage, so a delta whose only changes are those two fields is
+// neither applied nor reported. That is a pre-existing gate limitation, not
+// specific to the report.
 func changedRepoFields(delta github.RepoUpdateRequest) []string {
 	return setPointerJSONFields(reflect.ValueOf(delta))
 }
@@ -1547,10 +1585,11 @@ func configureRepos(opt options, client repoClient, orgName string, orgConfig or
 			}
 			if delta.Defined() {
 				repoLogger.Info("repo exists and differs from desired state, updating")
-				report.record(change{Kind: kindRepo, Org: orgName, Target: wantName, Action: actionUpdate, After: changedRepoFields(delta)})
 				if _, err := client.UpdateRepo(orgName, existing.Name, delta); err != nil {
 					repoLogger.WithError(err).Error("failed to update repository")
 					allErrors = append(allErrors, err)
+				} else {
+					report.record(change{Kind: kindRepo, Org: orgName, Target: wantName, Action: actionUpdate, ChangedFields: changedRepoFields(delta)})
 				}
 			}
 		}
@@ -1569,6 +1608,15 @@ type collaboratorClient interface {
 	RemoveCollaborator(org, repo, user string) error
 	UpdateCollaboratorPermission(org, repo, user string, permission github.RepoPermissionLevel) error
 	ListRepoInvitations(org, repo string) ([]github.CollaboratorRepoInvitation, error)
+}
+
+// plannedChange pairs a permission to apply with the report entry to record if the
+// apply succeeds. Keeping both in one map value (rather than two parallel maps)
+// means a reconcile action and its report entry cannot drift apart. github.None
+// as perm means "remove". Used by configureCollaborators and configureTeamRepos.
+type plannedChange struct {
+	perm   github.RepoPermissionLevel
+	change change
 }
 
 // configureCollaborators updates the list of repository collaborators when necessary
@@ -1609,8 +1657,10 @@ func configureCollaborators(client collaboratorClient, orgName, repoName string,
 	currentCollaborators := newCollaboratorMap(currentCollaboratorsRaw)
 	combinedCollaborators := newCollaboratorMap(combinedCollaboratorsRaw)
 
-	// Determine what actions to take
-	actions := map[string]github.RepoPermissionLevel{}
+	// Determine what actions to take. Each entry pairs the permission to apply with
+	// the change to record if that apply succeeds, so the two cannot drift apart
+	// (see the change type's recording rule).
+	actions := map[string]plannedChange{}
 
 	// Process wanted collaborators using normalized approach
 	wantedCollaborators := newCollaboratorMap(want)
@@ -1631,18 +1681,15 @@ func configureCollaborators(client collaboratorClient, orgName, repoName string,
 			continue
 		}
 
-		// Need to create or update this permission
-		actions[wantUser] = wantPermission
-
 		// Determine the appropriate action and log message
 		if currentInfo, exists := currentCollaborators.collaborators[normalizedUser]; exists {
-			report.record(change{Kind: kindCollaborator, Org: orgName, Scope: repoName, Target: wantUser, Action: actionUpdate, Before: currentInfo.permission, After: wantPermission})
+			actions[wantUser] = plannedChange{perm: wantPermission, change: change{Kind: kindCollaborator, Org: orgName, Scope: repoName, Target: normalizedUser, Action: actionUpdate, Before: string(currentInfo.permission), After: string(wantPermission)}}
 			logrus.Infof("Will update collaborator %s with %s permission", wantUser, wantPermission)
 		} else if pendingPermission, hasPendingInvitation := pendingInvitations[normalizedUser]; hasPendingInvitation {
-			report.record(change{Kind: kindCollaborator, Org: orgName, Scope: repoName, Target: wantUser, Action: actionUpdate, Before: pendingPermission, After: wantPermission})
+			actions[wantUser] = plannedChange{perm: wantPermission, change: change{Kind: kindCollaborator, Org: orgName, Scope: repoName, Target: normalizedUser, Action: actionUpdate, Before: string(pendingPermission), After: string(wantPermission)}}
 			logrus.Infof("Will update pending invitation for %s from %s to %s permission", wantUser, pendingPermission, wantPermission)
 		} else {
-			report.record(change{Kind: kindCollaborator, Org: orgName, Scope: repoName, Target: wantUser, Action: actionAdd, After: wantPermission})
+			actions[wantUser] = plannedChange{perm: wantPermission, change: change{Kind: kindCollaborator, Org: orgName, Scope: repoName, Target: normalizedUser, Action: actionAdd, After: string(wantPermission)}}
 			logrus.Infof("Will add collaborator %s with %s permission", wantUser, wantPermission)
 		}
 	}
@@ -1653,8 +1700,7 @@ func configureCollaborators(client collaboratorClient, orgName, repoName string,
 		// Check if this user (normalized) is in our wanted config
 		if _, exists := wantedCollaborators.collaborators[normalizedCurrentUser]; !exists {
 			originalName := combinedCollaborators.originalName(normalizedCurrentUser)
-			actions[originalName] = github.None
-			report.record(change{Kind: kindCollaborator, Org: orgName, Scope: repoName, Target: originalName, Action: actionRemove, Before: combinedCollaborators.collaborators[normalizedCurrentUser].permission})
+			actions[originalName] = plannedChange{perm: github.None, change: change{Kind: kindCollaborator, Org: orgName, Scope: repoName, Target: normalizedCurrentUser, Action: actionRemove, Before: string(combinedCollaborators.collaborators[normalizedCurrentUser].permission)}}
 
 			// Check if this is a pending invitation
 			if _, isPending := pendingInvitations[normalizedCurrentUser]; isPending {
@@ -1667,7 +1713,8 @@ func configureCollaborators(client collaboratorClient, orgName, repoName string,
 
 	// Execute the actions
 	var updateErrors []error
-	for user, permission := range actions {
+	for user, pa := range actions {
+		permission := pa.perm
 		var err error
 		switch permission {
 		case github.None:
@@ -1714,6 +1761,8 @@ func configureCollaborators(client collaboratorClient, orgName, repoName string,
 
 		if err != nil {
 			updateErrors = append(updateErrors, fmt.Errorf("failed to update %s/%s collaborator %s to %s: %w", orgName, repoName, user, permission, err))
+		} else {
+			report.record(pa.change)
 		}
 	}
 
@@ -1781,7 +1830,11 @@ func configureTeam(client editTeamClient, orgName, teamName string, team org.Tea
 		changed = append(changed, "name")
 	}
 	gt.Name = teamName
-	if team.Description != nil && gt.Description != *team.Description {
+	// github.Team.Description is json:"description,omitempty", so EditTeam cannot
+	// send an empty description: an empty target leaves the existing value in place.
+	// Only treat (and report) description as changed when the target is non-empty,
+	// so the report does not claim a change the PATCH cannot make.
+	if team.Description != nil && *team.Description != "" && gt.Description != *team.Description {
 		changed = append(changed, "description")
 		gt.Description = *team.Description
 	} else {
@@ -1818,7 +1871,7 @@ func configureTeam(client editTeamClient, orgName, teamName string, team org.Tea
 		if err != nil {
 			return nil, fmt.Errorf("failed to edit %s team %s(%s): %w", orgName, gt.Slug, gt.Name, err)
 		}
-		report.record(change{Kind: kindTeam, Org: orgName, Target: teamName, Action: actionUpdate, After: changed})
+		report.record(change{Kind: kindTeam, Org: orgName, Target: teamName, Action: actionUpdate, ChangedFields: changed})
 		return updated, nil
 	}
 	return nil, nil
@@ -1847,31 +1900,32 @@ func configureTeamRepos(client teamRepoClient, githubTeams map[string]github.Tea
 		have[repo.Name] = github.LevelFromPermissions(repo.Permissions)
 	}
 
-	actions := map[string]github.RepoPermissionLevel{}
+	// Each entry pairs the permission to apply with the change to record if that
+	// apply succeeds, so the two cannot drift apart (see the change recording rule).
+	actions := map[string]plannedChange{}
 	for wantRepo, wantPermission := range want {
 		if havePermission, haveRepo := have[wantRepo]; haveRepo && havePermission == wantPermission {
 			// nothing to do
 			continue
 		}
 		// create or update this permission
-		actions[wantRepo] = wantPermission
 		if havePermission, haveRepo := have[wantRepo]; haveRepo {
-			report.record(change{Kind: kindTeamRepo, Org: orgName, Scope: name, Target: wantRepo, Action: actionUpdate, Before: havePermission, After: wantPermission})
+			actions[wantRepo] = plannedChange{perm: wantPermission, change: change{Kind: kindTeamRepo, Org: orgName, Scope: name, Target: wantRepo, Action: actionUpdate, Before: string(havePermission), After: string(wantPermission)}}
 		} else {
-			report.record(change{Kind: kindTeamRepo, Org: orgName, Scope: name, Target: wantRepo, Action: actionAdd, After: wantPermission})
+			actions[wantRepo] = plannedChange{perm: wantPermission, change: change{Kind: kindTeamRepo, Org: orgName, Scope: name, Target: wantRepo, Action: actionAdd, After: string(wantPermission)}}
 		}
 	}
 
 	for haveRepo, havePermission := range have {
 		if _, wantRepo := want[haveRepo]; !wantRepo {
 			// should remove these permissions
-			actions[haveRepo] = github.None
-			report.record(change{Kind: kindTeamRepo, Org: orgName, Scope: name, Target: haveRepo, Action: actionRemove, Before: havePermission})
+			actions[haveRepo] = plannedChange{perm: github.None, change: change{Kind: kindTeamRepo, Org: orgName, Scope: name, Target: haveRepo, Action: actionRemove, Before: string(havePermission)}}
 		}
 	}
 
 	var updateErrors []error
-	for repo, permission := range actions {
+	for repo, pa := range actions {
+		permission := pa.perm
 		var err error
 		switch permission {
 		case github.None:
@@ -1890,6 +1944,8 @@ func configureTeamRepos(client teamRepoClient, githubTeams map[string]github.Tea
 
 		if err != nil {
 			updateErrors = append(updateErrors, fmt.Errorf("failed to update team %d(%s) permissions on repo %s to %s: %w", gt.ID, name, repo, permission, err))
+		} else {
+			report.record(pa.change)
 		}
 	}
 
@@ -2041,8 +2097,10 @@ func configureRoleTeamAssignments(client orgRolesClient, orgName, roleName strin
 	var errors []error
 	toAdd := wantSet.Difference(haveSet)
 	for teamSlug := range toAdd {
-		report.record(change{Kind: kindOrgRoleTeam, Org: orgName, Scope: roleName, Target: teamSlug, Action: actionAdd})
-		if err := client.AssignOrganizationRoleToTeam(orgName, teamSlug, roleID); err != nil {
+		c := change{Kind: kindOrgRoleTeam, Org: orgName, Scope: roleName, Target: teamSlug, Action: actionAdd}
+		if err := report.recordOnSuccess(c, func() error {
+			return client.AssignOrganizationRoleToTeam(orgName, teamSlug, roleID)
+		}); err != nil {
 			errors = append(errors, fmt.Errorf("failed to assign role %s to team %s: %w", roleName, teamSlug, err))
 			logrus.WithError(err).Warnf("Failed to assign role %s to team %s", roleName, teamSlug)
 		} else {
@@ -2053,8 +2111,10 @@ func configureRoleTeamAssignments(client orgRolesClient, orgName, roleName strin
 	// Teams to remove
 	toRemove := haveSet.Difference(wantSet)
 	for teamSlug := range toRemove {
-		report.record(change{Kind: kindOrgRoleTeam, Org: orgName, Scope: roleName, Target: teamSlug, Action: actionRemove})
-		if err := client.RemoveOrganizationRoleFromTeam(orgName, teamSlug, roleID); err != nil {
+		c := change{Kind: kindOrgRoleTeam, Org: orgName, Scope: roleName, Target: teamSlug, Action: actionRemove}
+		if err := report.recordOnSuccess(c, func() error {
+			return client.RemoveOrganizationRoleFromTeam(orgName, teamSlug, roleID)
+		}); err != nil {
 			errors = append(errors, fmt.Errorf("failed to remove role %s from team %s: %w", roleName, teamSlug, err))
 			logrus.WithError(err).Warnf("Failed to remove role %s from team %s", roleName, teamSlug)
 		} else {
@@ -2118,8 +2178,10 @@ func configureRoleUserAssignments(client orgRolesClient, orgName, roleName strin
 			logrus.Infof("Waiting for %s to accept org invitation before assigning role %s", originalUser, roleName)
 			continue
 		}
-		report.record(change{Kind: kindOrgRoleUser, Org: orgName, Scope: roleName, Target: originalUser, Action: actionAdd})
-		if err := client.AssignOrganizationRoleToUser(orgName, originalUser, roleID); err != nil {
+		c := change{Kind: kindOrgRoleUser, Org: orgName, Scope: roleName, Target: normalizedUser, Action: actionAdd}
+		if err := report.recordOnSuccess(c, func() error {
+			return client.AssignOrganizationRoleToUser(orgName, originalUser, roleID)
+		}); err != nil {
 			errors = append(errors, fmt.Errorf("failed to assign role %s to user %s: %w", roleName, originalUser, err))
 			logrus.WithError(err).Warnf("Failed to assign role %s to user %s", roleName, originalUser)
 		} else {
@@ -2131,8 +2193,10 @@ func configureRoleUserAssignments(client orgRolesClient, orgName, roleName strin
 	toRemove := haveSet.Difference(wantSet)
 	for normalizedUser := range toRemove {
 		originalUser := haveMap[normalizedUser]
-		report.record(change{Kind: kindOrgRoleUser, Org: orgName, Scope: roleName, Target: originalUser, Action: actionRemove})
-		if err := client.RemoveOrganizationRoleFromUser(orgName, originalUser, roleID); err != nil {
+		c := change{Kind: kindOrgRoleUser, Org: orgName, Scope: roleName, Target: normalizedUser, Action: actionRemove}
+		if err := report.recordOnSuccess(c, func() error {
+			return client.RemoveOrganizationRoleFromUser(orgName, originalUser, roleID)
+		}); err != nil {
 			errors = append(errors, fmt.Errorf("failed to remove role %s from user %s: %w", roleName, originalUser, err))
 			logrus.WithError(err).Warnf("Failed to remove role %s from user %s", roleName, originalUser)
 		} else {
@@ -2214,31 +2278,32 @@ func configureTeamMembers(client teamMembersClient, orgName, teamName string, gt
 		if super {
 			role = github.RoleMaintainer
 		}
-		report.recordMemberAdd(kindTeamMember, orgName, teamName, user, haveNorm, super)
 		tm, err := client.UpdateTeamMembershipBySlug(orgName, gt.Slug, user, super)
 		if err != nil {
 			// Augment the error with the operation we attempted so that the error makes sense after return
 			err = fmt.Errorf("UpdateTeamMembership(%s(%s), %s, %t) failed: %w", gt.Slug, gt.Name, user, super, err)
 			logrus.Warnf("%s", err.Error())
-		} else if tm.State == github.StatePending {
+			return err
+		}
+		report.recordMemberAdd(kindTeamMember, orgName, teamName, user, haveNorm, super)
+		if tm.State == github.StatePending {
 			logrus.Infof("Invited %s to %s(%s) as a %s", user, gt.Slug, gt.Name, role)
 		} else {
 			logrus.Infof("Set %s as a %s of %s(%s)", user, role, gt.Slug, gt.Name)
 		}
-		return err
+		return nil
 	}
 
 	remover := func(user string) error {
-		report.recordMemberRemove(kindTeamMember, orgName, teamName, user, haveNorm)
-		err := client.RemoveTeamMembershipBySlug(orgName, gt.Slug, user)
-		if err != nil {
+		if err := client.RemoveTeamMembershipBySlug(orgName, gt.Slug, user); err != nil {
 			// Augment the error with the operation we attempted so that the error makes sense after return
 			err = fmt.Errorf("RemoveTeamMembership(%s(%s), %s) failed: %w", gt.Slug, gt.Name, user, err)
 			logrus.Warnf("%s", err.Error())
-		} else {
-			logrus.Infof("Removed %s from team %s(%s)", user, gt.Slug, gt.Name)
+			return err
 		}
-		return err
+		report.recordMemberRemove(kindTeamMember, orgName, teamName, user, haveNorm)
+		logrus.Infof("Removed %s from team %s(%s)", user, gt.Slug, gt.Name)
+		return nil
 	}
 
 	want := memberships{members: wantMembers, super: wantMaintainers}

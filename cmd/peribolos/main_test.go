@@ -109,6 +109,22 @@ func TestOptions(t *testing.T) {
 			args: []string{"--config-path=foo", "--dump=frogger"},
 		},
 		{
+			name: "reject report-path with dump",
+			args: []string{"--dump=frogger", "--report-path=/tmp/report.json"},
+		},
+		{
+			name: "allow report-path with config",
+			args: []string{"--config-path=foo", "--report-path=/tmp/report.json"},
+			expected: &options{
+				config:       "foo",
+				minAdmins:    defaultMinAdmins,
+				requireSelf:  true,
+				maximumDelta: defaultDelta,
+				reportPath:   "/tmp/report.json",
+				logLevel:     "info",
+			},
+		},
+		{
 			name: "reject --fix-team-members without --fix-teams",
 			args: []string{"--config-path=foo", "--fix-team-members"},
 		},
@@ -1372,6 +1388,7 @@ func TestConfigureTeams(t *testing.T) {
 func TestConfigureTeam(t *testing.T) {
 	old := "old value"
 	cur := "current value"
+	empty := ""
 	fail := "fail"
 	pfail := org.Privacy(fail)
 	whatev := "whatever"
@@ -1524,6 +1541,28 @@ func TestConfigureTeam(t *testing.T) {
 				Description: whatev,
 			},
 			err: true,
+		},
+		{
+			// github.Team.Description is omitempty, so EditTeam cannot clear a
+			// description to empty; peribolos must not patch (or report) it.
+			name:     "do not patch team when description cleared to empty",
+			teamName: whatev,
+			parent:   nil,
+			config: org.Team{
+				TeamMetadata: org.TeamMetadata{
+					Description: &empty,
+				},
+			},
+			github: github.Team{
+				ID:          6,
+				Name:        whatev,
+				Description: old,
+			},
+			expected: github.Team{
+				ID:          6,
+				Name:        whatev,
+				Description: old,
+			},
 		},
 	}
 

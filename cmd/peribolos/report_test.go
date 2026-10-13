@@ -19,6 +19,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -36,6 +37,42 @@ func TestChangeReportNilSafe(t *testing.T) {
 	r.record(change{Kind: kindOrgMember, Org: "o", Target: "u", Action: actionAdd})
 	r.recordMemberAdd(kindOrgMember, "o", "", "u", memberships{}, true)
 	r.recordMemberRemove(kindOrgMember, "o", "", "u", memberships{})
+	called := false
+	if err := r.recordOnSuccess(change{Kind: kindTeam, Org: "o", Target: "t", Action: actionRemove}, func() error {
+		called = true
+		return nil
+	}); err != nil {
+		t.Errorf("recordOnSuccess on nil receiver returned %v, want nil", err)
+	}
+	if !called {
+		t.Error("recordOnSuccess must still run the call on a nil receiver")
+	}
+}
+
+// TestRecordOnSuccess pins the recording rule: the change is recorded iff the
+// wrapped call returns nil, and the call's error is passed through.
+func TestRecordOnSuccess(t *testing.T) {
+	t.Run("records on success", func(t *testing.T) {
+		r := newChangeReport(false)
+		c := change{Kind: kindTeam, Org: "o", Target: "t", Action: actionRemove}
+		if err := r.recordOnSuccess(c, func() error { return nil }); err != nil {
+			t.Fatalf("recordOnSuccess returned %v, want nil", err)
+		}
+		if diff := cmp.Diff([]change{c}, r.output().Changes); diff != "" {
+			t.Errorf("recorded changes mismatch (-want +got):\n%s", diff)
+		}
+	})
+	t.Run("does not record on error", func(t *testing.T) {
+		r := newChangeReport(false)
+		wantErr := errors.New("boom")
+		c := change{Kind: kindTeam, Org: "o", Target: "t", Action: actionRemove}
+		if err := r.recordOnSuccess(c, func() error { return wantErr }); err != wantErr {
+			t.Fatalf("recordOnSuccess returned %v, want %v", err, wantErr)
+		}
+		if got := r.output().Changes; len(got) != 0 {
+			t.Errorf("recorded %v on a failed call, want nothing", got)
+		}
+	})
 }
 
 func TestChangeReportOutput(t *testing.T) {
@@ -71,16 +108,27 @@ func TestRecordMemberAdd(t *testing.T) {
 	have := memberships{members: sets.New("carol"), super: sets.New("dave")}
 
 	cases := []struct {
-		name  string
-		kind  string
-		user  string
-		super bool
-		want  change
+		name     string
+		kind     string
+		user     string
+		super    bool
+		want     change
+		wantNone bool // expect nothing recorded (a no-op)
 	}{
 		{
 			name: "new org member",
 			kind: kindOrgMember, user: "erin", super: false,
 			want: change{Kind: kindOrgMember, Org: "o", Target: "erin", Action: actionAdd, After: "member"},
+		},
+		{
+			name: "member already member is a no-op",
+			kind: kindOrgMember, user: "carol", super: false,
+			wantNone: true,
+		},
+		{
+			name: "admin already admin is a no-op",
+			kind: kindOrgMember, user: "dave", super: true,
+			wantNone: true,
 		},
 		{
 			name: "new org admin",
@@ -111,7 +159,11 @@ func TestRecordMemberAdd(t *testing.T) {
 				scope = "t"
 			}
 			r.recordMemberAdd(tc.kind, "o", scope, tc.user, have, tc.super)
-			if diff := cmp.Diff([]change{tc.want}, r.output().Changes); diff != "" {
+			want := []change{}
+			if !tc.wantNone {
+				want = []change{tc.want}
+			}
+			if diff := cmp.Diff(want, r.output().Changes); diff != "" {
 				t.Errorf("recordMemberAdd mismatch (-want +got):\n%s", diff)
 			}
 		})
@@ -142,7 +194,7 @@ func TestRecordMemberRemove(t *testing.T) {
 
 func TestWriteJSON(t *testing.T) {
 	r := newChangeReport(false)
-	r.record(change{Kind: kindRepo, Org: "o", Target: "repo1", Action: actionUpdate, After: []string{"has_issues"}})
+	r.record(change{Kind: kindRepo, Org: "o", Target: "repo1", Action: actionUpdate, ChangedFields: []string{"has_issues"}})
 
 	var buf bytes.Buffer
 	if err := writeJSONReport(&buf, r.output()); err != nil {
@@ -154,11 +206,11 @@ func TestWriteJSON(t *testing.T) {
 		DryRun        bool           `json:"dry_run"`
 		Summary       map[string]int `json:"summary"`
 		Changes       []struct {
-			Kind   string   `json:"kind"`
-			Org    string   `json:"org"`
-			Target string   `json:"target"`
-			Action string   `json:"action"`
-			After  []string `json:"after"`
+			Kind          string   `json:"kind"`
+			Org           string   `json:"org"`
+			Target        string   `json:"target"`
+			Action        string   `json:"action"`
+			ChangedFields []string `json:"changed_fields"`
 		} `json:"changes"`
 	}
 	if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
@@ -180,8 +232,47 @@ func TestWriteJSON(t *testing.T) {
 	if c.Kind != kindRepo || c.Target != "repo1" || c.Action != string(actionUpdate) {
 		t.Errorf("unexpected change: %+v", c)
 	}
-	if diff := cmp.Diff([]string{"has_issues"}, c.After); diff != "" {
-		t.Errorf("after mismatch (-want +got):\n%s", diff)
+	if diff := cmp.Diff([]string{"has_issues"}, c.ChangedFields); diff != "" {
+		t.Errorf("changed_fields mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// TestConfigureTeamRecordsChangedFields covers that a team update records the
+// changed field names, and that clearing a description to empty records nothing
+// (github.Team.Description is omitempty, so EditTeam cannot apply it).
+func TestConfigureTeamRecordsChangedFields(t *testing.T) {
+	desc := "new description"
+	empty := ""
+	cases := []struct {
+		name   string
+		config org.Team
+		github github.Team
+		want   []change
+	}{
+		{
+			name:   "description change recorded as changed_fields",
+			config: org.Team{TeamMetadata: org.TeamMetadata{Description: &desc}},
+			github: github.Team{ID: 1, Name: "t", Slug: "t", Description: "old"},
+			want:   []change{{Kind: kindTeam, Org: fakeOrg, Target: "t", Action: actionUpdate, ChangedFields: []string{"description"}}},
+		},
+		{
+			name:   "clearing description to empty records nothing",
+			config: org.Team{TeamMetadata: org.TeamMetadata{Description: &empty}},
+			github: github.Team{ID: 2, Name: "t", Slug: "t", Description: "old"},
+			want:   []change{},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			fc := makeFakeTeamClient(tc.github)
+			report := newChangeReport(true)
+			if _, err := configureTeam(fc, fakeOrg, tc.github.Name, tc.config, tc.github, nil, report); err != nil {
+				t.Fatalf("configureTeam: %v", err)
+			}
+			if diff := cmp.Diff(tc.want, report.output().Changes); diff != "" {
+				t.Errorf("recorded changes mismatch (-want +got):\n%s", diff)
+			}
+		})
 	}
 }
 
@@ -205,9 +296,9 @@ func TestConfigureTeamReposRecordsChanges(t *testing.T) {
 	}
 
 	want := []change{
-		{Kind: kindTeamRepo, Org: "org", Scope: "team", Target: "new", Action: actionAdd, After: github.Write},
-		{Kind: kindTeamRepo, Org: "org", Scope: "team", Target: "obsolete", Action: actionRemove, Before: github.Read},
-		{Kind: kindTeamRepo, Org: "org", Scope: "team", Target: "promote", Action: actionUpdate, Before: github.Write, After: github.Admin},
+		{Kind: kindTeamRepo, Org: "org", Scope: "team", Target: "new", Action: actionAdd, After: string(github.Write)},
+		{Kind: kindTeamRepo, Org: "org", Scope: "team", Target: "obsolete", Action: actionRemove, Before: string(github.Read)},
+		{Kind: kindTeamRepo, Org: "org", Scope: "team", Target: "promote", Action: actionUpdate, Before: string(github.Write), After: string(github.Admin)},
 	}
 	if diff := cmp.Diff(want, report.output().Changes); diff != "" {
 		t.Errorf("recorded team_repo changes mismatch (-want +got):\n%s", diff)
@@ -228,7 +319,8 @@ func TestConfigureCollaboratorsRecordsChanges(t *testing.T) {
 	repo := org.Repo{Collaborators: map[string]github.RepoPermissionLevel{
 		"keep":    github.Read,
 		"promote": github.Write,
-		"new":     github.Admin,
+		// Mixed case in config; the report Target must be the normalized login.
+		"New-Collab": github.Admin,
 	}}
 
 	report := newChangeReport(true)
@@ -237,9 +329,9 @@ func TestConfigureCollaboratorsRecordsChanges(t *testing.T) {
 	}
 
 	want := []change{
-		{Kind: kindCollaborator, Org: "test-org", Scope: "test-repo", Target: "new", Action: actionAdd, After: github.Admin},
-		{Kind: kindCollaborator, Org: "test-org", Scope: "test-repo", Target: "obsolete", Action: actionRemove, Before: github.Write},
-		{Kind: kindCollaborator, Org: "test-org", Scope: "test-repo", Target: "promote", Action: actionUpdate, Before: github.Read, After: github.Write},
+		{Kind: kindCollaborator, Org: "test-org", Scope: "test-repo", Target: "new-collab", Action: actionAdd, After: string(github.Admin)},
+		{Kind: kindCollaborator, Org: "test-org", Scope: "test-repo", Target: "obsolete", Action: actionRemove, Before: string(github.Write)},
+		{Kind: kindCollaborator, Org: "test-org", Scope: "test-repo", Target: "promote", Action: actionUpdate, Before: string(github.Read), After: string(github.Write)},
 	}
 	if diff := cmp.Diff(want, report.output().Changes); diff != "" {
 		t.Errorf("recorded collaborator changes mismatch (-want +got):\n%s", diff)
@@ -249,9 +341,10 @@ func TestConfigureCollaboratorsRecordsChanges(t *testing.T) {
 // TestConfigureOrgMembersRecordsChanges is an end-to-end check that
 // configureOrgMembers records add/update/remove through the real reconciliation
 // path, exercising the add-vs-update classification (promotion/demotion) that
-// recordMemberAdd derives from the current membership. The recording is
-// independent of --confirm (it happens on the decision, not the API call), so
-// this covers the dry-run report as well.
+// recordMemberAdd derives from the current membership. Recording follows a
+// successful mutation (see the change type's rule); the fake client's calls
+// succeed, so every decided change is recorded. In dry-run the real client is a
+// no-op that returns nil, so the dry-run report is the same.
 func TestConfigureOrgMembersRecordsChanges(t *testing.T) {
 	client := &fakeClient{
 		admins:     sets.New("stay-admin", "demote-me"),
@@ -318,8 +411,9 @@ func TestConfigureOrgMembersDoesNotRecordSwallowed404(t *testing.T) {
 // configureTeamMembers records add/update/remove through the real reconciliation
 // path. It also verifies that the current membership is matched after login
 // normalization (GitHub returns mixed-case logins) so a role change is reported
-// as an update, not an add. Like the org-member path, recording is independent of
-// --confirm, so this covers the dry-run report.
+// as an update, not an add. Like the org-member path, recording follows a
+// successful mutation; the fake client succeeds, so in dry-run (a no-op client
+// returning nil) the same changes are recorded.
 func TestConfigureTeamMembersRecordsChanges(t *testing.T) {
 	client := &fakeClient{
 		// Current state (GitHub casing): maintainers come from admins, members from
@@ -358,8 +452,9 @@ func TestConfigureTeamMembersRecordsChanges(t *testing.T) {
 // TestConfigureOrgRolesRecordsChanges is an end-to-end check that configureOrgRoles
 // records add/remove for both team and user role assignments (scope is the role
 // name), and that a user with a pending org invitation is skipped rather than
-// recorded, mirroring the assignment logic. Recording is independent of --confirm,
-// so this covers the dry-run report.
+// recorded, mirroring the assignment logic. Recording follows a successful
+// mutation; the fake client succeeds, so in dry-run (a no-op client returning
+// nil) the same changes are recorded.
 func TestConfigureOrgRolesRecordsChanges(t *testing.T) {
 	client := &fakeOrgRolesClient{
 		roles: []github.OrganizationRole{{ID: 1, Name: "security-manager"}},
