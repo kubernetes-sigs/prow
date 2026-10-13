@@ -390,14 +390,39 @@ func TestHandleRedirectWithValidState(t *testing.T) {
 	}
 }
 
+func newStaleCookie(t *testing.T, name string, values map[interface{}]interface{}) (*http.Cookie, *sessions.CookieStore) {
+	t.Helper()
+	oldStore := sessions.NewCookieStore([]byte("old-secret-key-for-signing-cookies"))
+	newStore := sessions.NewCookieStore([]byte("new-secret-key-after-rotation!!!!"))
+
+	staleReq := httptest.NewRequest(http.MethodGet, "/", nil)
+	staleResp := httptest.NewRecorder()
+	staleSession, err := oldStore.New(staleReq, name)
+	if err != nil {
+		t.Fatalf("Failed to create stale session: %v", err)
+	}
+	staleSession.Values = values
+	if err := staleSession.Save(staleReq, staleResp); err != nil {
+		t.Fatalf("Failed to save stale session: %v", err)
+	}
+	for _, cookie := range staleResp.Result().Cookies() {
+		if cookie.Name == name {
+			decodedCookie := make(map[interface{}]interface{})
+			if err := securecookie.DecodeMulti(name, cookie.Value, &decodedCookie, newStore.Codecs...); err == nil {
+				t.Fatal("Expected stale cookie to fail decoding with the current key")
+			}
+			return cookie, newStore
+		}
+	}
+	t.Fatal("Failed to create stale cookie")
+	return nil, nil
+}
+
 func TestHandleRedirectWithStaleCookie(t *testing.T) {
 	gob.Register(&oauth2.Token{})
-
-	oldKey := []byte("old-secret-key-for-signing-cookies")
-	newKey := []byte("new-secret-key-after-rotation!!!!")
-
-	oldStore := sessions.NewCookieStore(oldKey)
-	newStore := sessions.NewCookieStore(newKey)
+	staleCookie, newStore := newStaleCookie(t, tokenSession, map[interface{}]interface{}{
+		tokenKey: &oauth2.Token{AccessToken: "expired-token"},
+	})
 
 	mockConfig := getMockConfig(newStore)
 	mockLogger := logrus.WithField("uni-test", "githuboauth")
@@ -405,27 +430,6 @@ func TestHandleRedirectWithStaleCookie(t *testing.T) {
 	mockLogin := "foo_name"
 	mockOAuthClient := mockOAuthClient{}
 	mockStateToken := createMockStateToken(mockConfig)
-
-	// Simulate a stale token cookie signed with the old key: create a session
-	// using the old store, save it to a recorder, then extract the Set-Cookie
-	// header to inject into the new request.
-	staleReq := httptest.NewRequest(http.MethodGet, "/", nil)
-	staleResp := httptest.NewRecorder()
-	staleSession, _ := oldStore.New(staleReq, tokenSession)
-	staleSession.Values[tokenKey] = &oauth2.Token{AccessToken: "expired-token"}
-	if err := staleSession.Save(staleReq, staleResp); err != nil {
-		t.Fatalf("Failed to save stale session: %v", err)
-	}
-	var staleCookie *http.Cookie
-	for _, c := range staleResp.Result().Cookies() {
-		if c.Name == tokenSession {
-			staleCookie = c
-			break
-		}
-	}
-	if staleCookie == nil {
-		t.Fatal("Failed to create stale cookie")
-	}
 
 	dest := "somewhere"
 	mockRequest := httptest.NewRequest(http.MethodGet, "/mock-login?dest="+dest, nil)
@@ -476,35 +480,14 @@ func TestHandleRedirectWithStaleCookie(t *testing.T) {
 }
 
 func TestHandleLoginWithStaleCookie(t *testing.T) {
-	oldKey := []byte("old-secret-key-for-signing-cookies")
-	newKey := []byte("new-secret-key-after-rotation!!!!")
-
-	oldStore := sessions.NewCookieStore(oldKey)
-	newStore := sessions.NewCookieStore(newKey)
+	staleCookie, newStore := newStaleCookie(t, oauthSessionCookie, map[interface{}]interface{}{
+		stateKey: "old-state",
+	})
 
 	mockConfig := getMockConfig(newStore)
 	mockLogger := logrus.WithField("uni-test", "githuboauth")
 	mockAgent := NewAgent(mockConfig, mockLogger)
 	mockOAuthClient := mockOAuthClient{}
-
-	// Create a stale oauth-session cookie signed with the old key
-	staleReq := httptest.NewRequest(http.MethodGet, "/", nil)
-	staleResp := httptest.NewRecorder()
-	staleSession, _ := oldStore.New(staleReq, oauthSessionCookie)
-	staleSession.Values[stateKey] = "old-state"
-	if err := staleSession.Save(staleReq, staleResp); err != nil {
-		t.Fatalf("Failed to save stale session: %v", err)
-	}
-	var staleCookie *http.Cookie
-	for _, c := range staleResp.Result().Cookies() {
-		if c.Name == oauthSessionCookie {
-			staleCookie = c
-			break
-		}
-	}
-	if staleCookie == nil {
-		t.Fatal("Failed to create stale cookie")
-	}
 
 	mockRequest := httptest.NewRequest(http.MethodGet, "/mock-login?dest=somewhere", nil)
 	mockRequest.AddCookie(staleCookie)
@@ -552,25 +535,13 @@ func TestHandleLoginWithStaleCookie(t *testing.T) {
 }
 
 func TestHandleLogoutWithStaleCookie(t *testing.T) {
-	oldStore := sessions.NewCookieStore([]byte("old-secret-key-for-signing-cookies"))
-	newStore := sessions.NewCookieStore([]byte("new-secret-key-after-rotation!!!!"))
+	staleCookie, newStore := newStaleCookie(t, tokenSession, map[interface{}]interface{}{
+		tokenKey: "expired-token",
+	})
 	mockAgent := NewAgent(getMockConfig(newStore), logrus.WithField("uni-test", "githuboauth"))
 
-	staleReq := httptest.NewRequest(http.MethodGet, "/", nil)
-	staleResp := httptest.NewRecorder()
-	staleSession, err := oldStore.New(staleReq, tokenSession)
-	if err != nil {
-		t.Fatalf("Failed to create stale session: %v", err)
-	}
-	staleSession.Values[tokenKey] = "expired-token"
-	if err := staleSession.Save(staleReq, staleResp); err != nil {
-		t.Fatalf("Failed to save stale session: %v", err)
-	}
-
 	mockRequest := httptest.NewRequest(http.MethodGet, "/mock-logout", nil)
-	for _, cookie := range staleResp.Result().Cookies() {
-		mockRequest.AddCookie(cookie)
-	}
+	mockRequest.AddCookie(staleCookie)
 	mockRequest.AddCookie(&http.Cookie{Name: loginSession, Value: "foo_name", Path: "/"})
 	if _, err := newStore.New(mockRequest, tokenSession); err == nil {
 		t.Fatal("Expected stale token cookie to fail decoding with the current key")
@@ -602,21 +573,11 @@ func TestHandleLogoutWithStaleCookie(t *testing.T) {
 }
 
 func TestHandleLoginWithStaleCookieSaveFailure(t *testing.T) {
-	oldStore := sessions.NewCookieStore([]byte("old-secret-key-for-signing-cookies"))
-	newStore := sessions.NewCookieStore([]byte("new-secret-key-after-rotation!!!!"))
+	staleCookie, newStore := newStaleCookie(t, oauthSessionCookie, map[interface{}]interface{}{
+		stateKey: "old-state",
+	})
 	mockAgent := NewAgent(getMockConfig(newStore), logrus.WithField("uni-test", "githuboauth"))
 
-	staleReq := httptest.NewRequest(http.MethodGet, "/", nil)
-	staleResp := httptest.NewRecorder()
-	staleSession, err := oldStore.New(staleReq, oauthSessionCookie)
-	if err != nil {
-		t.Fatalf("Failed to create stale session: %v", err)
-	}
-	staleSession.Values[stateKey] = "old-state"
-	if err := staleSession.Save(staleReq, staleResp); err != nil {
-		t.Fatalf("Failed to save stale session: %v", err)
-	}
-	staleCookie := staleResp.Result().Cookies()[0]
 	// Permit the stale cookie's size so decoding fails on its old signature,
 	// but reject the larger replacement containing a freshly generated state.
 	newStore.Codecs[0].(*securecookie.SecureCookie).MaxLength(len(staleCookie.Value))
@@ -643,35 +604,15 @@ func TestHandleLoginWithStaleCookieSaveFailure(t *testing.T) {
 }
 
 func TestHandleRedirectWithStaleOAuthSessionCookie(t *testing.T) {
-	oldKey := []byte("old-secret-key-for-signing-cookies")
-	newKey := []byte("new-secret-key-after-rotation!!!!")
-
-	oldStore := sessions.NewCookieStore(oldKey)
-	newStore := sessions.NewCookieStore(newKey)
-
-	mockConfig := getMockConfig(newStore)
+	mockConfig := getMockConfig(nil)
+	mockStateToken := createMockStateToken(mockConfig)
+	staleCookie, newStore := newStaleCookie(t, oauthSessionCookie, map[interface{}]interface{}{
+		stateKey: mockStateToken,
+	})
+	mockConfig.CookieStore = newStore
 	mockLogger := logrus.WithField("uni-test", "githuboauth")
 	mockAgent := NewAgent(mockConfig, mockLogger)
 	mockOAuthClient := mockOAuthClient{}
-	mockStateToken := createMockStateToken(mockConfig)
-
-	staleReq := httptest.NewRequest(http.MethodGet, "/", nil)
-	staleResp := httptest.NewRecorder()
-	staleSession, _ := oldStore.New(staleReq, oauthSessionCookie)
-	staleSession.Values[stateKey] = mockStateToken
-	if err := staleSession.Save(staleReq, staleResp); err != nil {
-		t.Fatalf("Failed to save stale session: %v", err)
-	}
-	var staleCookie *http.Cookie
-	for _, c := range staleResp.Result().Cookies() {
-		if c.Name == oauthSessionCookie {
-			staleCookie = c
-			break
-		}
-	}
-	if staleCookie == nil {
-		t.Fatal("Failed to create stale cookie")
-	}
 
 	mockRequest := httptest.NewRequest(http.MethodGet, "/mock-login", nil)
 	mockRequest.AddCookie(staleCookie)
