@@ -25,6 +25,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gorilla/securecookie"
 	"github.com/gorilla/sessions"
@@ -496,6 +497,129 @@ func TestHandleLoginWithStaleCookie(t *testing.T) {
 
 	if result.StatusCode != http.StatusFound {
 		t.Errorf("Expected redirect (302) despite stale cookie, got %v", result.StatusCode)
+	}
+	var replacementCookie *http.Cookie
+	for _, cookie := range result.Cookies() {
+		if cookie.Name == oauthSessionCookie {
+			replacementCookie = cookie
+			break
+		}
+	}
+	if replacementCookie == nil {
+		t.Fatal("Expected a replacement OAuth session cookie")
+	}
+	decodedCookie := make(map[interface{}]interface{})
+	if err := securecookie.DecodeMulti(replacementCookie.Name, replacementCookie.Value, &decodedCookie, newStore.Codecs...); err != nil {
+		t.Fatalf("Cannot decode replacement cookie with current key: %v", err)
+	}
+	state, ok := decodedCookie[stateKey].(string)
+	if !ok || state == "" {
+		t.Fatalf("Expected a nonempty state in the replacement cookie, got %v", decodedCookie[stateKey])
+	}
+	stateToken, err := hex.DecodeString(state)
+	if err != nil {
+		t.Fatalf("Cannot decode replacement state token: %v", err)
+	}
+	if !xsrftoken.Valid(string(stateToken), mockConfig.ClientSecret, "", "") {
+		t.Error("Expected a valid replacement state token")
+	}
+	redirectURL, err := url.Parse(result.Header.Get("Location"))
+	if err != nil {
+		t.Fatalf("Cannot parse authorization redirect: %v", err)
+	}
+	if redirectState := redirectURL.Query().Get("state"); redirectState != state {
+		t.Errorf("Authorization redirect state %q does not match replacement cookie state %q", redirectState, state)
+	}
+}
+
+func TestHandleLogoutWithStaleCookie(t *testing.T) {
+	oldStore := sessions.NewCookieStore([]byte("old-secret-key-for-signing-cookies"))
+	newStore := sessions.NewCookieStore([]byte("new-secret-key-after-rotation!!!!"))
+	mockAgent := NewAgent(getMockConfig(newStore), logrus.WithField("uni-test", "githuboauth"))
+
+	staleReq := httptest.NewRequest(http.MethodGet, "/", nil)
+	staleResp := httptest.NewRecorder()
+	staleSession, err := oldStore.New(staleReq, tokenSession)
+	if err != nil {
+		t.Fatalf("Failed to create stale session: %v", err)
+	}
+	staleSession.Values[tokenKey] = "expired-token"
+	if err := staleSession.Save(staleReq, staleResp); err != nil {
+		t.Fatalf("Failed to save stale session: %v", err)
+	}
+
+	mockRequest := httptest.NewRequest(http.MethodGet, "/mock-logout", nil)
+	for _, cookie := range staleResp.Result().Cookies() {
+		mockRequest.AddCookie(cookie)
+	}
+	mockRequest.AddCookie(&http.Cookie{Name: loginSession, Value: "foo_name", Path: "/"})
+	if _, err := newStore.New(mockRequest, tokenSession); err == nil {
+		t.Fatal("Expected stale token cookie to fail decoding with the current key")
+	}
+	mockResponse := httptest.NewRecorder()
+	mockAgent.HandleLogout(mockOAuthClient{}).ServeHTTP(mockResponse, mockRequest)
+	result := mockResponse.Result()
+	if result.StatusCode != http.StatusFound {
+		t.Errorf("Expected redirect (302) despite stale cookie, got %v", result.StatusCode)
+	}
+	for _, name := range []string{tokenSession, loginSession} {
+		var expiredCookie *http.Cookie
+		for _, cookie := range result.Cookies() {
+			if cookie.Name == name {
+				expiredCookie = cookie
+				break
+			}
+		}
+		if expiredCookie == nil {
+			t.Fatalf("Expected expired %s cookie", name)
+		}
+		if expiredCookie.MaxAge != -1 {
+			t.Errorf("Expected %s cookie MaxAge to be -1, got %d", name, expiredCookie.MaxAge)
+		}
+		if expiredCookie.Expires.IsZero() || !expiredCookie.Expires.Before(time.Now()) {
+			t.Errorf("Expected %s cookie expiration in the past, got %v", name, expiredCookie.Expires)
+		}
+	}
+}
+
+func TestHandleLoginWithStaleCookieSaveFailure(t *testing.T) {
+	oldStore := sessions.NewCookieStore([]byte("old-secret-key-for-signing-cookies"))
+	newStore := sessions.NewCookieStore([]byte("new-secret-key-after-rotation!!!!"))
+	mockAgent := NewAgent(getMockConfig(newStore), logrus.WithField("uni-test", "githuboauth"))
+
+	staleReq := httptest.NewRequest(http.MethodGet, "/", nil)
+	staleResp := httptest.NewRecorder()
+	staleSession, err := oldStore.New(staleReq, oauthSessionCookie)
+	if err != nil {
+		t.Fatalf("Failed to create stale session: %v", err)
+	}
+	staleSession.Values[stateKey] = "old-state"
+	if err := staleSession.Save(staleReq, staleResp); err != nil {
+		t.Fatalf("Failed to save stale session: %v", err)
+	}
+	staleCookie := staleResp.Result().Cookies()[0]
+	// Permit the stale cookie's size so decoding fails on its old signature,
+	// but reject the larger replacement containing a freshly generated state.
+	newStore.Codecs[0].(*securecookie.SecureCookie).MaxLength(len(staleCookie.Value))
+	mockRequest := httptest.NewRequest(http.MethodGet, "/mock-login", nil)
+	mockRequest.AddCookie(staleCookie)
+	if _, err := newStore.New(mockRequest, oauthSessionCookie); err == nil {
+		t.Fatal("Expected stale OAuth cookie to fail decoding with the current key")
+	}
+	mockResponse := httptest.NewRecorder()
+	mockAgent.HandleLogin(mockOAuthClient{}, false).ServeHTTP(mockResponse, mockRequest)
+	result := mockResponse.Result()
+	if result.StatusCode != http.StatusInternalServerError {
+		t.Errorf("Expected 500 when saving the replacement session fails, got %v", result.StatusCode)
+	}
+	if body := mockResponse.Body.String(); !strings.Contains(body, "Save oauth session") || !strings.Contains(body, "value is too long") {
+		t.Errorf("Expected a session encoding size error after recovering from the stale cookie, got %q", body)
+	}
+	if location := result.Header.Get("Location"); location != "" {
+		t.Errorf("Expected no redirect after saving fails, got %q", location)
+	}
+	if cookies := result.Cookies(); len(cookies) != 0 {
+		t.Errorf("Expected no cookies after encoding fails, got %v", cookies)
 	}
 }
 
