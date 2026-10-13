@@ -61,6 +61,16 @@ func (c mockOAuthClient) AuthCodeURL(state string, opts ...oauth2.AuthCodeOption
 	return c.config.AuthCodeURL(state, opts...)
 }
 
+type exchangeTrackingOAuthClient struct {
+	mockOAuthClient
+	exchangeCalled bool
+}
+
+func (c *exchangeTrackingOAuthClient) Exchange(ctx context.Context, code string, opts ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
+	c.exchangeCalled = true
+	return c.mockOAuthClient.Exchange(ctx, code, opts...)
+}
+
 func getMockConfig(cookie *sessions.CookieStore) *Config {
 	clientID := "mock-client-id"
 	clientSecret := "mock-client-secret"
@@ -342,6 +352,49 @@ func TestHandleRedirectStopsAfterStateDecodeError(t *testing.T) {
 				t.Errorf("Unexpected cookies after state decoding fails: %v", cookies)
 			}
 		})
+	}
+}
+
+func TestHandleRedirectWithMismatchedSessionState(t *testing.T) {
+	store := sessions.NewCookieStore([]byte("secret-key"))
+	config := getMockConfig(store)
+	agent := NewAgent(config, logrus.WithField("uni-test", "githuboauth"))
+	state := createMockStateToken(config)
+	request := httptest.NewRequest(http.MethodGet, "/mock-login?state="+url.QueryEscape(state)+"&code=authorization-code", nil)
+
+	// Sign a real session cookie containing a state from a different login.
+	sessionRequest := httptest.NewRequest(http.MethodGet, "/", nil)
+	sessionResponse := httptest.NewRecorder()
+	session, err := store.New(sessionRequest, oauthSessionCookie)
+	if err != nil {
+		t.Fatalf("Cannot create OAuth session: %v", err)
+	}
+	session.Values[stateKey] = "different-login-state"
+	if err := session.Save(sessionRequest, sessionResponse); err != nil {
+		t.Fatalf("Cannot save OAuth session: %v", err)
+	}
+	for _, cookie := range sessionResponse.Result().Cookies() {
+		request.AddCookie(cookie)
+	}
+
+	client := &exchangeTrackingOAuthClient{}
+	response := httptest.NewRecorder()
+	agent.HandleRedirect(client, &fakeAuthenticatedUserIdentifier{""}, false).ServeHTTP(response, request)
+	if response.Code != http.StatusInternalServerError {
+		t.Errorf("Expected HTTP 500 for mismatched state, got %d", response.Code)
+	}
+	const wantBody = "500 Internal server error Validate state: invalid state\n"
+	if body := response.Body.String(); body != wantBody {
+		t.Errorf("Expected rejection at the session-state comparison, got %q", body)
+	}
+	if client.exchangeCalled {
+		t.Error("Authorization code was exchanged despite mismatched session state")
+	}
+	if location := response.Header().Get("Location"); location != "" {
+		t.Errorf("Unexpected redirect after state mismatch: %q", location)
+	}
+	if cookies := response.Result().Cookies(); len(cookies) != 0 {
+		t.Errorf("Unexpected cookies after state mismatch: %v", cookies)
 	}
 }
 
