@@ -313,6 +313,38 @@ func TestHandleRedirectWithInvalidState(t *testing.T) {
 	}
 }
 
+func TestHandleRedirectStopsAfterStateDecodeError(t *testing.T) {
+	store := sessions.NewCookieStore([]byte("secret-key"))
+	config := getMockConfig(store)
+	agent := NewAgent(config, logrus.WithField("uni-test", "githuboauth"))
+	for _, tc := range []struct {
+		name  string
+		state string
+	}{
+		{name: "invalid hex", state: "bad-state-token"},
+		{name: "valid token followed by invalid hex", state: createMockStateToken(config) + "z"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodGet, "/mock-login?state="+url.QueryEscape(tc.state), nil)
+			response := httptest.NewRecorder()
+			agent.HandleRedirect(mockOAuthClient{}, &fakeAuthenticatedUserIdentifier{""}, false).ServeHTTP(response, request)
+			if response.Code != http.StatusInternalServerError {
+				t.Errorf("Expected HTTP 500, got %d", response.Code)
+			}
+			const wantBody = "500 Internal server error Decode state: error with decoding state\n"
+			if body := response.Body.String(); body != wantBody {
+				t.Errorf("Expected only the state decoding error, got %q", body)
+			}
+			if location := response.Header().Get("Location"); location != "" {
+				t.Errorf("Unexpected redirect after state decoding fails: %q", location)
+			}
+			if cookies := response.Result().Cookies(); len(cookies) != 0 {
+				t.Errorf("Unexpected cookies after state decoding fails: %v", cookies)
+			}
+		})
+	}
+}
+
 func TestHandleRedirectWithValidState(t *testing.T) {
 	gob.Register(&oauth2.Token{})
 	cookie := sessions.NewCookieStore([]byte("secret-key"))

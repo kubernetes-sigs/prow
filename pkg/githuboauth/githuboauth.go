@@ -235,6 +235,7 @@ func (ga *Agent) HandleRedirect(client OAuthClient, identifier AuthenticatedUser
 		stateTokenRaw, err := hex.DecodeString(state)
 		if err != nil {
 			ga.serverErrorAndPrint(w, "Decode state", fmt.Errorf("error with decoding state"))
+			return
 		}
 		stateToken := string(stateTokenRaw)
 		// Check if the state token is still valid or not.
