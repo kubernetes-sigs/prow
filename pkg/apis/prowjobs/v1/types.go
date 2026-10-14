@@ -78,7 +78,8 @@ func GetAllProwJobStates() []ProwJobState {
 		SuccessState,
 		FailureState,
 		AbortedState,
-		ErrorState}
+		ErrorState,
+	}
 }
 
 // ProwJobAgent specifies the controller (such as plank or jenkins-agent) that runs the job.
@@ -234,6 +235,26 @@ type ProwJobSpec struct {
 	// This behaviour may be superseded by MaxConcurrency field, if it
 	// is set to a constraining value.
 	JobQueueName string `json:"job_queue_name,omitempty"`
+
+	// TriggerComment, when set, references the GitHub comment whose command
+	// triggered this job (e.g. /test, /retest, /ok-to-test). It is nil for jobs
+	// that were triggered automatically (e.g. when a PR is opened or updated, by
+	// Tide, or for periodics).
+	TriggerComment *TriggerComment `json:"trigger_comment,omitempty"`
+}
+
+// TriggerComment references the GitHub comment whose command triggered a job.
+type TriggerComment struct {
+	// ID is the numeric ID of the GitHub comment. It is set for issue/PR
+	// comments and review comments, but may be 0 for triggers that have no
+	// dedicated comment ID (e.g. a command in a review body or a PR
+	// description). Together with Refs it can be used to construct the GitHub
+	// API or HTML URL for the comment.
+	ID int `json:"id,omitempty"`
+	// HTMLURL is the HTML URL of the comment. Unlike the bare ID it is always
+	// set for comment triggers and unambiguously identifies the comment
+	// regardless of its kind (issue comment, review, or review comment).
+	HTMLURL string `json:"html_url,omitempty"`
 }
 
 func (pjs ProwJobSpec) HasPipelineRunSpec() bool {
