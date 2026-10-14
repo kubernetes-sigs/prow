@@ -2105,3 +2105,68 @@ func fakeProwYAMLGetterFactory(presubmits []Presubmit, postsubmits []Postsubmit)
 		}, nil
 	}
 }
+
+func TestSupplementalTideContextPolicyLists(t *testing.T) {
+	options := func(contexts []string) TideContextPolicyOptions {
+		return TideContextPolicyOptions{Orgs: map[string]TideOrgContextPolicy{
+			"org": {Repos: map[string]TideRepoContextPolicy{"repo": {Branches: map[string]TideContextPolicy{
+				"main": {RequiredContexts: contexts, RequiredIfPresentContexts: contexts, OptionalContexts: contexts, OptionalRegexContexts: contexts},
+			}}}},
+		}}
+	}
+	incoming := options([]string{"b", "a", "b"})
+	var merged TideContextPolicyOptions
+	if err := merged.mergeFrom(incoming); err != nil {
+		t.Fatal(err)
+	}
+	if err := merged.mergeFrom(options([]string{"z", "a"})); err != nil {
+		t.Fatal(err)
+	}
+	for range 2 { // Repeating a shard is idempotent.
+		if err := merged.mergeFrom(incoming); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := merged.mergeFrom(TideContextPolicyOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff(options([]string{"a", "b", "z"}), merged); diff != "" {
+		t.Errorf("lists are not sorted unions: %s", diff)
+	}
+	// Mutating every destination map must leave the incoming shard independent.
+	merged.Orgs["org"].Repos["repo"].Branches["other"] = TideContextPolicy{}
+	merged.Orgs["org"].Repos["other"] = TideRepoContextPolicy{}
+	merged.Orgs["other"] = TideOrgContextPolicy{}
+	if diff := cmp.Diff(options([]string{"b", "a", "b"}), incoming); diff != "" {
+		t.Errorf("incoming shard was mutated: %s", diff)
+	}
+}
+
+func TestSupplementalTideContextPolicyBooleans(t *testing.T) {
+	for _, field := range []string{"skip-unknown-contexts", "from-branch-protection", "overwrite-pending-contexts"} {
+		t.Run(field, func(t *testing.T) {
+			var incoming TideContextPolicyOptions
+			data := fmt.Sprintf(`orgs: {org: {repos: {repo: {branches: {main: {%s: false}}}}}}`, field)
+			if err := yaml.Unmarshal([]byte(data), &incoming); err != nil {
+				t.Fatal(err)
+			}
+			var merged TideContextPolicyOptions
+			for range 2 { // Both singly defined and repeated explicit false are valid.
+				if err := merged.mergeFrom(incoming); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if diff := cmp.Diff(incoming, merged); diff != "" {
+				t.Errorf("explicit false was lost: %s", diff)
+			}
+			var conflicting TideContextPolicyOptions
+			if err := yaml.Unmarshal([]byte(strings.Replace(data, "false", "true", 1)), &conflicting); err != nil {
+				t.Fatal(err)
+			}
+			err := merged.mergeFrom(conflicting)
+			if err == nil || !strings.Contains(err.Error(), field) || !strings.Contains(err.Error(), `orgs["org"].repos["repo"].branches["main"]`) {
+				t.Errorf("expected field and scope in conflict error, got %v", err)
+			}
+		})
+	}
+}

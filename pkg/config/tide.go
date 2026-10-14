@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"regexp"
 	"slices"
 	"sort"
@@ -325,6 +326,9 @@ type TideGitHubConfig struct {
 	// the required and optional contexts from the prow jobs configured and use the github
 	// combined status; otherwise it may apply the branch protection setting or let user
 	// define their own options in case branch protection is not used.
+	// May be sharded across supplemental Prow config files. Lists at the same scope
+	// are unioned; conflicting explicit booleans at the same scope are rejected.
+	// More specific org, repo and branch policies can override inherited booleans.
 	ContextOptions TideContextPolicyOptions `json:"context_options,omitempty"`
 
 	// BatchSizeLimitMap is a key/value pair of an org or org/repo as the key and
@@ -360,12 +364,14 @@ func (t *Tide) mergeFrom(additional *Tide) error {
 	// increase token usage needlessly.
 	t.Queries = append(t.Queries, additional.Queries...)
 
-	if t.MergeType == nil {
-		t.MergeType = additional.MergeType
-		return nil
+	var errs []error
+	if err := t.ContextOptions.mergeFrom(additional.ContextOptions); err != nil {
+		errs = append(errs, err)
+	}
+	if t.MergeType == nil && additional.MergeType != nil {
+		t.MergeType = map[string]TideOrgMergeType{}
 	}
 
-	var errs []error
 	for orgOrRepo, mergeMethod := range additional.MergeType {
 		if _, alreadyConfigured := t.MergeType[orgOrRepo]; alreadyConfigured {
 			errs = append(errs, fmt.Errorf("config for org or repo %s passed more than once", orgOrRepo))
@@ -375,6 +381,89 @@ func (t *Tide) mergeFrom(additional *Tide) error {
 	}
 
 	return utilerrors.NewAggregate(errs)
+}
+
+// mergeFrom combines policies at the same scope across supplemental config files.
+// Hierarchical overrides are applied separately by ParseTideContextPolicyOptions.
+func (options *TideContextPolicyOptions) mergeFrom(additional TideContextPolicyOptions) error {
+	if !isTideContextPolicySet(additional.TideContextPolicy) && len(additional.Orgs) == 0 {
+		if options.Orgs == nil && additional.Orgs != nil {
+			options.Orgs = map[string]TideOrgContextPolicy{}
+		}
+		return nil
+	}
+	var errs []error
+	mergePolicy := func(a, b TideContextPolicy, scope string) TideContextPolicy {
+		if !isTideContextPolicySet(b) {
+			return a
+		}
+		for _, field := range []struct {
+			name string
+			a, b *bool
+		}{
+			{"skip-unknown-contexts", a.SkipUnknownContexts, b.SkipUnknownContexts},
+			{"from-branch-protection", a.FromBranchProtection, b.FromBranchProtection},
+			{"overwrite-pending-contexts", a.OverwritePendingContexts, b.OverwritePendingContexts},
+		} {
+			if field.a != nil && field.b != nil && *field.a != *field.b {
+				errs = append(errs, fmt.Errorf("%s: conflicting values for %s", scope, field.name))
+			}
+		}
+		return mergeTideContextPolicy(a, b)
+	}
+
+	merged := TideContextPolicyOptions{
+		TideContextPolicy: mergePolicy(options.TideContextPolicy, additional.TideContextPolicy, "tide.context_options"),
+	}
+	orgs := sets.New[string]()
+	for org := range options.Orgs {
+		orgs.Insert(org)
+	}
+	for org := range additional.Orgs {
+		orgs.Insert(org)
+	}
+	if options.Orgs != nil || additional.Orgs != nil {
+		merged.Orgs = map[string]TideOrgContextPolicy{}
+	}
+	for _, org := range sets.List(orgs) {
+		a, b := options.Orgs[org], additional.Orgs[org]
+		scope := fmt.Sprintf("tide.context_options.orgs[%q]", org)
+		o := TideOrgContextPolicy{TideContextPolicy: mergePolicy(a.TideContextPolicy, b.TideContextPolicy, scope)}
+		repos := sets.New[string]()
+		for repo := range a.Repos {
+			repos.Insert(repo)
+		}
+		for repo := range b.Repos {
+			repos.Insert(repo)
+		}
+		if a.Repos != nil || b.Repos != nil {
+			o.Repos = map[string]TideRepoContextPolicy{}
+		}
+		for _, repo := range sets.List(repos) {
+			a, b := a.Repos[repo], b.Repos[repo]
+			scope := fmt.Sprintf("%s.repos[%q]", scope, repo)
+			r := TideRepoContextPolicy{TideContextPolicy: mergePolicy(a.TideContextPolicy, b.TideContextPolicy, scope)}
+			if a.Branches != nil || b.Branches != nil {
+				r.Branches = map[string]TideContextPolicy{}
+			}
+			maps.Copy(r.Branches, a.Branches)
+			for _, branch := range sets.List(sets.KeySet(b.Branches)) {
+				r.Branches[branch] = mergePolicy(a.Branches[branch], b.Branches[branch], fmt.Sprintf("%s.branches[%q]", scope, branch))
+			}
+			o.Repos[repo] = r
+		}
+		merged.Orgs[org] = o
+	}
+	if err := utilerrors.NewAggregate(errs); err != nil {
+		return err
+	}
+	*options = merged
+	return nil
+}
+
+func isTideContextPolicySet(policy TideContextPolicy) bool {
+	return policy.SkipUnknownContexts != nil || policy.FromBranchProtection != nil || policy.OverwritePendingContexts != nil ||
+		len(policy.RequiredContexts) > 0 || len(policy.RequiredIfPresentContexts) > 0 || len(policy.OptionalContexts) > 0 || len(policy.OptionalRegexContexts) > 0
 }
 
 func (t *Tide) PrioritizeExistingBatches(repo OrgRepo) bool {

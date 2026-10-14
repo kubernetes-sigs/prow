@@ -3397,13 +3397,13 @@ func StringsToOrgRepos(vs []string) []OrgRepo {
 func (pc *ProwConfig) mergeFrom(additional *ProwConfig) error {
 	emptyReference := &ProwConfig{
 		BranchProtection:     additional.BranchProtection,
-		Tide:                 Tide{TideGitHubConfig: TideGitHubConfig{MergeType: additional.Tide.MergeType, Queries: additional.Tide.Queries}},
+		Tide:                 Tide{TideGitHubConfig: TideGitHubConfig{MergeType: additional.Tide.MergeType, Queries: additional.Tide.Queries, ContextOptions: additional.Tide.ContextOptions}},
 		SlackReporterConfigs: additional.SlackReporterConfigs,
 	}
 
 	var errs []error
 	if diff := cmp.Diff(additional, emptyReference, DefaultDiffOpts...); diff != "" {
-		errs = append(errs, fmt.Errorf("only 'branch-protection', 'slack_reporter_configs', 'tide.merge_method' and 'tide.queries' may be set via additional config, all other fields have no merging logic yet. Diff: %s", diff))
+		errs = append(errs, fmt.Errorf("only 'branch-protection', 'slack_reporter_configs', 'tide.merge_method', 'tide.queries' and 'tide.context_options' may be set via additional config, all other fields have no merging logic yet. Diff: %s", diff))
 	}
 	if err := pc.BranchProtection.merge(&additional.BranchProtection); err != nil {
 		errs = append(errs, fmt.Errorf("failed to merge branch protection config: %w", err))
@@ -3499,6 +3499,15 @@ func (pc *ProwConfig) HasConfigFor() (global bool, orgs sets.Set[string], repos 
 		}
 	}
 
+	for org, policy := range pc.Tide.ContextOptions.Orgs {
+		if isTideContextPolicySet(policy.TideContextPolicy) {
+			orgs.Insert(org)
+		}
+		for repo := range policy.Repos {
+			repos.Insert(org + "/" + repo)
+		}
+	}
+
 	for orgOrRepo := range pc.Tide.MergeType {
 		if strings.Contains(orgOrRepo, "/") {
 			repos.Insert(orgOrRepo)
@@ -3529,7 +3538,7 @@ func (pc *ProwConfig) HasConfigFor() (global bool, orgs sets.Set[string], repos 
 }
 
 func (pc *ProwConfig) hasGlobalConfig() bool {
-	if pc.BranchProtection.ProtectTested != nil || pc.BranchProtection.AllowDisabledPolicies != nil || pc.BranchProtection.AllowDisabledJobPolicies != nil || pc.BranchProtection.ProtectReposWithOptionalJobs != nil || isPolicySet(pc.BranchProtection.Policy) || pc.SlackReporterConfigs.HasGlobalConfig() {
+	if isTideContextPolicySet(pc.Tide.ContextOptions.TideContextPolicy) || pc.BranchProtection.ProtectTested != nil || pc.BranchProtection.AllowDisabledPolicies != nil || pc.BranchProtection.AllowDisabledJobPolicies != nil || pc.BranchProtection.ProtectReposWithOptionalJobs != nil || isPolicySet(pc.BranchProtection.Policy) || pc.SlackReporterConfigs.HasGlobalConfig() {
 		return true
 	}
 	emptyReference := &ProwConfig{
@@ -3537,7 +3546,11 @@ func (pc *ProwConfig) hasGlobalConfig() bool {
 		Tide:                 Tide{TideGitHubConfig: TideGitHubConfig{MergeType: pc.Tide.MergeType, Queries: pc.Tide.Queries}},
 		SlackReporterConfigs: pc.SlackReporterConfigs,
 	}
-	return cmp.Diff(pc, emptyReference, DefaultDiffOpts...) != ""
+	// Context policies have already been classified above and by HasConfigFor.
+	// Exclude their runtime-only compiled regexes from the structural comparison.
+	withoutContextOptions := *pc
+	withoutContextOptions.Tide.ContextOptions = TideContextPolicyOptions{}
+	return cmp.Diff(&withoutContextOptions, emptyReference, DefaultDiffOpts...) != ""
 }
 
 // tideQueryMap is a map[tideQueryConfig]*tideQueryTarget. Because slices are not comparable, they

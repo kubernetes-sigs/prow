@@ -166,6 +166,74 @@ All commits in PRs from `github.com/kubeflow/community` repository are squashed 
 
 For a full list of properties of queries, please refer to [`prow-config-documented.yaml`](https://github.com/kubernetes-sigs/prow/blob/db89760fea406dd2813e331c3d52b53b5bcbd140/pkg/config/prow-config-documented.yaml#L1236).
 
+### Sharding context policies
+
+`tide.context_options` can be split across supplemental Prow config files. Pass
+`--supplemental-prow-config-dir=config/shards` to Tide and `checkconfig`, alongside
+their main `--config-path`. The directory is searched recursively for filenames
+ending in `_prowconfig.yaml`. Set `--supplemental-prow-configs-filename-suffix`
+to use a different suffix, and repeat `--supplemental-prow-config-dir` to load
+multiple directories. These are centrally managed configuration shards; updating
+a PR's `.prow.yaml` does not configure Tide context policies.
+
+For example, keep Tide queries in the main `config/prow.yaml` and set global
+defaults in a root shard, `config/shards/tide_prowconfig.yaml`:
+
+```yaml
+tide:
+  context_options:
+    skip-unknown-contexts: false
+```
+
+An org shard, `config/shards/acme/tide_prowconfig.yaml`, can add an org policy:
+
+```yaml
+tide:
+  context_options:
+    orgs:
+      acme:
+        required-contexts:
+        - ci/org-policy
+```
+
+A repo shard, `config/shards/acme/widgets/tide_prowconfig.yaml`, can require
+`ci/pipeline-gate` only on the `main` branch of `acme/widgets`:
+
+```yaml
+tide:
+  context_options:
+    orgs:
+      acme:
+        repos:
+          widgets:
+            branches:
+              main:
+                required-contexts:
+                - ci/pipeline-gate
+```
+
+Global supplemental policies can also live directly under `config/shards/`.
+Each shard uses the full YAML structure; the loader does not infer an org,
+repo, or branch from its filename. Keeping org and repo shards in the paths
+above also satisfies `checkconfig`'s supplemental config hierarchy check.
+
+At each exact global, org, repo, or branch scope, `required-contexts`,
+`required-if-present-contexts`, `optional-contexts`, and `optional-regex-contexts`
+are merged as sorted, deduplicated unions. An empty policy adds no settings.
+For `skip-unknown-contexts`, `from-branch-protection`, and
+`overwrite-pending-contexts`, a value may be set in one file or repeated with
+the same value. Conflicting explicit values at the same scope, including `false`
+versus `true`, fail configuration loading with an error naming the scope and
+field. File order cannot select a boolean value.
+
+After shards are combined, normal inheritance still applies: lists accumulate
+from global to org to repo to branch, and a more specific boolean overrides an
+inherited value. Existing policy validation rejects conflicting context
+categories, including a required context that matches an optional regex. In the
+example, `acme/widgets` PRs targeting `main` require both `ci/org-policy` and
+`ci/pipeline-gate`; other branches inherit only the org requirement from these
+shards. Supplemental context policies do not add repositories to Tide queries.
+
 ### Persistent Storage of Action History
 
 Tide records a history of the actions it takes (namely triggering tests and merging).

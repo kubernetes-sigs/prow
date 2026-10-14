@@ -2220,6 +2220,36 @@ plugins:
 	}
 }
 
+func TestValidateTideContextPolicyShardScope(t *testing.T) {
+	t.Parallel()
+	global := "tide:\n  context_options:\n    skip-unknown-contexts: false\n"
+	org := "tide:\n  context_options:\n    orgs:\n      my-org:\n        from-branch-protection: false\n"
+	repo := "tide:\n  context_options:\n    orgs:\n      my-org:\n        repos:\n          my-repo:\n            branches:\n              main:\n                overwrite-pending-contexts: false\n"
+	for _, tc := range []struct {
+		name, path, config, errorSubstring string
+	}{
+		{"global at root", "root/cfg.yaml", global, ""},
+		{"org at org", "root/my-org/cfg.yaml", org, ""},
+		{"branch at repo", "root/my-org/my-repo/cfg.yaml", repo, ""},
+		{"wrong org", "root/other-org/cfg.yaml", org, "contains config for org my-org"},
+		{"wrong repo", "root/my-org/other-repo/cfg.yaml", repo, "contains config for repo my-org/my-repo"},
+		{"mixed global", "root/my-org/my-repo/cfg.yaml", strings.Replace(repo, "context_options:\n", "context_options:\n    skip-unknown-contexts: false\n", 1), "contains global config"},
+		{"mixed org", "root/my-org/my-repo/cfg.yaml", strings.Replace(repo, "my-org:\n", "my-org:\n        skip-unknown-contexts: false\n", 1), "contains config for org my-org"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			filesystem := testfs(map[string]string{tc.path: tc.config})
+			err := validateAdditionalProwConfigIsInOrgRepoDirectoryStructure(filesystem, []string{"root"}, nil, "cfg.yaml", "plugins.yaml")
+			if tc.errorSubstring == "" {
+				if err != nil {
+					t.Fatalf("valid context shard rejected: %v", err)
+				}
+			} else if err == nil || !strings.Contains(err.Error(), tc.errorSubstring) {
+				t.Fatalf("want error containing %q, got %v", tc.errorSubstring, err)
+			}
+		})
+	}
+}
+
 func testfs(files map[string]string) fstest.MapFS {
 	filesystem := fstest.MapFS{}
 	for path, content := range files {
