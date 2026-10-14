@@ -68,6 +68,12 @@ with unique base names and supply the directory path to components via
 allowing multiple files to be loaded into a single configmap under different
 keys (different files once mounted to a container).
 
+`--job-config-path` can be passed multiple times when the job configs are not
+all in one place, for example when they are stored on different volumes. The
+job configs of all the paths are merged. A path is either a file or a directory
+that is searched recursively, the paths must not overlap, and the base names of
+the files must be unique across all the paths, not only within each of them.
+
 ### GitHub API Cache
 
 [`ghproxy`](/docs/ghproxy/) is a reverse proxy HTTP cache optimized for the GitHub API.

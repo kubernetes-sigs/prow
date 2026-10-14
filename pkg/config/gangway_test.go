@@ -126,7 +126,7 @@ gangway:
 			t.Fatalf("fail to write gangway config: %v", err)
 		}
 
-		_, err := Load(gangwayConfig, "", nil, "")
+		_, err := Load(gangwayConfig, nil, nil, "")
 
 		if (err != nil) != tc.expectError {
 			t.Fatalf("tc %s: expected error: %v, got: %v, error: %v", tc.name, tc.expectError, (err != nil), err)

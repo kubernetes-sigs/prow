@@ -746,7 +746,11 @@ presubmits:
 				}
 			}
 			// Test validation
-			_, err := config.LoadStrict(prowConfigFile, jobConfigDir, nil, "")
+			var jobConfigs []string
+			if jobConfigDir != "" {
+				jobConfigs = []string{jobConfigDir}
+			}
+			_, err := config.LoadStrict(prowConfigFile, jobConfigs, nil, "")
 			if (err != nil) != tc.expectedErr {
 				if tc.expectedErr {
 					t.Error("Expected an error, but did not receive one.")
@@ -1496,7 +1500,7 @@ func TestOptions(t *testing.T) {
 					ConfigPathFlagName:                    "config-path",
 					JobConfigPathFlagName:                 "job-config-path",
 					ConfigPath:                            "prow/config.yaml",
-					JobConfigPath:                         "config/jobs/org/job.yaml",
+					JobConfigPaths:                        flagutil.NewStringsBeenSet("config/jobs/org/job.yaml"),
 					SupplementalProwConfigsFileNameSuffix: "_prowconfig.yaml",
 					InRepoConfigCacheSize:                 200,
 				},
@@ -1512,6 +1516,29 @@ func TestOptions(t *testing.T) {
 				github:          defaultGitHubOptions,
 			},
 			expectedError: false,
+		},
+		{
+			name: "repeated job-config-path keeps every path in order",
+			args: []string{
+				"--config-path=prow/config.yaml",
+				"--job-config-path=config/jobs/a",
+				"--job-config-path=config/jobs/b",
+			},
+			expectedOptions: &options{
+				config: configflagutil.ConfigOptions{
+					ConfigPathFlagName:                    "config-path",
+					JobConfigPathFlagName:                 "job-config-path",
+					ConfigPath:                            "prow/config.yaml",
+					JobConfigPaths:                        flagutil.NewStringsBeenSet("config/jobs/a", "config/jobs/b"),
+					SupplementalProwConfigsFileNameSuffix: "_prowconfig.yaml",
+					InRepoConfigCacheSize:                 200,
+				},
+				pluginsConfig: pluginsflagutil.PluginOptions{
+					SupplementalPluginsConfigsFileNameSuffix: "_pluginconfig.yaml",
+					CheckUnknownPlugins:                      true,
+				},
+				github: defaultGitHubOptions,
+			},
 		},
 		{
 			name: "prow-yaml-path without prow-yaml-repo-name is invalid",
@@ -1650,7 +1677,7 @@ func TestValidateInRepoConfig(t *testing.T) {
 			t.Errorf("failed to close tempFile: %v", err)
 		}
 
-		cfg, err := config.Load(tempConfig.Name(), "", nil, "")
+		cfg, err := config.Load(tempConfig.Name(), nil, nil, "")
 		if err != nil {
 			t.Fatalf("failed to load config: %v", err)
 		}

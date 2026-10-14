@@ -29,6 +29,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"sigs.k8s.io/prow/pkg/config"
+	"sigs.k8s.io/prow/pkg/flagutil"
 	configflagutil "sigs.k8s.io/prow/pkg/flagutil/config"
 	"sigs.k8s.io/prow/pkg/io"
 )
@@ -140,8 +141,8 @@ func TestLoad(t *testing.T) {
 				statusURI: statusURI,
 				opener:    &testOpener{},
 				configOpts: configflagutil.ConfigOptions{
-					ConfigPath:    configFile,
-					JobConfigPath: jobConfigFile,
+					ConfigPath:     configFile,
+					JobConfigPaths: flagutil.NewStrings(jobConfigFile),
 				},
 			}
 			changes, err := sc.Load()
@@ -207,8 +208,8 @@ func TestSave(t *testing.T) {
 				statusURI: statusURI,
 				opener:    &testOpener{},
 				configOpts: configflagutil.ConfigOptions{
-					ConfigPath:    configFile,
-					JobConfigPath: jobConfigFile,
+					ConfigPath:     configFile,
+					JobConfigPaths: flagutil.NewStrings(jobConfigFile),
 				},
 			}
 			if err := sc.Save(); err != nil {

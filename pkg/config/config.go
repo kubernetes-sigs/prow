@@ -1656,25 +1656,26 @@ func (cfg *SlackReporter) DefaultAndValidate() error {
 	return nil
 }
 
-// Load loads and parses the config at path.
-func Load(prowConfig, jobConfig string, supplementalProwConfigDirs []string, supplementalProwConfigsFileNameSuffix string, additionals ...func(*Config) error) (c *Config, err error) {
-	return loadWithYamlOpts(nil, prowConfig, jobConfig, supplementalProwConfigDirs, supplementalProwConfigsFileNameSuffix, additionals...)
+// Load loads and parses the config at path. The job config is loaded from all
+// the jobConfigs paths, see ReadJobConfigs for the constraints on them.
+func Load(prowConfig string, jobConfigs []string, supplementalProwConfigDirs []string, supplementalProwConfigsFileNameSuffix string, additionals ...func(*Config) error) (c *Config, err error) {
+	return loadWithYamlOpts(nil, prowConfig, jobConfigs, supplementalProwConfigDirs, supplementalProwConfigsFileNameSuffix, additionals...)
 }
 
 // LoadStrict loads and parses the config at path.
 // Unlike Load it unmarshalls yaml with strict parsing.
-func LoadStrict(prowConfig, jobConfig string, supplementalProwConfigDirs []string, supplementalProwConfigsFileNameSuffix string, additionals ...func(*Config) error) (c *Config, err error) {
-	return loadWithYamlOpts([]yaml.JSONOpt{yaml.DisallowUnknownFields}, prowConfig, jobConfig, supplementalProwConfigDirs, supplementalProwConfigsFileNameSuffix, additionals...)
+func LoadStrict(prowConfig string, jobConfigs []string, supplementalProwConfigDirs []string, supplementalProwConfigsFileNameSuffix string, additionals ...func(*Config) error) (c *Config, err error) {
+	return loadWithYamlOpts([]yaml.JSONOpt{yaml.DisallowUnknownFields}, prowConfig, jobConfigs, supplementalProwConfigDirs, supplementalProwConfigsFileNameSuffix, additionals...)
 }
 
-func loadWithYamlOpts(yamlOpts []yaml.JSONOpt, prowConfig, jobConfig string, supplementalProwConfigDirs []string, supplementalProwConfigsFileNameSuffix string, additionals ...func(*Config) error) (c *Config, err error) {
+func loadWithYamlOpts(yamlOpts []yaml.JSONOpt, prowConfig string, jobConfigs []string, supplementalProwConfigDirs []string, supplementalProwConfigsFileNameSuffix string, additionals ...func(*Config) error) (c *Config, err error) {
 	// we never want config loading to take down the prow components.
 	defer func() {
 		if r := recover(); r != nil {
 			c, err = nil, fmt.Errorf("panic loading config: %v\n%s", r, string(debug.Stack()))
 		}
 	}()
-	c, err = loadConfig(prowConfig, jobConfig, supplementalProwConfigDirs, supplementalProwConfigsFileNameSuffix, yamlOpts...)
+	c, err = loadConfig(prowConfig, jobConfigs, supplementalProwConfigDirs, supplementalProwConfigsFileNameSuffix, yamlOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1696,100 +1697,140 @@ func loadWithYamlOpts(yamlOpts []yaml.JSONOpt, prowConfig, jobConfig string, sup
 	return c, nil
 }
 
-// ReadJobConfig reads the JobConfig yaml, but does not expand or validate it.
-func ReadJobConfig(jobConfig string, yamlOpts ...yaml.JSONOpt) (JobConfig, error) {
-	return readJobConfig(jobConfig, filepath.Walk, yamlOpts...)
+// ReadJobConfigs reads the JobConfig yaml from all the given paths and merges
+// it, but does not expand or validate the result. Every path is either a single
+// file or a directory that is searched recursively. File basenames must be
+// unique across all the paths, and the paths must not overlap.
+//
+// The paths are an implementation detail of where the job config is stored: the
+// result is the job config of all of them, or an error if any of them cannot be
+// loaded. It is never the job config of only some of them.
+func ReadJobConfigs(jobConfigs []string, yamlOpts ...yaml.JSONOpt) (JobConfig, error) {
+	return readJobConfigs(jobConfigs, filepath.Walk, yamlOpts...)
 }
 
-func readJobConfig(jobConfig string, walk func(string, filepath.WalkFunc) error, yamlOpts ...yaml.JSONOpt) (JobConfig, error) {
+// readJobConfigs is ReadJobConfigs with the walk injected, so that the tests can make it fail.
+func readJobConfigs(jobConfigs []string, walk func(string, filepath.WalkFunc) error, yamlOpts ...yaml.JSONOpt) (JobConfig, error) {
+	r := &jobConfigReader{
+		yamlOpts: yamlOpts,
+		// we need to ensure all config files have unique basenames, even across
+		// different paths, since updateconfig plugin will use basename as a key in
+		// the configmap.
+		uniqueBasenames: map[string]string{},
+	}
+	allStart := time.Now()
+	for _, jobConfig := range jobConfigs {
+		r.readPath(jobConfig, walk)
+	}
+	if err := utilerrors.NewAggregate(r.errs); err != nil {
+		return JobConfig{}, err
+	}
+	logrus.WithField("count", r.count).WithField("duration", time.Since(allStart)).Traceln("jobConfigs loaded successfully")
+
+	return r.jc, nil
+}
+
+// jobConfigReader accumulates the job config of all the paths it reads.
+type jobConfigReader struct {
+	yamlOpts []yaml.JSONOpt
+	// uniqueBasenames maps the basename of every loaded file to the path it was loaded from.
+	uniqueBasenames map[string]string
+	jc              JobConfig
+	count           int
+	errs            []error
+	// prowIgnore belongs to the path that is currently being walked.
+	prowIgnore gitignore.GitIgnore
+}
+
+// readPath reads a file, or a directory that is searched recursively. The errors are collected instead of returned,
+// so that the problems of all the paths are reported at once.
+func (r *jobConfigReader) readPath(jobConfig string, walk func(string, filepath.WalkFunc) error) {
 	stat, err := os.Stat(jobConfig)
 	if err != nil {
-		return JobConfig{}, err
+		r.errs = append(r.errs, err)
+		return
 	}
 
 	if !stat.IsDir() {
 		// still support a single file.
-		var jc JobConfig
-		if err := yamlToConfig(jobConfig, &jc, yamlOpts...); err != nil {
-			return JobConfig{}, err
-		}
-		return jc, nil
+		r.readFile(jobConfig)
+		return
 	}
 
-	prowIgnore, err := gitignore.NewRepositoryWithFile(jobConfig, ProwIgnoreFileName)
+	// .prowignore files are resolved relative to the directory they are loaded
+	// from, so every directory needs a parser of its own.
+	r.prowIgnore, err = gitignore.NewRepositoryWithFile(jobConfig, ProwIgnoreFileName)
 	if err != nil {
-		return JobConfig{}, fmt.Errorf("failed to create `%s` parser: %w", ProwIgnoreFileName, err)
+		r.errs = append(r.errs, fmt.Errorf("failed to create `%s` parser: %w", ProwIgnoreFileName, err))
+		return
 	}
-	// we need to ensure all config files have unique basenames,
-	// since updateconfig plugin will use basename as a key in the configmap.
-	uniqueBasenames := sets.Set[string]{}
+	if err := walk(jobConfig, r.visit); err != nil {
+		r.errs = append(r.errs, err)
+	}
+}
 
-	jobConfigCount := 0
-	allStart := time.Now()
-	jc := JobConfig{}
-	var errs []error
-	err = walk(jobConfig, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			// Continue to find any other errors, but reject the partial result after the walk
-			// to avoid losing arbitrary part of the config, e.g. if this is a dir
-			errs = append(errs, fmt.Errorf("walking path %q: %w", path, err))
-			return nil
-		}
+// visit loads a file of the directory that is being walked. It keeps walking after an error to report as many
+// problems as possible, the result is rejected as a whole in the end.
+func (r *jobConfigReader) visit(path string, info os.FileInfo, err error) error {
+	if err != nil {
+		// Continue to find any other errors, but reject the partial result after the walk
+		// to avoid losing arbitrary part of the config, e.g. if this is a dir
+		r.errs = append(r.errs, fmt.Errorf("walking path %q: %w", path, err))
+		return nil
+	}
 
-		if strings.HasPrefix(info.Name(), "..") {
-			// kubernetes volumes also include files we
-			// should not look be looking into for keys.
-			if info.IsDir() {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if filepath.Ext(path) != ".yaml" && filepath.Ext(path) != ".yml" {
-			return nil
-		}
-		// Use 'Match' directly because 'Ignore' and 'Include' don't work properly for repositories.
-		match := prowIgnore.Match(path)
-		if match != nil && match.Ignore() {
-			return nil
-		}
-
+	if strings.HasPrefix(info.Name(), "..") {
+		// kubernetes volumes also include files we
+		// should not look be looking into for keys.
 		if info.IsDir() {
-			return nil
-		}
-
-		base := filepath.Base(path)
-		if uniqueBasenames.Has(base) {
-			errs = append(errs, fmt.Errorf("duplicated basename is not allowed: %s", base))
-			return nil
-		}
-		uniqueBasenames.Insert(base)
-
-		fileStart := time.Now()
-		var subConfig JobConfig
-		if err := yamlToConfig(path, &subConfig, yamlOpts...); err != nil {
-			errs = append(errs, err)
-			return nil
-		}
-		jc, err = mergeJobConfigs(jc, subConfig)
-		if err == nil {
-			logrus.WithField("jobConfig", path).WithField("duration", time.Since(fileStart)).Traceln("config loaded")
-			jobConfigCount++
-		} else {
-			errs = append(errs, err)
+			return filepath.SkipDir
 		}
 		return nil
-	})
-	err = utilerrors.NewAggregate(append(errs, err))
-	if err != nil {
-		return JobConfig{}, err
 	}
-	logrus.WithField("count", jobConfigCount).WithField("duration", time.Since(allStart)).Traceln("jobConfigs loaded successfully")
+	if filepath.Ext(path) != ".yaml" && filepath.Ext(path) != ".yml" {
+		return nil
+	}
+	// Use 'Match' directly because 'Ignore' and 'Include' don't work properly for repositories.
+	match := r.prowIgnore.Match(path)
+	if match != nil && match.Ignore() {
+		return nil
+	}
 
-	return jc, nil
+	if info.IsDir() {
+		return nil
+	}
+
+	r.readFile(path)
+	return nil
+}
+
+// readFile loads a single file. Its basename has to be unique among the files of all the paths.
+func (r *jobConfigReader) readFile(path string) {
+	base := filepath.Base(path)
+	if loadedFrom, ok := r.uniqueBasenames[base]; ok {
+		r.errs = append(r.errs, fmt.Errorf("duplicated basename is not allowed: %s (already loaded from %s)", path, loadedFrom))
+		return
+	}
+	r.uniqueBasenames[base] = path
+
+	fileStart := time.Now()
+	var subConfig JobConfig
+	if err := yamlToConfig(path, &subConfig, r.yamlOpts...); err != nil {
+		r.errs = append(r.errs, err)
+		return
+	}
+	jc, err := mergeJobConfigs(r.jc, subConfig)
+	if err != nil {
+		r.errs = append(r.errs, err)
+		return
+	}
+	r.jc = jc
+	logrus.WithField("jobConfig", path).WithField("duration", time.Since(fileStart)).Traceln("config loaded")
+	r.count++
 }
 
 // loadConfig loads one or multiple config files and returns a config object.
-func loadConfig(prowConfig, jobConfig string, additionalProwConfigDirs []string, supplementalProwConfigsFileNameSuffix string, yamlOpts ...yaml.JSONOpt) (*Config, error) {
+func loadConfig(prowConfig string, jobConfigs []string, additionalProwConfigDirs []string, supplementalProwConfigsFileNameSuffix string, yamlOpts ...yaml.JSONOpt) (*Config, error) {
 	stat, err := os.Stat(prowConfig)
 	if err != nil {
 		return nil, err
@@ -1913,11 +1954,11 @@ func loadConfig(prowConfig, jobConfig string, additionalProwConfigDirs []string,
 
 	// TODO(krzyzacy): temporary allow empty jobconfig
 	//                 also temporary allow job config in prow config.
-	if jobConfig == "" {
+	if len(jobConfigs) == 0 {
 		return &nc, nil
 	}
 
-	jc, err := ReadJobConfig(jobConfig, yamlOpts...)
+	jc, err := ReadJobConfigs(jobConfigs, yamlOpts...)
 	if err != nil {
 		return nil, err
 	}

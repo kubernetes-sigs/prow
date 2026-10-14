@@ -67,7 +67,9 @@ Horologium uses the standard Prow config, Kubernetes, controller-manager, and
 instrumentation flags. The most commonly used flags are:
 
 * `--config-path`: Path to the main Prow configuration.
-* `--job-config-path`: Path to the job configuration.
+* `--job-config-path`: Path to the job configuration. Can be passed multiple
+  times to load the job configuration from several paths, see
+  [scaling](/docs/scaling/).
 * `--kubeconfig`: Path to the kubeconfig for the infrastructure cluster.
 * `--dry-run`: Controls whether Horologium creates ProwJobs. The default is
   `true`; production deployments must set `--dry-run=false`.
