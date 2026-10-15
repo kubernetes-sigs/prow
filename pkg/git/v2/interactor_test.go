@@ -297,12 +297,12 @@ func TestInteractor_Checkout(t *testing.T) {
 			name:       "happy case",
 			commitlike: "shasum",
 			responses: map[string]execResponse{
-				"checkout shasum": {
+				"checkout shasum --": {
 					out: []byte(`ok`),
 				},
 			},
 			expectedCalls: [][]string{
-				{"checkout", "shasum"},
+				{"checkout", "shasum", "--"},
 			},
 			expectedErr: false,
 		},
@@ -310,14 +310,32 @@ func TestInteractor_Checkout(t *testing.T) {
 			name:       "checkout fails",
 			commitlike: "shasum",
 			responses: map[string]execResponse{
-				"checkout shasum": {
+				"checkout shasum --": {
 					err: errors.New("oops"),
 				},
 			},
 			expectedCalls: [][]string{
-				{"checkout", "shasum"},
+				{"checkout", "shasum", "--"},
 			},
 			expectedErr: true,
+		},
+		{
+			// Regression test: a branch name that also matches a path in the
+			// working tree (e.g. GitOps overlay branches) must still be treated
+			// as a revision. The trailing "--" is what disambiguates it from a
+			// pathspec; without it git fails with "could be both a local file
+			// and a tracking branch".
+			name:       "path-like branch name is disambiguated from a pathspec",
+			commitlike: "team/app/overlays/prod",
+			responses: map[string]execResponse{
+				"checkout team/app/overlays/prod --": {
+					out: []byte(`ok`),
+				},
+			},
+			expectedCalls: [][]string{
+				{"checkout", "team/app/overlays/prod", "--"},
+			},
+			expectedErr: false,
 		},
 	}
 
@@ -940,7 +958,7 @@ func TestInteractor_MergeWithStrategy(t *testing.T) {
 				"rebase --abort": {
 					out: []byte(`ok`),
 				},
-				"checkout baseSHA": {
+				"checkout baseSHA --": {
 					out: []byte(`ok`),
 				},
 			},
@@ -948,7 +966,7 @@ func TestInteractor_MergeWithStrategy(t *testing.T) {
 				{"rev-parse", "HEAD"},
 				{"rebase", "--no-stat", "baseSHA", "prHead"},
 				{"rebase", "--abort"},
-				{"checkout", "baseSHA"},
+				{"checkout", "baseSHA", "--"},
 			},
 			expectedMerge: false,
 			expectedErr:   false,
@@ -990,7 +1008,7 @@ func TestInteractor_MergeWithStrategy(t *testing.T) {
 				"rebase --abort": {
 					out: []byte(`ok`),
 				},
-				"checkout baseSHA": {
+				"checkout baseSHA --": {
 					err: errors.New("oops"),
 				},
 			},
@@ -998,7 +1016,7 @@ func TestInteractor_MergeWithStrategy(t *testing.T) {
 				{"rev-parse", "HEAD"},
 				{"rebase", "--no-stat", "baseSHA", "prHead"},
 				{"rebase", "--abort"},
-				{"checkout", "baseSHA"},
+				{"checkout", "baseSHA", "--"},
 			},
 			expectedMerge: false,
 			expectedErr:   true,
@@ -1059,12 +1077,12 @@ func TestInteractor_MergeAndCheckout(t *testing.T) {
 			commitlikes: []string{},
 			strategy:    "merge",
 			responses: map[string]execResponse{
-				"checkout base": {
+				"checkout base --": {
 					out: []byte(`ok`),
 				},
 			},
 			expectedCalls: [][]string{
-				{"checkout", "base"},
+				{"checkout", "base", "--"},
 			},
 			expectedErr: false,
 		},
@@ -1074,7 +1092,7 @@ func TestInteractor_MergeAndCheckout(t *testing.T) {
 			commitlikes: []string{"first", "second"},
 			strategy:    "merge",
 			responses: map[string]execResponse{
-				"checkout base": {
+				"checkout base --": {
 					out: []byte(`ok`),
 				},
 				"merge --no-ff --no-stat -m merge first": {
@@ -1085,7 +1103,7 @@ func TestInteractor_MergeAndCheckout(t *testing.T) {
 				},
 			},
 			expectedCalls: [][]string{
-				{"checkout", "base"},
+				{"checkout", "base", "--"},
 				{"merge", "--no-ff", "--no-stat", "-m", "merge", "first"},
 				{"merge", "--no-ff", "--no-stat", "-m", "merge", "second"},
 			},
@@ -1097,7 +1115,7 @@ func TestInteractor_MergeAndCheckout(t *testing.T) {
 			commitlikes: []string{"first", "second"},
 			strategy:    "squash",
 			responses: map[string]execResponse{
-				"checkout base": {
+				"checkout base --": {
 					out: []byte(`ok`),
 				},
 				"merge --squash --no-stat first": {
@@ -1111,7 +1129,7 @@ func TestInteractor_MergeAndCheckout(t *testing.T) {
 				},
 			},
 			expectedCalls: [][]string{
-				{"checkout", "base"},
+				{"checkout", "base", "--"},
 				{"merge", "--squash", "--no-stat", "first"},
 				{"commit", "--no-stat", "-m", "merge"},
 				{"merge", "--squash", "--no-stat", "second"},
@@ -1133,12 +1151,12 @@ func TestInteractor_MergeAndCheckout(t *testing.T) {
 			commitlikes: []string{"first", "second"},
 			strategy:    "squash",
 			responses: map[string]execResponse{
-				"checkout base": {
+				"checkout base --": {
 					err: errors.New("oops"),
 				},
 			},
 			expectedCalls: [][]string{
-				{"checkout", "base"},
+				{"checkout", "base", "--"},
 			},
 			expectedErr: true,
 		},
@@ -1148,7 +1166,7 @@ func TestInteractor_MergeAndCheckout(t *testing.T) {
 			commitlikes: []string{"first", "second"},
 			strategy:    "merge",
 			responses: map[string]execResponse{
-				"checkout base": {
+				"checkout base --": {
 					out: []byte(`ok`),
 				},
 				"merge --no-ff --no-stat -m merge first": {
@@ -1159,7 +1177,7 @@ func TestInteractor_MergeAndCheckout(t *testing.T) {
 				},
 			},
 			expectedCalls: [][]string{
-				{"checkout", "base"},
+				{"checkout", "base", "--"},
 				{"merge", "--no-ff", "--no-stat", "-m", "merge", "first"},
 				{"merge", "--abort"},
 			},
@@ -1171,7 +1189,7 @@ func TestInteractor_MergeAndCheckout(t *testing.T) {
 			commitlikes: []string{"first", "second"},
 			strategy:    "merge",
 			responses: map[string]execResponse{
-				"checkout base": {
+				"checkout base --": {
 					out: []byte(`ok`),
 				},
 				"merge --no-ff --no-stat -m merge first": {
@@ -1182,7 +1200,7 @@ func TestInteractor_MergeAndCheckout(t *testing.T) {
 				},
 			},
 			expectedCalls: [][]string{
-				{"checkout", "base"},
+				{"checkout", "base", "--"},
 				{"merge", "--no-ff", "--no-stat", "-m", "merge", "first"},
 				{"merge", "--abort"},
 			},
@@ -1671,7 +1689,7 @@ func TestInteractor_CheckoutPullRequest(t *testing.T) {
 				"fetch someone.com pull/1/head": {
 					out: []byte(`ok`),
 				},
-				"checkout FETCH_HEAD": {
+				"checkout FETCH_HEAD --": {
 					out: []byte(`ok`),
 				},
 				"checkout -b pull1": {
@@ -1680,7 +1698,7 @@ func TestInteractor_CheckoutPullRequest(t *testing.T) {
 			},
 			expectedCalls: [][]string{
 				{"fetch", "someone.com", "pull/1/head"},
-				{"checkout", "FETCH_HEAD"},
+				{"checkout", "FETCH_HEAD", "--"},
 				{"checkout", "-b", "pull1"},
 			},
 			expectedErr: false,
@@ -1721,13 +1739,13 @@ func TestInteractor_CheckoutPullRequest(t *testing.T) {
 				"fetch someone.com pull/1/head": {
 					out: []byte(`ok`),
 				},
-				"checkout FETCH_HEAD": {
+				"checkout FETCH_HEAD --": {
 					err: errors.New("oops"),
 				},
 			},
 			expectedCalls: [][]string{
 				{"fetch", "someone.com", "pull/1/head"},
-				{"checkout", "FETCH_HEAD"},
+				{"checkout", "FETCH_HEAD", "--"},
 			},
 			expectedErr: true,
 		},
@@ -1741,7 +1759,7 @@ func TestInteractor_CheckoutPullRequest(t *testing.T) {
 				"fetch someone.com pull/1/head": {
 					out: []byte(`ok`),
 				},
-				"checkout FETCH_HEAD": {
+				"checkout FETCH_HEAD --": {
 					out: []byte(`ok`),
 				},
 				"checkout -b pull1": {
@@ -1750,7 +1768,7 @@ func TestInteractor_CheckoutPullRequest(t *testing.T) {
 			},
 			expectedCalls: [][]string{
 				{"fetch", "someone.com", "pull/1/head"},
-				{"checkout", "FETCH_HEAD"},
+				{"checkout", "FETCH_HEAD", "--"},
 				{"checkout", "-b", "pull1"},
 			},
 			expectedErr: true,
