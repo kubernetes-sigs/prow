@@ -477,6 +477,10 @@ func (r *reconciler) syncPendingJob(ctx context.Context, pj *prowv1.ProwJob) (*r
 			r.log.WithFields(pjutil.ProwJobFields(pj)).Info("Pod is missing, starting a new pod")
 		}
 	} else if podUnexpectedStopCause := getPodUnexpectedStopCause(pod); podUnexpectedStopCause != PodUnexpectedStopCauseNone {
+		podBuildID := getPodBuildID(pod)
+		// The same stopped pod can be observed multiple times (e.g. while it is terminating
+		// or from a stale cache), make sure we only count it once.
+		revivalAlreadyCounted := podBuildID != "" && pj.Annotations[kube.RevivedBuildIDAnnotation] == podBuildID
 		switch {
 		case podUnexpectedStopCause == PodUnexpectedStopCauseOOMKilled:
 			// OOMKilled, complete the PJ and mark it as errored.
@@ -490,7 +494,7 @@ func (r *reconciler) syncPendingJob(ctx context.Context, pj *prowv1.ProwJob) (*r
 			pj.SetComplete()
 			pj.Status.State = prowv1.ErrorState
 			pj.Status.Description = "Job pod was evicted by the cluster."
-		case pj.Status.PodRevivalCount >= *r.config().Plank.MaxRevivals:
+		case !revivalAlreadyCounted && pj.Status.PodRevivalCount >= *r.config().Plank.MaxRevivals:
 			// MaxRevivals is reached, complete the PJ and mark it as errored.
 			r.log.WithField("unexpected-stop-cause", podUnexpectedStopCause).WithFields(pjutil.ProwJobFields(pj)).Info("Pod Node reached max retries, fail job.")
 			pj.SetComplete()
@@ -498,16 +502,30 @@ func (r *reconciler) syncPendingJob(ctx context.Context, pj *prowv1.ProwJob) (*r
 			pj.Status.Description = fmt.Sprintf("Job pod reached max revivals (%d) after being stopped unexpectedly (%s)", pj.Status.PodRevivalCount, podUnexpectedStopCause)
 		default:
 			// Update the revival count and delete the pod so it gets recreated in the next resync.
-			pj.Status.PodRevivalCount++
-			r.log.
-				WithField("unexpected-stop-cause", podUnexpectedStopCause).
-				WithFields(pjutil.ProwJobFields(pj)).
-				Info("Pod has stopped unexpectedly, deleting & next sync loop will restart pod")
-
 			client, ok := r.buildClients[pj.ClusterAlias()]
 			if !ok {
 				return nil, TerminalError(fmt.Errorf("pod %s which was stopped unexpectedly (%s): unknown cluster alias %q", pod.Name, podUnexpectedStopCause, pj.ClusterAlias()))
 			}
+
+			if !revivalAlreadyCounted {
+				pj.Status.PodRevivalCount++
+				if pj.Annotations == nil {
+					pj.Annotations = map[string]string{}
+				}
+				pj.Annotations[kube.RevivedBuildIDAnnotation] = podBuildID
+				r.log.
+					WithField("unexpected-stop-cause", podUnexpectedStopCause).
+					WithField("pod-revival-count", pj.Status.PodRevivalCount).
+					WithFields(pjutil.ProwJobFields(pj)).
+					Info("Pod has stopped unexpectedly, deleting & next sync loop will restart pod")
+
+				// The revival count must be persisted before the pod is deleted, otherwise
+				// MaxRevivals is never reached and the pod gets revived forever.
+				if err := r.pjClient.Patch(ctx, pj.DeepCopy(), ctrlruntimeclient.MergeFrom(prevPJ)); err != nil {
+					return nil, fmt.Errorf("patching prowjob: %w", err)
+				}
+			}
+
 			if finalizers := sets.New(pod.Finalizers...); finalizers.Has(kubernetesreporterapi.FinalizerName) {
 				// We want the end user to not see this, so we have to remove the finalizer, otherwise the pod hangs
 				oldPod := pod.DeepCopy()
@@ -1110,6 +1128,9 @@ func getPodBuildID(pod *corev1.Pod) string {
 	}
 
 	// For backwards compatibility: existing pods may not have the buildID label.
+	if len(pod.Spec.Containers) == 0 {
+		return ""
+	}
 	for _, env := range pod.Spec.Containers[0].Env {
 		if env.Name == "BUILD_ID" {
 			return env.Value
