@@ -49,6 +49,7 @@ type fghc struct {
 
 	diff       []byte
 	patch      []byte
+	commits    []github.RepositoryCommit
 	comments   []string
 	prs        []github.PullRequest
 	prComments []github.IssueComment
@@ -101,6 +102,12 @@ func (f *fghc) GetPullRequestPatch(org, repo string, number int) ([]byte, error)
 	f.Lock()
 	defer f.Unlock()
 	return f.patch, nil
+}
+
+func (f *fghc) ListPullRequestCommits(org, repo string, number int) ([]github.RepositoryCommit, error) {
+	f.Lock()
+	defer f.Unlock()
+	return f.commits, nil
 }
 
 func (f *fghc) GetPullRequests(org, repo string) ([]github.PullRequest, error) {
@@ -266,6 +273,20 @@ Subject: [PATCH] Update magic number
  1 file changed, 2 insertions(+), 1 deletion(-)
 
 diff --git a/bar.go b/bar.go
+index 1ea52dc..5bd70a9 100644
+--- a/bar.go
++++ b/bar.go
+@@ -3,5 +3,6 @@ package bar
+
+ // Foo does a thing.
+ func Foo(wow int) int {
+-	return 42 + wow
++	// Needs to be 49 because of a reason.
++	return 49 + wow
+ }
+`)
+
+var squashDiff = []byte(`diff --git a/bar.go b/bar.go
 index 1ea52dc..5bd70a9 100644
 --- a/bar.go
 +++ b/bar.go
@@ -1745,5 +1766,168 @@ func testCherryPickPRClosedLabelRequester(clients localgit.Clients, t *testing.T
 				t.Errorf("expected assignees %v, got %v", want, got)
 			}
 		})
+	}
+}
+
+func commit(login, authorName, authorEmail, message string) github.RepositoryCommit {
+	return github.RepositoryCommit{
+		Author: github.User{Login: login},
+		Commit: github.GitCommit{
+			Author:  github.CommitAuthor{Name: authorName, Email: authorEmail},
+			Message: message,
+		},
+	}
+}
+
+func TestPrimaryAuthor(t *testing.T) {
+	commits := []github.RepositoryCommit{
+		commit("alice", "Alice", "alice@x.com", "first change"),
+		commit("bob", "Bob", "bob@x.com", "second change"),
+	}
+	if got, want := primaryAuthor(commits, "bob"), "Bob <bob@x.com>"; got != want {
+		t.Errorf("primaryAuthor(login=bob): got %q, want %q", got, want)
+	}
+	// No matching login falls back to the oldest commit's author.
+	if got, want := primaryAuthor(commits, "carol"), "Alice <alice@x.com>"; got != want {
+		t.Errorf("primaryAuthor(login=carol): got %q, want %q", got, want)
+	}
+}
+
+func TestCoAuthoredByTrailers(t *testing.T) {
+	commits := []github.RepositoryCommit{
+		commit("alice", "Alice", "alice@x.com", "first change"),
+		// Bob authored, and already credits Alice via an existing trailer.
+		commit("bob", "Bob", "bob@x.com", "second change\n\nCo-authored-by: Carol <carol@x.com>"),
+		// Duplicate author of the first commit must be deduped.
+		commit("alice", "Alice", "alice@x.com", "third change"),
+	}
+	// Alice is the primary author, so she must not appear as a co-author.
+	got := coAuthoredByTrailers(commits, "Alice <alice@x.com>")
+	want := []string{
+		"Co-authored-by: Bob <bob@x.com>",
+		"Co-authored-by: Carol <carol@x.com>",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("coAuthoredByTrailers: got %v, want %v", got, want)
+	}
+}
+
+func TestSquashCommitMessage(t *testing.T) {
+	t.Run("single commit keeps message verbatim", func(t *testing.T) {
+		commits := []github.RepositoryCommit{
+			commit("alice", "Alice", "alice@x.com", "fix the thing\n\nwith detail\n\nCo-authored-by: Bob <bob@x.com>"),
+		}
+		got := squashCommitMessage("[release-1.5] fix the thing", commits, "Alice <alice@x.com>")
+		// Verbatim; Bob already present so not duplicated, Alice excluded.
+		want := "fix the thing\n\nwith detail\n\nCo-authored-by: Bob <bob@x.com>"
+		if got != want {
+			t.Errorf("got:\n%q\nwant:\n%q", got, want)
+		}
+	})
+
+	t.Run("multi commit uses title plus bullets and trailer block", func(t *testing.T) {
+		commits := []github.RepositoryCommit{
+			commit("alice", "Alice", "alice@x.com", "first change"),
+			commit("bob", "Bob", "bob@x.com", "second change\n\nmore detail"),
+		}
+		got := squashCommitMessage("[release-1.5] This is a fix", commits, "Alice <alice@x.com>")
+		want := "[release-1.5] This is a fix\n\n" +
+			"* first change\n* second change\n  more detail\n\n" +
+			"Co-authored-by: Bob <bob@x.com>"
+		if got != want {
+			t.Errorf("got:\n%q\nwant:\n%q", got, want)
+		}
+	})
+}
+
+func TestCherryPickICSquashV2(t *testing.T) {
+	t.Parallel()
+	lg, c := makeFakeRepoWithCommit(localgit.NewV2, t)
+	runCherryPickICSquash(t, lg, c)
+}
+
+// TestCherryPickICSquashNoGitUserV2 builds the git client the way main does:
+// GitHubOptions.GitClientFactory never sets a GitUser getter. The squash path
+// must not depend on it (an earlier version called publisher.Commit, which
+// dereferences that getter and panicked).
+func TestCherryPickICSquashNoGitUserV2(t *testing.T) {
+	t.Parallel()
+	lg, _ := makeFakeRepoWithCommit(localgit.NewV2, t)
+	gc, err := v2.NewLocalClientFactory(lg.Dir, nil, func(content []byte) []byte { return content })
+	if err != nil {
+		t.Fatalf("creating client factory without GitUser: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := gc.Clean(); err != nil {
+			t.Errorf("cleaning client: %v", err)
+		}
+	})
+	runCherryPickICSquash(t, lg, gc)
+}
+
+// runCherryPickICSquash exercises the end-to-end squash path: apply the PR's
+// net diff and record it as a single signed-off commit, then open the PR.
+func runCherryPickICSquash(t *testing.T, lg *localgit.LocalGit, c v2.ClientFactory) {
+	botUser := &github.UserData{Login: "ci-robot", Email: "ci-robot@users.noreply.github.com"}
+	getSecret := func() []byte { return []byte("sha=abcdefg") }
+
+	iNumber := fakePR.GetPRNumber()
+	if err := lg.CheckoutNewBranch("foo", "bar", "stage"); err != nil {
+		t.Fatalf("Checking out pull branch: %v", err)
+	}
+
+	ghc := &fghc{
+		pr: &github.PullRequest{
+			Base:   github.PullRequestBranch{Ref: "master"},
+			Merged: true,
+			Title:  "This is a fix for X",
+			Body:   body,
+		},
+		isMember: true,
+		diff:     squashDiff,
+		commits: []github.RepositoryCommit{
+			commit("alice", "Alice", "alice@x.com", "bump magic number"),
+			commit("bob", "Bob", "bob@x.com", "add comment"),
+		},
+	}
+
+	ic := github.IssueCommentEvent{
+		Action: github.IssueCommentActionCreated,
+		Repo: github.Repo{
+			Owner:    github.User{Login: "foo"},
+			Name:     "bar",
+			FullName: "foo/bar",
+		},
+		Issue: github.Issue{
+			Number:      iNumber,
+			State:       "closed",
+			PullRequest: &struct{}{},
+		},
+		Comment: github.IssueComment{
+			User: github.User{Login: "wiseguy"},
+			Body: "/cherrypick stage",
+		},
+	}
+
+	s := &Server{
+		botUser:        botUser,
+		gc:             c,
+		pusher:         fakePusher{},
+		ghc:            ghc,
+		tokenGenerator: getSecret,
+		log:            logrus.StandardLogger().WithField("client", "cherrypicker"),
+		squashCommits:  true,
+	}
+
+	if _, err := s.handleIssueComment(logrus.NewEntry(logrus.StandardLogger()), ic); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(ghc.prs) != 1 {
+		t.Fatalf("expected exactly one cherry-pick PR, got %d (comments: %v)", len(ghc.prs), ghc.comments)
+	}
+	for _, cm := range ghc.comments {
+		if strings.Contains(cm, "failed") {
+			t.Fatalf("unexpected failure comment: %s", cm)
+		}
 	}
 }
