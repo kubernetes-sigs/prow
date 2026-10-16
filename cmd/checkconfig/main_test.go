@@ -2081,6 +2081,30 @@ plugins:
     plugins:
     - assign`
 
+	const globalContextPolicy = `
+tide:
+  context_options:
+    skip-unknown-contexts: false
+`
+	const orgContextPolicy = `
+tide:
+  context_options:
+    orgs:
+      my-org:
+        from-branch-protection: false
+`
+	const repoContextPolicy = `
+tide:
+  context_options:
+    orgs:
+      my-org:
+        repos:
+          my-repo:
+            branches:
+              main:
+                overwrite-pending-contexts: false
+`
+
 	tests := []struct {
 		name string
 		fs   fstest.MapFS
@@ -2197,6 +2221,52 @@ plugins:
 				"plugins/my-org/my-repo/plugins.yaml": invalidConfig,
 			}),
 			expectedErrorMessage: `failed to unmarshal plugins/my-org/my-repo/plugins.yaml into *plugins.Configuration: error unmarshaling JSON: while decoding JSON: json: cannot unmarshal array into Go value of type plugins.Configuration`,
+		},
+		{
+			name: "Global context policy at root",
+			fs: testfs(map[string]string{
+				root + "/cfg.yaml": globalContextPolicy,
+			}),
+		},
+		{
+			name: "Org context policy at org level",
+			fs: testfs(map[string]string{
+				root + "/my-org/cfg.yaml": orgContextPolicy,
+			}),
+		},
+		{
+			name: "Branch context policy at repo level",
+			fs: testfs(map[string]string{
+				root + "/my-org/my-repo/cfg.yaml": repoContextPolicy,
+			}),
+		},
+		{
+			name: "Context policy for wrong org",
+			fs: testfs(map[string]string{
+				root + "/other-org/cfg.yaml": orgContextPolicy,
+			}),
+			expectedErrorMessage: "config root/other-org/cfg.yaml is invalid: Must contain only config for org other-org, but contains config for org my-org",
+		},
+		{
+			name: "Context policy for wrong repo",
+			fs: testfs(map[string]string{
+				root + "/my-org/other-repo/cfg.yaml": repoContextPolicy,
+			}),
+			expectedErrorMessage: "config root/my-org/other-repo/cfg.yaml is invalid: Must only contain config for repo my-org/other-repo, but contains config for repo my-org/my-repo",
+		},
+		{
+			name: "Global and repo context policies at repo level",
+			fs: testfs(map[string]string{
+				root + "/my-org/my-repo/cfg.yaml": strings.Replace(repoContextPolicy, "context_options:\n", "context_options:\n    skip-unknown-contexts: false\n", 1),
+			}),
+			expectedErrorMessage: "config root/my-org/my-repo/cfg.yaml is invalid: Must only contain config for repo my-org/my-repo, but contains global config",
+		},
+		{
+			name: "Org and repo context policies at repo level",
+			fs: testfs(map[string]string{
+				root + "/my-org/my-repo/cfg.yaml": strings.Replace(repoContextPolicy, "my-org:\n", "my-org:\n        skip-unknown-contexts: false\n", 1),
+			}),
+			expectedErrorMessage: "config root/my-org/my-repo/cfg.yaml is invalid: Must only contain config for repo my-org/my-repo, but contains config for org my-org",
 		},
 	}
 

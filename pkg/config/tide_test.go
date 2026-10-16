@@ -2105,3 +2105,78 @@ func fakeProwYAMLGetterFactory(presubmits []Presubmit, postsubmits []Postsubmit)
 		}, nil
 	}
 }
+
+func TestLoadShardedTideContextPolicies(t *testing.T) {
+	t.Parallel()
+	cfg, err := loadConfigYaml(`tide:
+  context_options:
+    required-contexts: [global, shared]
+    required-if-present-contexts: [conditional, shared-conditional]
+    skip-unknown-contexts: true`, t, `tide:
+  context_options:
+    required-contexts: [root, shared]
+    required-if-present-contexts: [extra-conditional, shared-conditional]
+    orgs:
+      acme:
+        required-contexts: [org]
+        repos:
+          widget:
+            required-contexts: [repo]
+            branches:
+              main:
+                required-contexts: [gate]
+                skip-unknown-contexts: false`, `tide:
+  context_options:
+    orgs:
+      acme:
+        repos:
+          widget:
+            branches:
+              main:
+                required-contexts: [extra, gate]`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	policy, err := cfg.GetTideContextPolicy(nil, "acme", "widget", "main", nil, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff([]string{"extra", "gate", "global", "org", "repo", "root", "shared"}, policy.RequiredContexts); diff != "" {
+		t.Errorf("required contexts: %s", diff)
+	}
+	if diff := cmp.Diff([]string{"conditional", "extra-conditional", "shared-conditional"}, policy.RequiredIfPresentContexts); diff != "" {
+		t.Errorf("required-if-present contexts: %s", diff)
+	}
+	if policy.SkipUnknownContexts == nil || *policy.SkipUnknownContexts {
+		t.Errorf("branch policy did not override skip-unknown-contexts: %v", policy.SkipUnknownContexts)
+	}
+}
+
+func TestSupplementalTideContextPolicyBooleans(t *testing.T) {
+	for _, field := range []string{"skip-unknown-contexts", "from-branch-protection", "overwrite-pending-contexts"} {
+		t.Run(field, func(t *testing.T) {
+			var incoming TideContextPolicyOptions
+			data := fmt.Sprintf(`orgs: {org: {repos: {repo: {branches: {main: {%s: false}}}}}}`, field)
+			if err := yaml.Unmarshal([]byte(data), &incoming); err != nil {
+				t.Fatal(err)
+			}
+			var merged TideContextPolicyOptions
+			for range 2 { // Both singly defined and repeated explicit false are valid.
+				if err := merged.mergeFrom(incoming); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if diff := cmp.Diff(incoming, merged); diff != "" {
+				t.Errorf("explicit false was lost: %s", diff)
+			}
+			var conflicting TideContextPolicyOptions
+			if err := yaml.Unmarshal([]byte(strings.Replace(data, "false", "true", 1)), &conflicting); err != nil {
+				t.Fatal(err)
+			}
+			err := merged.mergeFrom(conflicting)
+			if err == nil || !strings.Contains(err.Error(), field) || !strings.Contains(err.Error(), `orgs["org"].repos["repo"].branches["main"]`) {
+				t.Errorf("expected field and scope in conflict error, got %v", err)
+			}
+		})
+	}
+}

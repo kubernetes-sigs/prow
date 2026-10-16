@@ -1494,6 +1494,9 @@ tide:
     # the required and optional contexts from the prow jobs configured and use the github
     # combined status; otherwise it may apply the branch protection setting or let user
     # define their own options in case branch protection is not used.
+    # May be sharded across supplemental Prow config files. Lists at the same scope
+    # are unioned; conflicting explicit booleans at the same scope are rejected.
+    # More specific org, repo and branch policies can override inherited booleans.
     context_options:
         # Infer required and optional jobs from Branch Protection configuration
         from-branch-protection: false

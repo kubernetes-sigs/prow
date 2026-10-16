@@ -8973,6 +8973,7 @@ func TestHasConfigFor(t *testing.T) {
 				fuzzedConfig.SlackReporterConfigs = SlackReporterConfigs{}
 				fuzzedConfig.Tide.MergeType = nil
 				fuzzedConfig.Tide.Queries = nil
+				fuzzedConfig.Tide.ContextOptions = TideContextPolicyOptions{}
 				return fuzzedConfig, true, nil, nil
 			},
 		},
