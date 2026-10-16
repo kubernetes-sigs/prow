@@ -119,3 +119,51 @@ func Test_newS3Client(t *testing.T) {
 		})
 	}
 }
+
+func Test_newS3Client_RequestChecksumCalculation(t *testing.T) {
+	t.Setenv("AWS_CONFIG_FILE", "/dev/null")
+	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", "/dev/null")
+
+	tests := []struct {
+		name     string
+		creds    S3Credentials
+		envValue string
+		want     aws.RequestChecksumCalculation
+	}{
+		{
+			// AWS S3 (no custom endpoint) keeps the SDK default.
+			name:  "no endpoint keeps SDK default",
+			creds: S3Credentials{AccessKey: "foo", SecretKey: "bar"},
+			want:  aws.RequestChecksumCalculationWhenSupported,
+		},
+		{
+			// Custom endpoint defaults to when_required to avoid aws-chunked.
+			name:  "custom endpoint defaults to when_required",
+			creds: S3Credentials{AccessKey: "foo", SecretKey: "bar", Endpoint: "https://foobar.com"},
+			want:  aws.RequestChecksumCalculationWhenRequired,
+		},
+		{
+			// An explicit env var wins over the custom-endpoint default.
+			name:     "env var overrides custom endpoint default",
+			creds:    S3Credentials{AccessKey: "foo", SecretKey: "bar", Endpoint: "https://foobar.com"},
+			envValue: "when_supported",
+			want:     aws.RequestChecksumCalculationWhenSupported,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.envValue != "" {
+				t.Setenv("AWS_REQUEST_CHECKSUM_CALCULATION", tt.envValue)
+			} else {
+				t.Setenv("AWS_REQUEST_CHECKSUM_CALCULATION", "")
+			}
+			client, err := newS3Client(context.Background(), &tt.creds)
+			if err != nil {
+				t.Fatalf("newS3Client() error = %v", err)
+			}
+			if got := client.Options().RequestChecksumCalculation; got != tt.want {
+				t.Errorf("RequestChecksumCalculation = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

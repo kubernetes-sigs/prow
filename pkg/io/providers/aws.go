@@ -22,7 +22,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
@@ -70,6 +72,12 @@ func newS3Client(ctx context.Context, creds *S3Credentials) (*s3.Client, error) 
 	cfg, err := config.LoadDefaultConfig(ctx, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("error loading AWS SDK config: %w", err)
+	}
+
+	// Custom endpoints (OCI, Swift, ...) reject the SDK's default aws-chunked
+	// checksum encoding with 501; only checksum when required. Env var still wins.
+	if creds.Endpoint != "" && os.Getenv("AWS_REQUEST_CHECKSUM_CALCULATION") == "" {
+		cfg.RequestChecksumCalculation = aws.RequestChecksumCalculationWhenRequired
 	}
 
 	s3Opts := []func(o *s3.Options){
