@@ -19,6 +19,8 @@ package main
 import (
 	"errors"
 	"fmt"
+	"os/exec"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"sync"
@@ -49,6 +51,7 @@ type fghc struct {
 
 	diff       []byte
 	patch      []byte
+	commits    []github.RepositoryCommit
 	comments   []string
 	prs        []github.PullRequest
 	prComments []github.IssueComment
@@ -101,6 +104,12 @@ func (f *fghc) GetPullRequestPatch(org, repo string, number int) ([]byte, error)
 	f.Lock()
 	defer f.Unlock()
 	return f.patch, nil
+}
+
+func (f *fghc) ListPullRequestCommits(org, repo string, number int) ([]github.RepositoryCommit, error) {
+	f.Lock()
+	defer f.Unlock()
+	return f.commits, nil
 }
 
 func (f *fghc) GetPullRequests(org, repo string) ([]github.PullRequest, error) {
@@ -242,6 +251,34 @@ func (f *fghc) CreateFork(org, repo string) (string, error) {
 type fakePusher struct{}
 
 func (f fakePusher) Push(r git.RepoClient, newBranch string, force bool) error {
+	return nil
+}
+
+// capturePusher records, at push time (before the clone is cleaned), the commit
+// count, changed files, and selected file contents in the squashed commit so a
+// test can assert the result.
+type capturePusher struct {
+	gitBin string
+	paths  []string
+	count  string
+	files  string
+	show   map[string]string
+}
+
+func (p *capturePusher) Push(r git.RepoClient, newBranch string, force bool) error {
+	dir := r.Directory()
+	run := func(args ...string) string {
+		cmd := exec.Command(p.gitBin, args...)
+		cmd.Dir = dir
+		out, _ := cmd.CombinedOutput()
+		return strings.TrimSpace(string(out))
+	}
+	p.count = run("rev-list", "--count", "stage..HEAD")
+	p.files = run("show", "--name-only", "--format=", "HEAD")
+	p.show = map[string]string{}
+	for _, path := range p.paths {
+		p.show[path] = run("show", "HEAD:"+path)
+	}
 	return nil
 }
 
@@ -1745,5 +1782,257 @@ func testCherryPickPRClosedLabelRequester(clients localgit.Clients, t *testing.T
 				t.Errorf("expected assignees %v, got %v", want, got)
 			}
 		})
+	}
+}
+
+func commit(login, authorName, authorEmail, message string) github.RepositoryCommit {
+	return github.RepositoryCommit{
+		Author: github.User{Login: login},
+		Commit: github.GitCommit{
+			Author:  github.CommitAuthor{Name: authorName, Email: authorEmail},
+			Message: message,
+		},
+	}
+}
+
+func TestPrimaryAuthor(t *testing.T) {
+	commits := []github.RepositoryCommit{
+		commit("alice", "Alice", "alice@x.com", "first change"),
+		commit("bob", "Bob", "bob@x.com", "second change"),
+	}
+	if got, want := primaryAuthor(commits, "bob"), "Bob <bob@x.com>"; got != want {
+		t.Errorf("primaryAuthor(login=bob): got %q, want %q", got, want)
+	}
+	// No matching login falls back to the oldest commit's author.
+	if got, want := primaryAuthor(commits, "carol"), "Alice <alice@x.com>"; got != want {
+		t.Errorf("primaryAuthor(login=carol): got %q, want %q", got, want)
+	}
+}
+
+func TestCoAuthoredByTrailers(t *testing.T) {
+	commits := []github.RepositoryCommit{
+		commit("alice", "Alice", "alice@x.com", "first change"),
+		// Bob authored, and already credits Alice via an existing trailer.
+		commit("bob", "Bob", "bob@x.com", "second change\n\nCo-authored-by: Carol <carol@x.com>"),
+		// Duplicate author of the first commit must be deduped.
+		commit("alice", "Alice", "alice@x.com", "third change"),
+	}
+	// Alice is the primary author, so she must not appear as a co-author.
+	got := coAuthoredByTrailers(commits, "Alice <alice@x.com>")
+	want := []string{
+		"Co-authored-by: Bob <bob@x.com>",
+		"Co-authored-by: Carol <carol@x.com>",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("coAuthoredByTrailers: got %v, want %v", got, want)
+	}
+}
+
+func TestSquashCommitMessage(t *testing.T) {
+	t.Run("single commit keeps message verbatim", func(t *testing.T) {
+		commits := []github.RepositoryCommit{
+			commit("alice", "Alice", "alice@x.com", "fix the thing\n\nwith detail\n\nCo-authored-by: Bob <bob@x.com>"),
+		}
+		got := squashCommitMessage("[release-1.5] fix the thing", commits, "Alice <alice@x.com>")
+		// Verbatim; Bob already present so not duplicated, Alice excluded.
+		want := "fix the thing\n\nwith detail\n\nCo-authored-by: Bob <bob@x.com>"
+		if got != want {
+			t.Errorf("got:\n%q\nwant:\n%q", got, want)
+		}
+	})
+
+	t.Run("multi commit uses title plus bullets and trailer block", func(t *testing.T) {
+		commits := []github.RepositoryCommit{
+			commit("alice", "Alice", "alice@x.com", "first change"),
+			commit("bob", "Bob", "bob@x.com", "second change\n\nmore detail"),
+		}
+		got := squashCommitMessage("[release-1.5] This is a fix", commits, "Alice <alice@x.com>")
+		want := "[release-1.5] This is a fix\n\n" +
+			"* first change\n\n* second change\n  more detail\n\n" +
+			"Co-authored-by: Bob <bob@x.com>"
+		if got != want {
+			t.Errorf("got:\n%q\nwant:\n%q", got, want)
+		}
+	})
+
+	t.Run("trailer in a bullet body still credited", func(t *testing.T) {
+		// Alice's commit already credits Bob; a later commit is authored by Bob.
+		// The trailer lands in Alice's indented bullet body, so it must still be
+		// added as a real trailer block (not deduped against the bullet text).
+		commits := []github.RepositoryCommit{
+			commit("alice", "Alice", "alice@x.com", "first change\n\nCo-authored-by: Bob <bob@x.com>"),
+			commit("bob", "Bob", "bob@x.com", "second change"),
+		}
+		got := squashCommitMessage("[release-1.5] This is a fix", commits, "Alice <alice@x.com>")
+		if !strings.HasSuffix(got, "\n\nCo-authored-by: Bob <bob@x.com>") {
+			t.Errorf("missing trailing Co-authored-by block, got:\n%q", got)
+		}
+	})
+}
+
+func TestApplySquashedTruncatedCommits(t *testing.T) {
+	// GitHub caps ListPullRequestCommits at 250; pr.Commits says there are more.
+	// applySquashed must bail with errSquashMetadata before touching the repo.
+	s := &Server{ghc: &fghc{
+		pr:      &github.PullRequest{Commits: 253, Base: github.PullRequestBranch{SHA: "deadbeef"}},
+		commits: []github.RepositoryCommit{commit("alice", "Alice", "alice@x.com", "x")},
+	}}
+	err := s.applySquashed(logrus.StandardLogger(), nil, "foo", "bar", 1, "base", "title")
+	if !errors.Is(err, errSquashMetadata) {
+		t.Fatalf("got %v, want errSquashMetadata", err)
+	}
+}
+
+func TestCherryPickICSquashV2(t *testing.T) {
+	t.Parallel()
+	lg, c := makeFakeRepoWithCommit(localgit.NewV2, t)
+	runCherryPickICSquash(t, lg, c)
+}
+
+// TestCherryPickICSquashNoGitUserV2 builds the git client the way main does:
+// GitHubOptions.GitClientFactory never sets a GitUser getter. The squash path
+// must not depend on it (an earlier version called publisher.Commit, which
+// dereferences that getter and panicked).
+func TestCherryPickICSquashNoGitUserV2(t *testing.T) {
+	t.Parallel()
+	lg, _ := makeFakeRepoWithCommit(localgit.NewV2, t)
+	gc, err := v2.NewLocalClientFactory(lg.Dir, nil, func(content []byte) []byte { return content })
+	if err != nil {
+		t.Fatalf("creating client factory without GitUser: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := gc.Clean(); err != nil {
+			t.Errorf("cleaning client: %v", err)
+		}
+	})
+	runCherryPickICSquash(t, lg, gc)
+}
+
+// runCherryPickICSquash exercises the end-to-end squash path: apply the PR's
+// net diff and record it as a single signed-off commit, then open the PR.
+func runCherryPickICSquash(t *testing.T, lg *localgit.LocalGit, c v2.ClientFactory) {
+	botUser := &github.UserData{Login: "ci-robot", Email: "ci-robot@users.noreply.github.com"}
+	getSecret := func() []byte { return []byte("sha=abcdefg") }
+
+	iNumber := fakePR.GetPRNumber()
+	repoDir := filepath.Join(lg.Dir, "foo", "bar")
+	runGit := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command(lg.Git, args...)
+		cmd.Dir = repoDir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	runGitOut := func(args ...string) string {
+		t.Helper()
+		cmd := exec.Command(lg.Git, args...)
+		cmd.Dir = repoDir
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	// The squash path diffs the merge-base of pr.Base.SHA and the head to the
+	// head. Build a base branch, branch the PR head off it, then advance base
+	// with a commit the PR does not contain and point pr.Base.SHA at that later
+	// commit. The diff must still be only the PR's change, not a revert of the
+	// base-only commit.
+	runGit("branch", "-f", "base", "HEAD")
+	if err := lg.CheckoutNewBranch("foo", "bar", "prhead"); err != nil {
+		t.Fatalf("creating PR head branch: %v", err)
+	}
+	if err := lg.AddCommit("foo", "bar", map[string][]byte{"bar.go": []byte("// Package bar does an interesting thing.\npackage bar\n\n// Foo does a thing.\nfunc Foo(wow int) int {\n\t// Needs to be 49 because of a reason.\n\treturn 49 + wow\n}\n")}); err != nil {
+		t.Fatalf("adding PR head commit: %v", err)
+	}
+	runGit("update-ref", fmt.Sprintf("refs/pull/%d/head", iNumber), "prhead")
+	// Advance base past the branch point with a file the PR does not touch.
+	if err := lg.Checkout("foo", "bar", "base"); err != nil {
+		t.Fatalf("checking out base: %v", err)
+	}
+	if err := lg.AddCommit("foo", "bar", map[string][]byte{"base-only.txt": []byte("keep me\n")}); err != nil {
+		t.Fatalf("advancing base: %v", err)
+	}
+	baseSHA := runGitOut("rev-parse", "base") // later than the branch point
+	if err := lg.CheckoutNewBranch("foo", "bar", "stage"); err != nil {
+		t.Fatalf("Checking out pull branch: %v", err)
+	}
+	// Merge the PR into base with a merge commit, so the head is an ancestor of
+	// the base tip, as in repos that merge that way.
+	if err := lg.Checkout("foo", "bar", "base"); err != nil {
+		t.Fatalf("checking out base: %v", err)
+	}
+	if _, err := lg.Merge("foo", "bar", "prhead"); err != nil {
+		t.Fatalf("merging PR head into base: %v", err)
+	}
+
+	pusher := &capturePusher{gitBin: lg.Git, paths: []string{"base-only.txt", "bar.go"}}
+	ghc := &fghc{
+		pr: &github.PullRequest{
+			Base:   github.PullRequestBranch{Ref: "base", SHA: baseSHA},
+			Merged: true,
+			Title:  "This is a fix for X",
+			Body:   body,
+		},
+		isMember: true,
+		commits: []github.RepositoryCommit{
+			commit("alice", "Alice", "alice@x.com", "bump magic number"),
+			commit("bob", "Bob", "bob@x.com", "add comment"),
+		},
+	}
+
+	ic := github.IssueCommentEvent{
+		Action: github.IssueCommentActionCreated,
+		Repo: github.Repo{
+			Owner:    github.User{Login: "foo"},
+			Name:     "bar",
+			FullName: "foo/bar",
+		},
+		Issue: github.Issue{
+			Number:      iNumber,
+			State:       "closed",
+			PullRequest: &struct{}{},
+		},
+		Comment: github.IssueComment{
+			User: github.User{Login: "wiseguy"},
+			Body: "/cherrypick stage",
+		},
+	}
+
+	s := &Server{
+		botUser:        botUser,
+		gc:             c,
+		pusher:         pusher,
+		ghc:            ghc,
+		tokenGenerator: getSecret,
+		log:            logrus.StandardLogger().WithField("client", "cherrypicker"),
+		squashCommits:  true,
+	}
+
+	if _, err := s.handleIssueComment(logrus.NewEntry(logrus.StandardLogger()), ic); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(ghc.prs) != 1 {
+		t.Fatalf("expected exactly one cherry-pick PR, got %d (comments: %v)", len(ghc.prs), ghc.comments)
+	}
+	for _, cm := range ghc.comments {
+		if strings.Contains(cm, "failed") {
+			t.Fatalf("unexpected failure comment: %s", cm)
+		}
+	}
+	// One commit, carrying only the PR's change. The base-only commit must not be
+	// reverted (it stays "keep me"), and bar.go must get the PR's net change.
+	if pusher.count != "1" {
+		t.Fatalf("expected 1 squashed commit, got %q", pusher.count)
+	}
+	if got := pusher.show["base-only.txt"]; got != "keep me" {
+		t.Fatalf("base-only.txt was altered by the squash: %q", got)
+	}
+	if !strings.Contains(pusher.show["bar.go"], "return 49 + wow") {
+		t.Fatalf("bar.go missing PR net change: %q", pusher.show["bar.go"])
+	}
+	if strings.Contains(pusher.files, "base-only.txt") {
+		t.Fatalf("squash commit should not touch base-only.txt, changed files: %q", pusher.files)
 	}
 }
