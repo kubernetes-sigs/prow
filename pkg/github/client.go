@@ -217,6 +217,7 @@ type RepositoryClient interface {
 	RemoveCollaborator(org, repo, user string) error
 	UpdateCollaboratorPermission(org, repo, user string, permission RepoPermissionLevel) error
 	CreateFork(owner, repo string) (string, error)
+	CreateForkInOrg(owner, repo, targetOrg string, defaultBranchOnly bool, name string) (string, error)
 	EnsureFork(forkingUser, org, repo string) (string, error)
 	ListRepoTeams(org, repo string) ([]Team, error)
 	CreateRepo(owner string, isUser bool, repo RepoCreateRequest) (*FullRepo, error)
@@ -4819,6 +4820,70 @@ func (c *client) CreateFork(owner, repo string) (string, error) {
 	// repo under a different name -- the repo got re-named, the
 	// bot account already has a fork with that name, etc
 	return resp.Name, err
+}
+
+// CreateForkInOrg creates a fork of the specified repository in the target organization.
+// Forking a repository happens asynchronously. Therefore, we may have to wait a short
+// period before accessing the git objects. If this takes longer than 5 minutes, GitHub
+// recommends contacting their support.
+//
+// The name parameter specifies the desired name for the fork:
+//   - If empty, GitHub uses the upstream repository name (or appends a suffix on conflict).
+//   - If specified, GitHub uses this exact name. If a repository with this name already
+//     exists, the API returns an error (HTTP 403 "Name already exists on this account");
+//     it does not automatically rename the fork.
+//
+// Note: forking is keyed on the fork name, not the upstream. Forking an upstream the org
+// has already forked, under a new name, creates a SECOND fork rather than returning the
+// existing one, so callers must detect an existing fork by upstream before creating to
+// stay idempotent (see configureForks in cmd/peribolos).
+//
+// See https://docs.github.com/en/rest/repos/forks#create-a-fork
+func (c *client) CreateForkInOrg(owner, repo, targetOrg string, defaultBranchOnly bool, name string) (string, error) {
+	durationLogger := c.log("CreateForkInOrg", owner, repo, targetOrg, defaultBranchOnly, name)
+	defer durationLogger()
+
+	if c.dry {
+		return "", nil
+	}
+
+	reqBody := struct {
+		Organization      string `json:"organization"`
+		DefaultBranchOnly bool   `json:"default_branch_only,omitempty"`
+		Name              string `json:"name,omitempty"`
+	}{
+		Organization:      targetOrg,
+		DefaultBranchOnly: defaultBranchOnly,
+		Name:              name,
+	}
+
+	resp := struct {
+		Name string `json:"name"`
+	}{}
+
+	_, err := c.request(&request{
+		method: http.MethodPost,
+		path:   fmt.Sprintf("/repos/%s/%s/forks", owner, repo),
+		// org selects the GitHub App installation token to use. The fork is
+		// created in (and requires create permission on) targetOrg, not the
+		// upstream owner, so mint the token for targetOrg. The upstream only
+		// needs to be readable, which an installation token can do for public
+		// repos. Using owner here breaks App auth when the app is not installed
+		// on the upstream org.
+		org:         targetOrg,
+		requestBody: &reqBody,
+		exitCodes:   []int{202},
+	}, &resp)
+
+	// With an explicit name GitHub creates the fork with exactly that name (or errors
+	// if it is taken; see the doc comment), so on success resp.Name equals the requested
+	// name. Prefer the response value, but fall back to the requested name if the 202 body
+	// omits it: the empty string is the dry-run sentinel (see the c.dry branch above), so a
+	// real creation must never return "" or the caller would mistake it for a dry run.
+	if resp.Name != "" {
+		return resp.Name, err
+	}
+	return name, err
 }
 
 // EnsureFork checks to see that there is a fork of org/repo in the forkedUsers repositories.
