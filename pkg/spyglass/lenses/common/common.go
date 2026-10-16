@@ -113,6 +113,15 @@ func newLensHandler(lens api.Lens, opts lensHandlerOpts) http.HandlerFunc {
 			return
 		}
 
+		// Resolve the lens configuration up front: the index comes from the
+		// request, and the configuration may have changed since Deck checked it.
+		lenses := opts.ConfigGetter().Deck.Spyglass.Lenses
+		if request.LensIndex < 0 || request.LensIndex >= len(lenses) {
+			writeHTTPError(w, fmt.Errorf("invalid lens index %d, %d lenses are configured", request.LensIndex, len(lenses)), http.StatusBadRequest)
+			return
+		}
+		lensConfig := lenses[request.LensIndex].Lens.Config
+
 		artifacts, err := FetchArtifacts(r.Context(), opts.PJFetcher, opts.ConfigGetter, opts.StorageArtifactFetcher, opts.PodLogArtifactFetcher, request.ArtifactSource, "", opts.ConfigGetter().Deck.Spyglass.SizeLimit, request.Artifacts)
 		if err != nil || len(artifacts) == 0 {
 			statusCode := http.StatusInternalServerError
@@ -136,16 +145,16 @@ func newLensHandler(lens api.Lens, opts lensHandlerOpts) http.HandlerFunc {
 			}{
 				opts.LensTitle,
 				request.ResourceRoot,
-				template.HTML(lens.Header(artifacts, opts.LensResourcesDir, opts.ConfigGetter().Deck.Spyglass.Lenses[request.LensIndex].Lens.Config, opts.ConfigGetter().Deck.Spyglass)),
-				template.HTML(lens.Body(artifacts, opts.LensResourcesDir, "", opts.ConfigGetter().Deck.Spyglass.Lenses[request.LensIndex].Lens.Config, opts.ConfigGetter().Deck.Spyglass)),
+				template.HTML(lens.Header(artifacts, opts.LensResourcesDir, lensConfig, opts.ConfigGetter().Deck.Spyglass)),
+				template.HTML(lens.Body(artifacts, opts.LensResourcesDir, "", lensConfig, opts.ConfigGetter().Deck.Spyglass)),
 			})
 
 		case api.RequestActionRerender:
 			w.Header().Set("Content-Type", "text/html; encoding=utf-8")
-			w.Write([]byte(lens.Body(artifacts, opts.LensResourcesDir, request.Data, opts.ConfigGetter().Deck.Spyglass.Lenses[request.LensIndex].Lens.Config, opts.ConfigGetter().Deck.Spyglass)))
+			w.Write([]byte(lens.Body(artifacts, opts.LensResourcesDir, request.Data, lensConfig, opts.ConfigGetter().Deck.Spyglass)))
 
 		case api.RequestActionCallBack:
-			w.Write([]byte(lens.Callback(artifacts, opts.LensResourcesDir, request.Data, opts.ConfigGetter().Deck.Spyglass.Lenses[request.LensIndex].Lens.Config, opts.ConfigGetter().Deck.Spyglass)))
+			w.Write([]byte(lens.Callback(artifacts, opts.LensResourcesDir, request.Data, lensConfig, opts.ConfigGetter().Deck.Spyglass)))
 
 		default:
 			w.WriteHeader(http.StatusBadRequest)
