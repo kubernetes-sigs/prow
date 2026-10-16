@@ -1137,6 +1137,12 @@ branch-protection:
 				{
 					Org:     "kubernetes",
 					Repo:    "test-infra",
+					Branch:  "skip",
+					Request: nil, // nil Request triggers RemoveBranchProtection
+				},
+				{
+					Org:     "kubernetes",
+					Repo:    "test-infra",
 					Branch:  "master",
 					Request: &github.BranchProtectionRequest{EnforceAdmins: &no},
 				},
@@ -1158,6 +1164,18 @@ branch-protection:
           - sk.*
 `,
 			expected: []requirements{
+				{
+					Org:     "kubernetes",
+					Repo:    "test-infra",
+					Branch:  "skip",
+					Request: nil, // nil Request triggers RemoveBranchProtection
+				},
+				{
+					Org:     "kubernetes",
+					Repo:    "test-infra",
+					Branch:  "foobar1",
+					Request: nil, // nil Request triggers RemoveBranchProtection
+				},
 				{
 					Org:     "kubernetes",
 					Repo:    "test-infra",
