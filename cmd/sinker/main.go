@@ -118,8 +118,8 @@ func main() {
 	cfg := configAgent.Config
 	o.kubernetes.SetDisabledClusters(sets.New[string](cfg().DisabledClusters...))
 
-	if o.config.JobConfigPath != "" {
-		go jobConfigMapMonitor(5*time.Minute, o.config.JobConfigPath)
+	if jobConfigPaths := o.config.JobConfigPaths.Strings(); len(jobConfigPaths) > 0 {
+		go jobConfigMapMonitor(5*time.Minute, jobConfigPaths)
 	}
 
 	prometheus.MustRegister(configAgent)
@@ -577,23 +577,25 @@ func podNeedsKubernetesFinalizerCleanup(log *logrus.Entry, pj *prowapi.ProwJob, 
 // the job ConfigMap is mounted directly at that path, or the ConfigMap was
 // partitioned (see https://github.com/kubernetes/test-infra/pull/28835) and
 // there are multiple subdirs underneath this one.
-func jobConfigMapMonitor(interval time.Duration, jobConfigPath string) {
+func jobConfigMapMonitor(interval time.Duration, jobConfigPaths []string) {
 	logger := logrus.WithField("sync-loop", "job-configmap-monitor")
 	ticker := time.NewTicker(interval)
 
 	for ; true; <-ticker.C {
-		dirs, err := getConfigMapDirs(jobConfigPath)
-		if err != nil {
-			logger.WithField("dir", jobConfigPath).Error("could not resolve ConfigMap dirs")
-			continue
-		}
-		for _, dir := range dirs {
-			bytes, err := getConfigMapSize(dir)
+		for _, jobConfigPath := range jobConfigPaths {
+			dirs, err := getConfigMapDirs(jobConfigPath)
 			if err != nil {
-				logger.WithField("dir", dir).WithError(err).Error("Failed to get configmap metrics")
+				logger.WithField("dir", jobConfigPath).Error("could not resolve ConfigMap dirs")
 				continue
 			}
-			sinkerMetrics.jobConfigMapSize.WithLabelValues(dir).Set(float64(bytes))
+			for _, dir := range dirs {
+				bytes, err := getConfigMapSize(dir)
+				if err != nil {
+					logger.WithField("dir", dir).WithError(err).Error("Failed to get configmap metrics")
+					continue
+				}
+				sinkerMetrics.jobConfigMapSize.WithLabelValues(dir).Set(float64(bytes))
+			}
 		}
 	}
 }

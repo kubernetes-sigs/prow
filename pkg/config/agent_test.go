@@ -17,9 +17,14 @@ limitations under the License.
 package config
 
 import (
+	"errors"
+	"os"
+	"path/filepath"
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/google/go-cmp/cmp"
 )
 
 func cfg(sha string) *Config {
@@ -157,5 +162,93 @@ func receiveDelta(t *testing.T, sub DeltaChan) Delta {
 	case <-time.After(10 * time.Second):
 		t.Fatal("timed out waiting for config delta")
 		return Delta{}
+	}
+}
+
+func TestLastConfigModTime(t *testing.T) {
+	base := time.Unix(1_700_000_000, 0)
+
+	testCases := []struct {
+		name             string
+		jobConfigs       []time.Duration
+		missingJobConfig bool
+		expected         time.Duration
+		expectedErr      error
+	}{
+		{
+			name:     "no job config",
+			expected: 0,
+		},
+		{
+			name:       "newer job config",
+			jobConfigs: []time.Duration{time.Hour},
+			expected:   time.Hour,
+		},
+		{
+			name:       "job config older than the prow config",
+			jobConfigs: []time.Duration{-time.Hour},
+			expected:   0,
+		},
+		{
+			name:       "the newest of many job configs is the last one",
+			jobConfigs: []time.Duration{time.Hour, 2 * time.Hour},
+			expected:   2 * time.Hour,
+		},
+		{
+			name:       "the newest of many job configs is the first one",
+			jobConfigs: []time.Duration{3 * time.Hour, 2 * time.Hour},
+			expected:   3 * time.Hour,
+		},
+		{
+			name:       "a change of any path is noticed even if the others are older than the prow config",
+			jobConfigs: []time.Duration{-time.Hour, time.Minute, -2 * time.Hour},
+			expected:   time.Minute,
+		},
+		{
+			name:             "a missing path is not hidden by the paths that exist",
+			jobConfigs:       []time.Duration{time.Hour},
+			missingJobConfig: true,
+			expectedErr:      os.ErrNotExist,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			prowConfig := filepath.Join(dir, "config.yaml")
+			if err := os.WriteFile(prowConfig, nil, 0600); err != nil {
+				t.Fatalf("fail to write prow config: %v", err)
+			}
+			if err := os.Chtimes(prowConfig, base, base); err != nil {
+				t.Fatalf("fail to set the modification time of the prow config: %v", err)
+			}
+
+			var jobConfigs []string
+			for i, offset := range tc.jobConfigs {
+				jobConfig := filepath.Join(dir, "jobs-"+strconv.Itoa(i))
+				if err := os.Mkdir(jobConfig, 0700); err != nil {
+					t.Fatalf("fail to create job config dir: %v", err)
+				}
+				if err := os.Chtimes(jobConfig, base.Add(offset), base.Add(offset)); err != nil {
+					t.Fatalf("fail to set the modification time of the job config: %v", err)
+				}
+				jobConfigs = append(jobConfigs, jobConfig)
+			}
+			if tc.missingJobConfig {
+				jobConfigs = append(jobConfigs, filepath.Join(dir, "missing"))
+			}
+
+			actual, err := lastConfigModTime(prowConfig, jobConfigs)
+
+			if !errors.Is(err, tc.expectedErr) {
+				t.Fatalf("expected error %v, got %v", tc.expectedErr, err)
+			}
+			if tc.expectedErr != nil {
+				return
+			}
+			if diff := cmp.Diff(base.Add(tc.expected), actual); diff != "" {
+				t.Errorf("unexpected modification time (-want +got):\n%s", diff)
+			}
+		})
 	}
 }
