@@ -2964,14 +2964,51 @@ func validateDecoration(container v1.Container, config *prowapi.DecorationConfig
 
 func resolvePresets(name string, labels map[string]string, spec *v1.PodSpec, presets []Preset) error {
 	for _, preset := range presets {
-		if spec != nil {
-			if err := mergePreset(preset, labels, spec); err != nil {
+		if spec != nil && presetMatches(preset, labels) {
+			if err := applyPresetWithIncludes(preset, presets, spec, nil); err != nil {
 				return fmt.Errorf("job %s failed to merge presets for podspec: %w", name, err)
 			}
 		}
 	}
 
 	return nil
+}
+
+// applyPresetWithIncludes applies the preset and, recursively, all presets it includes.
+// chain holds the label pairs of the include path leading here and is used to detect cycles.
+func applyPresetWithIncludes(preset Preset, all []Preset, spec *v1.PodSpec, chain []string) error {
+	if err := applyPreset(preset, spec); err != nil {
+		return err
+	}
+	// Sort for deterministic application order.
+	includes := make([]string, 0, len(preset.IncludePresets))
+	for l := range preset.IncludePresets {
+		includes = append(includes, l)
+	}
+	sort.Strings(includes)
+	for _, l := range includes {
+		pair := l + ":" + preset.IncludePresets[l]
+		if slices.Contains(chain, pair) {
+			return fmt.Errorf("preset include cycle: %s", strings.Join(append(slices.Clone(chain), pair), " -> "))
+		}
+		included, ok := findPresetByLabel(all, l, preset.IncludePresets[l])
+		if !ok {
+			return fmt.Errorf("included preset with label %q not found", pair)
+		}
+		if err := applyPresetWithIncludes(included, all, spec, append(slices.Clone(chain), pair)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func findPresetByLabel(presets []Preset, label, value string) (Preset, bool) {
+	for _, p := range presets {
+		if v, ok := p.Labels[label]; ok && v == value {
+			return p, true
+		}
+	}
+	return Preset{}, false
 }
 
 var ReProwExtraRef = regexp.MustCompile(`PROW_EXTRA_GIT_REF_(\d+)`)
