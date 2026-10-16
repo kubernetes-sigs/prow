@@ -2106,39 +2106,49 @@ func fakeProwYAMLGetterFactory(presubmits []Presubmit, postsubmits []Postsubmit)
 	}
 }
 
-func TestSupplementalTideContextPolicyLists(t *testing.T) {
-	options := func(contexts []string) TideContextPolicyOptions {
-		return TideContextPolicyOptions{Orgs: map[string]TideOrgContextPolicy{
-			"org": {Repos: map[string]TideRepoContextPolicy{"repo": {Branches: map[string]TideContextPolicy{
-				"main": {RequiredContexts: contexts, RequiredIfPresentContexts: contexts, OptionalContexts: contexts, OptionalRegexContexts: contexts},
-			}}}},
-		}}
-	}
-	incoming := options([]string{"b", "a", "b"})
-	var merged TideContextPolicyOptions
-	if err := merged.mergeFrom(incoming); err != nil {
+func TestLoadShardedTideContextPolicies(t *testing.T) {
+	t.Parallel()
+	cfg, err := loadConfigYaml(`tide:
+  context_options:
+    required-contexts: [global, shared]
+    required-if-present-contexts: [conditional, shared-conditional]
+    skip-unknown-contexts: true`, t, `tide:
+  context_options:
+    required-contexts: [root, shared]
+    required-if-present-contexts: [extra-conditional, shared-conditional]
+    orgs:
+      acme:
+        required-contexts: [org]
+        repos:
+          widget:
+            required-contexts: [repo]
+            branches:
+              main:
+                required-contexts: [gate]
+                skip-unknown-contexts: false`, `tide:
+  context_options:
+    orgs:
+      acme:
+        repos:
+          widget:
+            branches:
+              main:
+                required-contexts: [extra, gate]`)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if err := merged.mergeFrom(options([]string{"z", "a"})); err != nil {
+	policy, err := cfg.GetTideContextPolicy(nil, "acme", "widget", "main", nil, "")
+	if err != nil {
 		t.Fatal(err)
 	}
-	for range 2 { // Repeating a shard is idempotent.
-		if err := merged.mergeFrom(incoming); err != nil {
-			t.Fatal(err)
-		}
+	if diff := cmp.Diff([]string{"extra", "gate", "global", "org", "repo", "root", "shared"}, policy.RequiredContexts); diff != "" {
+		t.Errorf("required contexts: %s", diff)
 	}
-	if err := merged.mergeFrom(TideContextPolicyOptions{}); err != nil {
-		t.Fatal(err)
+	if diff := cmp.Diff([]string{"conditional", "extra-conditional", "shared-conditional"}, policy.RequiredIfPresentContexts); diff != "" {
+		t.Errorf("required-if-present contexts: %s", diff)
 	}
-	if diff := cmp.Diff(options([]string{"a", "b", "z"}), merged); diff != "" {
-		t.Errorf("lists are not sorted unions: %s", diff)
-	}
-	// Mutating every destination map must leave the incoming shard independent.
-	merged.Orgs["org"].Repos["repo"].Branches["other"] = TideContextPolicy{}
-	merged.Orgs["org"].Repos["other"] = TideRepoContextPolicy{}
-	merged.Orgs["other"] = TideOrgContextPolicy{}
-	if diff := cmp.Diff(options([]string{"b", "a", "b"}), incoming); diff != "" {
-		t.Errorf("incoming shard was mutated: %s", diff)
+	if policy.SkipUnknownContexts == nil || *policy.SkipUnknownContexts {
+		t.Errorf("branch policy did not override skip-unknown-contexts: %v", policy.SkipUnknownContexts)
 	}
 }
 
