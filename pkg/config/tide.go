@@ -392,73 +392,92 @@ func (options *TideContextPolicyOptions) mergeFrom(additional TideContextPolicyO
 		}
 		return nil
 	}
+	policy, err := mergeSupplementalTideContextPolicy(options.TideContextPolicy, additional.TideContextPolicy, "tide.context_options")
 	var errs []error
-	mergePolicy := func(a, b TideContextPolicy, scope string) TideContextPolicy {
-		if !isTideContextPolicySet(b) {
-			return a
-		}
-		for _, field := range []struct {
-			name string
-			a, b *bool
-		}{
-			{"skip-unknown-contexts", a.SkipUnknownContexts, b.SkipUnknownContexts},
-			{"from-branch-protection", a.FromBranchProtection, b.FromBranchProtection},
-			{"overwrite-pending-contexts", a.OverwritePendingContexts, b.OverwritePendingContexts},
-		} {
-			if field.a != nil && field.b != nil && *field.a != *field.b {
-				errs = append(errs, fmt.Errorf("%s: conflicting values for %s", scope, field.name))
-			}
-		}
-		return mergeTideContextPolicy(a, b)
+	if err != nil {
+		errs = append(errs, err)
 	}
-
-	merged := TideContextPolicyOptions{
-		TideContextPolicy: mergePolicy(options.TideContextPolicy, additional.TideContextPolicy, "tide.context_options"),
-	}
-	orgs := sets.New[string]()
-	for org := range options.Orgs {
-		orgs.Insert(org)
-	}
-	for org := range additional.Orgs {
-		orgs.Insert(org)
-	}
+	merged := TideContextPolicyOptions{TideContextPolicy: policy}
 	if options.Orgs != nil || additional.Orgs != nil {
 		merged.Orgs = map[string]TideOrgContextPolicy{}
 	}
+	orgs := sets.KeySet(options.Orgs).Union(sets.KeySet(additional.Orgs))
 	for _, org := range sets.List(orgs) {
-		a, b := options.Orgs[org], additional.Orgs[org]
 		scope := fmt.Sprintf("tide.context_options.orgs[%q]", org)
-		o := TideOrgContextPolicy{TideContextPolicy: mergePolicy(a.TideContextPolicy, b.TideContextPolicy, scope)}
-		repos := sets.New[string]()
-		for repo := range a.Repos {
-			repos.Insert(repo)
+		policy, err := options.Orgs[org].mergeFrom(additional.Orgs[org], scope)
+		if err != nil {
+			errs = append(errs, err)
 		}
-		for repo := range b.Repos {
-			repos.Insert(repo)
-		}
-		if a.Repos != nil || b.Repos != nil {
-			o.Repos = map[string]TideRepoContextPolicy{}
-		}
-		for _, repo := range sets.List(repos) {
-			a, b := a.Repos[repo], b.Repos[repo]
-			scope := fmt.Sprintf("%s.repos[%q]", scope, repo)
-			r := TideRepoContextPolicy{TideContextPolicy: mergePolicy(a.TideContextPolicy, b.TideContextPolicy, scope)}
-			if a.Branches != nil || b.Branches != nil {
-				r.Branches = map[string]TideContextPolicy{}
-			}
-			maps.Copy(r.Branches, a.Branches)
-			for _, branch := range sets.List(sets.KeySet(b.Branches)) {
-				r.Branches[branch] = mergePolicy(a.Branches[branch], b.Branches[branch], fmt.Sprintf("%s.branches[%q]", scope, branch))
-			}
-			o.Repos[repo] = r
-		}
-		merged.Orgs[org] = o
+		merged.Orgs[org] = policy
 	}
 	if err := utilerrors.NewAggregate(errs); err != nil {
 		return err
 	}
 	*options = merged
 	return nil
+}
+
+func (org TideOrgContextPolicy) mergeFrom(additional TideOrgContextPolicy, scope string) (TideOrgContextPolicy, error) {
+	policy, err := mergeSupplementalTideContextPolicy(org.TideContextPolicy, additional.TideContextPolicy, scope)
+	var errs []error
+	if err != nil {
+		errs = append(errs, err)
+	}
+	merged := TideOrgContextPolicy{TideContextPolicy: policy}
+	if org.Repos != nil || additional.Repos != nil {
+		merged.Repos = map[string]TideRepoContextPolicy{}
+	}
+	repos := sets.KeySet(org.Repos).Union(sets.KeySet(additional.Repos))
+	for _, repo := range sets.List(repos) {
+		policy, err := org.Repos[repo].mergeFrom(additional.Repos[repo], fmt.Sprintf("%s.repos[%q]", scope, repo))
+		if err != nil {
+			errs = append(errs, err)
+		}
+		merged.Repos[repo] = policy
+	}
+	return merged, utilerrors.NewAggregate(errs)
+}
+
+func (repo TideRepoContextPolicy) mergeFrom(additional TideRepoContextPolicy, scope string) (TideRepoContextPolicy, error) {
+	policy, err := mergeSupplementalTideContextPolicy(repo.TideContextPolicy, additional.TideContextPolicy, scope)
+	var errs []error
+	if err != nil {
+		errs = append(errs, err)
+	}
+	merged := TideRepoContextPolicy{TideContextPolicy: policy}
+	if repo.Branches != nil || additional.Branches != nil {
+		merged.Branches = map[string]TideContextPolicy{}
+	}
+	maps.Copy(merged.Branches, repo.Branches)
+	for _, branch := range sets.List(sets.KeySet(additional.Branches)) {
+		policy, err := mergeSupplementalTideContextPolicy(repo.Branches[branch], additional.Branches[branch], fmt.Sprintf("%s.branches[%q]", scope, branch))
+		if err != nil {
+			errs = append(errs, err)
+		}
+		merged.Branches[branch] = policy
+	}
+	return merged, utilerrors.NewAggregate(errs)
+}
+
+// mergeSupplementalTideContextPolicy rejects conflicting booleans at the same scope.
+func mergeSupplementalTideContextPolicy(a, b TideContextPolicy, scope string) (TideContextPolicy, error) {
+	if !isTideContextPolicySet(b) {
+		return a, nil
+	}
+	var errs []error
+	for _, field := range []struct {
+		name string
+		a, b *bool
+	}{
+		{"skip-unknown-contexts", a.SkipUnknownContexts, b.SkipUnknownContexts},
+		{"from-branch-protection", a.FromBranchProtection, b.FromBranchProtection},
+		{"overwrite-pending-contexts", a.OverwritePendingContexts, b.OverwritePendingContexts},
+	} {
+		if field.a != nil && field.b != nil && *field.a != *field.b {
+			errs = append(errs, fmt.Errorf("%s: conflicting values for %s", scope, field.name))
+		}
+	}
+	return mergeTideContextPolicy(a, b), utilerrors.NewAggregate(errs)
 }
 
 func isTideContextPolicySet(policy TideContextPolicy) bool {

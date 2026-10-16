@@ -2081,6 +2081,30 @@ plugins:
     plugins:
     - assign`
 
+	const globalContextPolicy = `
+tide:
+  context_options:
+    skip-unknown-contexts: false
+`
+	const orgContextPolicy = `
+tide:
+  context_options:
+    orgs:
+      my-org:
+        from-branch-protection: false
+`
+	const repoContextPolicy = `
+tide:
+  context_options:
+    orgs:
+      my-org:
+        repos:
+          my-repo:
+            branches:
+              main:
+                overwrite-pending-contexts: false
+`
+
 	tests := []struct {
 		name string
 		fs   fstest.MapFS
@@ -2198,6 +2222,52 @@ plugins:
 			}),
 			expectedErrorMessage: `failed to unmarshal plugins/my-org/my-repo/plugins.yaml into *plugins.Configuration: error unmarshaling JSON: while decoding JSON: json: cannot unmarshal array into Go value of type plugins.Configuration`,
 		},
+		{
+			name: "Global context policy at root",
+			fs: testfs(map[string]string{
+				root + "/cfg.yaml": globalContextPolicy,
+			}),
+		},
+		{
+			name: "Org context policy at org level",
+			fs: testfs(map[string]string{
+				root + "/my-org/cfg.yaml": orgContextPolicy,
+			}),
+		},
+		{
+			name: "Branch context policy at repo level",
+			fs: testfs(map[string]string{
+				root + "/my-org/my-repo/cfg.yaml": repoContextPolicy,
+			}),
+		},
+		{
+			name: "Context policy for wrong org",
+			fs: testfs(map[string]string{
+				root + "/other-org/cfg.yaml": orgContextPolicy,
+			}),
+			expectedErrorMessage: "config root/other-org/cfg.yaml is invalid: Must contain only config for org other-org, but contains config for org my-org",
+		},
+		{
+			name: "Context policy for wrong repo",
+			fs: testfs(map[string]string{
+				root + "/my-org/other-repo/cfg.yaml": repoContextPolicy,
+			}),
+			expectedErrorMessage: "config root/my-org/other-repo/cfg.yaml is invalid: Must only contain config for repo my-org/other-repo, but contains config for repo my-org/my-repo",
+		},
+		{
+			name: "Global and repo context policies at repo level",
+			fs: testfs(map[string]string{
+				root + "/my-org/my-repo/cfg.yaml": strings.Replace(repoContextPolicy, "context_options:\n", "context_options:\n    skip-unknown-contexts: false\n", 1),
+			}),
+			expectedErrorMessage: "config root/my-org/my-repo/cfg.yaml is invalid: Must only contain config for repo my-org/my-repo, but contains global config",
+		},
+		{
+			name: "Org and repo context policies at repo level",
+			fs: testfs(map[string]string{
+				root + "/my-org/my-repo/cfg.yaml": strings.Replace(repoContextPolicy, "my-org:\n", "my-org:\n        skip-unknown-contexts: false\n", 1),
+			}),
+			expectedErrorMessage: "config root/my-org/my-repo/cfg.yaml is invalid: Must only contain config for repo my-org/my-repo, but contains config for org my-org",
+		},
 	}
 
 	for _, tc := range tests {
@@ -2215,36 +2285,6 @@ plugins:
 			}
 			if tc.expectedErrorMessage != errMsg {
 				t.Errorf("unexpected error (-want +got):\n%s", cmp.Diff(tc.expectedErrorMessage, errMsg))
-			}
-		})
-	}
-}
-
-func TestValidateTideContextPolicyShardScope(t *testing.T) {
-	t.Parallel()
-	global := "tide:\n  context_options:\n    skip-unknown-contexts: false\n"
-	org := "tide:\n  context_options:\n    orgs:\n      my-org:\n        from-branch-protection: false\n"
-	repo := "tide:\n  context_options:\n    orgs:\n      my-org:\n        repos:\n          my-repo:\n            branches:\n              main:\n                overwrite-pending-contexts: false\n"
-	for _, tc := range []struct {
-		name, path, config, errorSubstring string
-	}{
-		{"global at root", "root/cfg.yaml", global, ""},
-		{"org at org", "root/my-org/cfg.yaml", org, ""},
-		{"branch at repo", "root/my-org/my-repo/cfg.yaml", repo, ""},
-		{"wrong org", "root/other-org/cfg.yaml", org, "contains config for org my-org"},
-		{"wrong repo", "root/my-org/other-repo/cfg.yaml", repo, "contains config for repo my-org/my-repo"},
-		{"mixed global", "root/my-org/my-repo/cfg.yaml", strings.Replace(repo, "context_options:\n", "context_options:\n    skip-unknown-contexts: false\n", 1), "contains global config"},
-		{"mixed org", "root/my-org/my-repo/cfg.yaml", strings.Replace(repo, "my-org:\n", "my-org:\n        skip-unknown-contexts: false\n", 1), "contains config for org my-org"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			filesystem := testfs(map[string]string{tc.path: tc.config})
-			err := validateAdditionalProwConfigIsInOrgRepoDirectoryStructure(filesystem, []string{"root"}, nil, "cfg.yaml", "plugins.yaml")
-			if tc.errorSubstring == "" {
-				if err != nil {
-					t.Fatalf("valid context shard rejected: %v", err)
-				}
-			} else if err == nil || !strings.Contains(err.Error(), tc.errorSubstring) {
-				t.Fatalf("want error containing %q, got %v", tc.errorSubstring, err)
 			}
 		})
 	}
