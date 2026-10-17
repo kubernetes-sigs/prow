@@ -45,10 +45,11 @@ type opener interface {
 }
 
 type statusController struct {
-	logger     *logrus.Entry
-	opener     opener
-	statusURI  string
-	configOpts configflagutil.ConfigOptions
+	logger            *logrus.Entry
+	opener            opener
+	statusURI         string
+	configOpts        configflagutil.ConfigOptions
+	onConfigLoadError func(error)
 
 	storedState
 	config.Agent
@@ -57,12 +58,21 @@ type statusController struct {
 func (s *statusController) Load() (config.DeltaChan, error) {
 	s.Agent = config.Agent{}
 	state, err := s.loadState()
+	if err != nil && !io.IsNotExist(err) {
+		if s.onConfigLoadError != nil {
+			s.onConfigLoadError(err)
+		}
+		return nil, err
+	}
 	if err == nil {
 		s.Agent.Set(&state.Config)
 	}
 	changes := s.Agent.Subscribe()
 
-	if _, err := s.configOpts.ConfigAgent(&s.Agent); err != nil {
+	if _, err := s.configOpts.ConfigAgent(
+		configflagutil.WithReuseAgent(&s.Agent),
+		configflagutil.WithErrorHandler(s.onConfigLoadError),
+	); err != nil {
 		s.logger.WithError(err).Error("Error starting config agent.")
 		return nil, err
 	}

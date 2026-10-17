@@ -122,6 +122,7 @@ func main() {
 	defer interrupts.WaitForGracefulShutdown()
 
 	health := pjutil.NewHealthOnPort(o.instrumentationOptions.HealthPort) // Start liveness endpoint
+	health.ServeLive()
 	pprof.Instrument(o.instrumentationOptions)
 
 	configAgent, err := o.config.ConfigAgent()
