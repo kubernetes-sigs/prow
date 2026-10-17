@@ -429,8 +429,8 @@ func (a uint64slice) Len() int           { return len(a) }
 func (a uint64slice) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a uint64slice) Less(i, j int) bool { return a[i] < a[j] }
 
-// Gets job history from the bucket specified in config.
-func getJobHistory(ctx context.Context, url *url.URL, cfg config.Getter, opener pkgio.Opener) (jobHistoryTemplate, error) {
+// Gets job history from the bucket specified in the URL, merged with any additional buckets.
+func getJobHistory(ctx context.Context, url *url.URL, cfg config.Getter, opener pkgio.Opener, additionalBuckets []blobStorageBucket) (jobHistoryTemplate, error) {
 	start := time.Now()
 	tmpl := jobHistoryTemplate{}
 
@@ -467,6 +467,25 @@ func getJobHistory(ctx context.Context, url *url.URL, cfg config.Getter, opener 
 		return tmpl, fmt.Errorf("failed to get build ids: %w", err)
 	}
 
+	// Track which bucket each build ID came from so we fetch from the right place.
+	idBucket := map[uint64]blobStorageBucket{}
+	for _, id := range buildIDs {
+		idBucket[id] = bucket
+	}
+	for _, ab := range additionalBuckets {
+		ids, err := ab.listBuildIDs(buildIDListCtx, root)
+		if err != nil {
+			logrus.WithError(err).WithField("bucket", ab.getName()).Warning("Failed to list build IDs from additional bucket")
+			continue
+		}
+		for _, id := range ids {
+			if _, exists := idBucket[id]; !exists {
+				idBucket[id] = ab
+				buildIDs = append(buildIDs, id)
+			}
+		}
+	}
+
 	sort.Sort(sort.Reverse(uint64slice(buildIDs)))
 
 	// determine which results to display on this page
@@ -494,8 +513,9 @@ func getJobHistory(ctx context.Context, url *url.URL, cfg config.Getter, opener 
 	bch := make(chan buildData)
 	for i, buildID := range shownIDs {
 		go func(i int, buildID uint64) {
+			srcBucket := idBucket[buildID]
 			id := strconv.FormatUint(buildID, 10)
-			dir, err := bucket.getPath(ctx, root, id, "")
+			dir, err := srcBucket.getPath(ctx, root, id, "")
 			if err != nil {
 				if !pkgio.IsNotExist(err) {
 					logrus.WithError(err).Error("Failed to get path")
@@ -503,7 +523,7 @@ func getJobHistory(ctx context.Context, url *url.URL, cfg config.Getter, opener 
 				bch <- buildData{}
 				return
 			}
-			b, err := getBuildData(ctx, bucket, dir)
+			b, err := getBuildData(ctx, srcBucket, dir)
 			if err != nil {
 				if pkgio.IsNotExist(err) {
 					logrus.WithError(err).WithField("build-id", buildID).Debug("Build information incomplete.")
@@ -513,7 +533,7 @@ func getJobHistory(ctx context.Context, url *url.URL, cfg config.Getter, opener 
 			}
 			b.index = i
 			b.ID = id
-			b.SpyglassLink, err = bucket.spyglassLink(ctx, root, id)
+			b.SpyglassLink, err = srcBucket.spyglassLink(ctx, root, id)
 			if err != nil {
 				logrus.WithError(err).Errorf("failed to get spyglass link")
 			}
