@@ -10,7 +10,8 @@ spec:
   - name: grpc
     port: 32000
     targetPort: 32000
-    nodePort: 32000
+    # Static band: automatic assignment uses the dynamic band first.
+    nodePort: 30000
     protocol: TCP
   - name: metrics
     port: 9090
