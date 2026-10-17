@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"net/url"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -112,6 +113,85 @@ func TestRoundTrip(t *testing.T) {
 	expectedHits := map[string]int{"/resource1": 1, "/resource2": 2}
 	if !reflect.DeepEqual(fre.hits, expectedHits) {
 		t.Errorf("Unexpected hit count(s). Diff: %v.", diff.Diff(expectedHits, fre.hits))
+	}
+}
+
+// acceptEchoExecutor is a fake upstream transport RoundTripper that reports
+// each request on arrived, waits for release to be closed, and then responds
+// with the request's Accept header as the body.
+type acceptEchoExecutor struct {
+	arrived chan struct{}
+	release chan struct{}
+}
+
+func (e *acceptEchoExecutor) RoundTrip(req *http.Request) (*http.Response, error) {
+	e.arrived <- struct{}{}
+	<-e.release
+	return &http.Response{
+			Body:   io.NopCloser(bytes.NewBufferString(strings.Join(req.Header.Values("Accept"), ", "))),
+			Header: http.Header{},
+		},
+		nil
+}
+
+func TestRoundTripDifferentAccept(t *testing.T) {
+	// Check that concurrent requests for the same URI with different Accept
+	// headers each go to upstream and get their own response.
+	t.Parallel()
+	accepts := [][]string{
+		{"application/vnd.github.v3+json"},
+		{"application/vnd.github.diff"},
+		// GitHub answers this with the patch, so the key needs more than the first value.
+		{"application/vnd.github.v3+json", "application/vnd.github.patch"},
+	}
+	upstream := &acceptEchoExecutor{
+		arrived: make(chan struct{}, len(accepts)),
+		release: make(chan struct{}),
+	}
+	coalescer := &requestCoalescer{
+		cache:           make(map[string]*firstRequest),
+		requestExecutor: upstream,
+		hasher:          ghmetrics.NewCachingHasher(),
+	}
+	want := make([]string, len(accepts))
+	got := make([]string, len(accepts))
+	wg := sync.WaitGroup{}
+	for i, accept := range accepts {
+		want[i] = strings.Join(accept, ", ")
+		wg.Go(func() {
+			req, err := http.NewRequest(http.MethodGet, "http://foo.com/repos/org/repo/pulls/1", nil)
+			if err != nil {
+				t.Errorf("Failed to create request: %v.", err)
+				return
+			}
+			for _, value := range accept {
+				req.Header.Add("Accept", value)
+			}
+			resp, err := coalescer.RoundTrip(req)
+			if err != nil {
+				t.Errorf("Failed to run request: %v.", err)
+				return
+			}
+			defer resp.Body.Close()
+			b, err := io.ReadAll(resp.Body)
+			if err != nil {
+				t.Errorf("Failed to read response: %v.", err)
+				return
+			}
+			got[i] = string(b)
+		})
+		// Wait for this request to reach upstream before sending the next one,
+		// so that all of them are in flight together.
+		select {
+		case <-upstream.arrived:
+		case <-time.After(10 * time.Second):
+			t.Errorf("Request with Accept %q did not reach upstream.", accept)
+		}
+	}
+	close(upstream.release)
+	wg.Wait()
+	if !reflect.DeepEqual(want, got) {
+		t.Errorf("Unexpected response bodies. Diff: %v.", diff.Diff(want, got))
 	}
 }
 

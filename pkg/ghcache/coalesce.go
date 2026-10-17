@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -30,15 +31,15 @@ import (
 	"sigs.k8s.io/prow/pkg/github/ghmetrics"
 )
 
-// requestCoalescer allows concurrent requests for the same URI to share a
-// single upstream request and response. Once a request comes in for processing
-// for the first time, it is processed and a response is received (via
-// "requestExecutor"). Meanwhile, if there are any other requests for the same URI,
-// those threads Wait(). Then when the first request is done processing (we
-// receive a real request), we copy the original request's response into the
-// subscribed threads, before letting them all finish. The "cache" map is there
-// for our own short-term memory of knowing which request is the "first" one of
-// its kind.
+// requestCoalescer allows concurrent requests for the same URI and Accept
+// header to share a single upstream request and response. Once a request comes
+// in for processing for the first time, it is processed and a response is
+// received (via "requestExecutor"). Meanwhile, if there are any other requests
+// for the same URI and Accept header, those threads Wait(). Then when the first
+// request is done processing (we receive a real response), we copy the original
+// request's response into the subscribed threads, before letting them all
+// finish. The "cache" map is there for our own short-term memory of knowing
+// which request is the "first" one of its kind.
 type requestCoalescer struct {
 	sync.Mutex
 	cache map[string]*firstRequest
@@ -56,11 +57,11 @@ type requestCoalescer struct {
 // firstRequest is where we store the coalesced requests's actual response. It
 // is named firstRequest because only the first one (which also creates the
 // entry in the cache) will actually be resolved by being processed over the
-// network; all subsequent requests that match the first request's URL will end
-// up waiting for this first request to finish. After the first request is
-// processed, the "resp" field will be populated, and subsequent requests will
-// simply reuse the same "resp" body. Note that if the first request fails, then
-// all subsequent requests will fail together.
+// network; all subsequent requests that match the first request's URL and
+// Accept header will end up waiting for this first request to finish. After the
+// first request is processed, the "resp" field will be populated, and
+// subsequent requests will simply reuse the same "resp" body. Note that if the
+// first request fails, then all subsequent requests will fail together.
 type firstRequest struct {
 	*sync.Cond
 
@@ -71,9 +72,9 @@ type firstRequest struct {
 	err         error
 }
 
-// RoundTrip coalesces concurrent GET requests for the same URI by blocking
-// the later requests until the first request returns and then sharing the
-// response between all requests.
+// RoundTrip coalesces concurrent GET requests for the same URI and Accept
+// header by blocking the later requests until the first request returns and
+// then sharing the response between all requests.
 //
 // Notes: Deadlock shouldn't be possible because the map lock is always
 // acquired before firstRequest lock if both locks are to be held and we
@@ -94,7 +95,8 @@ func (coalescer *requestCoalescer) RoundTrip(req *http.Request) (*http.Response,
 
 	var cacheMode = ModeError
 	resp, err := func() (*http.Response, error) {
-		key := req.URL.String()
+		// The same URL can return JSON, a diff or a patch, depending on Accept.
+		key := req.URL.String() + " " + strings.Join(req.Header.Values("Accept"), ", ")
 		coalescer.Lock()
 		firstReq, ok := coalescer.cache[key]
 		// Note that we cannot immediately Unlock() coalescer here just after
@@ -182,8 +184,8 @@ func (coalescer *requestCoalescer) RoundTrip(req *http.Request) (*http.Response,
 		coalescer.cache[key] = firstReq
 
 		// Unlock the coalescer so that it doesn't block on this particular
-		// request. This allows subsequent requests for the same URL to become
-		// subscribers to this main one.
+		// request. This allows subsequent requests for the same URL and Accept
+		// header to become subscribers to this main one.
 		coalescer.Unlock()
 
 		// Actually process the request and get a response.
