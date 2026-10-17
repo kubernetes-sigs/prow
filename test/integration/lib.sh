@@ -502,7 +502,6 @@ function wait_for_crd() {
 }
 
 function get_random_node_port() {
-  # 30000-32767 is the default NodePort range. If "shuf" isn't available, use
-  # 30303 as a default.
-  shuf -i 30000-32767 -n 1 || echo 30303
+  # Static band (30000-30085) without gangway's 30000; see gangway_service.yaml.
+  shuf -i 30001-30085 -n 1 || echo 30001
 }

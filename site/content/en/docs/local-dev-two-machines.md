@@ -157,7 +157,7 @@ nodes:
   - containerPort: 443
     hostPort: 443 # flexible based on your machine
     protocol: TCP
-  - containerPort: 32000
+  - containerPort: 30000 # gangway's NodePort
     hostPort: 32000 # flexible based on your machine
     protocol: TCP
   - containerPort: 30303 # flexible based on your machine
