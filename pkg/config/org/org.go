@@ -71,6 +71,8 @@ type Repo struct {
 	AllowRebaseMerge         *bool                  `json:"allow_rebase_merge,omitempty"`
 	SquashMergeCommitTitle   *string                `json:"squash_merge_commit_title,omitempty"`
 	SquashMergeCommitMessage *string                `json:"squash_merge_commit_message,omitempty"`
+	// DeleteBranchOnMerge enables GitHub's "Automatically delete head branches" setting
+	DeleteBranchOnMerge *bool `json:"delete_branch_on_merge,omitempty"`
 
 	DefaultBranch *string `json:"default_branch,omitempty"`
 	Archived      *bool   `json:"archived,omitempty"`
@@ -293,6 +295,7 @@ func PruneRepoDefaults(repo Repo) Repo {
 	pruneDefault(&repo.AllowRebaseMerge, true)
 	pruneDefault(&repo.AllowSquashMerge, true)
 	pruneDefault(&repo.AllowMergeCommit, true)
+	pruneDefault(&repo.DeleteBranchOnMerge, false)
 
 	pruneDefault(&repo.Archived, false)
 	pruneDefault(&repo.DefaultBranch, "master")

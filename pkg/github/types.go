@@ -405,6 +405,7 @@ type FullRepo struct {
 	AllowRebaseMerge         bool   `json:"allow_rebase_merge,omitempty"`
 	SquashMergeCommitTitle   string `json:"squash_merge_commit_title,omitempty"`
 	SquashMergeCommitMessage string `json:"squash_merge_commit_message,omitempty"`
+	DeleteBranchOnMerge      bool   `json:"delete_branch_on_merge,omitempty"`
 }
 
 // RepoRequest contains metadata used in requests to create or update a Repo.
@@ -434,6 +435,7 @@ type RepoRequest struct {
 	AllowRebaseMerge         *bool           `json:"allow_rebase_merge,omitempty"`
 	SquashMergeCommitTitle   *string         `json:"squash_merge_commit_title,omitempty"`
 	SquashMergeCommitMessage *string         `json:"squash_merge_commit_message,omitempty"`
+	DeleteBranchOnMerge      *bool           `json:"delete_branch_on_merge,omitempty"`
 }
 
 type WorkflowRuns struct {
@@ -480,6 +482,7 @@ func (r RepoRequest) ToRepo() *FullRepo {
 	setBool(&repo.AllowRebaseMerge, r.AllowRebaseMerge)
 	setString(&repo.SquashMergeCommitTitle, r.SquashMergeCommitTitle)
 	setString(&repo.SquashMergeCommitMessage, r.SquashMergeCommitMessage)
+	setBool(&repo.DeleteBranchOnMerge, r.DeleteBranchOnMerge)
 
 	return &repo
 }
@@ -488,7 +491,7 @@ func (r RepoRequest) ToRepo() *FullRepo {
 func (r RepoRequest) Defined() bool {
 	return r.Name != nil || r.Description != nil || r.Homepage != nil || r.Private != nil || r.Visibility != nil ||
 		r.HasIssues != nil || r.HasProjects != nil || r.HasWiki != nil || r.AllowSquashMerge != nil ||
-		r.AllowMergeCommit != nil || r.AllowRebaseMerge != nil
+		r.AllowMergeCommit != nil || r.AllowRebaseMerge != nil || r.DeleteBranchOnMerge != nil
 }
 
 // RepoUpdateRequest contains metadata used for updating a repository

@@ -2201,6 +2201,7 @@ func TestDumpOrgConfig(t *testing.T) {
 						Archived:      true,
 						DefaultBranch: master,
 					},
+					DeleteBranchOnMerge: true,
 				},
 				{
 					Repo: github.Repo{
@@ -2276,14 +2277,15 @@ func TestDumpOrgConfig(t *testing.T) {
 				Admins:  []string{"admin", "james", "giant", "peach"},
 				Repos: map[string]org.Repo{
 					"project": {
-						Description:      &repoDescription,
-						HomePage:         &repoHomepage,
-						HasProjects:      &yes,
-						AllowMergeCommit: &no,
-						AllowRebaseMerge: &no,
-						AllowSquashMerge: &no,
-						Archived:         &yes,
-						DefaultBranch:    &master,
+						Description:         &repoDescription,
+						HomePage:            &repoHomepage,
+						HasProjects:         &yes,
+						AllowMergeCommit:    &no,
+						AllowRebaseMerge:    &no,
+						AllowSquashMerge:    &no,
+						Archived:            &yes,
+						DefaultBranch:       &master,
+						DeleteBranchOnMerge: &yes,
 					},
 					// Non-public visibilities survive PruneRepoDefaults, so they
 					// must round-trip into the dumped config.
@@ -4302,6 +4304,7 @@ func (f fakeRepoClient) UpdateRepo(owner, name string, want github.RepoUpdateReq
 	updateIfSet(&have.AllowRebaseMerge, want.AllowRebaseMerge)
 	updateIfSet(&have.SquashMergeCommitTitle, want.SquashMergeCommitTitle)
 	updateIfSet(&have.SquashMergeCommitMessage, want.SquashMergeCommitMessage)
+	updateIfSet(&have.DeleteBranchOnMerge, want.DeleteBranchOnMerge)
 
 	f.repos[name] = have
 	return &have, nil
@@ -4838,6 +4841,32 @@ func TestNewRepoUpdateRequest(t *testing.T) {
 					SquashMergeCommitTitle:   &squashMergeCommitTitle,
 					SquashMergeCommitMessage: &squashMergeCommitMessage,
 				},
+			},
+		},
+		{
+			description: "enabling delete branch on merge produces a delta",
+			current: github.FullRepo{
+				Repo: github.Repo{Name: repoName},
+			},
+			name: repoName,
+			newState: org.Repo{
+				DeleteBranchOnMerge: new(true),
+			},
+			expected: github.RepoUpdateRequest{
+				RepoRequest: github.RepoRequest{
+					DeleteBranchOnMerge: new(true),
+				},
+			},
+		},
+		{
+			description: "unchanged delete branch on merge produces no delta",
+			current: github.FullRepo{
+				Repo:                github.Repo{Name: repoName},
+				DeleteBranchOnMerge: true,
+			},
+			name: repoName,
+			newState: org.Repo{
+				DeleteBranchOnMerge: new(true),
 			},
 		},
 		{
