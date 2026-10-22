@@ -180,7 +180,7 @@ nodes:
   - containerPort: 443
     hostPort: ${https_host_port}
     protocol: TCP
-  - containerPort: 32000
+  - containerPort: 30000 # gangway's NodePort
     hostPort: 32000
     protocol: TCP
   - containerPort: ${fakepubsub_node_port}
