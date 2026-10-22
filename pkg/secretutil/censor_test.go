@@ -222,3 +222,55 @@ func TestMinimumSecretLength(t *testing.T) {
 		})
 	}
 }
+
+func TestReloadingCensorerStructuredSecrets(t *testing.T) {
+	awsFile := "[default]\naws_access_key_id = AKIAEXAMPLE\naws_secret_access_key = wJalrXUtnFEMI/K7MDENG\n"
+	testCases := []struct {
+		name     string
+		secret   string
+		input    string
+		expected string
+	}{
+		{
+			name:     "JSON string values are censored on their own",
+			secret:   `{"clientSecret":"s3cretvalue","nested":{"list":["other-secret"]},"port":8080}`,
+			input:    "s3cretvalue other-secret 8080 clientSecret",
+			expected: "XXXXXXXXXXX XXXXXXXXXXXX 8080 clientSecret",
+		},
+		{
+			name:     "whole JSON document is still censored",
+			secret:   `{"a":"s3cretvalue"}`,
+			input:    `{"a":"s3cretvalue"}`,
+			expected: "XXXXXXXXXXXXXXXXXXX",
+		},
+		{
+			name:     "INI values are censored on their own",
+			secret:   awsFile,
+			input:    "AKIAEXAMPLE wJalrXUtnFEMI/K7MDENG default aws_access_key_id",
+			expected: "XXXXXXXXXXX XXXXXXXXXXXXXXXXXXXXX default aws_access_key_id",
+		},
+		{
+			name:     "plain multi-line text is censored as a whole only",
+			secret:   "first line\nsecond line",
+			input:    "first line | second line",
+			expected: "first line | second line",
+		},
+		{
+			name:     "invalid JSON is censored as a whole only",
+			secret:   `{"a":"s3cretvalue"`,
+			input:    "s3cretvalue",
+			expected: "s3cretvalue",
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			censorer := NewCensorer()
+			censorer.Refresh(testCase.secret)
+			input := []byte(testCase.input)
+			censorer.Censor(&input)
+			if diff := cmp.Diff(testCase.expected, string(input)); diff != "" {
+				t.Errorf("%s: got incorrect text after censoring: %v", testCase.name, diff)
+			}
+		})
+	}
+}
