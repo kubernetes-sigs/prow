@@ -12,7 +12,7 @@ Specifically, it has the following non-standard caching behavior:
 - Every cache hit is revalidated with a conditional HTTP request to GitHub 
   regardless of cache entry freshness (TTL). 
   The 'Cache-Control' header is ignored and overwritten to achieve this.
-- Concurrent requests for the same resource are coalesced and 
+- Concurrent requests for the same resource and Accept header are coalesced and 
   share a single request/response from GitHub 
   instead of each request resulting in a corresponding upstream request and response.
 
