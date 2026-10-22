@@ -889,7 +889,7 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 						},
 					},
 					BinaryData: map[string][]byte{
-						"config.yaml": {31, 139, 8, 0, 0, 0, 0, 0, 0, 255, 202, 75, 45, 215, 77, 206, 207, 75, 203, 76, 7, 4, 0, 0, 255, 255, 84, 214, 231, 87, 10, 0, 0, 0},
+						"config.yaml": {31, 139, 8, 0, 0, 0, 0, 0, 0, 255, 0, 10, 0, 245, 255, 110, 101, 119, 45, 99, 111, 110, 102, 105, 103, 3, 0, 84, 214, 231, 87, 10, 0, 0, 0},
 					},
 					Data: map[string]string{
 						"VERSION": "12345",
@@ -938,7 +938,7 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 						},
 					},
 					BinaryData: map[string][]byte{
-						"config.yaml": {31, 139, 8, 0, 0, 0, 0, 0, 0, 255, 202, 75, 45, 215, 77, 206, 207, 75, 203, 76, 7, 4, 0, 0, 255, 255, 84, 214, 231, 87, 10, 0, 0, 0},
+						"config.yaml": {31, 139, 8, 0, 0, 0, 0, 0, 0, 255, 0, 10, 0, 245, 255, 110, 101, 119, 45, 99, 111, 110, 102, 105, 103, 3, 0, 84, 214, 231, 87, 10, 0, 0, 0},
 					},
 					Data: map[string]string{
 						"VERSION": "12345",
@@ -1001,7 +1001,7 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 						},
 					},
 					BinaryData: map[string][]byte{
-						"config.yaml": {31, 139, 8, 0, 0, 0, 0, 0, 0, 255, 202, 75, 45, 215, 77, 206, 207, 75, 203, 76, 7, 4, 0, 0, 255, 255, 84, 214, 231, 87, 10, 0, 0, 0},
+						"config.yaml": {31, 139, 8, 0, 0, 0, 0, 0, 0, 255, 0, 10, 0, 245, 255, 110, 101, 119, 45, 99, 111, 110, 102, 105, 103, 3, 0, 84, 214, 231, 87, 10, 0, 0, 0},
 					},
 					Data: map[string]string{
 						"VERSION": "12345",
@@ -1330,7 +1330,7 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 						},
 					},
 					BinaryData: map[string][]byte{
-						"config.yaml": {31, 139, 8, 0, 0, 0, 0, 0, 0, 255, 202, 75, 45, 215, 77, 206, 207, 75, 203, 76, 7, 4, 0, 0, 255, 255, 84, 214, 231, 87, 10, 0, 0, 0},
+						"config.yaml": {31, 139, 8, 0, 0, 0, 0, 0, 0, 255, 0, 10, 0, 245, 255, 110, 101, 119, 45, 99, 111, 110, 102, 105, 103, 3, 0, 84, 214, 231, 87, 10, 0, 0, 0},
 					},
 					Data: map[string]string{
 						"VERSION": "12345",
