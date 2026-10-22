@@ -46,7 +46,7 @@ require (
 	github.com/hashicorp/go-retryablehttp v0.7.8
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/mattn/go-zglob v0.0.8
-	github.com/maxbrunsfeld/counterfeiter/v6 v6.12.2
+	github.com/maxbrunsfeld/counterfeiter/v6 v6.14.0
 	github.com/prometheus/client_golang v1.24.1
 	github.com/prometheus/client_model v0.6.3
 	github.com/prometheus/common v0.72.0
@@ -161,7 +161,7 @@ require (
 	golang.org/x/mod v0.41.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/term v0.46.0 // indirect
-	golang.org/x/tools v0.49.0 // indirect
+	golang.org/x/tools v0.50.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260921155816-b14227669459 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
