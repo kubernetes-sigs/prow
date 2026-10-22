@@ -22,7 +22,7 @@ limitations under the License.
 package config
 
 import (
-	json "encoding/json"
+	jsontext "encoding/json/jsontext"
 
 	pipelinev1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
 	v1 "k8s.io/api/core/v1"
@@ -275,7 +275,7 @@ func (in *ProwYAML) DeepCopyInto(out *ProwYAML) {
 	}
 	if in.ProwIgnored != nil {
 		in, out := &in.ProwIgnored, &out.ProwIgnored
-		*out = new(json.RawMessage)
+		*out = new(jsontext.Value)
 		if **in != nil {
 			in, out := *in, *out
 			*out = make([]byte, len(*in))
