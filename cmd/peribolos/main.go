@@ -463,17 +463,18 @@ func dumpOrgConfig(client dumpClient, orgName string, ignoreSecretTeams bool, ig
 			visibility = &full.Visibility
 		}
 		repoConfig := org.PruneRepoDefaults(org.Repo{
-			Description:      &full.Description,
-			HomePage:         &full.Homepage,
-			Visibility:       visibility,
-			HasIssues:        &full.HasIssues,
-			HasProjects:      &full.HasProjects,
-			HasWiki:          &full.HasWiki,
-			AllowMergeCommit: &full.AllowMergeCommit,
-			AllowSquashMerge: &full.AllowSquashMerge,
-			AllowRebaseMerge: &full.AllowRebaseMerge,
-			Archived:         &full.Archived,
-			DefaultBranch:    &full.DefaultBranch,
+			Description:         &full.Description,
+			HomePage:            &full.Homepage,
+			Visibility:          visibility,
+			HasIssues:           &full.HasIssues,
+			HasProjects:         &full.HasProjects,
+			HasWiki:             &full.HasWiki,
+			AllowMergeCommit:    &full.AllowMergeCommit,
+			AllowSquashMerge:    &full.AllowSquashMerge,
+			AllowRebaseMerge:    &full.AllowRebaseMerge,
+			DeleteBranchOnMerge: &full.DeleteBranchOnMerge,
+			Archived:            &full.Archived,
+			DefaultBranch:       &full.DefaultBranch,
 			// Collaborators will be set conditionally below
 		})
 
@@ -1284,6 +1285,7 @@ func newRepoCreateRequest(name string, definition org.Repo) github.RepoCreateReq
 			AllowRebaseMerge:         definition.AllowRebaseMerge,
 			SquashMergeCommitTitle:   definition.SquashMergeCommitTitle,
 			SquashMergeCommitMessage: definition.SquashMergeCommitMessage,
+			DeleteBranchOnMerge:      definition.DeleteBranchOnMerge,
 		},
 	}
 
@@ -1347,6 +1349,7 @@ func newRepoUpdateRequest(current github.FullRepo, name string, repo org.Repo) g
 			AllowRebaseMerge:         setIfChanged(current.AllowRebaseMerge, repo.AllowRebaseMerge),
 			SquashMergeCommitTitle:   setIfChanged(current.SquashMergeCommitTitle, repo.SquashMergeCommitTitle),
 			SquashMergeCommitMessage: setIfChanged(current.SquashMergeCommitMessage, repo.SquashMergeCommitMessage),
+			DeleteBranchOnMerge:      setIfChanged(current.DeleteBranchOnMerge, repo.DeleteBranchOnMerge),
 		},
 		DefaultBranch: setIfChanged(current.DefaultBranch, repo.DefaultBranch),
 		Archived:      setIfChanged(current.Archived, repo.Archived),
