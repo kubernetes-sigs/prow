@@ -236,9 +236,9 @@ func ListCMsAndDirs(path string) (cms sets.Set[string], dirs sets.Set[string], e
 	return cms, dirs, err
 }
 
-func watchConfigs(ca *Agent, prowConfig, jobConfig string, supplementalProwConfigDirs []string, supplementalProwConfigsFileNameSuffix string, additionals ...func(*Config) error) error {
+func watchConfigs(ca *Agent, prowConfig string, jobConfigs []string, supplementalProwConfigDirs []string, supplementalProwConfigsFileNameSuffix string, additionals ...func(*Config) error) error {
 	cmEventFunc := func() error {
-		c, err := Load(prowConfig, jobConfig, supplementalProwConfigDirs, supplementalProwConfigsFileNameSuffix, additionals...)
+		c, err := Load(prowConfig, jobConfigs, supplementalProwConfigDirs, supplementalProwConfigsFileNameSuffix, additionals...)
 		if err != nil {
 			return err
 		}
@@ -247,15 +247,19 @@ func watchConfigs(ca *Agent, prowConfig, jobConfig string, supplementalProwConfi
 	}
 	// We may need to add more directories to be watched
 	dirsEventFunc := func(w *fsnotify.Watcher) error {
-		c, err := Load(prowConfig, jobConfig, supplementalProwConfigDirs, supplementalProwConfigsFileNameSuffix, additionals...)
+		c, err := Load(prowConfig, jobConfigs, supplementalProwConfigDirs, supplementalProwConfigsFileNameSuffix, additionals...)
 		if err != nil {
 			return err
 		}
 		ca.Set(c)
 		// TODO(AlexNPavel): Is there a chance that a ConfigMap mounted directory may appear without making a new pod? If yes, handle that.
-		_, dirs, err := ListCMsAndDirs(jobConfig)
-		if err != nil {
-			return err
+		dirs := sets.New[string]()
+		for _, jobConfig := range jobConfigs {
+			_, jobConfigDirs, err := ListCMsAndDirs(jobConfig)
+			if err != nil {
+				return err
+			}
+			dirs.Insert(jobConfigDirs.UnsortedList()...)
 		}
 		for _, supplementalProwConfigDir := range supplementalProwConfigDirs {
 			_, additionalDirs, err := ListCMsAndDirs(supplementalProwConfigDir)
@@ -274,25 +278,26 @@ func watchConfigs(ca *Agent, prowConfig, jobConfig string, supplementalProwConfi
 	}
 	errFunc := func(err error, msg string) {
 		logrus.WithField("prowConfig", prowConfig).
-			WithField("jobConfig", jobConfig).
+			WithField("jobConfigs", jobConfigs).
 			WithError(err).Error(msg)
 	}
 	cms := sets.New[string]()
 	dirs := sets.New[string]()
-	// TODO(AlexNPavel): allow empty jobConfig till fully migrate config to subdirs
-	if jobConfig != "" {
+	// TODO(AlexNPavel): allow empty jobConfigs till fully migrate config to subdirs
+	for _, jobConfig := range jobConfigs {
 		stat, err := os.Stat(jobConfig)
 		if err != nil {
 			return err
 		}
 		// TODO(AlexNPavel): allow single file jobConfig till fully migrate config to subdirs
 		if stat.IsDir() {
-			var err error
 			// jobConfig points to directories of configs that may be nested
-			cms, dirs, err = ListCMsAndDirs(jobConfig)
+			jobConfigCMs, jobConfigDirs, err := ListCMsAndDirs(jobConfig)
 			if err != nil {
 				return err
 			}
+			cms.Insert(jobConfigCMs.UnsortedList()...)
+			dirs.Insert(jobConfigDirs.UnsortedList()...)
 		} else {
 			// If jobConfig is a single file, we handle it identically to how prowConfig is handled
 			if jobIsCMMounted, err := IsConfigMapMount(filepath.Dir(jobConfig)); err != nil {
@@ -337,17 +342,17 @@ func watchConfigs(ca *Agent, prowConfig, jobConfig string, supplementalProwConfi
 // first load fails, Start will return the error and abort. Future load failures
 // will log the failure message but continue attempting to load.
 // This function will replace Start in a future release.
-func (ca *Agent) StartWatch(prowConfig, jobConfig string, supplementalProwConfigDirs []string, supplementalProwConfigsFileNameSuffix string, additionals ...func(*Config) error) error {
-	c, err := Load(prowConfig, jobConfig, supplementalProwConfigDirs, supplementalProwConfigsFileNameSuffix, additionals...)
+func (ca *Agent) StartWatch(prowConfig string, jobConfigs []string, supplementalProwConfigDirs []string, supplementalProwConfigsFileNameSuffix string, additionals ...func(*Config) error) error {
+	c, err := Load(prowConfig, jobConfigs, supplementalProwConfigDirs, supplementalProwConfigsFileNameSuffix, additionals...)
 	if err != nil {
 		return err
 	}
 	ca.Set(c)
-	watchConfigs(ca, prowConfig, jobConfig, supplementalProwConfigDirs, supplementalProwConfigsFileNameSuffix, additionals...)
+	watchConfigs(ca, prowConfig, jobConfigs, supplementalProwConfigDirs, supplementalProwConfigsFileNameSuffix, additionals...)
 	return nil
 }
 
-func lastConfigModTime(prowConfig, jobConfig string) (time.Time, error) {
+func lastConfigModTime(prowConfig string, jobConfigs []string) (time.Time, error) {
 	// Check if the file changed to see if it needs to be re-read.
 	// os.Stat follows symbolic links, which is how ConfigMaps work.
 	prowStat, err := os.Stat(prowConfig)
@@ -356,8 +361,8 @@ func lastConfigModTime(prowConfig, jobConfig string) (time.Time, error) {
 		return time.Time{}, err
 	}
 	recentModTime := prowStat.ModTime()
-	// TODO(krzyzacy): allow empty jobConfig till fully migrate config to subdirs
-	if jobConfig != "" {
+	// TODO(krzyzacy): allow empty jobConfigs till fully migrate config to subdirs
+	for _, jobConfig := range jobConfigs {
 		jobConfigStat, err := os.Stat(jobConfig)
 		if err != nil {
 			logrus.WithField("jobConfig", jobConfig).WithError(err).Error("Error loading job configs.")
@@ -374,12 +379,12 @@ func lastConfigModTime(prowConfig, jobConfig string) (time.Time, error) {
 // Start will begin polling the config file at the path. If the first load
 // fails, Start will return the error and abort. Future load failures will log
 // the failure message but continue attempting to load.
-func (ca *Agent) Start(prowConfig, jobConfig string, additionalProwConfigDirs []string, supplementalProwConfigsFileNameSuffix string, additionals ...func(*Config) error) error {
-	lastModTime, err := lastConfigModTime(prowConfig, jobConfig)
+func (ca *Agent) Start(prowConfig string, jobConfigs []string, additionalProwConfigDirs []string, supplementalProwConfigsFileNameSuffix string, additionals ...func(*Config) error) error {
+	lastModTime, err := lastConfigModTime(prowConfig, jobConfigs)
 	if err != nil {
 		lastModTime = time.Time{}
 	}
-	c, err := Load(prowConfig, jobConfig, additionalProwConfigDirs, supplementalProwConfigsFileNameSuffix, additionals...)
+	c, err := Load(prowConfig, jobConfigs, additionalProwConfigDirs, supplementalProwConfigsFileNameSuffix, additionals...)
 	if err != nil {
 		return err
 	}
@@ -391,7 +396,7 @@ func (ca *Agent) Start(prowConfig, jobConfig string, additionalProwConfigDirs []
 		skips := 0
 		for range time.Tick(1 * time.Second) {
 			if skips < 600 {
-				recentModTime, err := lastConfigModTime(prowConfig, jobConfig)
+				recentModTime, err := lastConfigModTime(prowConfig, jobConfigs)
 				if err != nil {
 					continue
 				}
@@ -401,9 +406,9 @@ func (ca *Agent) Start(prowConfig, jobConfig string, additionalProwConfigDirs []
 				}
 				lastModTime = recentModTime
 			}
-			if c, err := Load(prowConfig, jobConfig, additionalProwConfigDirs, supplementalProwConfigsFileNameSuffix, additionals...); err != nil {
+			if c, err := Load(prowConfig, jobConfigs, additionalProwConfigDirs, supplementalProwConfigsFileNameSuffix, additionals...); err != nil {
 				logrus.WithField("prowConfig", prowConfig).
-					WithField("jobConfig", jobConfig).
+					WithField("jobConfigs", jobConfigs).
 					WithError(err).Error("Error loading config.")
 			} else {
 				skips = 0

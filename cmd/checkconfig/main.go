@@ -370,7 +370,7 @@ func validate(o options) error {
 	unknownAllEnabled := o.warningEnabled(unknownFieldsAllWarning)
 	unknownEnabled := o.warningEnabled(unknownFieldsWarning)
 	if unknownAllEnabled {
-		if _, err := config.LoadStrict(o.config.ConfigPath, o.config.JobConfigPath, nil, ""); err != nil {
+		if _, err := config.LoadStrict(o.config.ConfigPath, o.config.JobConfigPaths.Strings(), nil, ""); err != nil {
 			errs = append(errs, err)
 		}
 	} else if unknownEnabled {

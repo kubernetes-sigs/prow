@@ -291,7 +291,7 @@ deck:
 			t.Fatalf("fail to write spyglass config: %v", err)
 		}
 
-		cfg, err := Load(spyglassConfig, "", nil, "")
+		cfg, err := Load(spyglassConfig, nil, nil, "")
 		if (err != nil) != tc.expectError {
 			t.Fatalf("tc %s: expected error: %v, got: %v, error: %v", tc.name, tc.expectError, (err != nil), err)
 		}
@@ -1149,14 +1149,14 @@ periodics:
 			// all errors in Load should also apply in LoadStrict
 			// some errors in LoadStrict will not apply in Load
 			tc.expectStrictError = tc.expectStrictError || tc.expectError
-			_, err := LoadStrict(prowConfig, "", nil, "")
+			_, err := LoadStrict(prowConfig, nil, nil, "")
 			if tc.expectStrictError && err == nil {
 				t.Errorf("tc %s: Expect error for LoadStrict, but got nil", tc.name)
 			} else if !tc.expectStrictError && err != nil {
 				t.Fatalf("tc %s: Expect no error for LoadStrict, but got error %v", tc.name, err)
 			}
 
-			cfg, err := Load(prowConfig, "", nil, "")
+			cfg, err := Load(prowConfig, nil, nil, "")
 			if tc.expectError && err == nil {
 				t.Errorf("tc %s: Expect error for Load, but got nil", tc.name)
 			} else if !tc.expectError && err != nil {
@@ -1271,7 +1271,7 @@ gerrit:
 				t.Fatalf("fail to write prow config: %v", err)
 			}
 
-			cfg, err := Load(prowConfig, "", nil, "")
+			cfg, err := Load(prowConfig, nil, nil, "")
 			if tc.expectError && err == nil {
 				t.Errorf("tc %s: Expect error, but got nil", tc.name)
 			} else if !tc.expectError && err != nil {
@@ -1329,7 +1329,7 @@ func TestDisabledClustersRawYaml(t *testing.T) {
 				t.Fatalf("fail to write prow config: %v", err)
 			}
 
-			cfg, err := Load(prowConfig, "", nil, "")
+			cfg, err := Load(prowConfig, nil, nil, "")
 			if tc.expectError && err == nil {
 				t.Errorf("tc %s: Expect error, but got nil", tc.name)
 			} else if !tc.expectError && err != nil {
@@ -3534,7 +3534,11 @@ postsubmits:
 				}
 			}
 
-			cfg, err := Load(prowConfig, jobConfig, nil, "")
+			var jobConfigs []string
+			if jobConfig != "" {
+				jobConfigs = []string{jobConfig}
+			}
+			cfg, err := Load(prowConfig, jobConfigs, nil, "")
 			if tc.expectError && err == nil {
 				t.Errorf("tc %s: Expect error, but got nil", tc.name)
 			} else if !tc.expectError && err != nil {
@@ -3709,7 +3713,7 @@ bar_jobs.yaml`,
 				}
 			}
 
-			cfg, err := ReadJobConfig(jobConfigDir)
+			cfg, err := ReadJobConfigs([]string{jobConfigDir})
 			if err != nil {
 				t.Fatalf("Unexpected error reading job config: %v.", err)
 			}
@@ -3742,8 +3746,282 @@ func TestReadJobConfigRejectsWalkErrors(t *testing.T) {
 		return walkFn(filepath.Join(root, "vanished.yaml"), nil, walkError)
 	}
 
-	if _, err := readJobConfig(jobConfigDir, walk); !errors.Is(err, walkError) {
+	if _, err := readJobConfigs([]string{jobConfigDir}, walk); !errors.Is(err, walkError) {
 		t.Fatalf("expected walk error, got %v", err)
+	}
+}
+
+func writeJobConfigFiles(t *testing.T, root string, files map[string]string) {
+	t.Helper()
+	for name, content := range files {
+		path := filepath.Join(root, name)
+		if err := os.MkdirAll(filepath.Dir(path), 0777); err != nil {
+			t.Fatalf("fail to create the dir of %s: %v", path, err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0666); err != nil {
+			t.Fatalf("fail to write file %s: %v", path, err)
+		}
+	}
+}
+
+func writeJobConfigRoots(t *testing.T, roots []map[string]string) []string {
+	t.Helper()
+	var dirs []string
+	for _, files := range roots {
+		dir := t.TempDir()
+		if files == nil {
+			dir = filepath.Join(dir, "missing")
+		}
+		writeJobConfigFiles(t, dir, files)
+		dirs = append(dirs, dir)
+	}
+	return dirs
+}
+
+func expandPlaceholders(s string, placeholders map[string]string) string {
+	for name, value := range placeholders {
+		s = strings.ReplaceAll(s, "{"+name+"}", value)
+	}
+	return s
+}
+
+func expandRoots(s string, roots []string) string {
+	placeholders := map[string]string{}
+	for i, root := range roots {
+		placeholders[fmt.Sprintf("root%d", i)] = root
+	}
+	return expandPlaceholders(s, placeholders)
+}
+
+func periodicJobConfig(name string) string {
+	return fmt.Sprintf("periodics:\n- name: %s\n", name)
+}
+
+func validPeriodicJobConfig(name string) string {
+	return fmt.Sprintf(`
+periodics:
+- interval: 10m
+  agent: kubernetes
+  name: %s
+  spec:
+    containers:
+    - image: alpine`, name)
+}
+
+func periodicNames(periodics []Periodic) sets.Set[string] {
+	names := sets.New[string]()
+	for _, periodic := range periodics {
+		names.Insert(periodic.Name)
+	}
+	return names
+}
+
+func TestReadJobConfigsMultiplePaths(t *testing.T) {
+	testCases := []struct {
+		name          string
+		roots         []map[string]string
+		expected      []string
+		expectedError string
+	}{
+		{
+			name: "no paths",
+		},
+		{
+			name: "jobs of all paths are merged",
+			roots: []map[string]string{
+				{"a.yaml": periodicJobConfig("a")},
+				{"b.yaml": periodicJobConfig("b")},
+			},
+			expected: []string{"a", "b"},
+		},
+		{
+			name: "subdirectories of every path are searched",
+			roots: []map[string]string{
+				{"x/a.yaml": periodicJobConfig("a")},
+				{"y/z/b.yaml": periodicJobConfig("b")},
+			},
+			expected: []string{"a", "b"},
+		},
+		{
+			name: "same basename in different paths is rejected",
+			roots: []map[string]string{
+				{"jobs.yaml": periodicJobConfig("a")},
+				{"jobs.yaml": periodicJobConfig("b")},
+			},
+			expectedError: "duplicated basename is not allowed: {root1}/jobs.yaml (already loaded from {root0}/jobs.yaml)",
+		},
+		{
+			name: "same basename in different directories of one path is rejected",
+			roots: []map[string]string{
+				{"x/jobs.yaml": periodicJobConfig("a"), "y/jobs.yaml": periodicJobConfig("b")},
+			},
+			expectedError: "duplicated basename is not allowed: {root0}/y/jobs.yaml (already loaded from {root0}/x/jobs.yaml)",
+		},
+		{
+			name: "prowignore applies to the path it is in only",
+			roots: []map[string]string{
+				{
+					ProwIgnoreFileName: "ignored.yaml\n",
+					"ignored.yaml":     periodicJobConfig("ignored-in-first"),
+					"kept.yaml":        periodicJobConfig("kept-in-first"),
+				},
+				{"ignored.yaml": periodicJobConfig("loaded-from-second")},
+			},
+			expected: []string{"kept-in-first", "loaded-from-second"},
+		},
+		{
+			name: "prowignore of a later path is honoured",
+			roots: []map[string]string{
+				{"kept.yaml": periodicJobConfig("kept-in-first")},
+				{
+					ProwIgnoreFileName: "ignored.yaml\n",
+					"ignored.yaml":     periodicJobConfig("ignored-in-second"),
+					"other.yaml":       periodicJobConfig("kept-in-second"),
+				},
+			},
+			expected: []string{"kept-in-first", "kept-in-second"},
+		},
+		{
+			name: "errors of all the paths are reported",
+			roots: []map[string]string{
+				nil,
+				{"x/jobs.yaml": periodicJobConfig("a"), "y/jobs.yaml": periodicJobConfig("b")},
+			},
+			expectedError: "[stat {root0}: no such file or directory, duplicated basename is not allowed: {root1}/y/jobs.yaml (already loaded from {root1}/x/jobs.yaml)]",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			roots := writeJobConfigRoots(t, tc.roots)
+
+			actual, err := ReadJobConfigs(roots)
+
+			var actualError string
+			if err != nil {
+				actualError = err.Error()
+			}
+			if diff := cmp.Diff(expandRoots(tc.expectedError, roots), actualError); diff != "" {
+				t.Fatalf("unexpected error (-want +got):\n%s", diff)
+			}
+			if tc.expectedError != "" {
+				return
+			}
+			if diff := cmp.Diff(sets.New(tc.expected...), periodicNames(actual.Periodics)); diff != "" {
+				t.Errorf("unexpected jobs (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestReadJobConfigsFileAndDirectory(t *testing.T) {
+	testCases := []struct {
+		name          string
+		directory     map[string]string
+		file          string
+		expected      []string
+		expectedError string
+	}{
+		{
+			name:      "a file and a directory are merged",
+			directory: map[string]string{"a.yaml": periodicJobConfig("in-directory")},
+			file:      periodicJobConfig("in-file"),
+			expected:  []string{"in-directory", "in-file"},
+		},
+		{
+			name:          "the basename of a file is unique across the paths too",
+			directory:     map[string]string{"single.yaml": periodicJobConfig("in-directory")},
+			file:          periodicJobConfig("in-file"),
+			expectedError: "duplicated basename is not allowed: {file} (already loaded from {directory}/single.yaml)",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			directory := t.TempDir()
+			writeJobConfigFiles(t, directory, tc.directory)
+			fileDir := t.TempDir()
+			writeJobConfigFiles(t, fileDir, map[string]string{"single.yaml": tc.file})
+			file := filepath.Join(fileDir, "single.yaml")
+
+			actual, err := ReadJobConfigs([]string{directory, file})
+
+			var actualError string
+			if err != nil {
+				actualError = err.Error()
+			}
+			expectedError := expandPlaceholders(tc.expectedError, map[string]string{"directory": directory, "file": file})
+			if diff := cmp.Diff(expectedError, actualError); diff != "" {
+				t.Fatalf("unexpected error (-want +got):\n%s", diff)
+			}
+			if tc.expectedError != "" {
+				return
+			}
+			if diff := cmp.Diff(sets.New(tc.expected...), periodicNames(actual.Periodics)); diff != "" {
+				t.Errorf("unexpected jobs (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestLoadWithMultipleJobConfigPaths(t *testing.T) {
+	testCases := []struct {
+		name          string
+		roots         []map[string]string
+		expected      []string
+		expectedError string
+	}{
+		{
+			name: "no job config paths",
+		},
+		{
+			name: "jobs of all paths are loaded",
+			roots: []map[string]string{
+				{"a.yaml": validPeriodicJobConfig("a")},
+				{"b.yaml": validPeriodicJobConfig("b")},
+			},
+			expected: []string{"a", "b"},
+		},
+		{
+			name: "the same job in two paths is rejected",
+			roots: []map[string]string{
+				{"a.yaml": validPeriodicJobConfig("a")},
+				{"b.yaml": validPeriodicJobConfig("a")},
+			},
+			expectedError: "duplicated periodic job: a",
+		},
+	}
+
+	for _, tc := range testCases {
+		for _, strict := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s, strict: %t", tc.name, strict), func(t *testing.T) {
+				prowConfig := filepath.Join(t.TempDir(), "config.yaml")
+				if err := os.WriteFile(prowConfig, []byte(``), 0666); err != nil {
+					t.Fatalf("fail to write prow config: %v", err)
+				}
+				roots := writeJobConfigRoots(t, tc.roots)
+
+				load := Load
+				if strict {
+					load = LoadStrict
+				}
+				cfg, err := load(prowConfig, roots, nil, "")
+
+				var actualError string
+				if err != nil {
+					actualError = err.Error()
+				}
+				if diff := cmp.Diff(tc.expectedError, actualError); diff != "" {
+					t.Fatalf("unexpected error (-want +got):\n%s", diff)
+				}
+				if tc.expectedError != "" {
+					return
+				}
+				if diff := cmp.Diff(sets.New(tc.expected...), periodicNames(cfg.AllPeriodics())); diff != "" {
+					t.Errorf("unexpected periodics (-want +got):\n%s", diff)
+				}
+			})
+		}
 	}
 }
 
@@ -3982,7 +4260,7 @@ github_reporter:
 			t.Fatalf("fail to write prow config: %v", err)
 		}
 
-		cfg, err := Load(prowConfig, "", nil, "")
+		cfg, err := Load(prowConfig, nil, nil, "")
 		if tc.expectError && err == nil {
 			t.Errorf("tc %s: Expect error, but got nil", tc.name)
 		} else if !tc.expectError && err != nil {
@@ -4518,7 +4796,7 @@ tide:
 			t.Fatalf("fail to write prow config: %v", err)
 		}
 
-		cfg, err := Load(prowConfig, "", nil, "")
+		cfg, err := Load(prowConfig, nil, nil, "")
 		if tc.expectError && err == nil {
 			t.Errorf("tc %s: Expect error, but got nil", tc.name)
 		} else if !tc.expectError && err != nil {
@@ -8443,7 +8721,7 @@ func loadConfigYaml(prowConfigYaml string, t *testing.T, supplementalProwConfigs
 		}
 	}
 
-	return Load(prowConfig, "", supplementalProwConfigDirs, "_prowconfig.yaml")
+	return Load(prowConfig, nil, supplementalProwConfigDirs, "_prowconfig.yaml")
 }
 
 func TestProwConfigMerging(t *testing.T) {

@@ -180,7 +180,7 @@ postsubmits:
 			t.Fatal(err)
 		}
 	}
-	c, err := config.Load(path.Join(tmpDir, "config.yaml"), path.Join(tmpDir, "job-config.yaml"), nil, "")
+	c, err := config.Load(path.Join(tmpDir, "config.yaml"), []string{path.Join(tmpDir, "job-config.yaml")}, nil, "")
 	if err != nil {
 		t.Fatalf("Could not load config: %v", err)
 	}

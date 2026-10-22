@@ -55,7 +55,8 @@ most commonly used flags are:
 
 * `--config-path`: Path to the main Prow configuration.
 * `--job-config-path`: Path to the job configuration, when using split job
-  config.
+  config. Can be passed multiple times to load the job configuration from
+  several paths, see [scaling](/docs/scaling/).
 * `--kubeconfig`: Path to the kubeconfig used for the infrastructure and build
   clusters.
 * `--dry-run`: Controls whether Sinker makes mutating API calls. The default is
