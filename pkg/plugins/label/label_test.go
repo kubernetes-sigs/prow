@@ -30,7 +30,9 @@ import (
 	"sigs.k8s.io/prow/pkg/github"
 	"sigs.k8s.io/prow/pkg/github/fakegithub"
 	"sigs.k8s.io/prow/pkg/labels"
+	"sigs.k8s.io/prow/pkg/layeredsets"
 	"sigs.k8s.io/prow/pkg/plugins"
+	"sigs.k8s.io/prow/pkg/repoowners"
 )
 
 const (
@@ -845,6 +847,117 @@ func TestHandleComment(t *testing.T) {
 	}
 }
 
+type labelTestRepoOwners struct {
+	repoowners.RepoOwner
+	approvers map[string][]string
+}
+
+func (o labelTestRepoOwners) Approvers(path string) layeredsets.String {
+	return layeredsets.NewString(o.approvers[path]...)
+}
+
+type labelTestOwnersClient struct {
+	owners repoowners.RepoOwner
+}
+
+func (c labelTestOwnersClient) LoadRepoOwners(_, _, _ string) (repoowners.RepoOwner, error) {
+	return c.owners, nil
+}
+
+func TestRestrictedLabelOwnersApprovers(t *testing.T) {
+	tests := []struct {
+		name         string
+		command      string
+		isPR         bool
+		allowOwners  bool
+		allowedUsers []string
+		approvers    map[string][]string
+		files        []string
+		wantAdded    []string
+		wantRemoved  []string
+		wantDenied   bool
+	}{
+		{
+			name:    "disabled flag denies approver",
+			command: "/label risk-reviewed", isPR: true,
+			approvers: map[string][]string{"a.go": {"Alice"}, "b.go": {"Alice"}},
+			files:     []string{"a.go", "b.go"}, wantDenied: true,
+		},
+		{
+			name:    "approver for every file can add label",
+			command: "/label risk-reviewed", isPR: true, allowOwners: true,
+			approvers: map[string][]string{"a.go": {"Alice"}, "b.go": {"Alice", "Bob"}},
+			files:     []string{"a.go", "b.go"}, wantAdded: formatWithPRInfo("risk-reviewed"),
+		},
+		{
+			name:    "approver for one file is denied",
+			command: "/label risk-reviewed", isPR: true, allowOwners: true,
+			approvers: map[string][]string{"a.go": {"Alice"}, "b.go": {"Bob"}},
+			files:     []string{"a.go", "b.go"}, wantDenied: true,
+		},
+		{
+			name:    "allowed user keeps access",
+			command: "/label risk-reviewed", isPR: true, allowOwners: true,
+			allowedUsers: []string{"Alice"},
+			approvers:    map[string][]string{"a.go": {"Bob"}, "b.go": {"Bob"}},
+			files:        []string{"a.go", "b.go"}, wantAdded: formatWithPRInfo("risk-reviewed"),
+		},
+		{
+			name:    "OWNERS access does not apply to issues",
+			command: "/label risk-reviewed", allowOwners: true,
+			wantDenied: true,
+		},
+		{
+			name:    "approver for every file can remove label",
+			command: "/remove-label risk-reviewed", isPR: true, allowOwners: true,
+			approvers: map[string][]string{"a.go": {"Alice"}, "b.go": {"Alice"}},
+			files:     []string{"a.go", "b.go"}, wantRemoved: formatWithPRInfo("risk-reviewed"),
+		},
+		{
+			name:    "empty change list denies access",
+			command: "/label risk-reviewed", isPR: true, allowOwners: true,
+			wantDenied: true,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			gc := fakegithub.NewFakeClient()
+			gc.RepoLabelsExisting = []string{"risk-reviewed"}
+			if strings.HasPrefix(tc.command, "/remove-") {
+				gc.IssueLabelsExisting = formatWithPRInfo("risk-reviewed")
+			}
+			if tc.isPR {
+				gc.PullRequests[1] = &github.PullRequest{Base: github.PullRequestBranch{Ref: "main"}}
+			}
+			for _, file := range tc.files {
+				gc.PullRequestChanges[1] = append(gc.PullRequestChanges[1], github.PullRequestChange{Filename: file})
+			}
+			e := &github.GenericCommentEvent{
+				Action: github.GenericCommentActionCreated,
+				Body:   tc.command, Number: 1, IsPR: tc.isPR,
+				Repo: github.Repo{Owner: github.User{Login: "org"}, Name: "repo"},
+				User: github.User{Login: "Alice"},
+			}
+			cfg := plugins.Label{RestrictedLabels: map[string][]plugins.RestrictedLabel{
+				"*": {{Label: "risk-reviewed", AllowedUsers: tc.allowedUsers, AllowApproversFromOwners: tc.allowOwners}},
+			}}
+			oc := labelTestOwnersClient{owners: labelTestRepoOwners{approvers: tc.approvers}}
+			if err := handleCommentWithOwners(gc, oc, logrus.WithField("plugin", PluginName), cfg, e); err != nil {
+				t.Fatal(err)
+			}
+			if diff := cmp.Diff(tc.wantAdded, gc.IssueLabelsAdded, cmpopts.EquateEmpty()); diff != "" {
+				t.Errorf("added labels differ (-want +got):\n%s", diff)
+			}
+			if diff := cmp.Diff(tc.wantRemoved, gc.IssueLabelsRemoved, cmpopts.EquateEmpty()); diff != "" {
+				t.Errorf("removed labels differ (-want +got):\n%s", diff)
+			}
+			if got := len(gc.IssueCommentsAdded) > 0; got != tc.wantDenied {
+				t.Errorf("denial comment = %t, want %t", got, tc.wantDenied)
+			}
+		})
+	}
+}
+
 func TestHandleLabelAdd(t *testing.T) {
 	type testCase struct {
 		name              string
@@ -888,6 +1001,52 @@ func TestHandleLabelAdd(t *testing.T) {
 			}
 			if diff := cmp.Diff(tc.expectedAssignees, fakeClient.AssigneesAdded, cmpopts.EquateEmpty()); diff != "" {
 				t.Errorf("expected added assignees differ from actual: %s", diff)
+			}
+		})
+	}
+}
+
+type labelTestGitHubClient struct {
+	// The synchronize handler uses GetIssueLabels and RemoveLabel.
+	plugins.PluginGitHubClient
+	fake *fakegithub.FakeClient
+}
+
+func (c labelTestGitHubClient) GetIssueLabels(org, repo string, number int) ([]github.Label, error) {
+	return c.fake.GetIssueLabels(org, repo, number)
+}
+
+func (c labelTestGitHubClient) RemoveLabel(org, repo string, number int, label string) error {
+	return c.fake.RemoveLabel(org, repo, number, label)
+}
+
+func TestRemoveLabelsOnNewCommits(t *testing.T) {
+	tests := []struct {
+		name       string
+		remove     bool
+		wantRemove []string
+	}{
+		{name: "disabled label remains"},
+		{name: "enabled label is removed", remove: true, wantRemove: formatWithPRInfo("risk-reviewed")},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			gc := fakegithub.NewFakeClient()
+			gc.IssueLabelsExisting = formatWithPRInfo("risk-reviewed", "keep-me")
+			cfg := &plugins.Configuration{Label: plugins.Label{RestrictedLabels: map[string][]plugins.RestrictedLabel{
+				"*": {{Label: "risk-reviewed", RemoveOnNewCommits: tc.remove}, {Label: "keep-me"}},
+			}}}
+			e := github.PullRequestEvent{
+				Action:      github.PullRequestActionSynchronize,
+				Repo:        github.Repo{Owner: github.User{Login: "org"}, Name: "repo"},
+				PullRequest: github.PullRequest{Number: 1},
+			}
+			pc := plugins.Agent{GitHubClient: labelTestGitHubClient{fake: gc}, PluginConfig: cfg}
+			if err := handlePullRequest(pc, e); err != nil {
+				t.Fatal(err)
+			}
+			if diff := cmp.Diff(tc.wantRemove, gc.IssueLabelsRemoved, cmpopts.EquateEmpty()); diff != "" {
+				t.Errorf("removed labels differ (-want +got):\n%s", diff)
 			}
 		})
 	}

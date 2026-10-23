@@ -482,10 +482,9 @@ type Label struct {
 	// on top of the existing "kind/*", "priority/*", and "area/*" labels.
 	AdditionalLabels []string `json:"additional_labels,omitempty"`
 
-	// RestrictedLabels allows to configure labels that can only be modified
-	// by users that belong to at least one of the configured teams. The key
-	// defines to which repos this applies and can be `*` for global, an org
-	// or a repo in org/repo notation.
+	// RestrictedLabels configures labels for listed users and teams, and
+	// optionally for OWNERS approvers of changed PR files. The key can be `*`
+	// for global, an org, or a repo in org/repo notation.
 	RestrictedLabels map[string][]RestrictedLabel `json:"restricted_labels,omitempty"`
 }
 
@@ -507,6 +506,8 @@ func (l Label) RestrictedLabelsFor(org, repo string) map[string]RestrictedLabel 
 				allTeams := sets.New(existing.AllowedTeams...)
 				allTeams.Insert(restrictedLabel.AllowedTeams...)
 				merged.AllowedTeams = sets.List(allTeams)
+				merged.AllowApproversFromOwners = existing.AllowApproversFromOwners || restrictedLabel.AllowApproversFromOwners
+				merged.RemoveOnNewCommits = existing.RemoveOnNewCommits || restrictedLabel.RemoveOnNewCommits
 				// Merge assign_on
 				assignOnMap := make(map[string]AssignOnLabel)
 				for _, ao := range existing.AssignOn {
@@ -536,6 +537,11 @@ type RestrictedLabel struct {
 	AllowedTeams []string        `json:"allowed_teams,omitempty"`
 	AllowedUsers []string        `json:"allowed_users,omitempty"`
 	AssignOn     []AssignOnLabel `json:"assign_on,omitempty"`
+
+	// AllowApproversFromOwners allows a user who can approve every changed PR file to set the label.
+	AllowApproversFromOwners bool `json:"allow_approvers_from_owners,omitempty"`
+	// RemoveOnNewCommits removes the label when new commits update a PR.
+	RemoveOnNewCommits bool `json:"remove_on_new_commits,omitempty"`
 }
 
 // AssignOnLabel specifies the label that would trigger the RestrictedLabel.AllowedUsers'
