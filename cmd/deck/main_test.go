@@ -1481,3 +1481,71 @@ func TestPRHistLink(t *testing.T) {
 		})
 	}
 }
+
+func TestHandleArtifactViewRejectsInvalidLensIndex(t *testing.T) {
+	cfg := &config.Config{ProwConfig: config.ProwConfig{Deck: config.Deck{Spyglass: config.Spyglass{
+		Lenses: []config.LensFileConfig{
+			{Lens: config.LensConfig{Name: "buildlog"}},
+			{Lens: config.LensConfig{Name: "junit"}},
+		},
+	}}}}
+	// Mounted the same way as in production.
+	handler := http.StripPrefix("/spyglass/lens/", handleArtifactView(options{}, nil, func() *config.Config { return cfg }))
+
+	for _, tc := range []struct {
+		name  string
+		lens  string
+		index int
+	}{
+		{name: "index past the end", lens: "junit", index: 2},
+		{name: "huge index from a scanner", lens: "junit", index: 19992551},
+		{name: "negative index", lens: "junit", index: -1},
+		{name: "index of a different lens", lens: "junit", index: 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req, err := json.Marshal(map[string]any{"src": "gs/bucket/logs/job/1", "index": tc.index, "artifacts": []string{"junit.xml"}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/spyglass/lens/"+tc.lens+"/iframe?req="+url.QueryEscape(string(req)), nil))
+			if rr.Code != http.StatusBadRequest {
+				t.Errorf("expected %d, got %d: %s", http.StatusBadRequest, rr.Code, rr.Body.String())
+			}
+		})
+	}
+}
+
+func TestSimplifier(t *testing.T) {
+	for _, tc := range []struct {
+		path string
+		want string
+	}{
+		// Paths that were already handled keep their labels.
+		{path: "/", want: "/"},
+		{path: "/tide", want: "/tide"},
+		{path: "/configured-jobs/kubernetes", want: "/configured-jobs/:org"},
+		{path: "/job-history/some-job", want: "/job-history/:job"},
+		{path: "/view/gs/kubernetes-ci-logs/logs/ci-kubernetes-e2e/123", want: "/view/gs/:bucket/logs/:job/:build"},
+		{path: "/spyglass/lens/junit/iframe", want: "/spyglass/lens/:lens/:job"},
+		{path: "/static/js/app.js", want: "/static/:path"},
+		// Paths seen as unmatched in production.
+		{path: "/view/gs/kubernetes-ci-logs/pr-logs/pull/kubernetes-sigs_kueue/14809/pull-kueue-test/2097384014645039104", want: "/view/gs/:bucket/pr-logs/pull/:org_repo/:pr/:job/:build"},
+		{path: "/view/gcs/kubernetes-ci-logs/pr-logs/pull/kubernetes_kubernetes/1/pull-kubernetes-verify/2", want: "/view/gcs/:bucket/pr-logs/pull/:org_repo/:pr/:job/:build"},
+		{path: "/view/gs/kubernetes-ci-logs/pr-logs/directory/pull-kubernetes-verify/123", want: "/view/gs/:bucket/pr-logs/directory/:job/:build"},
+		{path: "/view/s3/bucket/logs/job/1", want: "/view/s3/:bucket/logs/:job/:build"},
+		{path: "/job-history/gs/kubernetes-ci-logs/logs/ci-test-infra-prow-checkconfig", want: "/job-history/gs/:bucket/logs/:job"},
+		{path: "/job-history/gs/kubernetes-ci-logs/pr-logs/directory/pull-kubernetes-verify", want: "/job-history/gs/:bucket/pr-logs/directory/:job"},
+		{path: "/configured-jobs/kubernetes/autoscaler", want: "/configured-jobs/:org/:repo"},
+		{path: "/pr-history/", want: "/pr-history/"},
+		// Junk from scanners stays unmatched.
+		{path: "/view/gs/bucket/pr-logs/pull/a/1/job/2/extra", want: "unmatched"},
+		{path: "/wp-admin/install.php", want: "unmatched"},
+	} {
+		t.Run(tc.path, func(t *testing.T) {
+			if got := simplifier.Simplify(tc.path); got != tc.want {
+				t.Errorf("Simplify(%q) = %q, want %q", tc.path, got, tc.want)
+			}
+		})
+	}
+}
