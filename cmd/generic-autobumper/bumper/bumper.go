@@ -64,6 +64,9 @@ type Options struct {
 	AssignTo string `json:"assign_to"`
 	// Whether to skip creating the pull request for this bump.
 	SkipPullRequest bool `json:"skipPullRequest"`
+	// Apply the changes to the working tree and log the PR title/body, without committing, pushing, or creating a PR/CR.
+	// Read-only lookups (upstream versions, oncall) still happen.
+	DryRun bool `json:"dryRun"`
 	// Whether to signoff the commits.
 	Signoff bool `json:"signoff"`
 	// Information needed to do a gerrit bump. Do not include if doing github bump
@@ -171,18 +174,22 @@ func validateOptions(o *Options) error {
 		mode := o.resolvedPRSourceMode()
 		switch mode {
 		case "branch":
-			if o.GitHubOptions == nil || o.GitHubOptions.AppID == "" {
-				return fmt.Errorf("--pr-source-mode=branch requires --github-app-id and --github-app-private-key-path")
-			}
-			if err := o.GitHubOptions.Validate(false); err != nil {
-				return fmt.Errorf("invalid GitHub options: %w", err)
+			if !o.DryRun {
+				if o.GitHubOptions == nil || o.GitHubOptions.AppID == "" {
+					return fmt.Errorf("--pr-source-mode=branch requires --github-app-id and --github-app-private-key-path")
+				}
+				if err := o.GitHubOptions.Validate(false); err != nil {
+					return fmt.Errorf("invalid GitHub options: %w", err)
+				}
 			}
 		case "fork":
-			if o.GitHubToken == "" {
-				return fmt.Errorf("gitHubToken is mandatory when skipPullRequest is false or unspecified")
-			}
-			if o.RemoteName == "" {
-				return fmt.Errorf("remoteName is mandatory when skipPullRequest is false or unspecified")
+			if !o.DryRun {
+				if o.GitHubToken == "" {
+					return fmt.Errorf("gitHubToken is mandatory when skipPullRequest is false or unspecified")
+				}
+				if o.RemoteName == "" {
+					return fmt.Errorf("remoteName is mandatory when skipPullRequest is false or unspecified")
+				}
 			}
 		default:
 			return fmt.Errorf("invalid pr-source-mode %q, expected one of: fork, branch", mode)
@@ -204,7 +211,7 @@ func validateOptions(o *Options) error {
 		if o.Gerrit.HostRepo == "" {
 			return fmt.Errorf("GerritHostRepo is required when skipPullRequest is false and Gerrit is true")
 		}
-		if o.Gerrit.CookieFile == "" {
+		if o.Gerrit.CookieFile == "" && !o.DryRun {
 			return fmt.Errorf("GerritCookieFile is required when skipPullRequest is false and Gerrit is true")
 		}
 	}
@@ -226,6 +233,9 @@ func Run(ctx context.Context, o *Options, prh PRHandler) error {
 		return fmt.Errorf("validating options: %w", err)
 	}
 
+	if o.DryRun {
+		return processDryRun(ctx, prh)
+	}
 	if o.SkipPullRequest {
 		logrus.Debugf("--skip-pull-request is set to true, won't create a pull request.")
 	}
@@ -236,6 +246,27 @@ func Run(ctx context.Context, o *Options, prh PRHandler) error {
 		return processGitHubAppAuth(ctx, o, prh)
 	}
 	return processGitHub(ctx, o, prh)
+}
+
+func processDryRun(ctx context.Context, prh PRHandler) error {
+	for i, changeFunc := range prh.Changes() {
+		if _, err := changeFunc(ctx); err != nil {
+			return fmt.Errorf("process function %d: %w", i, err)
+		}
+	}
+
+	changed, err := HasChanges()
+	if err != nil {
+		return fmt.Errorf("checking changes: %w", err)
+	}
+	if !changed {
+		logrus.Info("[Dryrun] Nothing changed from all functions.")
+		return nil
+	}
+
+	summary, body := prh.PRTitleBody()
+	logrus.Infof("[Dryrun] Changes left uncommitted in the working tree; skipping commit, push and PR creation.\nPR title: %s\nPR body:\n%s", summary, body)
+	return nil
 }
 
 func processGitHub(ctx context.Context, o *Options, prh PRHandler) error {
