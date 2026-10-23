@@ -602,6 +602,10 @@ require_matching_label:
       # Repo is the GitHub repository within Org that this config applies to.
       # This fields may be omitted to apply this config across all repos in Org.
       repo: ' '
+# RequireRationale sets per-repository rationale policies for /retest,
+# /retest-required, and /override.
+require_rationale:
+    "": null
 retitle:
     # AllowClosedIssues allows retitling closed/merged issues and PRs.
     allow_closed_issues: true
