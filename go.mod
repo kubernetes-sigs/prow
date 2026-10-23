@@ -4,7 +4,7 @@ go 1.26.4
 
 require (
 	cloud.google.com/go/auth v0.24.0
-	cloud.google.com/go/cloudbuild v1.34.0
+	cloud.google.com/go/cloudbuild v1.35.0
 	cloud.google.com/go/pubsub/v2 v2.7.0
 	cloud.google.com/go/secretmanager v1.22.0
 	cloud.google.com/go/storage v1.67.1
