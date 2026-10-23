@@ -193,6 +193,7 @@ func TestValidateOptions(t *testing.T) {
 		name                string
 		targetVersion       *string
 		includeConfigPaths  *[]string
+		extraFiles          *[]string
 		prefixes            *[]prefix
 		upstreamURLBase     *string
 		err                 bool
@@ -208,9 +209,15 @@ func TestValidateOptions(t *testing.T) {
 			err:           false,
 		},
 		{
-			name:               "must include at least one config path",
+			name:               "must include at least one config path or extra file",
 			includeConfigPaths: &emptyArr,
 			err:                true,
+		},
+		{
+			name:               "config paths are optional when extra files are set",
+			includeConfigPaths: &emptyArr,
+			extraFiles:         &[]string{".ko.yaml"},
+			err:                false,
 		},
 		{
 			name:                "must include upstreamURLBase if target version is upstream",
@@ -286,6 +293,9 @@ func TestValidateOptions(t *testing.T) {
 			}
 			if tc.includeConfigPaths != nil {
 				defaultOption.IncludedConfigPaths = *tc.includeConfigPaths
+			}
+			if tc.extraFiles != nil {
+				defaultOption.ExtraFiles = *tc.extraFiles
 			}
 			if tc.prefixes != nil {
 				defaultOption.Prefixes = *tc.prefixes

@@ -17,6 +17,8 @@ limitations under the License.
 package bumper
 
 import (
+	"context"
+	"errors"
 	"os"
 	"path"
 	"path/filepath"
@@ -43,6 +45,7 @@ func TestValidateOptions(t *testing.T) {
 		gerritCookieFile    *string
 		remoteName          *string
 		skipPullRequest     *bool
+		dryRun              *bool
 		signoff             *bool
 		err                 bool
 		upstreamBaseChanged bool
@@ -95,6 +98,33 @@ func TestValidateOptions(t *testing.T) {
 			gerritPRIdentifier: &emptyStr,
 			err:                true,
 		},
+		{
+			name:        "dry run does not require GitHub token or remoteName",
+			dryRun:      &trueVar,
+			githubToken: &emptyStr,
+			remoteName:  &emptyStr,
+			err:         false,
+		},
+		{
+			name:      "dry run still requires GitHubOrg",
+			dryRun:    &trueVar,
+			githubOrg: &emptyStr,
+			err:       true,
+		},
+		{
+			name:             "dry run does not require gerritCookieFile",
+			dryRun:           &trueVar,
+			gerrit:           &trueVar,
+			gerritCookieFile: &emptyStr,
+			err:              false,
+		},
+		{
+			name:         "dry run still requires gerritAuthor",
+			dryRun:       &trueVar,
+			gerrit:       &trueVar,
+			gerritAuthor: &emptyStr,
+			err:          true,
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -119,6 +149,9 @@ func TestValidateOptions(t *testing.T) {
 
 			if tc.skipPullRequest != nil {
 				defaultOption.SkipPullRequest = *tc.skipPullRequest
+			}
+			if tc.dryRun != nil {
+				defaultOption.DryRun = *tc.dryRun
 			}
 			if tc.signoff != nil {
 				defaultOption.Signoff = *tc.signoff
@@ -160,6 +193,40 @@ func TestValidateOptions(t *testing.T) {
 				t.Errorf("Expected to not get an error for %#v but got %v", defaultOption, err)
 			}
 		})
+	}
+}
+
+type fakePRHandler struct {
+	changeErr      error
+	titleBodyCalls int
+}
+
+func (f *fakePRHandler) Changes() []func(context.Context) (string, error) {
+	return []func(context.Context) (string, error){
+		func(context.Context) (string, error) { return "", f.changeErr },
+	}
+}
+
+func (f *fakePRHandler) PRTitleBody() (string, string) {
+	f.titleBodyCalls++
+	return "title", "body"
+}
+
+func TestRunDryRun(t *testing.T) {
+	sentinel := errors.New("sentinel")
+	prh := &fakePRHandler{changeErr: sentinel}
+	o := &Options{
+		GitHubOrg:  "whatever-org",
+		GitHubRepo: "whatever-repo",
+		DryRun:     true,
+	}
+
+	err := Run(context.Background(), o, prh)
+	if !errors.Is(err, sentinel) {
+		t.Fatalf("Expected Run to return the change func error, got %v", err)
+	}
+	if prh.titleBodyCalls != 0 {
+		t.Errorf("Expected PRTitleBody not to be called, got %d calls", prh.titleBodyCalls)
 	}
 }
 

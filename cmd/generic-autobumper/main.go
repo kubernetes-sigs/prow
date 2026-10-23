@@ -119,7 +119,7 @@ type options struct {
 	// The URL where upstream image references are located. Only required if Target Version is "upstream" or "upstreamStaging". Use "https://raw.githubusercontent.com/{ORG}/{REPO}"
 	// Images will be bumped based off images located at the address using this URL and the refConfigFile or stagingRefConfigFile for each Prefix.
 	UpstreamURLBase string `yaml:"upstreamURLBase"`
-	// The config paths to be included in this bump, in which only .yaml files will be considered. By default all files are included.
+	// The config paths to be included in this bump. Only .yaml files under these paths are considered. May be empty if extraFiles is set.
 	IncludedConfigPaths []string `yaml:"includedConfigPaths"`
 	// The config paths to be excluded in this bump, in which only .yaml files will be considered.
 	ExcludedConfigPaths []string `yaml:"excludedConfigPaths"`
@@ -175,6 +175,7 @@ func parseOptions() (*options, *bumper.Options, error) {
 	var config string
 	var labelsOverride []string
 	var skipPullRequest bool
+	var dryRun bool
 	var signoff bool
 	var prSourceMode string
 
@@ -186,6 +187,7 @@ func parseOptions() (*options, *bumper.Options, error) {
 	flag.StringVar(&config, "config", "", "The path to the config file for the autobumber.")
 	flag.StringSliceVar(&labelsOverride, "labels-override", nil, "Override labels to be added to PR.")
 	flag.BoolVar(&skipPullRequest, "skip-pullrequest", false, "")
+	flag.BoolVar(&dryRun, "dry-run", false, "Apply the changes to the working tree without committing, pushing or creating a PR.")
 	flag.BoolVar(&signoff, "signoff", false, "Signoff the commits.")
 	flag.BoolVar(&o.SkipIfNoOncall, "skip-if-no-oncall", false, "Don't run anything if no oncall is discovered")
 	flag.StringVar(&prSourceMode, "pr-source-mode", "", "How to push PR source: fork (PAT, legacy) or branch (App auth, push directly to org/repo).")
@@ -212,6 +214,7 @@ func parseOptions() (*options, *bumper.Options, error) {
 		o.OncallGroup = defaultOncallGroup
 	}
 	pro.SkipPullRequest = skipPullRequest
+	pro.DryRun = dryRun
 	pro.Signoff = signoff
 	pro.GitHubOptions = &githubOpts
 	if prSourceMode != "" {
@@ -229,8 +232,8 @@ func validateOptions(o *options) error {
 			return fmt.Errorf("consistentImageExceptions requires consistentImages to be true, found in prefix %q", prefix.Name)
 		}
 	}
-	if len(o.IncludedConfigPaths) == 0 {
-		return errors.New("includedConfigPaths is mandatory")
+	if len(o.IncludedConfigPaths) == 0 && len(o.ExtraFiles) == 0 {
+		return errors.New("at least one of includedConfigPaths or extraFiles must be specified")
 	}
 	if o.TargetVersion != latestVersion && o.TargetVersion != upstreamVersion &&
 		o.TargetVersion != upstreamStagingVersion && !tagRegexp.MatchString(o.TargetVersion) {
