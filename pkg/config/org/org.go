@@ -60,19 +60,10 @@ type RepoCreateOptions struct {
 //
 // See https://developer.github.com/v3/repos/#edit
 type Repo struct {
-	Description              *string                `json:"description,omitempty"`
-	HomePage                 *string                `json:"homepage,omitempty"`
-	Visibility               *github.RepoVisibility `json:"visibility,omitempty"`
-	HasIssues                *bool                  `json:"has_issues,omitempty"`
-	HasProjects              *bool                  `json:"has_projects,omitempty"`
-	HasWiki                  *bool                  `json:"has_wiki,omitempty"`
-	AllowSquashMerge         *bool                  `json:"allow_squash_merge,omitempty"`
-	AllowMergeCommit         *bool                  `json:"allow_merge_commit,omitempty"`
-	AllowRebaseMerge         *bool                  `json:"allow_rebase_merge,omitempty"`
-	SquashMergeCommitTitle   *string                `json:"squash_merge_commit_title,omitempty"`
-	SquashMergeCommitMessage *string                `json:"squash_merge_commit_message,omitempty"`
-	// DeleteBranchOnMerge enables GitHub's "Automatically delete head branches" setting
-	DeleteBranchOnMerge *bool `json:"delete_branch_on_merge,omitempty"`
+	RepoSettings
+	Description *string                `json:"description,omitempty"`
+	HomePage    *string                `json:"homepage,omitempty"`
+	Visibility  *github.RepoVisibility `json:"visibility,omitempty"`
 
 	DefaultBranch *string `json:"default_branch,omitempty"`
 	Archived      *bool   `json:"archived,omitempty"`
@@ -118,12 +109,15 @@ func (r *Repo) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// RepoDefaults declares settings inherited by repositories listed in an org's config.
+// RepoSettings declares settings shared by repository configs and org-level defaults.
 // Repository-specific metadata, permissions, visibility and archival are not defaultable.
-type RepoDefaults struct {
-	AllowSquashMerge    *bool `json:"allow_squash_merge,omitempty"`
-	AllowMergeCommit    *bool `json:"allow_merge_commit,omitempty"`
-	AllowRebaseMerge    *bool `json:"allow_rebase_merge,omitempty"`
+type RepoSettings struct {
+	AllowSquashMerge         *bool   `json:"allow_squash_merge,omitempty"`
+	AllowMergeCommit         *bool   `json:"allow_merge_commit,omitempty"`
+	AllowRebaseMerge         *bool   `json:"allow_rebase_merge,omitempty"`
+	SquashMergeCommitTitle   *string `json:"squash_merge_commit_title,omitempty"`
+	SquashMergeCommitMessage *string `json:"squash_merge_commit_message,omitempty"`
+	// DeleteBranchOnMerge enables GitHub's "Automatically delete head branches" setting.
 	DeleteBranchOnMerge *bool `json:"delete_branch_on_merge,omitempty"`
 	HasIssues           *bool `json:"has_issues,omitempty"`
 	HasProjects         *bool `json:"has_projects,omitempty"`
@@ -132,7 +126,7 @@ type RepoDefaults struct {
 
 // WithDefaults returns a copy of the repo with unset settings filled from defaults.
 // Explicit repository values, including false, take precedence. Neither input is modified.
-func (r Repo) WithDefaults(defaults *RepoDefaults) Repo {
+func (r Repo) WithDefaults(defaults *RepoSettings) Repo {
 	if defaults == nil {
 		return r
 	}
@@ -144,6 +138,12 @@ func (r Repo) WithDefaults(defaults *RepoDefaults) Repo {
 	}
 	if r.AllowRebaseMerge == nil {
 		r.AllowRebaseMerge = defaults.AllowRebaseMerge
+	}
+	if r.SquashMergeCommitTitle == nil {
+		r.SquashMergeCommitTitle = defaults.SquashMergeCommitTitle
+	}
+	if r.SquashMergeCommitMessage == nil {
+		r.SquashMergeCommitMessage = defaults.SquashMergeCommitMessage
 	}
 	if r.DeleteBranchOnMerge == nil {
 		r.DeleteBranchOnMerge = defaults.DeleteBranchOnMerge
@@ -163,7 +163,7 @@ func (r Repo) WithDefaults(defaults *RepoDefaults) Repo {
 // Config declares org metadata as well as its people and teams.
 type Config struct {
 	Metadata
-	RepoDefaults *RepoDefaults   `json:"repo_defaults,omitempty"`
+	RepoDefaults *RepoSettings   `json:"repo_defaults,omitempty"`
 	Teams        map[string]Team `json:"teams,omitempty"`
 	Members      []string        `json:"members,omitempty"`
 	Admins       []string        `json:"admins,omitempty"`

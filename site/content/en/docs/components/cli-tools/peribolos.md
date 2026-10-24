@@ -103,6 +103,8 @@ orgs:
       allow_merge_commit: false
       allow_rebase_merge: false
       delete_branch_on_merge: true
+      squash_merge_commit_title: PR_TITLE
+      squash_merge_commit_message: COMMIT_MESSAGES
     repos:
       some-repo: {} # Inherits the defaults.
       other-repo:
@@ -113,7 +115,7 @@ orgs:
 * Defaults apply only to repositories listed in `repos`, both on creation and during updates with `--fix-repos`.
 * Explicit repository values take precedence, including `false`. Omitted or `null` values inherit the default; there is no per-repository opt-out that leaves an inherited setting unmanaged.
 * Settings omitted from both the repository and its defaults remain unmanaged. Configs without `repo_defaults` behave as before.
-* Supported defaults are `allow_squash_merge`, `allow_merge_commit`, `allow_rebase_merge`, `delete_branch_on_merge`, `has_issues`, `has_projects` and `has_wiki`. Other fields, including visibility, archival and collaborators, remain per-repository only.
+* Supported defaults are `allow_squash_merge`, `allow_merge_commit`, `allow_rebase_merge`, `squash_merge_commit_title`, `squash_merge_commit_message`, `delete_branch_on_merge`, `has_issues`, `has_projects` and `has_wiki`. Other fields, including visibility, archival and collaborators, remain per-repository only.
 * Dumps continue to report individual repository settings; they do not infer `repo_defaults` from GitHub state.
 
 Deploy a Peribolos version that supports `repo_defaults` before moving settings into this block. Older versions may ignore it. Use a dry run to review the effective changes before applying defaults across repositories.

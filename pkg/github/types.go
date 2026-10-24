@@ -491,7 +491,8 @@ func (r RepoRequest) ToRepo() *FullRepo {
 func (r RepoRequest) Defined() bool {
 	return r.Name != nil || r.Description != nil || r.Homepage != nil || r.Private != nil || r.Visibility != nil ||
 		r.HasIssues != nil || r.HasProjects != nil || r.HasWiki != nil || r.AllowSquashMerge != nil ||
-		r.AllowMergeCommit != nil || r.AllowRebaseMerge != nil || r.DeleteBranchOnMerge != nil
+		r.AllowMergeCommit != nil || r.AllowRebaseMerge != nil || r.DeleteBranchOnMerge != nil ||
+		r.SquashMergeCommitTitle != nil || r.SquashMergeCommitMessage != nil
 }
 
 // RepoUpdateRequest contains metadata used for updating a repository
