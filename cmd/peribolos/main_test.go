@@ -4691,6 +4691,74 @@ func TestConfigureRepos(t *testing.T) {
 	}
 }
 
+func TestConfigureReposWithDefaults(t *testing.T) {
+	defaults := &org.RepoDefaults{
+		AllowSquashMerge: new(true), AllowMergeCommit: new(true), AllowRebaseMerge: new(true),
+		DeleteBranchOnMerge: new(true), HasIssues: new(true), HasProjects: new(true), HasWiki: new(true),
+	}
+	enabled := github.FullRepo{
+		Repo:             github.Repo{Name: "repo", HasIssues: true, HasProjects: true, HasWiki: true},
+		AllowSquashMerge: true, AllowMergeCommit: true, AllowRebaseMerge: true, DeleteBranchOnMerge: true,
+	}
+	disabled := github.FullRepo{Repo: github.Repo{Name: "repo"}}
+	deleteBranches := github.FullRepo{Repo: github.Repo{Name: "repo"}, DeleteBranchOnMerge: true}
+	archived := github.FullRepo{Repo: github.Repo{Name: "repo", Archived: true}}
+	for _, tc := range []struct {
+		name     string
+		defaults *org.RepoDefaults
+		repo     org.Repo
+		existing []github.FullRepo
+		want     github.FullRepo
+	}{
+		{name: "create with inherited defaults", defaults: defaults, want: enabled},
+		{name: "update with inherited defaults", defaults: defaults, existing: []github.FullRepo{disabled}, want: enabled},
+		{name: "already matches defaults", defaults: defaults, existing: []github.FullRepo{enabled}, want: enabled},
+		{name: "create with false override", defaults: &org.RepoDefaults{DeleteBranchOnMerge: new(true)},
+			repo: org.Repo{DeleteBranchOnMerge: new(false)}, want: disabled},
+		{name: "update with false override", defaults: &org.RepoDefaults{DeleteBranchOnMerge: new(true)},
+			repo:     org.Repo{DeleteBranchOnMerge: new(false)},
+			existing: []github.FullRepo{deleteBranches}, want: disabled},
+		{name: "create with true override", defaults: &org.RepoDefaults{DeleteBranchOnMerge: new(false)},
+			repo: org.Repo{DeleteBranchOnMerge: new(true)}, want: deleteBranches},
+		{name: "update with true override", defaults: &org.RepoDefaults{DeleteBranchOnMerge: new(false)},
+			repo: org.Repo{DeleteBranchOnMerge: new(true)}, existing: []github.FullRepo{disabled}, want: deleteBranches},
+		{name: "inherited false updates existing repo", defaults: &org.RepoDefaults{DeleteBranchOnMerge: new(false)},
+			existing: []github.FullRepo{deleteBranches}, want: disabled},
+		{name: "absent defaults leave unspecified settings alone", existing: []github.FullRepo{enabled}, want: enabled},
+		{name: "empty defaults leave unspecified settings alone", defaults: &org.RepoDefaults{}, existing: []github.FullRepo{enabled}, want: enabled},
+		{name: "archived repo remains untouched", defaults: defaults, repo: org.Repo{Archived: new(true)},
+			existing: []github.FullRepo{archived}, want: archived},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// An unlisted repository must not inherit defaults.
+			unlisted := github.FullRepo{Repo: github.Repo{Name: "unlisted"}}
+			fc := makeFakeRepoClient(t, append(tc.existing, unlisted)...)
+			cfg := org.Config{RepoDefaults: tc.defaults, Repos: map[string]org.Repo{"repo": tc.repo}}
+			if err := configureRepos(options{}, fc, "example", cfg); err != nil {
+				t.Fatal(err)
+			}
+			want := map[string]github.FullRepo{"repo": tc.want, "unlisted": unlisted}
+			if diff := cmp.Diff(want, fc.repos); diff != "" {
+				t.Errorf("unexpected repositories (-want +got): %s", diff)
+			}
+			if diff := cmp.Diff(tc.repo, cfg.Repos["repo"]); diff != "" {
+				t.Errorf("source repo was modified: %s", diff)
+			}
+		})
+	}
+
+	t.Run("defaults alone do not manage repositories", func(t *testing.T) {
+		repo := disabled
+		fc := makeFakeRepoClient(t, repo)
+		if err := configureRepos(options{}, fc, "example", org.Config{RepoDefaults: defaults}); err != nil {
+			t.Fatal(err)
+		}
+		if diff := cmp.Diff(repo, fc.repos["repo"]); diff != "" {
+			t.Errorf("unlisted repo was modified: %s", diff)
+		}
+	})
+}
+
 func TestValidateRepos(t *testing.T) {
 	description := "cool repo"
 	testCases := []struct {

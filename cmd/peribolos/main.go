@@ -1378,7 +1378,11 @@ func sanitizeRepoDelta(opt options, delta *github.RepoUpdateRequest) []error {
 }
 
 func configureRepos(opt options, client repoClient, orgName string, orgConfig org.Config) error {
-	if err := validateRepos(orgConfig.Repos); err != nil {
+	repos := make(map[string]org.Repo, len(orgConfig.Repos))
+	for name, repo := range orgConfig.Repos {
+		repos[name] = repo.WithDefaults(orgConfig.RepoDefaults)
+	}
+	if err := validateRepos(repos); err != nil {
 		return err
 	}
 
@@ -1394,7 +1398,7 @@ func configureRepos(opt options, client repoClient, orgName string, orgConfig or
 
 	var allErrors []error
 
-	for wantName, wantRepo := range orgConfig.Repos {
+	for wantName, wantRepo := range repos {
 		repoLogger := logrus.WithField("repo", wantName)
 		pastErrors := len(allErrors)
 		var existing *github.FullRepo = nil
