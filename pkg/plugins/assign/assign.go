@@ -35,7 +35,10 @@ var (
 	assignRe = regexp.MustCompile(`(?mi)^/(un)?assign(( @?[-\w]+?)*)\s*$`)
 	// CCRegexp parses and validates /cc commands, also used by blunderbuss
 	CCRegexp = regexp.MustCompile(`(?mi)^/(un)?cc(( +@?[-/\w]+?)*)\s*$`)
+	contributorGuidePaths = []string{"CONTRIBUTING.md", "docs/CONTRIBUTING.md"}
 )
+
+const defaultHelpGuidelinesURL = "https://git.k8s.io/community/contributors/guide/help-wanted.md"
 
 func init() {
 	plugins.RegisterGenericCommentHandler(pluginName, handleGenericComment, helpProvider)
@@ -71,13 +74,20 @@ type githubClient interface {
 	UnrequestReview(org, repo string, number int, logins []string) error
 
 	CreateComment(owner, repo string, number int, comment string) error
+	IsMember(org, user string) (bool, error)
+	GetIssueLabels(org, repo string, number int) ([]github.Label, error)
+	GetFile(org, repo, filepath, commit string) ([]byte, error)
 }
 
 func handleGenericComment(pc plugins.Agent, e github.GenericCommentEvent) error {
 	if e.Action != github.GenericCommentActionCreated {
 		return nil
 	}
-	err := handle(newAssignHandler(e, pc.GitHubClient, pc.Logger))
+	helpGuidelinesURL := ""
+	if pc.PluginConfig != nil {
+		helpGuidelinesURL = pc.PluginConfig.Help.HelpGuidelinesURL
+	}
+	err := handle(newAssignHandler(e, pc.GitHubClient, pc.Logger, helpGuidelinesURL))
 	if e.IsPR {
 		err = combineErrors(err, handle(newReviewHandler(e, pc.GitHubClient, pc.Logger)))
 	}
@@ -144,24 +154,138 @@ func handle(h *handler) error {
 			return err
 		}
 	}
-	if len(toAdd) > 0 {
-		h.log.Printf("Adding %s to %s/%s#%d: %v", h.userType, org, repo, e.Number, toAdd)
-		if err := h.add(org, repo, e.Number, toAdd); err != nil {
-			if mu, ok := err.(github.MissingUsers); ok {
-				msg := h.addFailureResponse(mu)
-				if len(msg) == 0 {
-					return nil
-				}
-				h.log.Printf("Failed to add %s to %s/%s#%d: %s", h.userType, org, repo, e.Number, mu.Error())
-				if err := h.gc.CreateComment(org, repo, e.Number, plugins.FormatResponseRaw(e.Body, e.HTMLURL, e.User.Login, msg)); err != nil {
-					return fmt.Errorf("comment err: %w", err)
-				}
+	if len(toAdd) == 0 {
+		return nil
+	}
+
+	h.log.Printf("Adding %s to %s/%s#%d: %v", h.userType, org, repo, e.Number, toAdd)
+	if err := h.enforceSelfAssignRestriction(org, repo, users[e.User.Login], &toAdd); err != nil {
+		return err
+	}
+	if len(toAdd) == 0 {
+		return nil
+	}
+	return h.addUsersOrComment(org, repo, toAdd)
+}
+
+func (h *handler) enforceSelfAssignRestriction(org, repo string, selfAssign bool, toAdd *[]string) error {
+	if !h.shouldRestrictSelfAssign(selfAssign) {
+		return nil
+	}
+
+	allowed, retryMsg, err := h.canSelfAssign(org, repo)
+	if err != nil {
+		return err
+	}
+	if retryMsg != "" {
+		return h.replyAndRemoveSelf(org, repo, toAdd, retryMsg)
+	}
+	if allowed {
+		return nil
+	}
+
+	h.replyWithNewContributorGuidance(org, repo, toAdd)
+	return nil
+}
+
+func (h *handler) shouldRestrictSelfAssign(selfAssign bool) bool {
+	return h.userType == "assignee(s)" && selfAssign
+}
+
+func (h *handler) canSelfAssign(org, repo string) (allowed bool, retryMsg string, err error) {
+	labels, err := h.gc.GetIssueLabels(org, repo, h.event.Number)
+	if err != nil {
+		h.log.WithError(err).Warn("Failed to get issue labels")
+		return false, "I couldn't check whether this issue is marked `good-first-issue` right now. Please try `/assign` again later.", nil
+	}
+	if hasGoodFirstIssue(labels) {
+		return true, "", nil
+	}
+
+	isMember, err := h.gc.IsMember(org, h.event.User.Login)
+	if err != nil {
+		h.log.WithError(err).Warn("Failed to check membership")
+		return false, "I couldn't verify your organization membership right now. Please try `/assign` again later.", nil
+	}
+
+	return isMember, "", nil
+}
+
+func (h *handler) addUsersOrComment(org, repo string, toAdd []string) error {
+	if err := h.add(org, repo, h.event.Number, toAdd); err != nil {
+		if mu, ok := err.(github.MissingUsers); ok {
+			msg := h.addFailureResponse(mu)
+			if len(msg) == 0 {
 				return nil
 			}
-			return err
+			h.log.Printf("Failed to add %s to %s/%s#%d: %s", h.userType, org, repo, h.event.Number, mu.Error())
+			if err := h.gc.CreateComment(org, repo, h.event.Number, plugins.FormatResponseRaw(h.event.Body, h.event.HTMLURL, h.event.User.Login, msg)); err != nil {
+				return fmt.Errorf("comment err: %w", err)
+			}
+			return nil
+		}
+		return err
+	}
+
+	return nil
+}
+
+func (h *handler) replyAndRemoveSelf(org, repo string, toAdd *[]string, msg string) error {
+	if err := h.gc.CreateComment(org, repo, h.event.Number, plugins.FormatResponseRaw(h.event.Body, h.event.HTMLURL, h.event.User.Login, msg)); err != nil {
+		return fmt.Errorf("comment err: %w", err)
+	}
+	*toAdd = removeLogin(*toAdd, h.event.User.Login)
+	return nil
+}
+
+func (h *handler) replyWithNewContributorGuidance(org, repo string, toAdd *[]string) {
+	msg := h.newContributorMessage(org, repo)
+	if err := h.gc.CreateComment(org, repo, h.event.Number, plugins.FormatResponseRaw(h.event.Body, h.event.HTMLURL, h.event.User.Login, msg)); err != nil {
+		h.log.WithError(err).Warn("Failed to create educational comment")
+	}
+	*toAdd = removeLogin(*toAdd, h.event.User.Login)
+}
+
+func (h *handler) newContributorMessage(org, repo string) string {
+	return fmt.Sprintf("Thank you for your interest in contributing! It looks like you're new, and this issue hasn't been vetted for beginners yet. Please check out the [Good First Issues List](https://github.com/%s/%s/labels/good-first-issue)%s to get started.", org, repo, h.contributorGuideLink(org, repo))
+}
+
+func (h *handler) contributorGuideLink(org, repo string) string {
+	defaultBranch := h.event.Repo.DefaultBranch
+	if defaultBranch == "" {
+		defaultBranch = "main"
+	}
+
+	for _, path := range contributorGuidePaths {
+		if _, err := h.gc.GetFile(org, repo, path, defaultBranch); err == nil {
+			return fmt.Sprintf(" and our [contributor guide](https://github.com/%s/%s/blob/%s/%s)", org, repo, defaultBranch, path)
 		}
 	}
-	return nil
+
+	if h.helpGuidelinesURL != "" && h.helpGuidelinesURL != defaultHelpGuidelinesURL {
+		return fmt.Sprintf(" and our [contributor guide](%s)", h.helpGuidelinesURL)
+	}
+
+	return ""
+}
+
+func hasGoodFirstIssue(labels []github.Label) bool {
+	for _, label := range labels {
+		if strings.ToLower(label.Name) == "good-first-issue" {
+			return true
+		}
+	}
+	return false
+}
+
+func removeLogin(logins []string, login string) []string {
+	filtered := logins[:0]
+	for _, current := range logins {
+		if current != login {
+			filtered = append(filtered, current)
+		}
+	}
+	return filtered
 }
 
 // handler is a struct that contains data about a github event and provides functions to help handle it.
@@ -185,9 +309,11 @@ type handler struct {
 	log *logrus.Entry
 	// userType is a string that represents the type of users affected by this handler. (e.g. 'assignees')
 	userType string
+	// helpGuidelinesURL is used as a fallback when the repo does not have a local contributor guide.
+	helpGuidelinesURL string
 }
 
-func newAssignHandler(e github.GenericCommentEvent, gc githubClient, log *logrus.Entry) *handler {
+func newAssignHandler(e github.GenericCommentEvent, gc githubClient, log *logrus.Entry, helpGuidelinesURL string) *handler {
 	org := e.Repo.Owner.Login
 	addFailureResponse := func(mu github.MissingUsers) string {
 		return fmt.Sprintf("GitHub didn't allow me to assign the following users: %s.\n\nNote that only [%s members](https://%s/orgs/%s/people) with read permissions, repo collaborators and people who have commented on this issue/PR can be assigned. Additionally, issues/PRs can only have 10 assignees at the same time.\nFor more information please see [the contributor guide](https://git.k8s.io/community/contributors/guide/first-contribution.md#issue-assignment-in-github)", strings.Join(mu.Users, ", "), org, github.DefaultHost, org)
@@ -202,6 +328,7 @@ func newAssignHandler(e github.GenericCommentEvent, gc githubClient, log *logrus
 		gc:                 gc,
 		log:                log,
 		userType:           "assignee(s)",
+		helpGuidelinesURL:  helpGuidelinesURL,
 	}
 }
 
