@@ -128,7 +128,7 @@ func TestRepoDefaultsConfig(t *testing.T) {
 
 	for _, marshal := range []struct {
 		name string
-		fn   func(interface{}) ([]byte, error)
+		fn   func(any) ([]byte, error)
 	}{
 		{name: "json", fn: json.Marshal},
 		{name: "yaml", fn: yaml.Marshal},
