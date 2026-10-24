@@ -2277,33 +2277,26 @@ func TestDumpOrgConfig(t *testing.T) {
 				Admins:  []string{"admin", "james", "giant", "peach"},
 				Repos: map[string]org.Repo{
 					"project": {
-						Description:         &repoDescription,
-						HomePage:            &repoHomepage,
-						HasProjects:         &yes,
-						AllowMergeCommit:    &no,
-						AllowRebaseMerge:    &no,
-						AllowSquashMerge:    &no,
-						Archived:            &yes,
-						DefaultBranch:       &master,
-						DeleteBranchOnMerge: &yes,
+						RepoSettings: org.RepoSettings{
+							HasProjects: &yes, AllowMergeCommit: &no, AllowRebaseMerge: &no,
+							AllowSquashMerge: &no, DeleteBranchOnMerge: &yes,
+						},
+						Description: &repoDescription, HomePage: &repoHomepage,
+						Archived: &yes, DefaultBranch: &master,
 					},
 					// Non-public visibilities survive PruneRepoDefaults, so they
 					// must round-trip into the dumped config.
 					"internal-project": {
-						Visibility:       new(github.RepoVisibilityInternal),
-						HasProjects:      &no,
-						AllowMergeCommit: &no,
-						AllowRebaseMerge: &no,
-						AllowSquashMerge: &no,
-						DefaultBranch:    &master,
+						RepoSettings: org.RepoSettings{
+							HasProjects: &no, AllowMergeCommit: &no, AllowRebaseMerge: &no, AllowSquashMerge: &no,
+						},
+						Visibility: new(github.RepoVisibilityInternal), DefaultBranch: &master,
 					},
 					"private-project": {
-						Visibility:       new(github.RepoVisibilityPrivate),
-						HasProjects:      &no,
-						AllowMergeCommit: &no,
-						AllowRebaseMerge: &no,
-						AllowSquashMerge: &no,
-						DefaultBranch:    &master,
+						RepoSettings: org.RepoSettings{
+							HasProjects: &no, AllowMergeCommit: &no, AllowRebaseMerge: &no, AllowSquashMerge: &no,
+						},
+						Visibility: new(github.RepoVisibilityPrivate), DefaultBranch: &master,
 					},
 				},
 			},
@@ -4600,8 +4593,8 @@ func TestConfigureRepos(t *testing.T) {
 			description: "dup between two previous names is detected",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
-					"wants-projects": {Previously: []string{oldName}, HasProjects: &yes, HasWiki: &no},
-					"wants-wiki":     {Previously: []string{oldName}, HasProjects: &no, HasWiki: &yes},
+					"wants-projects": {Previously: []string{oldName}, RepoSettings: org.RepoSettings{HasProjects: &yes, HasWiki: &no}},
+					"wants-wiki":     {Previously: []string{oldName}, RepoSettings: org.RepoSettings{HasProjects: &no, HasWiki: &yes}},
 				},
 			},
 			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Description: "this repo shall not be touched"}}},
@@ -4692,20 +4685,28 @@ func TestConfigureRepos(t *testing.T) {
 }
 
 func TestConfigureReposWithDefaults(t *testing.T) {
-	defaults := &org.RepoDefaults{
+	defaults := &org.RepoSettings{
 		AllowSquashMerge: new(true), AllowMergeCommit: new(true), AllowRebaseMerge: new(true),
 		DeleteBranchOnMerge: new(true), HasIssues: new(true), HasProjects: new(true), HasWiki: new(true),
+		SquashMergeCommitTitle: new("PR_TITLE"), SquashMergeCommitMessage: new("COMMIT_MESSAGES"),
 	}
 	enabled := github.FullRepo{
 		Repo:             github.Repo{Name: "repo", HasIssues: true, HasProjects: true, HasWiki: true},
 		AllowSquashMerge: true, AllowMergeCommit: true, AllowRebaseMerge: true, DeleteBranchOnMerge: true,
+		SquashMergeCommitTitle: "PR_TITLE", SquashMergeCommitMessage: "COMMIT_MESSAGES",
 	}
 	disabled := github.FullRepo{Repo: github.Repo{Name: "repo"}}
 	deleteBranches := github.FullRepo{Repo: github.Repo{Name: "repo"}, DeleteBranchOnMerge: true}
 	archived := github.FullRepo{Repo: github.Repo{Name: "repo", Archived: true}}
+	squashOverrides := org.Repo{RepoSettings: org.RepoSettings{
+		SquashMergeCommitTitle: new("COMMIT_OR_PR_TITLE"), SquashMergeCommitMessage: new("PR_BODY"),
+	}}
+	overridden := enabled
+	overridden.SquashMergeCommitTitle = "COMMIT_OR_PR_TITLE"
+	overridden.SquashMergeCommitMessage = "PR_BODY"
 	for _, tc := range []struct {
 		name     string
-		defaults *org.RepoDefaults
+		defaults *org.RepoSettings
 		repo     org.Repo
 		existing []github.FullRepo
 		want     github.FullRepo
@@ -4713,19 +4714,22 @@ func TestConfigureReposWithDefaults(t *testing.T) {
 		{name: "create with inherited defaults", defaults: defaults, want: enabled},
 		{name: "update with inherited defaults", defaults: defaults, existing: []github.FullRepo{disabled}, want: enabled},
 		{name: "already matches defaults", defaults: defaults, existing: []github.FullRepo{enabled}, want: enabled},
-		{name: "create with false override", defaults: &org.RepoDefaults{DeleteBranchOnMerge: new(true)},
-			repo: org.Repo{DeleteBranchOnMerge: new(false)}, want: disabled},
-		{name: "update with false override", defaults: &org.RepoDefaults{DeleteBranchOnMerge: new(true)},
-			repo:     org.Repo{DeleteBranchOnMerge: new(false)},
+		{name: "create with squash commit overrides", defaults: defaults, repo: squashOverrides, want: overridden},
+		{name: "update with squash commit overrides", defaults: defaults, repo: squashOverrides,
+			existing: []github.FullRepo{enabled}, want: overridden},
+		{name: "create with false override", defaults: &org.RepoSettings{DeleteBranchOnMerge: new(true)},
+			repo: org.Repo{RepoSettings: org.RepoSettings{DeleteBranchOnMerge: new(false)}}, want: disabled},
+		{name: "update with false override", defaults: &org.RepoSettings{DeleteBranchOnMerge: new(true)},
+			repo:     org.Repo{RepoSettings: org.RepoSettings{DeleteBranchOnMerge: new(false)}},
 			existing: []github.FullRepo{deleteBranches}, want: disabled},
-		{name: "create with true override", defaults: &org.RepoDefaults{DeleteBranchOnMerge: new(false)},
-			repo: org.Repo{DeleteBranchOnMerge: new(true)}, want: deleteBranches},
-		{name: "update with true override", defaults: &org.RepoDefaults{DeleteBranchOnMerge: new(false)},
-			repo: org.Repo{DeleteBranchOnMerge: new(true)}, existing: []github.FullRepo{disabled}, want: deleteBranches},
-		{name: "inherited false updates existing repo", defaults: &org.RepoDefaults{DeleteBranchOnMerge: new(false)},
+		{name: "create with true override", defaults: &org.RepoSettings{DeleteBranchOnMerge: new(false)},
+			repo: org.Repo{RepoSettings: org.RepoSettings{DeleteBranchOnMerge: new(true)}}, want: deleteBranches},
+		{name: "update with true override", defaults: &org.RepoSettings{DeleteBranchOnMerge: new(false)},
+			repo: org.Repo{RepoSettings: org.RepoSettings{DeleteBranchOnMerge: new(true)}}, existing: []github.FullRepo{disabled}, want: deleteBranches},
+		{name: "inherited false updates existing repo", defaults: &org.RepoSettings{DeleteBranchOnMerge: new(false)},
 			existing: []github.FullRepo{deleteBranches}, want: disabled},
 		{name: "absent defaults leave unspecified settings alone", existing: []github.FullRepo{enabled}, want: enabled},
-		{name: "empty defaults leave unspecified settings alone", defaults: &org.RepoDefaults{}, existing: []github.FullRepo{enabled}, want: enabled},
+		{name: "empty defaults leave unspecified settings alone", defaults: &org.RepoSettings{}, existing: []github.FullRepo{enabled}, want: enabled},
 		{name: "archived repo remains untouched", defaults: defaults, repo: org.Repo{Archived: new(true)},
 			existing: []github.FullRepo{archived}, want: archived},
 	} {
@@ -4898,9 +4902,10 @@ func TestNewRepoUpdateRequest(t *testing.T) {
 			},
 			name: newRepoName,
 			newState: org.Repo{
-				Description:              &description,
-				SquashMergeCommitTitle:   &squashMergeCommitTitle,
-				SquashMergeCommitMessage: &squashMergeCommitMessage,
+				Description: &description,
+				RepoSettings: org.RepoSettings{
+					SquashMergeCommitTitle: &squashMergeCommitTitle, SquashMergeCommitMessage: &squashMergeCommitMessage,
+				},
 			},
 			expected: github.RepoUpdateRequest{
 				RepoRequest: github.RepoRequest{
@@ -4918,7 +4923,7 @@ func TestNewRepoUpdateRequest(t *testing.T) {
 			},
 			name: repoName,
 			newState: org.Repo{
-				DeleteBranchOnMerge: new(true),
+				RepoSettings: org.RepoSettings{DeleteBranchOnMerge: new(true)},
 			},
 			expected: github.RepoUpdateRequest{
 				RepoRequest: github.RepoRequest{
@@ -4934,7 +4939,7 @@ func TestNewRepoUpdateRequest(t *testing.T) {
 			},
 			name: repoName,
 			newState: org.Repo{
-				DeleteBranchOnMerge: new(true),
+				RepoSettings: org.RepoSettings{DeleteBranchOnMerge: new(true)},
 			},
 		},
 		{
