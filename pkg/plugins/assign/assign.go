@@ -18,6 +18,7 @@ package assign
 
 import (
 	"fmt"
+	"net/url"
 	"regexp"
 	"strings"
 
@@ -25,6 +26,7 @@ import (
 
 	"sigs.k8s.io/prow/pkg/config"
 	"sigs.k8s.io/prow/pkg/github"
+	"sigs.k8s.io/prow/pkg/labels"
 	"sigs.k8s.io/prow/pkg/pluginhelp"
 	"sigs.k8s.io/prow/pkg/plugins"
 )
@@ -50,7 +52,7 @@ func helpProvider(config *plugins.Configuration, _ []config.OrgRepo) (*pluginhel
 		Usage:       "/[un]assign [[@]<username>...|[@]<orgname/teamname>...]",
 		Description: "Assigns assignee(s) or team(s) to the PR",
 		Featured:    true,
-		WhoCanUse:   "Anyone can use the command, but the target user(s) must be an org member, a repo collaborator, or should have previously commented on the issue or PR.",
+		WhoCanUse:   "Anyone can use the command, but the target user(s) must be an org member, a repo collaborator, or should have previously commented on the issue or PR. Users who are not org members cannot assign themselves to an issue that already has an assignee.",
 		Examples:    []string{"/assign", "/unassign", "/assign @spongebob", "/assign spongebob patrick", "/assign @kubernetes/sig-foo-bar"},
 	})
 	pluginHelp.AddCommand(pluginhelp.Command{
@@ -71,6 +73,8 @@ type githubClient interface {
 	UnrequestReview(org, repo string, number int, logins []string) error
 
 	CreateComment(owner, repo string, number int, comment string) error
+	IsMember(org, user string) (bool, error)
+	GetIssueLabels(org, repo string, number int) ([]github.Label, error)
 }
 
 func handleGenericComment(pc plugins.Agent, e github.GenericCommentEvent) error {
@@ -144,6 +148,12 @@ func handle(h *handler) error {
 			return err
 		}
 	}
+	if h.userType == "assignee(s)" && users[e.User.Login] {
+		var err error
+		if toAdd, err = h.checkSelfAssign(org, repo, toAdd); err != nil {
+			return err
+		}
+	}
 	if len(toAdd) > 0 {
 		h.log.Printf("Adding %s to %s/%s#%d: %v", h.userType, org, repo, e.Number, toAdd)
 		if err := h.add(org, repo, e.Number, toAdd); err != nil {
@@ -162,6 +172,65 @@ func handle(h *handler) error {
 		}
 	}
 	return nil
+}
+
+// checkSelfAssign applies the self-assignment policy for users who are not org members:
+// they cannot take over an issue that already has assignees, and they get a hint when
+// self-assigning an issue that has not been accepted yet. Org members and PRs are
+// unaffected. Lookup failures fail open so a GitHub error never blocks assignment.
+func (h *handler) checkSelfAssign(org, repo string, toAdd []string) ([]string, error) {
+	e := h.event
+	if e.IsPR || isAssignee(e.Assignees, e.User.Login) {
+		return toAdd, nil
+	}
+	if isMember, err := h.gc.IsMember(org, e.User.Login); err != nil || isMember {
+		return toAdd, nil
+	}
+
+	acceptedIssues := fmt.Sprintf("https://%s/%s/%s/issues?q=%s", github.DefaultHost, org, repo, url.QueryEscape("is:issue is:open no:assignee label:"+labels.TriageAccepted))
+	if len(e.Assignees) > 0 {
+		msg := fmt.Sprintf("This issue already has an assignee, so I didn't assign you. Only %s org members can assign themselves to an issue that is already assigned. Please coordinate with the current assignee here, or pick an [unassigned accepted issue](%s).", org, acceptedIssues)
+		if err := h.gc.CreateComment(org, repo, e.Number, plugins.FormatResponseRaw(e.Body, e.HTMLURL, e.User.Login, msg)); err != nil {
+			return nil, fmt.Errorf("comment err: %w", err)
+		}
+		var rest []string
+		for _, login := range toAdd {
+			if login != e.User.Login {
+				rest = append(rest, login)
+			}
+		}
+		return rest, nil
+	}
+
+	issueLabels, err := h.gc.GetIssueLabels(org, repo, e.Number)
+	if err != nil || isAccepted(issueLabels) {
+		return toAdd, nil
+	}
+	msg := fmt.Sprintf("Thanks for your interest in contributing! Note that this issue doesn't have the `%s` label yet, so maintainers may not want it worked on in its current form. You may want to pick an [unassigned accepted issue](%s) instead. This is open source, so nothing stops you from working on this one anyway.", labels.TriageAccepted, acceptedIssues)
+	if err := h.gc.CreateComment(org, repo, e.Number, plugins.FormatResponseRaw(e.Body, e.HTMLURL, e.User.Login, msg)); err != nil {
+		h.log.WithError(err).Warn("Failed to comment on unaccepted self-assignment")
+	}
+	return toAdd, nil
+}
+
+// isAccepted reports whether maintainers have vetted the issue.
+func isAccepted(issueLabels []github.Label) bool {
+	for _, l := range issueLabels {
+		switch l.Name {
+		case labels.TriageAccepted, labels.Help, labels.GoodFirstIssue:
+			return true
+		}
+	}
+	return false
+}
+
+func isAssignee(assignees []github.User, login string) bool {
+	for _, a := range assignees {
+		if github.NormLogin(a.Login) == github.NormLogin(login) {
+			return true
+		}
+	}
+	return false
 }
 
 // handler is a struct that contains data about a github event and provides functions to help handle it.
