@@ -17,6 +17,8 @@ limitations under the License.
 package updateconfig
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"strings"
 	"testing"
@@ -142,6 +144,19 @@ func setupLocalGitRepo(clients localgit.Clients, t *testing.T, org, repo string)
 		t.Fatalf("Checkout new branch: %v", err)
 	}
 	return c
+}
+
+func mustGzip(t *testing.T, content string) []byte {
+	t.Helper()
+	var buffer bytes.Buffer
+	writer := gzip.NewWriter(&buffer)
+	if _, err := writer.Write([]byte(content)); err != nil {
+		t.Fatalf("gzip content: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("close gzip writer: %v", err)
+	}
+	return buffer.Bytes()
 }
 
 func TestUpdateConfigV2(t *testing.T) {
@@ -889,7 +904,7 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 						},
 					},
 					BinaryData: map[string][]byte{
-						"config.yaml": {31, 139, 8, 0, 0, 0, 0, 0, 0, 255, 0, 10, 0, 245, 255, 110, 101, 119, 45, 99, 111, 110, 102, 105, 103, 3, 0, 84, 214, 231, 87, 10, 0, 0, 0},
+						"config.yaml": mustGzip(t, "new-config"),
 					},
 					Data: map[string]string{
 						"VERSION": "12345",
@@ -938,7 +953,7 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 						},
 					},
 					BinaryData: map[string][]byte{
-						"config.yaml": {31, 139, 8, 0, 0, 0, 0, 0, 0, 255, 0, 10, 0, 245, 255, 110, 101, 119, 45, 99, 111, 110, 102, 105, 103, 3, 0, 84, 214, 231, 87, 10, 0, 0, 0},
+						"config.yaml": mustGzip(t, "new-config"),
 					},
 					Data: map[string]string{
 						"VERSION": "12345",
@@ -1001,7 +1016,7 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 						},
 					},
 					BinaryData: map[string][]byte{
-						"config.yaml": {31, 139, 8, 0, 0, 0, 0, 0, 0, 255, 0, 10, 0, 245, 255, 110, 101, 119, 45, 99, 111, 110, 102, 105, 103, 3, 0, 84, 214, 231, 87, 10, 0, 0, 0},
+						"config.yaml": mustGzip(t, "new-config"),
 					},
 					Data: map[string]string{
 						"VERSION": "12345",
@@ -1330,7 +1345,7 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 						},
 					},
 					BinaryData: map[string][]byte{
-						"config.yaml": {31, 139, 8, 0, 0, 0, 0, 0, 0, 255, 0, 10, 0, 245, 255, 110, 101, 119, 45, 99, 111, 110, 102, 105, 103, 3, 0, 84, 214, 231, 87, 10, 0, 0, 0},
+						"config.yaml": mustGzip(t, "new-config"),
 					},
 					Data: map[string]string{
 						"VERSION": "12345",
