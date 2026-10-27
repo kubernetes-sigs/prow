@@ -3,11 +3,11 @@ module sigs.k8s.io/prow
 go 1.26.4
 
 require (
-	cloud.google.com/go/auth v0.24.1-0.20261001053825-dbc26066f70a
+	cloud.google.com/go/auth v0.24.1
 	cloud.google.com/go/cloudbuild v1.36.0
 	cloud.google.com/go/pubsub/v2 v2.7.0
 	cloud.google.com/go/secretmanager v1.22.0
-	cloud.google.com/go/storage v1.67.1
+	cloud.google.com/go/storage v1.70.0
 	github.com/GoogleCloudPlatform/testgrid v0.0.176
 	github.com/NYTimes/gziphandler v1.1.1
 	github.com/andygrunwald/go-gerrit v1.2.0
@@ -68,7 +68,7 @@ require (
 	golang.org/x/text v0.43.0
 	golang.org/x/time v0.16.0
 	gomodules.xyz/jsonpatch/v2 v2.5.0
-	google.golang.org/api v0.305.0
+	google.golang.org/api v0.307.0
 	google.golang.org/genproto v0.0.0-20260825221802-da73d73af1c5
 	google.golang.org/genproto/googleapis/api v0.0.0-20260825221802-da73d73af1c5
 	google.golang.org/grpc v1.84.0
@@ -163,7 +163,7 @@ require (
 	golang.org/x/term v0.47.0 // indirect
 	golang.org/x/tools v0.51.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20261005182115-fad411399dd8 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20261019180522-ce908d29299b // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	k8s.io/apiextensions-apiserver v0.37.0 // indirect
