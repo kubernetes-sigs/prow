@@ -27,7 +27,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/sirupsen/logrus"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	ctrlruntime "sigs.k8s.io/controller-runtime"
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	fakectrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -288,7 +287,7 @@ func TestReconcile(t *testing.T) {
 				enablementChecker: test.enablementChecker,
 			}
 
-			result, err := r.Reconcile(context.Background(), ctrlruntime.Request{NamespacedName: types.NamespacedName{Name: toReconcile}})
+			result, err := r.Reconcile(context.Background(), ctrlruntime.Request{Name: toReconcile})
 			if !reflect.DeepEqual(err, test.expectedError) {
 				t.Fatalf("actual err %v differs from expected err %v", err, test.expectedError)
 			}

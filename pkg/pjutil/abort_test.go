@@ -46,7 +46,7 @@ func TestTerminateOlderJobs(t *testing.T) {
 			name: "terminate all older presubmit jobs",
 			pjs: []prowv1.ProwJob{
 				{
-					ObjectMeta: metav1.ObjectMeta{Name: "newest", Namespace: fakePJNS},
+					Name: "newest", Namespace: fakePJNS,
 					Spec: prowv1.ProwJobSpec{
 						Type: prowv1.PresubmitJob,
 						Job:  "j1",
@@ -60,7 +60,7 @@ func TestTerminateOlderJobs(t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{Name: "old", Namespace: fakePJNS},
+					Name: "old", Namespace: fakePJNS,
 					Spec: prowv1.ProwJobSpec{
 						Type: prowv1.PresubmitJob,
 						Job:  "j1",
@@ -74,7 +74,7 @@ func TestTerminateOlderJobs(t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{Name: "older", Namespace: fakePJNS},
+					Name: "older", Namespace: fakePJNS,
 					Spec: prowv1.ProwJobSpec{
 						Type: prowv1.PresubmitJob,
 						Job:  "j1",
@@ -88,7 +88,7 @@ func TestTerminateOlderJobs(t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{Name: "postsubmit", Namespace: fakePJNS},
+					Name: "postsubmit", Namespace: fakePJNS,
 					Spec: prowv1.ProwJobSpec{
 						Type: prowv1.PostsubmitJob,
 						Job:  "j1",
@@ -102,7 +102,7 @@ func TestTerminateOlderJobs(t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{Name: "completed", Namespace: fakePJNS},
+					Name: "completed", Namespace: fakePJNS,
 					Spec: prowv1.ProwJobSpec{
 						Type: prowv1.PresubmitJob,
 						Job:  "j1",
@@ -123,7 +123,7 @@ func TestTerminateOlderJobs(t *testing.T) {
 			name: "Don't terminate older batch jobs",
 			pjs: []prowv1.ProwJob{
 				{
-					ObjectMeta: metav1.ObjectMeta{Name: "newest", Namespace: fakePJNS},
+					Name: "newest", Namespace: fakePJNS,
 					Spec: prowv1.ProwJobSpec{
 						Type: prowv1.BatchJob,
 						Job:  "j1",
@@ -137,7 +137,7 @@ func TestTerminateOlderJobs(t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{Name: "old", Namespace: fakePJNS},
+					Name: "old", Namespace: fakePJNS,
 					Spec: prowv1.ProwJobSpec{
 						Type: prowv1.BatchJob,
 						Job:  "j1",
@@ -151,7 +151,7 @@ func TestTerminateOlderJobs(t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{Name: "older", Namespace: fakePJNS},
+					Name: "older", Namespace: fakePJNS,
 					Spec: prowv1.ProwJobSpec{
 						Type: prowv1.BatchJob,
 						Job:  "j1",
@@ -165,7 +165,7 @@ func TestTerminateOlderJobs(t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{Name: "postsubmit", Namespace: fakePJNS},
+					Name: "postsubmit", Namespace: fakePJNS,
 					Spec: prowv1.ProwJobSpec{
 						Type: prowv1.PostsubmitJob,
 						Job:  "j1",
@@ -179,7 +179,7 @@ func TestTerminateOlderJobs(t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{Name: "completed", Namespace: fakePJNS},
+					Name: "completed", Namespace: fakePJNS,
 					Spec: prowv1.ProwJobSpec{
 						Type: prowv1.BatchJob,
 						Job:  "j1",
@@ -200,7 +200,7 @@ func TestTerminateOlderJobs(t *testing.T) {
 			name: "terminate older jobs with different orders of refs",
 			pjs: []prowv1.ProwJob{
 				{
-					ObjectMeta: metav1.ObjectMeta{Name: "newest", Namespace: fakePJNS},
+					Name: "newest", Namespace: fakePJNS,
 					Spec: prowv1.ProwJobSpec{
 						Type: prowv1.PresubmitJob,
 						Job:  "j1",
@@ -214,7 +214,7 @@ func TestTerminateOlderJobs(t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{Name: "old", Namespace: fakePJNS},
+					Name: "old", Namespace: fakePJNS,
 					Spec: prowv1.ProwJobSpec{
 						Type: prowv1.PresubmitJob,
 						Job:  "j1",
@@ -234,7 +234,7 @@ func TestTerminateOlderJobs(t *testing.T) {
 			name: "terminate older jobs with different orders of extra refs",
 			pjs: []prowv1.ProwJob{
 				{
-					ObjectMeta: metav1.ObjectMeta{Name: "newest", Namespace: fakePJNS},
+					Name: "newest", Namespace: fakePJNS,
 					Spec: prowv1.ProwJobSpec{
 						Type: prowv1.PresubmitJob,
 						Job:  "j1",
@@ -258,7 +258,7 @@ func TestTerminateOlderJobs(t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{Name: "old", Namespace: fakePJNS},
+					Name: "old", Namespace: fakePJNS,
 					Spec: prowv1.ProwJobSpec{
 						Type: prowv1.PresubmitJob,
 						Job:  "j1",
@@ -288,7 +288,7 @@ func TestTerminateOlderJobs(t *testing.T) {
 			name: "terminate older jobs with no main refs, only extra refs",
 			pjs: []prowv1.ProwJob{
 				{
-					ObjectMeta: metav1.ObjectMeta{Name: "newest", Namespace: fakePJNS},
+					Name: "newest", Namespace: fakePJNS,
 					Spec: prowv1.ProwJobSpec{
 						Type: prowv1.PresubmitJob,
 						Job:  "j1",
@@ -304,7 +304,7 @@ func TestTerminateOlderJobs(t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{Name: "old", Namespace: fakePJNS},
+					Name: "old", Namespace: fakePJNS,
 					Spec: prowv1.ProwJobSpec{
 						Type: prowv1.PresubmitJob,
 						Job:  "j1",
@@ -326,7 +326,7 @@ func TestTerminateOlderJobs(t *testing.T) {
 			name: "terminate older jobs with different base SHA",
 			pjs: []prowv1.ProwJob{
 				{
-					ObjectMeta: metav1.ObjectMeta{Name: "newest", Namespace: fakePJNS},
+					Name: "newest", Namespace: fakePJNS,
 					Spec: prowv1.ProwJobSpec{
 						Type: prowv1.PresubmitJob,
 						Job:  "j1",
@@ -341,7 +341,7 @@ func TestTerminateOlderJobs(t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{Name: "old", Namespace: fakePJNS},
+					Name: "old", Namespace: fakePJNS,
 					Spec: prowv1.ProwJobSpec{
 						Type: prowv1.PresubmitJob,
 						Job:  "j1",
@@ -362,7 +362,7 @@ func TestTerminateOlderJobs(t *testing.T) {
 			name: "don't terminate older jobs with different base refs",
 			pjs: []prowv1.ProwJob{
 				{
-					ObjectMeta: metav1.ObjectMeta{Name: "newest", Namespace: fakePJNS},
+					Name: "newest", Namespace: fakePJNS,
 					Spec: prowv1.ProwJobSpec{
 						Type: prowv1.PresubmitJob,
 						Job:  "j1",
@@ -377,7 +377,7 @@ func TestTerminateOlderJobs(t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{Name: "old", Namespace: fakePJNS},
+					Name: "old", Namespace: fakePJNS,
 					Spec: prowv1.ProwJobSpec{
 						Type: prowv1.PresubmitJob,
 						Job:  "j1",
@@ -398,7 +398,7 @@ func TestTerminateOlderJobs(t *testing.T) {
 			name: "terminate older jobs with different pull sha",
 			pjs: []prowv1.ProwJob{
 				{
-					ObjectMeta: metav1.ObjectMeta{Name: "newest", Namespace: fakePJNS},
+					Name: "newest", Namespace: fakePJNS,
 					Spec: prowv1.ProwJobSpec{
 						Type: prowv1.PresubmitJob,
 						Job:  "j1",
@@ -412,7 +412,7 @@ func TestTerminateOlderJobs(t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{Name: "old", Namespace: fakePJNS},
+					Name: "old", Namespace: fakePJNS,
 					Spec: prowv1.ProwJobSpec{
 						Type: prowv1.PresubmitJob,
 						Job:  "j1",

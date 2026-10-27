@@ -794,10 +794,9 @@ func (r *reconciler) syncAbortedJob(ctx context.Context, pj *prowv1.ProwJob) err
 	}
 
 	// Just optimistically delete and swallow the potential 404
-	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{
+	pod := &corev1.Pod{
 		Name:      pj.Name,
-		Namespace: r.config().PodNamespace,
-	}}
+		Namespace: r.config().PodNamespace}
 	if err := ctrlruntimeclient.IgnoreNotFound(buildClient.Delete(ctx, pod)); err != nil {
 		return fmt.Errorf("failed to delete pod %s/%s in cluster %s: %w", pod.Namespace, pod.Name, pj.ClusterAlias(), err)
 	}
@@ -837,10 +836,8 @@ func (r *reconciler) deletePod(ctx context.Context, pj *prowv1.ProwJob) error {
 	}
 
 	pod := &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: r.config().PodNamespace,
-			Name:      pj.Name,
-		},
+		Namespace: r.config().PodNamespace,
+		Name:      pj.Name,
 	}
 
 	if err := ctrlruntimeclient.IgnoreNotFound(buildClient.Delete(ctx, pod)); err != nil {
@@ -1022,10 +1019,9 @@ func podPredicate(additionalSelector string, callback func(bool)) (predicate.Typ
 
 func podEventRequestMapper(prowJobNamespace string) handler.TypedEventHandler[*corev1.Pod, reconcile.Request] {
 	return handler.TypedEnqueueRequestsFromMapFunc(func(_ context.Context, pod *corev1.Pod) []reconcile.Request {
-		return []reconcile.Request{{NamespacedName: ctrlruntimeclient.ObjectKey{
+		return []reconcile.Request{{
 			Namespace: prowJobNamespace,
-			Name:      pod.GetName(),
-		}}}
+			Name:      pod.GetName()}}
 	})
 }
 

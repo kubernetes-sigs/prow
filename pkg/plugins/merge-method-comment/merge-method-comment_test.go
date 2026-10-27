@@ -282,13 +282,11 @@ func TestHandlePR(t *testing.T) {
 
 			c.event.Number = 101
 			config := config.Tide{
-				TideGitHubConfig: config.TideGitHubConfig{
-					MergeType: map[string]config.TideOrgMergeType{
-						"kubernetes/kubernetes": {MergeType: c.defaultMergeMethod},
-					},
-					SquashLabel: c.squashLabel,
-					MergeLabel:  c.mergeLabel,
+				MergeType: map[string]config.TideOrgMergeType{
+					"kubernetes/kubernetes": {MergeType: c.defaultMergeMethod},
 				},
+				SquashLabel: c.squashLabel,
+				MergeLabel:  c.mergeLabel,
 			}
 			err := handlePR(c.client, config, c.event)
 

@@ -62,17 +62,15 @@ func TestPipelineController(t *testing.T) {
 
 			t.Logf("Creating ProwJob: %s", jobName)
 			prowjob := prowjobv1.ProwJob{
-				ObjectMeta: v1.ObjectMeta{
-					Name:      jobName,
-					Namespace: defaultNamespace,
-					Labels: map[string]string{
-						"created-by-prow":  "true",
-						"prow.k8s.io/type": "presubmit",
-						"prow.k8s.io/job":  jobName,
-					},
-					Annotations: map[string]string{
-						"prow.k8s.io/job": jobName,
-					},
+				Name:      jobName,
+				Namespace: defaultNamespace,
+				Labels: map[string]string{
+					"created-by-prow":  "true",
+					"prow.k8s.io/type": "presubmit",
+					"prow.k8s.io/job":  jobName,
+				},
+				Annotations: map[string]string{
+					"prow.k8s.io/job": jobName,
 				},
 				Spec: prowjobv1.ProwJobSpec{
 					Type:      prowjobv1.PresubmitJob,
@@ -192,17 +190,15 @@ func TestPipelineControllerConcurrentJobs(t *testing.T) {
 		jobNames[i] = jobName
 
 		prowjob := prowjobv1.ProwJob{
-			ObjectMeta: v1.ObjectMeta{
-				Name:      jobName,
-				Namespace: defaultNamespace,
-				Labels: map[string]string{
-					"created-by-prow":  "true",
-					"prow.k8s.io/type": "periodic",
-					"prow.k8s.io/job":  jobName,
-				},
-				Annotations: map[string]string{
-					"prow.k8s.io/job": jobName,
-				},
+			Name:      jobName,
+			Namespace: defaultNamespace,
+			Labels: map[string]string{
+				"created-by-prow":  "true",
+				"prow.k8s.io/type": "periodic",
+				"prow.k8s.io/job":  jobName,
+			},
+			Annotations: map[string]string{
+				"prow.k8s.io/job": jobName,
 			},
 			Spec: prowjobv1.ProwJobSpec{
 				Type:      prowjobv1.PeriodicJob,

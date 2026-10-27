@@ -119,11 +119,10 @@ func testDefaultProwYAMLGetter(clients localgit.Clients, t *testing.T) {
 			baseContent: map[string][]byte{
 				".prow.yaml": []byte(`presubmits: [{"name": "hans", "spec": {"containers": [{}]}}]`),
 			},
-			config: &Config{JobConfig: JobConfig{
+			config: &Config{
 				PresubmitsStatic: map[string][]Presubmit{
-					org + "/" + defaultRepo: {{Reporter: Reporter{Context: "hans"}, JobBase: JobBase{Name: "hans"}}},
-				},
-			}},
+					org + "/" + defaultRepo: {{Context: "hans", Name: "hans"}},
+				}},
 			validate: func(_ *ProwYAML, err error) error {
 				if err == nil {
 					return errors.New("error is nil")
@@ -224,11 +223,10 @@ func testDefaultProwYAMLGetter(clients localgit.Clients, t *testing.T) {
 			baseContent: map[string][]byte{
 				".prow.yaml": []byte(`postsubmits: [{"name": "hans", "spec": {"containers": [{}]}}]`),
 			},
-			config: &Config{JobConfig: JobConfig{
+			config: &Config{
 				PostsubmitsStatic: map[string][]Postsubmit{
-					org + "/" + defaultRepo: {{Reporter: Reporter{Context: "hans"}, JobBase: JobBase{Name: "hans"}}},
-				},
-			}},
+					org + "/" + defaultRepo: {{Context: "hans", Name: "hans"}},
+				}},
 			validate: func(_ *ProwYAML, err error) error {
 				if err == nil {
 					return errors.New("error is nil")
@@ -596,10 +594,8 @@ postsubmits: [{"name": "oli", "spec": {"containers": [{}]}}]`),
 
 			if tc.config == nil {
 				tc.config = &Config{
-					ProwConfig: ProwConfig{
-						InRepoConfig: InRepoConfig{
-							AllowedClusters: map[string][]string{"*": {kube.DefaultClusterAlias}},
-						},
+					InRepoConfig: InRepoConfig{
+						AllowedClusters: map[string][]string{"*": {kube.DefaultClusterAlias}},
 					},
 				}
 			}

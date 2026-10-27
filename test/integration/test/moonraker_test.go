@@ -196,10 +196,8 @@ git reset --hard ${baseSHA}
 	// the cluster).
 	fca := &fakeConfigAgent{
 		c: &config.Config{
-			ProwConfig: config.ProwConfig{
-				Moonraker: config.Moonraker{
-					ClientTimeout: &metav1.Duration{Duration: 5 * time.Second},
-				},
+			Moonraker: config.Moonraker{
+				ClientTimeout: &metav1.Duration{Duration: 5 * time.Second},
 			},
 		},
 	}
@@ -210,23 +208,19 @@ git reset --hard ${baseSHA}
 
 	want := func(ref string) config.Presubmit {
 		return config.Presubmit{
-			JobBase: config.JobBase{
-				Name: fmt.Sprintf("my-presubmit (ref %s)", ref),
-				UtilityConfig: config.UtilityConfig{
-					Decorate: &trueVal,
-				},
-				Spec: &v1.PodSpec{
-					Containers: []v1.Container{
-						{
-							Image:   "localhost:5001/alpine",
-							Command: []string{"sh"},
-							Args: []string{
-								"-c",
-								fmt.Sprintf(`set -eu
+			Name:     fmt.Sprintf("my-presubmit (ref %s)", ref),
+			Decorate: &trueVal,
+			Spec: &v1.PodSpec{
+				Containers: []v1.Container{
+					{
+						Image:   "localhost:5001/alpine",
+						Command: []string{"sh"},
+						Args: []string{
+							"-c",
+							fmt.Sprintf(`set -eu
 echo "hello from my-presubmit (ref %s)"
 cat README.txt
 `, ref),
-							},
 						},
 					},
 				},
@@ -426,10 +420,8 @@ git reset --hard ${baseSHA}
 	// the cluster).
 	fca := &fakeConfigAgent{
 		c: &config.Config{
-			ProwConfig: config.ProwConfig{
-				Moonraker: config.Moonraker{
-					ClientTimeout: &metav1.Duration{Duration: 5 * time.Second},
-				},
+			Moonraker: config.Moonraker{
+				ClientTimeout: &metav1.Duration{Duration: 5 * time.Second},
 			},
 		},
 	}
@@ -440,23 +432,19 @@ git reset --hard ${baseSHA}
 
 	want := func(ref string) config.Presubmit {
 		return config.Presubmit{
-			JobBase: config.JobBase{
-				Name: fmt.Sprintf("my-presubmit (ref %s)", ref),
-				UtilityConfig: config.UtilityConfig{
-					Decorate: &trueVal,
-				},
-				Spec: &v1.PodSpec{
-					Containers: []v1.Container{
-						{
-							Image:   "localhost:5001/alpine",
-							Command: []string{"sh"},
-							Args: []string{
-								"-c",
-								fmt.Sprintf(`set -eu
+			Name:     fmt.Sprintf("my-presubmit (ref %s)", ref),
+			Decorate: &trueVal,
+			Spec: &v1.PodSpec{
+				Containers: []v1.Container{
+					{
+						Image:   "localhost:5001/alpine",
+						Command: []string{"sh"},
+						Args: []string{
+							"-c",
+							fmt.Sprintf(`set -eu
 echo "hello from my-presubmit (ref %s)"
 cat README.txt
 `, ref),
-							},
 						},
 					},
 				},

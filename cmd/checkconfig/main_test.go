@@ -1601,12 +1601,8 @@ func TestValidateJobExtraRefs(t *testing.T) {
 				PresubmitsStatic: map[string][]config.Presubmit{
 					"org/repo": {
 						{
-							JobBase: config.JobBase{
-								Name: "test",
-								UtilityConfig: config.UtilityConfig{
-									ExtraRefs: tc.extraRefs,
-								},
-							},
+							Name:      "test",
+							ExtraRefs: tc.extraRefs,
 						},
 					},
 				},
@@ -1712,8 +1708,8 @@ func TestValidateTideContextPolicy(t *testing.T) {
 			name: "overlapping branch config, error",
 			cfg: cfg(func(c *config.Config) {
 				c.PresubmitsStatic["a/b"] = []config.Presubmit{
-					{Reporter: config.Reporter{Context: "a"}, Brancher: config.Brancher{Branches: []string{"a"}}},
-					{AlwaysRun: true, Reporter: config.Reporter{Context: "a"}},
+					{Context: "a", Branches: []string{"a"}},
+					{AlwaysRun: true, Context: "a"},
 				}
 			}),
 			expectedError: "context policy for a branch in a/b is invalid: contexts a are defined as required and required if present",
@@ -1722,8 +1718,8 @@ func TestValidateTideContextPolicy(t *testing.T) {
 			name: "overlapping branch config with empty branch configs, error",
 			cfg: cfg(func(c *config.Config) {
 				c.PresubmitsStatic["a/b"] = []config.Presubmit{
-					{Reporter: config.Reporter{Context: "a"}},
-					{AlwaysRun: true, Reporter: config.Reporter{Context: "a"}},
+					{Context: "a"},
+					{AlwaysRun: true, Context: "a"},
 				}
 			}),
 			expectedError: "context policy for master branch in a/b is invalid: contexts a are defined as required and required if present",
@@ -1733,8 +1729,8 @@ func TestValidateTideContextPolicy(t *testing.T) {
 			cfg: cfg(func(c *config.Config) {
 				c.InRepoConfig.Enabled = map[string]*bool{"*": new(true)}
 				c.PresubmitsStatic["a/b"] = []config.Presubmit{
-					{Reporter: config.Reporter{Context: "a"}, Brancher: config.Brancher{Branches: []string{"a"}}},
-					{AlwaysRun: true, Reporter: config.Reporter{Context: "a"}},
+					{Context: "a", Branches: []string{"a"}},
+					{AlwaysRun: true, Context: "a"},
 				}
 			}),
 			expectedError: "context policy for a branch in a/b is invalid: contexts a are defined as required and required if present",
@@ -1743,8 +1739,8 @@ func TestValidateTideContextPolicy(t *testing.T) {
 			name: "no overlapping branch config, no error",
 			cfg: cfg(func(c *config.Config) {
 				c.PresubmitsStatic["a/b"] = []config.Presubmit{
-					{Reporter: config.Reporter{Context: "a"}, Brancher: config.Brancher{Branches: []string{"a"}}},
-					{AlwaysRun: true, Reporter: config.Reporter{Context: "a"}, Brancher: config.Brancher{Branches: []string{"b"}}},
+					{Context: "a", Branches: []string{"a"}},
+					{AlwaysRun: true, Context: "a", Branches: []string{"b"}},
 				}
 			}),
 		},
@@ -1753,9 +1749,9 @@ func TestValidateTideContextPolicy(t *testing.T) {
 			cfg: cfg(func(c *config.Config) {
 				c.PresubmitsStatic["a/b"] = []config.Presubmit{
 					{
-						Reporter:            config.Reporter{Context: "ci/prow/test"},
-						Brancher:            config.Brancher{Branches: []string{`^master$`}},
-						RegexpChangeMatcher: config.RegexpChangeMatcher{SkipIfOnlyChanged: `\.md$`},
+						Context:           "ci/prow/test",
+						Branches:          []string{`^master$`},
+						SkipIfOnlyChanged: `\.md$`,
 					},
 				}
 				yes := true
@@ -1782,10 +1778,10 @@ func TestValidateTideContextPolicy(t *testing.T) {
 			cfg: cfg(func(c *config.Config) {
 				c.PresubmitsStatic["a/b"] = []config.Presubmit{
 					{
-						Optional:            true,
-						Reporter:            config.Reporter{Context: "ci/prow/coverage"},
-						Brancher:            config.Brancher{Branches: []string{`^master$`}},
-						RegexpChangeMatcher: config.RegexpChangeMatcher{SkipIfOnlyChanged: `\.md$`},
+						Optional:          true,
+						Context:           "ci/prow/coverage",
+						Branches:          []string{`^master$`},
+						SkipIfOnlyChanged: `\.md$`,
 					},
 				}
 				c.Tide.ContextOptions.Orgs = map[string]config.TideOrgContextPolicy{
@@ -1802,8 +1798,8 @@ func TestValidateTideContextPolicy(t *testing.T) {
 			name: "repo key is not in org/repo format, no error",
 			cfg: cfg(func(c *config.Config) {
 				c.PresubmitsStatic["https://kunit-review.googlesource.com/linux"] = []config.Presubmit{
-					{Reporter: config.Reporter{Context: "a"}, Brancher: config.Brancher{Branches: []string{"a"}}},
-					{AlwaysRun: true, Reporter: config.Reporter{Context: "a"}, Brancher: config.Brancher{Branches: []string{"b"}}},
+					{Context: "a", Branches: []string{"a"}},
+					{AlwaysRun: true, Context: "a", Branches: []string{"b"}},
 				}
 			}),
 		},
@@ -1875,150 +1871,110 @@ func TestValidateClusterField(t *testing.T) {
 		{
 			name: "Jenkins job with unset cluster",
 			cfg: &config.Config{
-				JobConfig: config.JobConfig{
-					PresubmitsStatic: map[string][]config.Presubmit{
-						"org1/repo1": {
-							{
-								JobBase: config.JobBase{
-									Agent: "jenkins",
-								},
-							}}}}},
+				PresubmitsStatic: map[string][]config.Presubmit{
+					"org1/repo1": {
+						{
+							Agent: "jenkins",
+						}}}},
 		},
 		{
 			name: "jenkins job with defaulted cluster",
 			cfg: &config.Config{
-				JobConfig: config.JobConfig{
-					PresubmitsStatic: map[string][]config.Presubmit{
-						"org1/repo1": {
-							{
-								JobBase: config.JobBase{
-									Agent:   "jenkins",
-									Cluster: "default",
-									Name:    "some-job",
-								},
-							}}}}},
+				PresubmitsStatic: map[string][]config.Presubmit{
+					"org1/repo1": {
+						{
+							Agent:   "jenkins",
+							Cluster: "default",
+							Name:    "some-job",
+						}}}},
 		},
 		{
 			name: "jenkins job must not set cluster",
 			cfg: &config.Config{
-				JobConfig: config.JobConfig{
-					PresubmitsStatic: map[string][]config.Presubmit{
-						"org1/repo1": {
-							{
-								JobBase: config.JobBase{
-									Agent:   "jenkins",
-									Cluster: "build1",
-									Name:    "some-job",
-								},
-							}}}}},
+				PresubmitsStatic: map[string][]config.Presubmit{
+					"org1/repo1": {
+						{
+							Agent:   "jenkins",
+							Cluster: "build1",
+							Name:    "some-job",
+						}}}},
 			expectedError: "org1/repo1: some-job: cannot set cluster field if agent is jenkins",
 		},
 		{
 			name: "k8s job can set cluster",
 			cfg: &config.Config{
-				JobConfig: config.JobConfig{
-					PresubmitsStatic: map[string][]config.Presubmit{
-						"org1/repo1": {
-							{
-								JobBase: config.JobBase{
-									Agent:   "kubernetes",
-									Cluster: "default",
-								},
-							}}}}},
+				PresubmitsStatic: map[string][]config.Presubmit{
+					"org1/repo1": {
+						{
+							Agent:   "kubernetes",
+							Cluster: "default",
+						}}}},
 		},
 		{
 			name: "empty agent job can set cluster",
 			cfg: &config.Config{
-				JobConfig: config.JobConfig{
-					PresubmitsStatic: map[string][]config.Presubmit{
-						"org1/repo1": {
-							{
-								JobBase: config.JobBase{
-									Cluster: "default",
-								},
-							}}}}},
+				PresubmitsStatic: map[string][]config.Presubmit{
+					"org1/repo1": {
+						{
+							Cluster: "default",
+						}}}},
 		},
 		{
 			name: "cluster validates with lone reachable default cluster",
 			cfg: &config.Config{
-				ProwConfig: config.ProwConfig{
-					Plank: config.Plank{BuildClusterStatusFile: "gs://my-bucket/build-cluster-status.json"},
-				},
-				JobConfig: config.JobConfig{
-					PresubmitsStatic: map[string][]config.Presubmit{
-						"org1/repo1": {
-							{
-								JobBase: config.JobBase{
-									Cluster: "default",
-								},
-							}}}}},
+				Plank: config.Plank{BuildClusterStatusFile: "gs://my-bucket/build-cluster-status.json"},
+				PresubmitsStatic: map[string][]config.Presubmit{
+					"org1/repo1": {
+						{
+							Cluster: "default",
+						}}}},
 			clusterStatusFile: fmt.Sprintf(`{"default": %q}`, plank.ClusterStatusReachable),
 		},
 		{
 			name: "cluster validates with multiple clusters, specified is reachable",
 			cfg: &config.Config{
-				ProwConfig: config.ProwConfig{
-					Plank: config.Plank{BuildClusterStatusFile: "gs://my-bucket/build-cluster-status.json"},
-				},
-				JobConfig: config.JobConfig{
-					PresubmitsStatic: map[string][]config.Presubmit{
-						"org1/repo1": {
-							{
-								JobBase: config.JobBase{
-									Cluster: "build1",
-								},
-							}}}}},
+				Plank: config.Plank{BuildClusterStatusFile: "gs://my-bucket/build-cluster-status.json"},
+				PresubmitsStatic: map[string][]config.Presubmit{
+					"org1/repo1": {
+						{
+							Cluster: "build1",
+						}}}},
 			clusterStatusFile: fmt.Sprintf(`{"default": %q, "build1": %q, "build2": %q}`, plank.ClusterStatusReachable, plank.ClusterStatusReachable, plank.ClusterStatusError),
 		},
 		{
 			name: "cluster validates with multiple clusters, specified is unreachable (just warn)",
 			cfg: &config.Config{
-				ProwConfig: config.ProwConfig{
-					Plank: config.Plank{BuildClusterStatusFile: "gs://my-bucket/build-cluster-status.json"},
-				},
-				JobConfig: config.JobConfig{
-					PresubmitsStatic: map[string][]config.Presubmit{
-						"org1/repo1": {
-							{
-								JobBase: config.JobBase{
-									Name:    "my-job",
-									Cluster: "build2",
-								},
-							}}}}},
+				Plank: config.Plank{BuildClusterStatusFile: "gs://my-bucket/build-cluster-status.json"},
+				PresubmitsStatic: map[string][]config.Presubmit{
+					"org1/repo1": {
+						{
+							Name:    "my-job",
+							Cluster: "build2",
+						}}}},
 			clusterStatusFile: fmt.Sprintf(`{"default": %q, "build1": %q, "build2": %q}`, plank.ClusterStatusReachable, plank.ClusterStatusReachable, plank.ClusterStatusError),
 		},
 		{
 			name: "cluster fails validation with multiple clusters, specified is unrecognized",
 			cfg: &config.Config{
-				ProwConfig: config.ProwConfig{
-					Plank: config.Plank{BuildClusterStatusFile: "gs://my-bucket/build-cluster-status.json"},
-				},
-				JobConfig: config.JobConfig{
-					PresubmitsStatic: map[string][]config.Presubmit{
-						"org1/repo1": {
-							{
-								JobBase: config.JobBase{
-									Name:    "my-job",
-									Cluster: "build3",
-								},
-							}}}}},
+				Plank: config.Plank{BuildClusterStatusFile: "gs://my-bucket/build-cluster-status.json"},
+				PresubmitsStatic: map[string][]config.Presubmit{
+					"org1/repo1": {
+						{
+							Name:    "my-job",
+							Cluster: "build3",
+						}}}},
 			clusterStatusFile: fmt.Sprintf(`{"default": %q, "build1": %q, "build2": %q}`, plank.ClusterStatusReachable, plank.ClusterStatusReachable, plank.ClusterStatusError),
 			expectedError:     "org1/repo1: job configuration for \"my-job\" specifies unknown 'cluster' value \"build3\"",
 		},
 		{
 			name: "cluster validation skipped if status file does not exist yet",
 			cfg: &config.Config{
-				ProwConfig: config.ProwConfig{
-					Plank: config.Plank{BuildClusterStatusFile: "gs://my-bucket/build-cluster-status.json"},
-				},
-				JobConfig: config.JobConfig{
-					PresubmitsStatic: map[string][]config.Presubmit{
-						"org1/repo1": {
-							{
-								JobBase: config.JobBase{
-									Cluster: "build1",
-								},
-							}}}}},
+				Plank: config.Plank{BuildClusterStatusFile: "gs://my-bucket/build-cluster-status.json"},
+				PresubmitsStatic: map[string][]config.Presubmit{
+					"org1/repo1": {
+						{
+							Cluster: "build1",
+						}}}},
 			readError: os.ErrNotExist,
 		},
 	}
@@ -2329,7 +2285,7 @@ func TestValidateUnmanagedBranchprotectionConfigDoesntHaveSubconfig(t *testing.T
 	t.Parallel()
 	bpConfigWithSettingsOnAllLayers := func(m ...func(*config.BranchProtection)) config.BranchProtection {
 		cfg := config.BranchProtection{
-			Policy: config.Policy{Exclude: []string{"some-regex"}},
+			Exclude: []string{"some-regex"},
 			Orgs: map[string]config.Org{
 				"my-org": {
 					Policy: config.Policy{Exclude: []string{"some-regex"}},
@@ -2749,9 +2705,7 @@ func TestValidateRequiredJobAnnotations(t *testing.T) {
 			},
 			postsubmits: []config.Postsubmit{
 				{
-					JobBase: config.JobBase{
-						Annotations: map[string]string{"prow.k8s.io/cat": "meow"},
-					},
+					Annotations: map[string]string{"prow.k8s.io/cat": "meow"},
 				},
 			},
 			periodics: []config.Periodic{
@@ -2771,9 +2725,7 @@ func TestValidateRequiredJobAnnotations(t *testing.T) {
 			},
 			postsubmits: []config.Postsubmit{
 				{
-					JobBase: config.JobBase{
-						Annotations: map[string]string{"prow.k8s.io/cat": "meow"},
-					},
+					Annotations: map[string]string{"prow.k8s.io/cat": "meow"},
 				},
 			},
 			periodics: []config.Periodic{
@@ -2788,23 +2740,17 @@ func TestValidateRequiredJobAnnotations(t *testing.T) {
 			name: "jobs have required annotations, pass",
 			presubmits: []config.Presubmit{
 				{
-					JobBase: config.JobBase{
-						Annotations: map[string]string{"prow.k8s.io/maintainer": "job-maintainer"},
-					},
+					Annotations: map[string]string{"prow.k8s.io/maintainer": "job-maintainer"},
 				},
 			},
 			postsubmits: []config.Postsubmit{
 				{
-					JobBase: config.JobBase{
-						Annotations: map[string]string{"prow.k8s.io/maintainer": "job-maintainer"},
-					},
+					Annotations: map[string]string{"prow.k8s.io/maintainer": "job-maintainer"},
 				},
 			},
 			periodics: []config.Periodic{
 				{
-					JobBase: config.JobBase{
-						Annotations: map[string]string{"prow.k8s.io/maintainer": "job-maintainer"},
-					},
+					Annotations: map[string]string{"prow.k8s.io/maintainer": "job-maintainer"},
 				},
 			},
 			expectedAnnotations: []string{"prow.k8s.io/maintainer"},

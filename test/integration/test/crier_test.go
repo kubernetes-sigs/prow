@@ -82,21 +82,19 @@ func TestReportGHStatus(t *testing.T) {
 
 			t.Logf("Creating CRD %s for sha %s", podName, sha)
 			prowjob := prowjobv1.ProwJob{
-				ObjectMeta: v1.ObjectMeta{
-					Annotations: map[string]string{
-						"prow.k8s.io/job":       podName,
-						"prow.k8s.io/refs.org":  "fake-org",
-						"prow.k8s.io/refs.pull": "0",
-						"prow.k8s.io/refs.repo": "fake-repo",
-						"prow.k8s.io/type":      "presubmit",
-					},
-					Labels: map[string]string{
-						"created-by-prow":  "true",
-						"prow.k8s.io/type": "presubmit",
-					},
-					Name:      podName,
-					Namespace: defaultNamespace,
+				Annotations: map[string]string{
+					"prow.k8s.io/job":       podName,
+					"prow.k8s.io/refs.org":  "fake-org",
+					"prow.k8s.io/refs.pull": "0",
+					"prow.k8s.io/refs.repo": "fake-repo",
+					"prow.k8s.io/type":      "presubmit",
 				},
+				Labels: map[string]string{
+					"created-by-prow":  "true",
+					"prow.k8s.io/type": "presubmit",
+				},
+				Name:      podName,
+				Namespace: defaultNamespace,
 				Spec: prowjobv1.ProwJobSpec{
 					Type:      prowjobv1.PresubmitJob,
 					Namespace: "test-pods",

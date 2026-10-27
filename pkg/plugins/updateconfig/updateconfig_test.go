@@ -234,13 +234,11 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 			},
 			existConfigMaps: []runtime.Object{
 				&coreapi.ConfigMap{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config",
-						Namespace: defaultNamespace,
-						Labels: map[string]string{
-							"app.kubernetes.io/name":      "prow",
-							"app.kubernetes.io/component": "updateconfig-plugin",
-						},
+					Name:      "config",
+					Namespace: defaultNamespace,
+					Labels: map[string]string{
+						"app.kubernetes.io/name":      "prow",
+						"app.kubernetes.io/component": "updateconfig-plugin",
 					},
 					Data: map[string]string{
 						"VERSION":     "12345",
@@ -250,13 +248,11 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 			},
 			expectedConfigMaps: []*coreapi.ConfigMap{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config",
-						Namespace: defaultNamespace,
-						Labels: map[string]string{
-							"app.kubernetes.io/name":      "prow",
-							"app.kubernetes.io/component": "updateconfig-plugin",
-						},
+					Name:      "config",
+					Namespace: defaultNamespace,
+					Labels: map[string]string{
+						"app.kubernetes.io/name":      "prow",
+						"app.kubernetes.io/component": "updateconfig-plugin",
 					},
 					Data: map[string]string{
 						"VERSION":     "12345",
@@ -278,13 +274,11 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 			},
 			existConfigMaps: []runtime.Object{
 				&coreapi.ConfigMap{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config",
-						Namespace: defaultNamespace,
-						Labels: map[string]string{
-							"app.kubernetes.io/name":      "prow",
-							"app.kubernetes.io/component": "updateconfig-plugin",
-						},
+					Name:      "config",
+					Namespace: defaultNamespace,
+					Labels: map[string]string{
+						"app.kubernetes.io/name":      "prow",
+						"app.kubernetes.io/component": "updateconfig-plugin",
 					},
 					Data: map[string]string{
 						"config.yaml": "old-config",
@@ -293,13 +287,11 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 			},
 			expectedConfigMaps: []*coreapi.ConfigMap{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config",
-						Namespace: defaultNamespace,
-						Labels: map[string]string{
-							"app.kubernetes.io/name":      "prow",
-							"app.kubernetes.io/component": "updateconfig-plugin",
-						},
+					Name:      "config",
+					Namespace: defaultNamespace,
+					Labels: map[string]string{
+						"app.kubernetes.io/name":      "prow",
+						"app.kubernetes.io/component": "updateconfig-plugin",
 					},
 					Data: map[string]string{
 						"config.yaml": "new-config",
@@ -321,13 +313,11 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 			},
 			existConfigMaps: []runtime.Object{
 				&coreapi.ConfigMap{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "plugins",
-						Namespace: defaultNamespace,
-						Labels: map[string]string{
-							"app.kubernetes.io/name":      "prow",
-							"app.kubernetes.io/component": "updateconfig-plugin",
-						},
+					Name:      "plugins",
+					Namespace: defaultNamespace,
+					Labels: map[string]string{
+						"app.kubernetes.io/name":      "prow",
+						"app.kubernetes.io/component": "updateconfig-plugin",
 					},
 					Data: map[string]string{
 						"test-key": "old-plugins",
@@ -336,13 +326,11 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 			},
 			expectedConfigMaps: []*coreapi.ConfigMap{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "plugins",
-						Namespace: defaultNamespace,
-						Labels: map[string]string{
-							"app.kubernetes.io/name":      "prow",
-							"app.kubernetes.io/component": "updateconfig-plugin",
-						},
+					Name:      "plugins",
+					Namespace: defaultNamespace,
+					Labels: map[string]string{
+						"app.kubernetes.io/name":      "prow",
+						"app.kubernetes.io/component": "updateconfig-plugin",
 					},
 					Data: map[string]string{
 						"test-key": "new-plugins",
@@ -364,13 +352,11 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 			},
 			existConfigMaps: []runtime.Object{
 				&coreapi.ConfigMap{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "boskos-config",
-						Namespace: "boskos",
-						Labels: map[string]string{
-							"app.kubernetes.io/name":      "prow",
-							"app.kubernetes.io/component": "updateconfig-plugin",
-						},
+					Name:      "boskos-config",
+					Namespace: "boskos",
+					Labels: map[string]string{
+						"app.kubernetes.io/name":      "prow",
+						"app.kubernetes.io/component": "updateconfig-plugin",
 					},
 					Data: map[string]string{
 						"resources.yaml": "old-boskos-config",
@@ -379,13 +365,11 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 			},
 			expectedConfigMaps: []*coreapi.ConfigMap{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "boskos-config",
-						Namespace: "boskos",
-						Labels: map[string]string{
-							"app.kubernetes.io/name":      "prow",
-							"app.kubernetes.io/component": "updateconfig-plugin",
-						},
+					Name:      "boskos-config",
+					Namespace: "boskos",
+					Labels: map[string]string{
+						"app.kubernetes.io/name":      "prow",
+						"app.kubernetes.io/component": "updateconfig-plugin",
 					},
 					Data: map[string]string{
 						"resources.yaml": "new-boskos-config",
@@ -415,36 +399,30 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 			},
 			existConfigMaps: []runtime.Object{
 				&coreapi.ConfigMap{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config",
-						Namespace: defaultNamespace,
-						Labels: map[string]string{
-							"app.kubernetes.io/name":      "prow",
-							"app.kubernetes.io/component": "updateconfig-plugin",
-						},
+					Name:      "config",
+					Namespace: defaultNamespace,
+					Labels: map[string]string{
+						"app.kubernetes.io/name":      "prow",
+						"app.kubernetes.io/component": "updateconfig-plugin",
 					},
 					Data: map[string]string{
 						"config.yaml": "old-config",
 					},
 				},
 				&coreapi.ConfigMap{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "plugins",
-						Namespace: defaultNamespace,
-						Labels: map[string]string{
-							"app.kubernetes.io/name":      "prow",
-							"app.kubernetes.io/component": "updateconfig-plugin",
-						},
+					Name:      "plugins",
+					Namespace: defaultNamespace,
+					Labels: map[string]string{
+						"app.kubernetes.io/name":      "prow",
+						"app.kubernetes.io/component": "updateconfig-plugin",
 					},
 					Data: map[string]string{
 						"test-key": "old-plugins",
 					},
 				},
 				&coreapi.ConfigMap{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "boskos-config",
-						Namespace: "boskos",
-					},
+					Name:      "boskos-config",
+					Namespace: "boskos",
 					Data: map[string]string{
 						"resources.yaml": "old-boskos-config",
 					},
@@ -452,13 +430,11 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 			},
 			expectedConfigMaps: []*coreapi.ConfigMap{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config",
-						Namespace: defaultNamespace,
-						Labels: map[string]string{
-							"app.kubernetes.io/name":      "prow",
-							"app.kubernetes.io/component": "updateconfig-plugin",
-						},
+					Name:      "config",
+					Namespace: defaultNamespace,
+					Labels: map[string]string{
+						"app.kubernetes.io/name":      "prow",
+						"app.kubernetes.io/component": "updateconfig-plugin",
 					},
 					Data: map[string]string{
 						"config.yaml": "new-config",
@@ -466,13 +442,11 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "plugins",
-						Namespace: defaultNamespace,
-						Labels: map[string]string{
-							"app.kubernetes.io/name":      "prow",
-							"app.kubernetes.io/component": "updateconfig-plugin",
-						},
+					Name:      "plugins",
+					Namespace: defaultNamespace,
+					Labels: map[string]string{
+						"app.kubernetes.io/name":      "prow",
+						"app.kubernetes.io/component": "updateconfig-plugin",
 					},
 					Data: map[string]string{
 						"test-key": "new-plugins",
@@ -480,13 +454,11 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "boskos-config",
-						Namespace: "boskos",
-						Labels: map[string]string{
-							"app.kubernetes.io/name":      "prow",
-							"app.kubernetes.io/component": "updateconfig-plugin",
-						},
+					Name:      "boskos-config",
+					Namespace: "boskos",
+					Labels: map[string]string{
+						"app.kubernetes.io/name":      "prow",
+						"app.kubernetes.io/component": "updateconfig-plugin",
 					},
 					Data: map[string]string{
 						"resources.yaml": "new-boskos-config",
@@ -512,13 +484,11 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 			},
 			existConfigMaps: []runtime.Object{
 				&coreapi.ConfigMap{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "multikey-config",
-						Namespace: defaultNamespace,
-						Labels: map[string]string{
-							"app.kubernetes.io/name":      "prow",
-							"app.kubernetes.io/component": "updateconfig-plugin",
-						},
+					Name:      "multikey-config",
+					Namespace: defaultNamespace,
+					Labels: map[string]string{
+						"app.kubernetes.io/name":      "prow",
+						"app.kubernetes.io/component": "updateconfig-plugin",
 					},
 					Data: map[string]string{
 						"foo.yaml": "old-foo-config",
@@ -528,13 +498,11 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 			},
 			expectedConfigMaps: []*coreapi.ConfigMap{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "multikey-config",
-						Namespace: defaultNamespace,
-						Labels: map[string]string{
-							"app.kubernetes.io/name":      "prow",
-							"app.kubernetes.io/component": "updateconfig-plugin",
-						},
+					Name:      "multikey-config",
+					Namespace: defaultNamespace,
+					Labels: map[string]string{
+						"app.kubernetes.io/name":      "prow",
+						"app.kubernetes.io/component": "updateconfig-plugin",
 					},
 					Data: map[string]string{
 						"foo.yaml": "new-foo-config",
@@ -558,13 +526,11 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 			},
 			existConfigMaps: []runtime.Object{
 				&coreapi.ConfigMap{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "multikey-config",
-						Namespace: defaultNamespace,
-						Labels: map[string]string{
-							"app.kubernetes.io/name":      "prow",
-							"app.kubernetes.io/component": "updateconfig-plugin",
-						},
+					Name:      "multikey-config",
+					Namespace: defaultNamespace,
+					Labels: map[string]string{
+						"app.kubernetes.io/name":      "prow",
+						"app.kubernetes.io/component": "updateconfig-plugin",
 					},
 					Data: map[string]string{
 						"foo.yaml": "old-foo-config",
@@ -574,13 +540,11 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 			},
 			expectedConfigMaps: []*coreapi.ConfigMap{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "multikey-config",
-						Namespace: defaultNamespace,
-						Labels: map[string]string{
-							"app.kubernetes.io/name":      "prow",
-							"app.kubernetes.io/component": "updateconfig-plugin",
-						},
+					Name:      "multikey-config",
+					Namespace: defaultNamespace,
+					Labels: map[string]string{
+						"app.kubernetes.io/name":      "prow",
+						"app.kubernetes.io/component": "updateconfig-plugin",
 					},
 					Data: map[string]string{
 						"foo.yaml": "new-foo-config",
@@ -603,13 +567,11 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 			},
 			existConfigMaps: []runtime.Object{
 				&coreapi.ConfigMap{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "multikey-config",
-						Namespace: defaultNamespace,
-						Labels: map[string]string{
-							"app.kubernetes.io/name":      "prow",
-							"app.kubernetes.io/component": "updateconfig-plugin",
-						},
+					Name:      "multikey-config",
+					Namespace: defaultNamespace,
+					Labels: map[string]string{
+						"app.kubernetes.io/name":      "prow",
+						"app.kubernetes.io/component": "updateconfig-plugin",
 					},
 					Data: map[string]string{
 						"foo.yaml": "old-foo-config",
@@ -619,13 +581,11 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 			},
 			expectedConfigMaps: []*coreapi.ConfigMap{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "multikey-config",
-						Namespace: defaultNamespace,
-						Labels: map[string]string{
-							"app.kubernetes.io/name":      "prow",
-							"app.kubernetes.io/component": "updateconfig-plugin",
-						},
+					Name:      "multikey-config",
+					Namespace: defaultNamespace,
+					Labels: map[string]string{
+						"app.kubernetes.io/name":      "prow",
+						"app.kubernetes.io/component": "updateconfig-plugin",
 					},
 					Data: map[string]string{
 						"bar.yaml": "old-bar-config",
@@ -648,13 +608,11 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 			},
 			existConfigMaps: []runtime.Object{
 				&coreapi.ConfigMap{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "glob-config",
-						Namespace: defaultNamespace,
-						Labels: map[string]string{
-							"app.kubernetes.io/name":      "prow",
-							"app.kubernetes.io/component": "updateconfig-plugin",
-						},
+					Name:      "glob-config",
+					Namespace: defaultNamespace,
+					Labels: map[string]string{
+						"app.kubernetes.io/name":      "prow",
+						"app.kubernetes.io/component": "updateconfig-plugin",
 					},
 					Data: map[string]string{
 						"fejta.yaml":    "old-fejta-config",
@@ -664,13 +622,11 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 			},
 			expectedConfigMaps: []*coreapi.ConfigMap{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "glob-config",
-						Namespace: defaultNamespace,
-						Labels: map[string]string{
-							"app.kubernetes.io/name":      "prow",
-							"app.kubernetes.io/component": "updateconfig-plugin",
-						},
+					Name:      "glob-config",
+					Namespace: defaultNamespace,
+					Labels: map[string]string{
+						"app.kubernetes.io/name":      "prow",
+						"app.kubernetes.io/component": "updateconfig-plugin",
 					},
 					Data: map[string]string{
 						"fejta.yaml":    "old-fejta-config",
@@ -695,13 +651,11 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 			},
 			existConfigMaps: []runtime.Object{
 				&coreapi.ConfigMap{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "glob-config",
-						Namespace: defaultNamespace,
-						Labels: map[string]string{
-							"app.kubernetes.io/name":      "prow",
-							"app.kubernetes.io/component": "updateconfig-plugin",
-						},
+					Name:      "glob-config",
+					Namespace: defaultNamespace,
+					Labels: map[string]string{
+						"app.kubernetes.io/name":      "prow",
+						"app.kubernetes.io/component": "updateconfig-plugin",
 					},
 					Data: map[string]string{
 						"krzyzacy.yaml": "old-krzyzacy-config",
@@ -710,13 +664,11 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 			},
 			expectedConfigMaps: []*coreapi.ConfigMap{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "glob-config",
-						Namespace: defaultNamespace,
-						Labels: map[string]string{
-							"app.kubernetes.io/name":      "prow",
-							"app.kubernetes.io/component": "updateconfig-plugin",
-						},
+					Name:      "glob-config",
+					Namespace: defaultNamespace,
+					Labels: map[string]string{
+						"app.kubernetes.io/name":      "prow",
+						"app.kubernetes.io/component": "updateconfig-plugin",
 					},
 					Data: map[string]string{
 						"fejtabot.yaml": "new-fejtabot-config",
@@ -740,13 +692,11 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 			},
 			existConfigMaps: []runtime.Object{
 				&coreapi.ConfigMap{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "glob-config",
-						Namespace: defaultNamespace,
-						Labels: map[string]string{
-							"app.kubernetes.io/name":      "prow",
-							"app.kubernetes.io/component": "updateconfig-plugin",
-						},
+					Name:      "glob-config",
+					Namespace: defaultNamespace,
+					Labels: map[string]string{
+						"app.kubernetes.io/name":      "prow",
+						"app.kubernetes.io/component": "updateconfig-plugin",
 					},
 					Data: map[string]string{
 						"dir-subdir-fejtaverse-krzyzacy.yaml": "retired",
@@ -755,13 +705,11 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 			},
 			expectedConfigMaps: []*coreapi.ConfigMap{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config",
-						Namespace: defaultNamespace,
-						Labels: map[string]string{
-							"app.kubernetes.io/name":      "prow",
-							"app.kubernetes.io/component": "updateconfig-plugin",
-						},
+					Name:      "config",
+					Namespace: defaultNamespace,
+					Labels: map[string]string{
+						"app.kubernetes.io/name":      "prow",
+						"app.kubernetes.io/component": "updateconfig-plugin",
 					},
 					Data: map[string]string{
 						"dir-subdir-fejtaverse-fejtabot.yaml": "new-fejtabot-config",
@@ -801,13 +749,11 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 			},
 			existConfigMaps: []runtime.Object{
 				&coreapi.ConfigMap{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "glob-config",
-						Namespace: defaultNamespace,
-						Labels: map[string]string{
-							"app.kubernetes.io/name":      "prow",
-							"app.kubernetes.io/component": "updateconfig-plugin",
-						},
+					Name:      "glob-config",
+					Namespace: defaultNamespace,
+					Labels: map[string]string{
+						"app.kubernetes.io/name":      "prow",
+						"app.kubernetes.io/component": "updateconfig-plugin",
 					},
 					Data: map[string]string{
 						"fejta.yaml":    "old-fejta-config",
@@ -818,13 +764,11 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 			},
 			expectedConfigMaps: []*coreapi.ConfigMap{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "glob-config",
-						Namespace: defaultNamespace,
-						Labels: map[string]string{
-							"app.kubernetes.io/name":      "prow",
-							"app.kubernetes.io/component": "updateconfig-plugin",
-						},
+					Name:      "glob-config",
+					Namespace: defaultNamespace,
+					Labels: map[string]string{
+						"app.kubernetes.io/name":      "prow",
+						"app.kubernetes.io/component": "updateconfig-plugin",
 					},
 					Data: map[string]string{
 						"fejta.yaml":    "new-fejta-config",
@@ -850,13 +794,11 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 			existConfigMaps: []runtime.Object{},
 			expectedConfigMaps: []*coreapi.ConfigMap{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config",
-						Namespace: defaultNamespace,
-						Labels: map[string]string{
-							"app.kubernetes.io/name":      "prow",
-							"app.kubernetes.io/component": "updateconfig-plugin",
-						},
+					Name:      "config",
+					Namespace: defaultNamespace,
+					Labels: map[string]string{
+						"app.kubernetes.io/name":      "prow",
+						"app.kubernetes.io/component": "updateconfig-plugin",
 					},
 					Data: map[string]string{
 						"config.yaml": "new-config",
@@ -880,13 +822,11 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 			existConfigMaps: []runtime.Object{},
 			expectedConfigMaps: []*coreapi.ConfigMap{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config",
-						Namespace: defaultNamespace,
-						Labels: map[string]string{
-							"app.kubernetes.io/name":      "prow",
-							"app.kubernetes.io/component": "updateconfig-plugin",
-						},
+					Name:      "config",
+					Namespace: defaultNamespace,
+					Labels: map[string]string{
+						"app.kubernetes.io/name":      "prow",
+						"app.kubernetes.io/component": "updateconfig-plugin",
 					},
 					BinaryData: map[string][]byte{
 						"config.yaml": {31, 139, 8, 0, 0, 0, 0, 0, 0, 255, 0, 10, 0, 245, 255, 110, 101, 119, 45, 99, 111, 110, 102, 105, 103, 3, 0, 84, 214, 231, 87, 10, 0, 0, 0},
@@ -929,13 +869,11 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 			existConfigMaps: []runtime.Object{},
 			expectedConfigMaps: []*coreapi.ConfigMap{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config",
-						Namespace: defaultNamespace,
-						Labels: map[string]string{
-							"app.kubernetes.io/name":      "prow",
-							"app.kubernetes.io/component": "updateconfig-plugin",
-						},
+					Name:      "config",
+					Namespace: defaultNamespace,
+					Labels: map[string]string{
+						"app.kubernetes.io/name":      "prow",
+						"app.kubernetes.io/component": "updateconfig-plugin",
 					},
 					BinaryData: map[string][]byte{
 						"config.yaml": {31, 139, 8, 0, 0, 0, 0, 0, 0, 255, 0, 10, 0, 245, 255, 110, 101, 119, 45, 99, 111, 110, 102, 105, 103, 3, 0, 84, 214, 231, 87, 10, 0, 0, 0},
@@ -945,13 +883,11 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "plugins",
-						Namespace: defaultNamespace,
-						Labels: map[string]string{
-							"app.kubernetes.io/name":      "prow",
-							"app.kubernetes.io/component": "updateconfig-plugin",
-						},
+					Name:      "plugins",
+					Namespace: defaultNamespace,
+					Labels: map[string]string{
+						"app.kubernetes.io/name":      "prow",
+						"app.kubernetes.io/component": "updateconfig-plugin",
 					},
 					Data: map[string]string{
 						"plugins.yaml": "new-plugins",
@@ -992,13 +928,11 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 			existConfigMaps: []runtime.Object{},
 			expectedConfigMaps: []*coreapi.ConfigMap{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config",
-						Namespace: defaultNamespace,
-						Labels: map[string]string{
-							"app.kubernetes.io/name":      "prow",
-							"app.kubernetes.io/component": "updateconfig-plugin",
-						},
+					Name:      "config",
+					Namespace: defaultNamespace,
+					Labels: map[string]string{
+						"app.kubernetes.io/name":      "prow",
+						"app.kubernetes.io/component": "updateconfig-plugin",
 					},
 					BinaryData: map[string][]byte{
 						"config.yaml": {31, 139, 8, 0, 0, 0, 0, 0, 0, 255, 0, 10, 0, 245, 255, 110, 101, 119, 45, 99, 111, 110, 102, 105, 103, 3, 0, 84, 214, 231, 87, 10, 0, 0, 0},
@@ -1008,13 +942,11 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "plugins",
-						Namespace: defaultNamespace,
-						Labels: map[string]string{
-							"app.kubernetes.io/name":      "prow",
-							"app.kubernetes.io/component": "updateconfig-plugin",
-						},
+					Name:      "plugins",
+					Namespace: defaultNamespace,
+					Labels: map[string]string{
+						"app.kubernetes.io/name":      "prow",
+						"app.kubernetes.io/component": "updateconfig-plugin",
 					},
 					Data: map[string]string{
 						"plugins.yaml": "new-plugins",
@@ -1055,13 +987,11 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 			existConfigMaps: []runtime.Object{},
 			expectedConfigMaps: []*coreapi.ConfigMap{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config",
-						Namespace: defaultNamespace,
-						Labels: map[string]string{
-							"app.kubernetes.io/name":      "prow",
-							"app.kubernetes.io/component": "updateconfig-plugin",
-						},
+					Name:      "config",
+					Namespace: defaultNamespace,
+					Labels: map[string]string{
+						"app.kubernetes.io/name":      "prow",
+						"app.kubernetes.io/component": "updateconfig-plugin",
 					},
 					Data: map[string]string{
 						"config.yaml": "new-config",
@@ -1100,13 +1030,11 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 			existConfigMaps: []runtime.Object{},
 			expectedConfigMaps: []*coreapi.ConfigMap{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config",
-						Namespace: defaultNamespace,
-						Labels: map[string]string{
-							"app.kubernetes.io/name":      "prow",
-							"app.kubernetes.io/component": "updateconfig-plugin",
-						},
+					Name:      "config",
+					Namespace: defaultNamespace,
+					Labels: map[string]string{
+						"app.kubernetes.io/name":      "prow",
+						"app.kubernetes.io/component": "updateconfig-plugin",
 					},
 					Data: map[string]string{
 						"config.yaml": "new-config",
@@ -1139,13 +1067,11 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 			},
 			existConfigMaps: []runtime.Object{
 				&coreapi.ConfigMap{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config",
-						Namespace: defaultNamespace,
-						Labels: map[string]string{
-							"app.kubernetes.io/name":      "prow",
-							"app.kubernetes.io/component": "updateconfig-plugin",
-						},
+					Name:      "config",
+					Namespace: defaultNamespace,
+					Labels: map[string]string{
+						"app.kubernetes.io/name":      "prow",
+						"app.kubernetes.io/component": "updateconfig-plugin",
 					},
 					Data: map[string]string{
 						"becoming-binary.yaml": "not-yet-binary",
@@ -1154,13 +1080,11 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 			},
 			expectedConfigMaps: []*coreapi.ConfigMap{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config",
-						Namespace: defaultNamespace,
-						Labels: map[string]string{
-							"app.kubernetes.io/name":      "prow",
-							"app.kubernetes.io/component": "updateconfig-plugin",
-						},
+					Name:      "config",
+					Namespace: defaultNamespace,
+					Labels: map[string]string{
+						"app.kubernetes.io/name":      "prow",
+						"app.kubernetes.io/component": "updateconfig-plugin",
 					},
 					BinaryData: map[string][]byte{
 						"becoming-binary.yaml": []byte("now-binary\x00\xFF\xFF"),
@@ -1192,13 +1116,11 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 			},
 			existConfigMaps: []runtime.Object{
 				&coreapi.ConfigMap{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config",
-						Namespace: defaultNamespace,
-						Labels: map[string]string{
-							"app.kubernetes.io/name":      "prow",
-							"app.kubernetes.io/component": "updateconfig-plugin",
-						},
+					Name:      "config",
+					Namespace: defaultNamespace,
+					Labels: map[string]string{
+						"app.kubernetes.io/name":      "prow",
+						"app.kubernetes.io/component": "updateconfig-plugin",
 					},
 					BinaryData: map[string][]byte{
 						"becoming-text.yaml": []byte("not-yet-text\x00\xFF\xFF"),
@@ -1207,13 +1129,11 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 			},
 			expectedConfigMaps: []*coreapi.ConfigMap{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config",
-						Namespace: defaultNamespace,
-						Labels: map[string]string{
-							"app.kubernetes.io/name":      "prow",
-							"app.kubernetes.io/component": "updateconfig-plugin",
-						},
+					Name:      "config",
+					Namespace: defaultNamespace,
+					Labels: map[string]string{
+						"app.kubernetes.io/name":      "prow",
+						"app.kubernetes.io/component": "updateconfig-plugin",
 					},
 					Data: map[string]string{
 						"becoming-text.yaml": "now-text",
@@ -1249,13 +1169,11 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 			},
 			existConfigMaps: []runtime.Object{
 				&coreapi.ConfigMap{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config",
-						Namespace: defaultNamespace,
-						Labels: map[string]string{
-							"app.kubernetes.io/name":      "prow",
-							"app.kubernetes.io/component": "updateconfig-plugin",
-						},
+					Name:      "config",
+					Namespace: defaultNamespace,
+					Labels: map[string]string{
+						"app.kubernetes.io/name":      "prow",
+						"app.kubernetes.io/component": "updateconfig-plugin",
 					},
 					BinaryData: map[string][]byte{
 						"becoming-text.yaml": []byte("not-yet-text\x00\xFF\xFF"),
@@ -1267,13 +1185,11 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 			},
 			expectedConfigMaps: []*coreapi.ConfigMap{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config",
-						Namespace: defaultNamespace,
-						Labels: map[string]string{
-							"app.kubernetes.io/name":      "prow",
-							"app.kubernetes.io/component": "updateconfig-plugin",
-						},
+					Name:      "config",
+					Namespace: defaultNamespace,
+					Labels: map[string]string{
+						"app.kubernetes.io/name":      "prow",
+						"app.kubernetes.io/component": "updateconfig-plugin",
 					},
 					BinaryData: map[string][]byte{
 						"becoming-binary.yaml": []byte("now-binary\x00\xFF\xFF"),
@@ -1306,13 +1222,11 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 			},
 			existConfigMaps: []runtime.Object{
 				&coreapi.ConfigMap{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config",
-						Namespace: defaultNamespace,
-						Labels: map[string]string{
-							"app.kubernetes.io/name":      "prow",
-							"app.kubernetes.io/component": "updateconfig-plugin",
-						},
+					Name:      "config",
+					Namespace: defaultNamespace,
+					Labels: map[string]string{
+						"app.kubernetes.io/name":      "prow",
+						"app.kubernetes.io/component": "updateconfig-plugin",
 					},
 					Data: map[string]string{
 						"config.yaml": "old-config",
@@ -1321,13 +1235,11 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 			},
 			expectedConfigMaps: []*coreapi.ConfigMap{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config",
-						Namespace: defaultNamespace,
-						Labels: map[string]string{
-							"app.kubernetes.io/name":      "prow",
-							"app.kubernetes.io/component": "updateconfig-plugin",
-						},
+					Name:      "config",
+					Namespace: defaultNamespace,
+					Labels: map[string]string{
+						"app.kubernetes.io/name":      "prow",
+						"app.kubernetes.io/component": "updateconfig-plugin",
 					},
 					BinaryData: map[string][]byte{
 						"config.yaml": {31, 139, 8, 0, 0, 0, 0, 0, 0, 255, 0, 10, 0, 245, 255, 110, 101, 119, 45, 99, 111, 110, 102, 105, 103, 3, 0, 84, 214, 231, 87, 10, 0, 0, 0},
@@ -1360,13 +1272,11 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 			},
 			existConfigMaps: []runtime.Object{
 				&coreapi.ConfigMap{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config",
-						Namespace: defaultNamespace,
-						Labels: map[string]string{
-							"app.kubernetes.io/name":      "prow",
-							"app.kubernetes.io/component": "updateconfig-plugin",
-						},
+					Name:      "config",
+					Namespace: defaultNamespace,
+					Labels: map[string]string{
+						"app.kubernetes.io/name":      "prow",
+						"app.kubernetes.io/component": "updateconfig-plugin",
 					},
 					BinaryData: map[string][]byte{
 						"config.yaml": {31, 139, 8, 0, 0, 0, 0, 0, 0, 255, 202, 75, 45, 215, 77, 206, 207, 75, 203, 76, 7, 4, 0, 0, 255, 255, 84, 214, 231, 87, 10, 0, 0, 0},
@@ -1375,13 +1285,11 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 			},
 			expectedConfigMaps: []*coreapi.ConfigMap{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config",
-						Namespace: defaultNamespace,
-						Labels: map[string]string{
-							"app.kubernetes.io/name":      "prow",
-							"app.kubernetes.io/component": "updateconfig-plugin",
-						},
+					Name:      "config",
+					Namespace: defaultNamespace,
+					Labels: map[string]string{
+						"app.kubernetes.io/name":      "prow",
+						"app.kubernetes.io/component": "updateconfig-plugin",
 					},
 					Data: map[string]string{
 						"config.yaml": "new-config",
@@ -1412,13 +1320,11 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 			},
 			expectedConfigMaps: []*coreapi.ConfigMap{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "config",
-						Namespace: defaultNamespace,
-						Labels: map[string]string{
-							"app.kubernetes.io/name":      "prow",
-							"app.kubernetes.io/component": "updateconfig-plugin",
-						},
+					Name:      "config",
+					Namespace: defaultNamespace,
+					Labels: map[string]string{
+						"app.kubernetes.io/name":      "prow",
+						"app.kubernetes.io/component": "updateconfig-plugin",
 					},
 					Data: map[string]string{
 						"prow-config.yaml": "new-config",
@@ -1460,13 +1366,11 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 			},
 			expectedConfigMaps: []*coreapi.ConfigMap{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "job-config-part-1",
-						Namespace: defaultNamespace,
-						Labels: map[string]string{
-							"app.kubernetes.io/name":      "prow",
-							"app.kubernetes.io/component": "updateconfig-plugin",
-						},
+					Name:      "job-config-part-1",
+					Namespace: defaultNamespace,
+					Labels: map[string]string{
+						"app.kubernetes.io/name":      "prow",
+						"app.kubernetes.io/component": "updateconfig-plugin",
 					},
 					Data: map[string]string{
 						"even.yaml": "even SHA256",
@@ -1474,13 +1378,11 @@ func testUpdateConfig(clients localgit.Clients, t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "job-config-part-2",
-						Namespace: defaultNamespace,
-						Labels: map[string]string{
-							"app.kubernetes.io/name":      "prow",
-							"app.kubernetes.io/component": "updateconfig-plugin",
-						},
+					Name:      "job-config-part-2",
+					Namespace: defaultNamespace,
+					Labels: map[string]string{
+						"app.kubernetes.io/name":      "prow",
+						"app.kubernetes.io/component": "updateconfig-plugin",
 					},
 					Data: map[string]string{
 						"fejta.yaml": "new-fejta-config",
@@ -1734,13 +1636,11 @@ func testUpdate(clients localgit.Clients, t *testing.T) {
 			},
 			existConfigMap: runtime.Object(
 				&coreapi.ConfigMap{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "multikey-config",
-						Namespace: defaultNamespace,
-						Labels: map[string]string{
-							"app.kubernetes.io/name":      "prow",
-							"app.kubernetes.io/component": "updateconfig-plugin",
-						},
+					Name:      "multikey-config",
+					Namespace: defaultNamespace,
+					Labels: map[string]string{
+						"app.kubernetes.io/name":      "prow",
+						"app.kubernetes.io/component": "updateconfig-plugin",
 					},
 					Data: map[string]string{
 						"foo.yaml": "old-foo-config",
@@ -1749,13 +1649,11 @@ func testUpdate(clients localgit.Clients, t *testing.T) {
 				},
 			),
 			expectedConfigMap: &coreapi.ConfigMap{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "multikey-config",
-					Namespace: defaultNamespace,
-					Labels: map[string]string{
-						"app.kubernetes.io/name":      "prow",
-						"app.kubernetes.io/component": "updateconfig-plugin",
-					},
+				Name:      "multikey-config",
+				Namespace: defaultNamespace,
+				Labels: map[string]string{
+					"app.kubernetes.io/name":      "prow",
+					"app.kubernetes.io/component": "updateconfig-plugin",
 				},
 				Data: map[string]string{
 					"foo.yaml": "new-foo-config",
@@ -1774,13 +1672,11 @@ func testUpdate(clients localgit.Clients, t *testing.T) {
 			},
 			existConfigMap: runtime.Object(
 				&coreapi.ConfigMap{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "multikey-config",
-						Namespace: defaultNamespace,
-						Labels: map[string]string{
-							"app.kubernetes.io/name":      "prow",
-							"app.kubernetes.io/component": "updateconfig-plugin",
-						},
+					Name:      "multikey-config",
+					Namespace: defaultNamespace,
+					Labels: map[string]string{
+						"app.kubernetes.io/name":      "prow",
+						"app.kubernetes.io/component": "updateconfig-plugin",
 					},
 					Data: map[string]string{
 						"foo.yaml": "old-foo-config",
@@ -1789,13 +1685,11 @@ func testUpdate(clients localgit.Clients, t *testing.T) {
 				},
 			),
 			expectedConfigMap: &coreapi.ConfigMap{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "multikey-config",
-					Namespace: defaultNamespace,
-					Labels: map[string]string{
-						"app.kubernetes.io/name":      "prow",
-						"app.kubernetes.io/component": "updateconfig-plugin",
-					},
+				Name:      "multikey-config",
+				Namespace: defaultNamespace,
+				Labels: map[string]string{
+					"app.kubernetes.io/name":      "prow",
+					"app.kubernetes.io/component": "updateconfig-plugin",
 				},
 				Data: map[string]string{
 					"VERSION":  "12345",
@@ -2001,9 +1895,7 @@ func TestMarkStaleKeysForDeletion(t *testing.T) {
 		{
 			name: "empty",
 			configMap: &coreapi.ConfigMap{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "config",
-				},
+				Name: "config",
 			},
 			updates: []ConfigMapUpdate{
 				{Key: "foo.yaml", Filename: "config/foo.yaml"},
@@ -2013,9 +1905,7 @@ func TestMarkStaleKeysForDeletion(t *testing.T) {
 		{
 			name: "delete one key",
 			configMap: &coreapi.ConfigMap{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "config",
-				},
+				Name: "config",
 				Data: map[string]string{
 					"foo.yaml": "old-foo-config",
 					"bar.yaml": "old-bar-config",
@@ -2031,9 +1921,7 @@ func TestMarkStaleKeysForDeletion(t *testing.T) {
 		{
 			name: "delete 3 keys",
 			configMap: &coreapi.ConfigMap{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "config",
-				},
+				Name: "config",
 				Data: map[string]string{
 					"foo.yaml": "old-foo-config",
 					"bar.yaml": "old-bar-config",
@@ -2058,9 +1946,7 @@ func TestMarkStaleKeysForDeletion(t *testing.T) {
 			// slice is passed in somehow).
 			name: "for safety, delete nothing if there are no updates",
 			configMap: &coreapi.ConfigMap{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "config",
-				},
+				Name: "config",
 				Data: map[string]string{
 					"foo.yaml": "old-foo-config",
 					"bar.yaml": "old-bar-config",

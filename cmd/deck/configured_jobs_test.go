@@ -221,152 +221,92 @@ func TestGetConfiguredJobs(t *testing.T) {
 func getConfigGetter(repos []string) config.Getter {
 	ca := config.Agent{}
 	ca.Set(&config.Config{
-		ProwConfig: config.ProwConfig{
-			Plank: config.Plank{
-				DefaultDecorationConfigs: []*config.DefaultDecorationConfigEntry{
-					{
-						OrgRepo: "kubernetes/kubernetes",
-						Config: &prowapi.DecorationConfig{
-							GCSConfiguration: &prowapi.GCSConfiguration{
-								Bucket: "results",
-							},
+		Plank: config.Plank{
+			DefaultDecorationConfigs: []*config.DefaultDecorationConfigEntry{
+				{
+					OrgRepo: "kubernetes/kubernetes",
+					Config: &prowapi.DecorationConfig{
+						GCSConfiguration: &prowapi.GCSConfiguration{
+							Bucket: "results",
 						},
 					},
-					{
-						OrgRepo: "kubernetes/test-infra",
-						Config: &prowapi.DecorationConfig{
-							GCSConfiguration: &prowapi.GCSConfiguration{
-								Bucket: "test-infra-results",
-							},
+				},
+				{
+					OrgRepo: "kubernetes/test-infra",
+					Config: &prowapi.DecorationConfig{
+						GCSConfiguration: &prowapi.GCSConfiguration{
+							Bucket: "test-infra-results",
 						},
 					},
-					{
-						OrgRepo: "kubernetes-sigs/prow",
-						Config: &prowapi.DecorationConfig{
-							GCSConfiguration: &prowapi.GCSConfiguration{
-								Bucket: "prow-results",
-							},
+				},
+				{
+					OrgRepo: "kubernetes-sigs/prow",
+					Config: &prowapi.DecorationConfig{
+						GCSConfiguration: &prowapi.GCSConfiguration{
+							Bucket: "prow-results",
 						},
 					},
 				},
 			},
 		},
-		JobConfig: config.JobConfig{
-			AllRepos: sets.New(repos...),
-			PresubmitsStatic: map[string][]config.Presubmit{
-				"kubernetes-sigs/prow": {
-					{
-						JobBase: config.JobBase{
-							Name: "some-presubmit-with-special-decoration-config",
-							UtilityConfig: config.UtilityConfig{
-								DecorationConfig: &prowapi.DecorationConfig{
-									GCSConfiguration: &prowapi.GCSConfiguration{
-										Bucket: "special-results",
-									},
-								},
-							},
-						},
-					},
-					{
-						JobBase: config.JobBase{
-							Name: "other-presubmit",
+		AllRepos: sets.New(repos...),
+		PresubmitsStatic: map[string][]config.Presubmit{
+			"kubernetes-sigs/prow": {
+				{
+					Name: "some-presubmit-with-special-decoration-config",
+					DecorationConfig: &prowapi.DecorationConfig{
+						GCSConfiguration: &prowapi.GCSConfiguration{
+							Bucket: "special-results",
 						},
 					},
 				},
-				"kubernetes/test-infra": {
-					{
-						JobBase: config.JobBase{
-							Name: "some-test-infra-presubmit",
-						},
-					},
-					{
-						JobBase: config.JobBase{
-							Name: "other-test-infra-presubmit",
-						},
-					},
-				},
-				"kubernetes/kubernetes": {
-					{
-						JobBase: config.JobBase{
-							Name: "some-k8s-presubmit",
-						},
-					},
-					{
-						JobBase: config.JobBase{
-							Name: "other-k8s-presubmit",
-						},
-					},
+				{
+					Name: "other-presubmit",
 				},
 			},
-			PostsubmitsStatic: map[string][]config.Postsubmit{
-				"kubernetes-sigs/prow": {
-					{
-						JobBase: config.JobBase{
-							Name: "some-postsubmit",
-						},
-					},
-					{
-						JobBase: config.JobBase{
-							Name: "other-postsubmit",
-						},
-					},
+			"kubernetes/test-infra": {
+				{
+					Name: "some-test-infra-presubmit",
 				},
-				"kubernetes/test-infra": {
-					{
-						JobBase: config.JobBase{
-							Name: "some-test-infra-postsubmit",
-						},
-					},
-					{
-						JobBase: config.JobBase{
-							Name: "other-test-infra-postsubmit",
-						},
-					},
-				},
-				"kubernetes/kubernetes": {
-					{
-						JobBase: config.JobBase{
-							Name: "some-k8s-postsubmit",
-						},
-					},
-					{
-						JobBase: config.JobBase{
-							Name: "other-k8s-postsubmit",
-						},
-					},
+				{
+					Name: "other-test-infra-presubmit",
 				},
 			},
-			Periodics: []config.Periodic{
+			"kubernetes/kubernetes": {
 				{
-					JobBase: config.JobBase{
-						Name: "some-k8s-periodic",
-						UtilityConfig: config.UtilityConfig{
-							ExtraRefs: []prowapi.Refs{
-								{Org: "kubernetes", Repo: "kubernetes"},
-							},
-						},
-					},
+					Name: "some-k8s-presubmit",
 				},
 				{
-					JobBase: config.JobBase{
-						Name: "other-k8s-periodic",
-						UtilityConfig: config.UtilityConfig{
-							ExtraRefs: []prowapi.Refs{
-								{Org: "kubernetes", Repo: "kubernetes"},
-							},
-						},
-					},
+					Name: "other-k8s-presubmit",
 				},
-				{
-					JobBase: config.JobBase{
-						Name: "some-prow-periodic",
-						UtilityConfig: config.UtilityConfig{
-							ExtraRefs: []prowapi.Refs{
-								{Org: "kubernetes-sigs", Repo: "prow"},
-							},
-						},
-					},
-				},
+			},
+		},
+		PostsubmitsStatic: map[string][]config.Postsubmit{
+			"kubernetes-sigs/prow": {
+				{Name: "some-postsubmit"},
+				{Name: "other-postsubmit"},
+			},
+			"kubernetes/test-infra": {
+				{Name: "some-test-infra-postsubmit"},
+				{Name: "other-test-infra-postsubmit"},
+			},
+			"kubernetes/kubernetes": {
+				{Name: "some-k8s-postsubmit"},
+				{Name: "other-k8s-postsubmit"},
+			},
+		},
+		Periodics: []config.Periodic{
+			{
+				Name:      "some-k8s-periodic",
+				ExtraRefs: []prowapi.Refs{{Org: "kubernetes", Repo: "kubernetes"}},
+			},
+			{
+				Name:      "other-k8s-periodic",
+				ExtraRefs: []prowapi.Refs{{Org: "kubernetes", Repo: "kubernetes"}},
+			},
+			{
+				Name:      "some-prow-periodic",
+				ExtraRefs: []prowapi.Refs{{Org: "kubernetes-sigs", Repo: "prow"}},
 			},
 		},
 	})

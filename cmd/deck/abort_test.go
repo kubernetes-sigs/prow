@@ -124,10 +124,8 @@ func TestAbort(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			fakeProwJobClient := fake.NewSimpleClientset(&prowapi.ProwJob{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "wowsuch",
-					Namespace: "prowjobs",
-				},
+				Name:      "wowsuch",
+				Namespace: "prowjobs",
 				Spec: prowapi.ProwJobSpec{
 					Job:  "whoa",
 					Type: prowapi.PresubmitJob,

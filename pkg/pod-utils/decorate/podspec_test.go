@@ -28,7 +28,6 @@ import (
 	coreapi "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/resource"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/diff"
 	"sigs.k8s.io/yaml"
 
@@ -72,10 +71,8 @@ func TestCloneRefs(t *testing.T) {
 		MountPath: "/tmp",
 	}
 	tmpVolume := coreapi.Volume{
-		Name: "clonerefs-tmp",
-		VolumeSource: coreapi.VolumeSource{
-			EmptyDir: &coreapi.EmptyDirVolumeSource{},
-		},
+		Name:     "clonerefs-tmp",
+		EmptyDir: &coreapi.EmptyDirVolumeSource{},
 	}
 	envOrDie := func(opt clonerefs.Options) []coreapi.EnvVar {
 		e, err := cloneEnv(opt)
@@ -402,14 +399,12 @@ func TestCloneRefs(t *testing.T) {
 			volumes: []coreapi.Volume{
 				{
 					Name: "oauth-secret",
-					VolumeSource: coreapi.VolumeSource{
-						Secret: &coreapi.SecretVolumeSource{
-							SecretName: "oauth-secret",
-							Items: []coreapi.KeyToPath{{
-								Key:  "oauth-file",
-								Path: "./oauth-file",
-							}},
-						},
+					Secret: &coreapi.SecretVolumeSource{
+						SecretName: "oauth-secret",
+						Items: []coreapi.KeyToPath{{
+							Key:  "oauth-file",
+							Path: "./oauth-file",
+						}},
 					},
 				},
 				tmpVolume,
@@ -455,14 +450,12 @@ func TestCloneRefs(t *testing.T) {
 			volumes: []coreapi.Volume{
 				{
 					Name: "github-app-secret",
-					VolumeSource: coreapi.VolumeSource{
-						Secret: &coreapi.SecretVolumeSource{
-							SecretName: "github-app-secret",
-							Items: []coreapi.KeyToPath{{
-								Key:  "private-key",
-								Path: "./private-key",
-							}},
-						},
+					Secret: &coreapi.SecretVolumeSource{
+						SecretName: "github-app-secret",
+						Items: []coreapi.KeyToPath{{
+							Key:  "private-key",
+							Path: "./private-key",
+						}},
 					},
 				},
 				tmpVolume,
@@ -509,14 +502,12 @@ func TestCloneRefs(t *testing.T) {
 			volumes: []coreapi.Volume{
 				{
 					Name: "github-app-secret",
-					VolumeSource: coreapi.VolumeSource{
-						Secret: &coreapi.SecretVolumeSource{
-							SecretName: "github-app-secret",
-							Items: []coreapi.KeyToPath{{
-								Key:  "private-key",
-								Path: "./private-key",
-							}},
-						},
+					Secret: &coreapi.SecretVolumeSource{
+						SecretName: "github-app-secret",
+						Items: []coreapi.KeyToPath{{
+							Key:  "private-key",
+							Path: "./private-key",
+						}},
 					},
 				},
 				tmpVolume,
@@ -1262,7 +1253,7 @@ func TestProwJobToPod(t *testing.T) {
 
 	for i, test := range tests {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			pj := prowapi.ProwJob{ObjectMeta: metav1.ObjectMeta{Name: test.podName, Labels: test.labels}, Spec: test.pjSpec, Status: test.pjStatus}
+			pj := prowapi.ProwJob{Name: test.podName, Labels: test.labels, Spec: test.pjSpec, Status: test.pjStatus}
 			pj.Status.BuildID = test.buildID
 			got, err := ProwJobToPod(pj)
 			if err != nil {
@@ -1447,7 +1438,7 @@ func TestDecorate(t *testing.T) {
 			name: "basic happy case",
 			spec: &coreapi.PodSpec{
 				Volumes: []coreapi.Volume{
-					{Name: "secret", VolumeSource: coreapi.VolumeSource{Secret: &coreapi.SecretVolumeSource{SecretName: "secretname"}}},
+					{Name: "secret", Secret: &coreapi.SecretVolumeSource{SecretName: "secretname"}},
 				},
 				Containers: []coreapi.Container{
 					{Name: "test", Command: []string{"/bin/ls"}, Args: []string{"-l", "-a"}, VolumeMounts: []coreapi.VolumeMount{{Name: "secret", MountPath: "/secret"}}},
@@ -1611,7 +1602,7 @@ func TestDecorate(t *testing.T) {
 			name: "censor secrets in sidecar",
 			spec: &coreapi.PodSpec{
 				Volumes: []coreapi.Volume{
-					{Name: "secret", VolumeSource: coreapi.VolumeSource{Secret: &coreapi.SecretVolumeSource{SecretName: "secretname"}}},
+					{Name: "secret", Secret: &coreapi.SecretVolumeSource{SecretName: "secretname"}},
 				},
 				Containers: []coreapi.Container{
 					{Name: "test", Command: []string{"/bin/ls"}, Args: []string{"-l", "-a"}, VolumeMounts: []coreapi.VolumeMount{{Name: "secret", MountPath: "/secret"}}},
@@ -1658,7 +1649,7 @@ func TestDecorate(t *testing.T) {
 			name: "ignore interrupts in sidecar",
 			spec: &coreapi.PodSpec{
 				Volumes: []coreapi.Volume{
-					{Name: "secret", VolumeSource: coreapi.VolumeSource{Secret: &coreapi.SecretVolumeSource{SecretName: "secretname"}}},
+					{Name: "secret", Secret: &coreapi.SecretVolumeSource{SecretName: "secretname"}},
 				},
 				Containers: []coreapi.Container{
 					{Name: "test", Command: []string{"/bin/ls"}, Args: []string{"-l", "-a"}, VolumeMounts: []coreapi.VolumeMount{{Name: "secret", MountPath: "/secret"}}},

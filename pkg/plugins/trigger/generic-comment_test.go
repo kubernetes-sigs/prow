@@ -262,13 +262,9 @@ func TestHandleGenericComment(t *testing.T) {
 			Presubmits: map[string][]config.Presubmit{
 				"org/repo": {
 					{
-						JobBase: config.JobBase{
-							Name: "jab",
-						},
-						Brancher: config.Brancher{Branches: []string{"master"}},
-						Reporter: config.Reporter{
-							Context: "pull-jab",
-						},
+						Name:         "jab",
+						Branches:     []string{"master"},
+						Context:      "pull-jab",
 						Trigger:      "Nice weather outside, right?",
 						RerunCommand: "Nice weather outside, right?",
 					},
@@ -292,24 +288,16 @@ func TestHandleGenericComment(t *testing.T) {
 			Presubmits: map[string][]config.Presubmit{
 				"org/repo": {
 					{
-						JobBase: config.JobBase{
-							Name: "job",
-						},
-						AlwaysRun: false,
-						Reporter: config.Reporter{
-							Context: "pull-job",
-						},
+						Name:         "job",
+						AlwaysRun:    false,
+						Context:      "pull-job",
 						Trigger:      `(?m)^/test (?:.*? )?job(?: .*?)?$`,
 						RerunCommand: `/test job`,
 					},
 					{
-						JobBase: config.JobBase{
-							Name: "jib",
-						},
-						AlwaysRun: false,
-						Reporter: config.Reporter{
-							Context: "pull-jib",
-						},
+						Name:         "jib",
+						AlwaysRun:    false,
+						Context:      "pull-jib",
 						Trigger:      `(?m)^/test (?:.*? )?jib(?: .*?)?$`,
 						RerunCommand: `/test jib`,
 					},
@@ -329,17 +317,13 @@ func TestHandleGenericComment(t *testing.T) {
 			Presubmits: map[string][]config.Presubmit{
 				"org/repo": {
 					{
-						JobBase: config.JobBase{
-							Name: "job",
-						},
-						AlwaysRun: true,
-						Reporter: config.Reporter{
-							SkipReport: true,
-							Context:    "pull-job",
-						},
+						Name:         "job",
+						AlwaysRun:    true,
+						SkipReport:   true,
+						Context:      "pull-job",
 						Trigger:      `(?m)^/test (?:.*? )?job(?: .*?)?$`,
 						RerunCommand: `/test job`,
-						Brancher:     config.Brancher{Branches: []string{"master"}},
+						Branches:     []string{"master"},
 					},
 				},
 			},
@@ -353,16 +337,10 @@ func TestHandleGenericComment(t *testing.T) {
 			Presubmits: map[string][]config.Presubmit{
 				"org/repo": {
 					{
-						JobBase: config.JobBase{
-							Name: "jab",
-						},
-						RegexpChangeMatcher: config.RegexpChangeMatcher{
-							RunIfChanged: "CHANGED",
-						},
-						Reporter: config.Reporter{
-							SkipReport: true,
-							Context:    "pull-jab",
-						},
+						Name:         "jab",
+						RunIfChanged: "CHANGED",
+						SkipReport:   true,
+						Context:      "pull-jab",
 						Trigger:      `(?m)^/test (?:.*? )?jab(?: .*?)?$`,
 						RerunCommand: `/test jab`,
 					},
@@ -381,18 +359,12 @@ func TestHandleGenericComment(t *testing.T) {
 			Presubmits: map[string][]config.Presubmit{
 				"org/repo": {
 					{
-						JobBase: config.JobBase{
-							Name: "jab",
-						},
-						RegexpChangeMatcher: config.RegexpChangeMatcher{
-							SkipIfOnlyChanged: "CHANGED2",
-						},
-						Reporter: config.Reporter{
-							SkipReport: true,
-							Context:    "pull-jab",
-						},
-						Trigger:      `(?m)^/test (?:.*? )?jab(?: .*?)?$`,
-						RerunCommand: `/test jab`,
+						Name:              "jab",
+						SkipIfOnlyChanged: "CHANGED2",
+						SkipReport:        true,
+						Context:           "pull-jab",
+						Trigger:           `(?m)^/test (?:.*? )?jab(?: .*?)?$`,
+						RerunCommand:      `/test jab`,
 					},
 				},
 			},
@@ -409,15 +381,9 @@ func TestHandleGenericComment(t *testing.T) {
 			Presubmits: map[string][]config.Presubmit{
 				"org/repo": {
 					{
-						JobBase: config.JobBase{
-							Name: "jib",
-						},
-						RegexpChangeMatcher: config.RegexpChangeMatcher{
-							RunIfChanged: "CHANGED",
-						},
-						Reporter: config.Reporter{
-							Context: "pull-jib",
-						},
+						Name:         "jib",
+						RunIfChanged: "CHANGED",
+						Context:      "pull-jib",
 						Trigger:      `(?m)^/test (?:.*? )?jib(?: .*?)?$`,
 						RerunCommand: `/test jib`,
 					},
@@ -436,17 +402,11 @@ func TestHandleGenericComment(t *testing.T) {
 			Presubmits: map[string][]config.Presubmit{
 				"org/repo": {
 					{
-						JobBase: config.JobBase{
-							Name: "jib",
-						},
-						RegexpChangeMatcher: config.RegexpChangeMatcher{
-							SkipIfOnlyChanged: "CHANGED2",
-						},
-						Reporter: config.Reporter{
-							Context: "pull-jib",
-						},
-						Trigger:      `(?m)^/test (?:.*? )?jib(?: .*?)?$`,
-						RerunCommand: `/test jib`,
+						Name:              "jib",
+						SkipIfOnlyChanged: "CHANGED2",
+						Context:           "pull-jib",
+						Trigger:           `(?m)^/test (?:.*? )?jib(?: .*?)?$`,
+						RerunCommand:      `/test jib`,
 					},
 				},
 			},
@@ -463,15 +423,9 @@ func TestHandleGenericComment(t *testing.T) {
 			Presubmits: map[string][]config.Presubmit{
 				"org/repo": {
 					{
-						JobBase: config.JobBase{
-							Name: "jub",
-						},
-						RegexpChangeMatcher: config.RegexpChangeMatcher{
-							RunIfChanged: "CHANGED",
-						},
-						Reporter: config.Reporter{
-							Context: "pull-jub",
-						},
+						Name:         "jub",
+						RunIfChanged: "CHANGED",
+						Context:      "pull-jub",
 						Trigger:      `(?m)^/test (?:.*? )?jub(?: .*?)?$`,
 						RerunCommand: `/test jub`,
 					},
@@ -490,17 +444,11 @@ func TestHandleGenericComment(t *testing.T) {
 			Presubmits: map[string][]config.Presubmit{
 				"org/repo": {
 					{
-						JobBase: config.JobBase{
-							Name: "jub",
-						},
-						RegexpChangeMatcher: config.RegexpChangeMatcher{
-							SkipIfOnlyChanged: "CHANGED2",
-						},
-						Reporter: config.Reporter{
-							Context: "pull-jub",
-						},
-						Trigger:      `(?m)^/test (?:.*? )?jub(?: .*?)?$`,
-						RerunCommand: `/test jub`,
+						Name:              "jub",
+						SkipIfOnlyChanged: "CHANGED2",
+						Context:           "pull-jub",
+						Trigger:           `(?m)^/test (?:.*? )?jub(?: .*?)?$`,
+						RerunCommand:      `/test jub`,
 					},
 				},
 			},
@@ -517,12 +465,8 @@ func TestHandleGenericComment(t *testing.T) {
 			Presubmits: map[string][]config.Presubmit{
 				"org/repo": {
 					{
-						JobBase: config.JobBase{
-							Name: "jib",
-						},
-						Reporter: config.Reporter{
-							Context: "pull-jib",
-						},
+						Name:         "jib",
+						Context:      "pull-jib",
 						Trigger:      `(?m)^/test (?:.*? )?jib(?: .*?)?$`,
 						RerunCommand: `/test jib`,
 					},
@@ -540,12 +484,8 @@ func TestHandleGenericComment(t *testing.T) {
 			Presubmits: map[string][]config.Presubmit{
 				"org/repo": {
 					{
-						JobBase: config.JobBase{
-							Name: "jib",
-						},
-						Reporter: config.Reporter{
-							Context: "pull-jib",
-						},
+						Name:         "jib",
+						Context:      "pull-jib",
 						Trigger:      `(?m)^/test (?:.*? )?jib(?: .*?)?$`,
 						RerunCommand: `/test jib`,
 						Optional:     true,
@@ -564,12 +504,8 @@ func TestHandleGenericComment(t *testing.T) {
 			Presubmits: map[string][]config.Presubmit{
 				"org/repo": {
 					{
-						JobBase: config.JobBase{
-							Name: "jib",
-						},
-						Reporter: config.Reporter{
-							Context: "pull-jib",
-						},
+						Name:         "jib",
+						Context:      "pull-jib",
 						Trigger:      `(?m)^/test (?:.*? )?jib(?: .*?)?$`,
 						RerunCommand: `/test jib`,
 					},
@@ -587,12 +523,8 @@ func TestHandleGenericComment(t *testing.T) {
 			Presubmits: map[string][]config.Presubmit{
 				"org/repo": {
 					{
-						JobBase: config.JobBase{
-							Name: "jib",
-						},
-						Reporter: config.Reporter{
-							Context: "pull-jib",
-						},
+						Name:         "jib",
+						Context:      "pull-jib",
 						Trigger:      `(?m)^/test (?:.*? )?jib(?: .*?)?$`,
 						RerunCommand: `/test jib`,
 						Optional:     true,
@@ -610,12 +542,8 @@ func TestHandleGenericComment(t *testing.T) {
 			Presubmits: map[string][]config.Presubmit{
 				"org/repo": {
 					{
-						JobBase: config.JobBase{
-							Name: "jab",
-						},
-						Reporter: config.Reporter{
-							Context: "pull-jab",
-						},
+						Name:         "jab",
+						Context:      "pull-jab",
 						Trigger:      `(?m)^/test (?:.*? )?jab(?: .*?)?$`,
 						RerunCommand: `/test jab`,
 					},
@@ -634,13 +562,9 @@ func TestHandleGenericComment(t *testing.T) {
 			Presubmits: map[string][]config.Presubmit{
 				"org/repo": {
 					{
-						JobBase: config.JobBase{
-							Name: "jab",
-						},
-						Optional: true,
-						Reporter: config.Reporter{
-							Context: "pull-jab",
-						},
+						Name:         "jab",
+						Optional:     true,
+						Context:      "pull-jab",
 						Trigger:      `(?m)^/test (?:.*? )?jab(?: .*?)?$`,
 						RerunCommand: `/test jab`,
 					},
@@ -657,24 +581,16 @@ func TestHandleGenericComment(t *testing.T) {
 			Presubmits: map[string][]config.Presubmit{
 				"org/repo": {
 					{
-						JobBase: config.JobBase{
-							Name: "always-run",
-						},
-						AlwaysRun: true,
-						Reporter: config.Reporter{
-							Context: "pull-always-run",
-						},
+						Name:         "always-run",
+						AlwaysRun:    true,
+						Context:      "pull-always-run",
 						Trigger:      `(?m)^/test (?:.*? )?always-run(?: .*?)?$`,
 						RerunCommand: `/test always-run`,
 					},
 					{
-						JobBase: config.JobBase{
-							Name: "conditional",
-						},
-						RegexpChangeMatcher: config.RegexpChangeMatcher{RunIfChanged: "CHANGED"},
-						Reporter: config.Reporter{
-							Context: "pull-conditional",
-						},
+						Name:         "conditional",
+						RunIfChanged: "CHANGED",
+						Context:      "pull-conditional",
 						Trigger:      `(?m)^/test (?:.*? )?conditional(?: .*?)?$`,
 						RerunCommand: `/test conditional`,
 					},
@@ -692,15 +608,9 @@ func TestHandleGenericComment(t *testing.T) {
 			Presubmits: map[string][]config.Presubmit{
 				"org/repo": {
 					{
-						JobBase: config.JobBase{
-							Name: "jib",
-						},
-						RegexpChangeMatcher: config.RegexpChangeMatcher{
-							RunIfChanged: "CHANGED2",
-						},
-						Reporter: config.Reporter{
-							Context: "pull-jib",
-						},
+						Name:         "jib",
+						RunIfChanged: "CHANGED2",
+						Context:      "pull-jib",
 						Trigger:      `(?m)^/test (?:.*? )?jib(?: .*?)?$`,
 						RerunCommand: `/test jib`,
 					},
@@ -718,17 +628,11 @@ func TestHandleGenericComment(t *testing.T) {
 			Presubmits: map[string][]config.Presubmit{
 				"org/repo": {
 					{
-						JobBase: config.JobBase{
-							Name: "jib",
-						},
-						RegexpChangeMatcher: config.RegexpChangeMatcher{
-							SkipIfOnlyChanged: "CHANGED",
-						},
-						Reporter: config.Reporter{
-							Context: "pull-jib",
-						},
-						Trigger:      `(?m)^/test (?:.*? )?jib(?: .*?)?$`,
-						RerunCommand: `/test jib`,
+						Name:              "jib",
+						SkipIfOnlyChanged: "CHANGED",
+						Context:           "pull-jib",
+						Trigger:           `(?m)^/test (?:.*? )?jib(?: .*?)?$`,
+						RerunCommand:      `/test jib`,
 					},
 				},
 			},
@@ -744,15 +648,9 @@ func TestHandleGenericComment(t *testing.T) {
 			Presubmits: map[string][]config.Presubmit{
 				"org/repo": {
 					{
-						JobBase: config.JobBase{
-							Name: "jab",
-						},
-						RegexpChangeMatcher: config.RegexpChangeMatcher{
-							RunIfChanged: "CHANGED",
-						},
-						Reporter: config.Reporter{
-							Context: "pull-jab",
-						},
+						Name:         "jab",
+						RunIfChanged: "CHANGED",
+						Context:      "pull-jab",
 						Trigger:      `(?m)^/test (?:.*? )?jab(?: .*?)?$`,
 						RerunCommand: `/test jab`,
 					},
@@ -773,17 +671,11 @@ func TestHandleGenericComment(t *testing.T) {
 			Presubmits: map[string][]config.Presubmit{
 				"org/repo": {
 					{
-						JobBase: config.JobBase{
-							Name: "jab",
-						},
-						RegexpChangeMatcher: config.RegexpChangeMatcher{
-							SkipIfOnlyChanged: "CHANGED2",
-						},
-						Reporter: config.Reporter{
-							Context: "pull-jab",
-						},
-						Trigger:      `(?m)^/test (?:.*? )?jab(?: .*?)?$`,
-						RerunCommand: `/test jab`,
+						Name:              "jab",
+						SkipIfOnlyChanged: "CHANGED2",
+						Context:           "pull-jab",
+						Trigger:           `(?m)^/test (?:.*? )?jab(?: .*?)?$`,
+						RerunCommand:      `/test jab`,
 					},
 				},
 			},
@@ -802,24 +694,16 @@ func TestHandleGenericComment(t *testing.T) {
 			Presubmits: map[string][]config.Presubmit{
 				"org/repo": {
 					{
-						JobBase: config.JobBase{
-							Name: "jab",
-						},
-						Brancher: config.Brancher{Branches: []string{"master"}},
-						Reporter: config.Reporter{
-							Context: "pull-jab",
-						},
+						Name:         "jab",
+						Branches:     []string{"master"},
+						Context:      "pull-jab",
 						Trigger:      `(?m)^/test (?:.*? )?jab(?: .*?)?$`,
 						RerunCommand: `/test jab`,
 					},
 					{
-						JobBase: config.JobBase{
-							Name: "jab",
-						},
-						Brancher: config.Brancher{Branches: []string{"release"}},
-						Reporter: config.Reporter{
-							Context: "pull-jab",
-						},
+						Name:         "jab",
+						Branches:     []string{"release"},
+						Context:      "pull-jab",
 						Trigger:      `(?m)^/test (?:.*? )?jab(?: .*?)?$`,
 						RerunCommand: `/test jab`,
 					},
@@ -839,24 +723,16 @@ func TestHandleGenericComment(t *testing.T) {
 			Presubmits: map[string][]config.Presubmit{
 				"org/repo": {
 					{
-						JobBase: config.JobBase{
-							Name: "jab",
-						},
-						Brancher: config.Brancher{Branches: []string{"master"}},
-						Reporter: config.Reporter{
-							Context: "pull-jab",
-						},
+						Name:         "jab",
+						Branches:     []string{"master"},
+						Context:      "pull-jab",
 						Trigger:      `(?m)^/test (?:.*? )?jab(?: .*?)?$`,
 						RerunCommand: `/test jab`,
 					},
 					{
-						JobBase: config.JobBase{
-							Name: "jab",
-						},
-						Brancher: config.Brancher{Branches: []string{"release"}},
-						Reporter: config.Reporter{
-							Context: "pull-jab",
-						},
+						Name:         "jab",
+						Branches:     []string{"release"},
+						Context:      "pull-jab",
 						Trigger:      `(?m)^/test (?:.*? )?jab(?: .*?)?$`,
 						RerunCommand: `/test jab`,
 					},
@@ -873,15 +749,9 @@ func TestHandleGenericComment(t *testing.T) {
 			Presubmits: map[string][]config.Presubmit{
 				"org/repo": {
 					{
-						JobBase: config.JobBase{
-							Name: "jeb",
-						},
-						RegexpChangeMatcher: config.RegexpChangeMatcher{
-							RunIfChanged: "CHANGED2",
-						},
-						Reporter: config.Reporter{
-							Context: "pull-jeb",
-						},
+						Name:         "jeb",
+						RunIfChanged: "CHANGED2",
+						Context:      "pull-jeb",
 						Trigger:      `(?m)^/test (?:.*? )?jeb(?: .*?)?$`,
 						RerunCommand: `/test jeb`,
 					},
@@ -899,17 +769,11 @@ func TestHandleGenericComment(t *testing.T) {
 			Presubmits: map[string][]config.Presubmit{
 				"org/repo": {
 					{
-						JobBase: config.JobBase{
-							Name: "jeb",
-						},
-						RegexpChangeMatcher: config.RegexpChangeMatcher{
-							SkipIfOnlyChanged: "CHANGED",
-						},
-						Reporter: config.Reporter{
-							Context: "pull-jeb",
-						},
-						Trigger:      `(?m)^/test (?:.*? )?jeb(?: .*?)?$`,
-						RerunCommand: `/test jeb`,
+						Name:              "jeb",
+						SkipIfOnlyChanged: "CHANGED",
+						Context:           "pull-jeb",
+						Trigger:           `(?m)^/test (?:.*? )?jeb(?: .*?)?$`,
+						RerunCommand:      `/test jeb`,
 					},
 				},
 			},
@@ -925,15 +789,9 @@ func TestHandleGenericComment(t *testing.T) {
 			Presubmits: map[string][]config.Presubmit{
 				"org/repo": {
 					{
-						JobBase: config.JobBase{
-							Name: "jeb",
-						},
-						RegexpChangeMatcher: config.RegexpChangeMatcher{
-							RunIfChanged: "CHANGED2",
-						},
-						Reporter: config.Reporter{
-							Context: "pull-jeb",
-						},
+						Name:         "jeb",
+						RunIfChanged: "CHANGED2",
+						Context:      "pull-jeb",
 						Trigger:      `(?m)^/test (?:.*? )?jeb(?: .*?)?$`,
 						RerunCommand: `/test jeb`,
 					},
@@ -951,17 +809,11 @@ func TestHandleGenericComment(t *testing.T) {
 			Presubmits: map[string][]config.Presubmit{
 				"org/repo": {
 					{
-						JobBase: config.JobBase{
-							Name: "jeb",
-						},
-						RegexpChangeMatcher: config.RegexpChangeMatcher{
-							SkipIfOnlyChanged: "CHANGED",
-						},
-						Reporter: config.Reporter{
-							Context: "pull-jeb",
-						},
-						Trigger:      `(?m)^/test (?:.*? )?jeb(?: .*?)?$`,
-						RerunCommand: `/test jeb`,
+						Name:              "jeb",
+						SkipIfOnlyChanged: "CHANGED",
+						Context:           "pull-jeb",
+						Trigger:           `(?m)^/test (?:.*? )?jeb(?: .*?)?$`,
+						RerunCommand:      `/test jeb`,
 					},
 				},
 			},
@@ -976,15 +828,9 @@ func TestHandleGenericComment(t *testing.T) {
 			Presubmits: map[string][]config.Presubmit{
 				"org/repo": {
 					{
-						JobBase: config.JobBase{
-							Name: "jub",
-						},
-						RegexpChangeMatcher: config.RegexpChangeMatcher{
-							RunIfChanged: "CHANGED",
-						},
-						Reporter: config.Reporter{
-							Context: "pull-jub",
-						},
+						Name:         "jub",
+						RunIfChanged: "CHANGED",
+						Context:      "pull-jub",
 						Trigger:      `(?m)^/test (?:.*? )?jub(?: .*?)?$`,
 						RerunCommand: `/test jub`,
 					},
@@ -1003,17 +849,11 @@ func TestHandleGenericComment(t *testing.T) {
 			Presubmits: map[string][]config.Presubmit{
 				"org/repo": {
 					{
-						JobBase: config.JobBase{
-							Name: "jub",
-						},
-						RegexpChangeMatcher: config.RegexpChangeMatcher{
-							SkipIfOnlyChanged: "CHANGED2",
-						},
-						Reporter: config.Reporter{
-							Context: "pull-jub",
-						},
-						Trigger:      `(?m)^/test (?:.*? )?jub(?: .*?)?$`,
-						RerunCommand: `/test jub`,
+						Name:              "jub",
+						SkipIfOnlyChanged: "CHANGED2",
+						Context:           "pull-jub",
+						Trigger:           `(?m)^/test (?:.*? )?jub(?: .*?)?$`,
+						RerunCommand:      `/test jub`,
 					},
 				},
 			},
@@ -1030,15 +870,9 @@ func TestHandleGenericComment(t *testing.T) {
 			Presubmits: map[string][]config.Presubmit{
 				"org/repo": {
 					{
-						JobBase: config.JobBase{
-							Name: "jub",
-						},
-						RegexpChangeMatcher: config.RegexpChangeMatcher{
-							RunIfChanged: "CHANGED2",
-						},
-						Reporter: config.Reporter{
-							Context: "pull-jub",
-						},
+						Name:         "jub",
+						RunIfChanged: "CHANGED2",
+						Context:      "pull-jub",
 						Trigger:      `(?m)^/test (?:.*? )?jub(?: .*?)?$`,
 						RerunCommand: `/test jub`,
 					},
@@ -1054,17 +888,11 @@ func TestHandleGenericComment(t *testing.T) {
 			Presubmits: map[string][]config.Presubmit{
 				"org/repo": {
 					{
-						JobBase: config.JobBase{
-							Name: "jub",
-						},
-						RegexpChangeMatcher: config.RegexpChangeMatcher{
-							SkipIfOnlyChanged: "CHANGED",
-						},
-						Reporter: config.Reporter{
-							Context: "pull-jub",
-						},
-						Trigger:      `(?m)^/test (?:.*? )?jub(?: .*?)?$`,
-						RerunCommand: `/test jub`,
+						Name:              "jub",
+						SkipIfOnlyChanged: "CHANGED",
+						Context:           "pull-jub",
+						Trigger:           `(?m)^/test (?:.*? )?jub(?: .*?)?$`,
+						RerunCommand:      `/test jub`,
 					},
 				},
 			},
@@ -1098,24 +926,16 @@ func TestHandleGenericComment(t *testing.T) {
 			Presubmits: map[string][]config.Presubmit{
 				"org/repo": {
 					{
-						JobBase: config.JobBase{
-							Name: "job",
-						},
-						AlwaysRun: true,
-						Reporter: config.Reporter{
-							Context: "pull-job",
-						},
+						Name:         "job",
+						AlwaysRun:    true,
+						Context:      "pull-job",
 						Trigger:      `(?m)^/test (?:.*? )?job(?: .*?)?$`,
 						RerunCommand: `/test job`,
 					},
 					{
-						JobBase: config.JobBase{
-							Name: "jib",
-						},
-						AlwaysRun: true,
-						Reporter: config.Reporter{
-							Context: "pull-jib",
-						},
+						Name:         "jib",
+						AlwaysRun:    true,
+						Context:      "pull-jib",
 						Trigger:      `(?m)^/test (?:.*? )?jib(?: .*?)?$`,
 						RerunCommand: `/test jib`,
 					},
@@ -1132,24 +952,16 @@ func TestHandleGenericComment(t *testing.T) {
 			Presubmits: map[string][]config.Presubmit{
 				"org/repo": {
 					{
-						JobBase: config.JobBase{
-							Name: "job",
-						},
-						AlwaysRun: true,
-						Reporter: config.Reporter{
-							Context: "pull-job",
-						},
+						Name:         "job",
+						AlwaysRun:    true,
+						Context:      "pull-job",
 						Trigger:      `(?m)^/test (?:.*? )?job(?: .*?)?$`,
 						RerunCommand: `/test job`,
 					},
 					{
-						JobBase: config.JobBase{
-							Name: "jib",
-						},
-						AlwaysRun: true,
-						Reporter: config.Reporter{
-							Context: "pull-jib",
-						},
+						Name:         "jib",
+						AlwaysRun:    true,
+						Context:      "pull-jib",
 						Trigger:      `(?m)^/test (?:.*? )?jib(?: .*?)?$`,
 						RerunCommand: `/test jib`,
 					},
@@ -1166,34 +978,22 @@ func TestHandleGenericComment(t *testing.T) {
 			Presubmits: map[string][]config.Presubmit{
 				"org/repo": {
 					{
-						JobBase: config.JobBase{
-							Name: "jub",
-						},
-						AlwaysRun: true,
-						Reporter: config.Reporter{
-							Context: "pull-jub",
-						},
+						Name:         "jub",
+						AlwaysRun:    true,
+						Context:      "pull-jub",
 						Trigger:      `/rerun_command`,
 						RerunCommand: `/rerun_command`,
 					},
 					{
-						JobBase: config.JobBase{
-							Name: "jib",
-						},
-						AlwaysRun: true,
-						Reporter: config.Reporter{
-							Context: "pull-jib",
-						},
+						Name:         "jib",
+						AlwaysRun:    true,
+						Context:      "pull-jib",
 						Trigger:      `/command_foo`,
 						RerunCommand: `/command_foo`,
 					},
 					{
-						JobBase: config.JobBase{
-							Name: "jab",
-						},
-						Reporter: config.Reporter{
-							Context: "pull-jab",
-						},
+						Name:         "jab",
+						Context:      "pull-jab",
 						Trigger:      `/rerun_command`,
 						RerunCommand: `/rerun_command`,
 					},
@@ -1324,23 +1124,15 @@ func TestHandleGenericComment(t *testing.T) {
 			Presubmits: map[string][]config.Presubmit{
 				"org/repo": {
 					{
-						JobBase: config.JobBase{
-							Name: "job",
-						},
-						AlwaysRun: true,
-						Reporter: config.Reporter{
-							Context: "pull-job",
-						},
+						Name:         "job",
+						AlwaysRun:    true,
+						Context:      "pull-job",
 						Trigger:      `(?m)^/test job$`,
 						RerunCommand: `/test job`,
 					},
 					{
-						JobBase: config.JobBase{
-							Name: "jib",
-						},
-						Reporter: config.Reporter{
-							Context: "pull-jib",
-						},
+						Name:         "jib",
+						Context:      "pull-jib",
 						Trigger:      `(?m)^/test (?:.*? )?jib(?: .*?)?$`,
 						RerunCommand: `/test jib`,
 					},
@@ -1357,24 +1149,16 @@ func TestHandleGenericComment(t *testing.T) {
 			Presubmits: map[string][]config.Presubmit{
 				"org/repo": {
 					{
-						JobBase: config.JobBase{
-							Name: "job",
-						},
-						AlwaysRun: false,
-						Reporter: config.Reporter{
-							Context: "pull-job",
-						},
+						Name:         "job",
+						AlwaysRun:    false,
+						Context:      "pull-job",
 						Trigger:      `(?m)^/test job$`,
 						RerunCommand: `/test job`,
 					},
 					{
-						JobBase: config.JobBase{
-							Name: "jib",
-						},
-						AlwaysRun: false,
-						Reporter: config.Reporter{
-							Context: "pull-jib",
-						},
+						Name:         "jib",
+						AlwaysRun:    false,
+						Context:      "pull-jib",
 						Trigger:      `(?m)^/test jib$`,
 						RerunCommand: `/test jib`,
 					},
@@ -1391,24 +1175,16 @@ func TestHandleGenericComment(t *testing.T) {
 			Presubmits: map[string][]config.Presubmit{
 				"org/repo": {
 					{
-						JobBase: config.JobBase{
-							Name: "job",
-						},
-						AlwaysRun: false,
-						Reporter: config.Reporter{
-							Context: "pull-job",
-						},
+						Name:         "job",
+						AlwaysRun:    false,
+						Context:      "pull-job",
 						Trigger:      `(?m)^/test job$`,
 						RerunCommand: `/test job`,
 					},
 					{
-						JobBase: config.JobBase{
-							Name: "jib",
-						},
-						AlwaysRun: false,
-						Reporter: config.Reporter{
-							Context: "pull-jib",
-						},
+						Name:         "jib",
+						AlwaysRun:    false,
+						Context:      "pull-jib",
 						Trigger:      `(?m)^/test jib$`,
 						RerunCommand: `/test jib`,
 					},
@@ -1426,37 +1202,23 @@ func TestHandleGenericComment(t *testing.T) {
 			Presubmits: map[string][]config.Presubmit{
 				"org/repo": {
 					{
-						JobBase: config.JobBase{
-							Name: "job-excluded-by-brancher",
-						},
-						Brancher: config.Brancher{
-							SkipBranches: []string{"master"},
-						},
-						AlwaysRun: true,
-						Reporter: config.Reporter{
-							Context: "pull-job-excluded-by-brancher",
-						},
+						Name:         "job-excluded-by-brancher",
+						SkipBranches: []string{"master"},
+						AlwaysRun:    true,
+						Context:      "pull-job-excluded-by-brancher",
 						Trigger:      `(?m)^/test job-excluded$`,
 						RerunCommand: `/test job-excluded`,
 					},
 					{
-						JobBase: config.JobBase{
-							Name: "job",
-						},
-						AlwaysRun: true,
-						Reporter: config.Reporter{
-							Context: "pull-job",
-						},
+						Name:         "job",
+						AlwaysRun:    true,
+						Context:      "pull-job",
 						Trigger:      `(?m)^/test job$`,
 						RerunCommand: `/test job`,
 					},
 					{
-						JobBase: config.JobBase{
-							Name: "jib",
-						},
-						Reporter: config.Reporter{
-							Context: "pull-jib",
-						},
+						Name:         "jib",
+						Context:      "pull-jib",
 						Trigger:      `(?m)^/test (?:.*? )?jib(?: .*?)?$`,
 						RerunCommand: `/test jib`,
 					},
@@ -1473,36 +1235,24 @@ func TestHandleGenericComment(t *testing.T) {
 			Presubmits: map[string][]config.Presubmit{
 				"org/repo": {
 					{
-						JobBase: config.JobBase{
-							Name: "job",
-						},
-						AlwaysRun: true,
-						Reporter: config.Reporter{
-							Context: "pull-job",
-						},
+						Name:         "job",
+						AlwaysRun:    true,
+						Context:      "pull-job",
 						Trigger:      `(?m)^/test (?:.*? )?job(?: .*?)?$`,
 						RerunCommand: `/test job`,
 					},
 					{
-						JobBase: config.JobBase{
-							Name: "jib",
-						},
-						AlwaysRun: true,
-						Reporter: config.Reporter{
-							Context: "pull-jib",
-						},
+						Name:         "jib",
+						AlwaysRun:    true,
+						Context:      "pull-jib",
 						Trigger:      `(?m)^/test (?:.*? )?jib(?: .*?)?$`,
 						RerunCommand: `/test jib`,
 					},
 					{
-						JobBase: config.JobBase{
-							Name: "jub",
-						},
-						AlwaysRun: true,
-						Optional:  true,
-						Reporter: config.Reporter{
-							Context: "pull-jub",
-						},
+						Name:         "jub",
+						AlwaysRun:    true,
+						Optional:     true,
+						Context:      "pull-jub",
 						Trigger:      `(?m)^/test (?:.*? )?jub(?: .*?)?$`,
 						RerunCommand: `/test jub`,
 					},
@@ -1549,7 +1299,7 @@ func TestHandleGenericComment(t *testing.T) {
 				},
 			}
 			g.Collaborators = []string{"k8s-ci-robot"}
-			fakeConfig := &config.Config{ProwConfig: config.ProwConfig{ProwJobNamespace: "prowjobs"}}
+			fakeConfig := &config.Config{ProwJobNamespace: "prowjobs"}
 			fakeProwJobClient := fake.NewSimpleClientset()
 			c := Client{
 				GitHubClient:  g,
@@ -1563,25 +1313,17 @@ func TestHandleGenericComment(t *testing.T) {
 				presubmits = map[string][]config.Presubmit{
 					"org/repo": {
 						{
-							JobBase: config.JobBase{
-								Name: "job",
-							},
-							AlwaysRun: true,
-							Reporter: config.Reporter{
-								Context: "pull-job",
-							},
+							Name:         "job",
+							AlwaysRun:    true,
+							Context:      "pull-job",
 							Trigger:      `(?m)^/test (?:.*? )?job(?: .*?)?$`,
 							RerunCommand: `/test job`,
-							Brancher:     config.Brancher{Branches: []string{"master"}},
+							Branches:     []string{"master"},
 						},
 						{
-							JobBase: config.JobBase{
-								Name: "jib",
-							},
-							AlwaysRun: false,
-							Reporter: config.Reporter{
-								Context: "pull-jib",
-							},
+							Name:         "jib",
+							AlwaysRun:    false,
+							Context:      "pull-jib",
 							Trigger:      `(?m)^/test (?:.*? )?jib(?: .*?)?$`,
 							RerunCommand: `/test jib`,
 						},
@@ -1690,20 +1432,12 @@ func TestRetestFilter(t *testing.T) {
 			allContexts:    sets.New[string]("failed", "succeeded"),
 			presubmits: []config.Presubmit{
 				{
-					JobBase: config.JobBase{
-						Name: "failed",
-					},
-					Reporter: config.Reporter{
-						Context: "failed",
-					},
+					Name:    "failed",
+					Context: "failed",
 				},
 				{
-					JobBase: config.JobBase{
-						Name: "succeeded",
-					},
-					Reporter: config.Reporter{
-						Context: "succeeded",
-					},
+					Name:    "succeeded",
+					Context: "succeeded",
 				},
 			},
 			expected: [][]bool{{true, false, true}, {false, false, false}},
@@ -1714,21 +1448,13 @@ func TestRetestFilter(t *testing.T) {
 			allContexts:    sets.New[string]("finished"),
 			presubmits: []config.Presubmit{
 				{
-					JobBase: config.JobBase{
-						Name: "finished",
-					},
-					Reporter: config.Reporter{
-						Context: "finished",
-					},
+					Name:    "finished",
+					Context: "finished",
 				},
 				{
-					JobBase: config.JobBase{
-						Name: "not-yet-run",
-					},
+					Name:      "not-yet-run",
 					AlwaysRun: true,
-					Reporter: config.Reporter{
-						Context: "not-yet-run",
-					},
+					Context:   "not-yet-run",
 				},
 			},
 			expected: [][]bool{{false, false, false}, {true, false, false}},
@@ -1806,15 +1532,13 @@ func newActionsFakeClient() *fakegithub.FakeClient {
 }
 
 func handleActionsComment(g githubClient, logger *logrus.Entry, trigger plugins.Trigger, commenter, body string) (*fake.Clientset, error) {
-	fakeConfig := &config.Config{ProwConfig: config.ProwConfig{ProwJobNamespace: "prowjobs"}}
+	fakeConfig := &config.Config{ProwJobNamespace: "prowjobs"}
 	presubmits := map[string][]config.Presubmit{
 		actionsOrg + "/" + actionsRepo: {
 			{
-				JobBase: config.JobBase{
-					Name: "test-job",
-				},
-				Brancher:     config.Brancher{Branches: []string{"master"}},
-				Reporter:     config.Reporter{Context: "pull-test-job"},
+				Name:         "test-job",
+				Branches:     []string{"master"},
+				Context:      "pull-test-job",
 				Trigger:      `(?m)^/test (?:.*? )?test-job(?: .*?)?$`,
 				RerunCommand: "/test test-job",
 				AlwaysRun:    true,

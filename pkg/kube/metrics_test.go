@@ -20,7 +20,6 @@ import (
 	"reflect"
 	"testing"
 
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/diff"
 	prowapi "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 )
@@ -101,10 +100,8 @@ func TestGetJobLabelMap(t *testing.T) {
 			},
 		},
 		{
-			ObjectMeta: v1.ObjectMeta{
-				Labels: map[string]string{
-					RetestLabel: "true",
-				},
+			Labels: map[string]string{
+				RetestLabel: "true",
 			},
 			Spec: prowapi.ProwJobSpec{
 				Job:  "test-job-4",

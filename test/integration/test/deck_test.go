@@ -40,12 +40,10 @@ import (
 
 var (
 	DefaultID = prowjobv1.ProwJob{
-		ObjectMeta: v1.ObjectMeta{
-			Name:      "defaultid",
-			Namespace: defaultNamespace,
-			Labels: map[string]string{
-				"created-by-prow": "true",
-			},
+		Name:      "defaultid",
+		Namespace: defaultNamespace,
+		Labels: map[string]string{
+			"created-by-prow": "true",
 		},
 		Spec: prowjobv1.ProwJobSpec{
 			Job: "Default TenantID",
@@ -60,12 +58,10 @@ var (
 		},
 	}
 	NoID = prowjobv1.ProwJob{
-		ObjectMeta: v1.ObjectMeta{
-			Name:      "noid",
-			Namespace: defaultNamespace,
-			Labels: map[string]string{
-				"created-by-prow": "true",
-			},
+		Name:      "noid",
+		Namespace: defaultNamespace,
+		Labels: map[string]string{
+			"created-by-prow": "true",
 		},
 		Spec: prowjobv1.ProwJobSpec{
 			Job:            "No TenantID",
@@ -78,12 +74,10 @@ var (
 		},
 	}
 	NoDefault = prowjobv1.ProwJob{
-		ObjectMeta: v1.ObjectMeta{
-			Name:      "nodefault",
-			Namespace: defaultNamespace,
-			Labels: map[string]string{
-				"created-by-prow": "true",
-			},
+		Name:      "nodefault",
+		Namespace: defaultNamespace,
+		Labels: map[string]string{
+			"created-by-prow": "true",
 		},
 		Spec: prowjobv1.ProwJobSpec{
 			Job:       "No ProwJobDefault",
@@ -95,12 +89,10 @@ var (
 		},
 	}
 	DefaultIDHidden = prowjobv1.ProwJob{
-		ObjectMeta: v1.ObjectMeta{
-			Name:      "defaulthidden",
-			Namespace: defaultNamespace,
-			Labels: map[string]string{
-				"created-by-prow": "true",
-			},
+		Name:      "defaulthidden",
+		Namespace: defaultNamespace,
+		Labels: map[string]string{
+			"created-by-prow": "true",
 		},
 		Spec: prowjobv1.ProwJobSpec{
 			Job: "Default TenantID and Hidden",
@@ -116,12 +108,10 @@ var (
 		},
 	}
 	NoIDHidden = prowjobv1.ProwJob{
-		ObjectMeta: v1.ObjectMeta{
-			Name:      "nohiddenid",
-			Namespace: defaultNamespace,
-			Labels: map[string]string{
-				"created-by-prow": "true",
-			},
+		Name:      "nohiddenid",
+		Namespace: defaultNamespace,
+		Labels: map[string]string{
+			"created-by-prow": "true",
 		},
 		Spec: prowjobv1.ProwJobSpec{
 			Job:            "No TenantID and Hidden",
@@ -135,12 +125,10 @@ var (
 		},
 	}
 	NoDefaultHidden = prowjobv1.ProwJob{
-		ObjectMeta: v1.ObjectMeta{
-			Name:      "nodefaulthidden",
-			Namespace: defaultNamespace,
-			Labels: map[string]string{
-				"created-by-prow": "true",
-			},
+		Name:      "nodefaulthidden",
+		Namespace: defaultNamespace,
+		Labels: map[string]string{
+			"created-by-prow": "true",
 		},
 		Spec: prowjobv1.ProwJobSpec{
 			Job:       "No ProwJobDefault and Hidden",
@@ -153,12 +141,10 @@ var (
 		},
 	}
 	ID = prowjobv1.ProwJob{
-		ObjectMeta: v1.ObjectMeta{
-			Name:      "id",
-			Namespace: defaultNamespace,
-			Labels: map[string]string{
-				"created-by-prow": "true",
-			},
+		Name:      "id",
+		Namespace: defaultNamespace,
+		Labels: map[string]string{
+			"created-by-prow": "true",
 		},
 		Spec: prowjobv1.ProwJobSpec{
 			Job: "TenantID and hidden",
@@ -173,12 +159,10 @@ var (
 		},
 	}
 	IDHidden = prowjobv1.ProwJob{
-		ObjectMeta: v1.ObjectMeta{
-			Name:      "idhidden",
-			Namespace: defaultNamespace,
-			Labels: map[string]string{
-				"created-by-prow": "true",
-			},
+		Name:      "idhidden",
+		Namespace: defaultNamespace,
+		Labels: map[string]string{
+			"created-by-prow": "true",
 		},
 		Spec: prowjobv1.ProwJobSpec{
 			Job: "Default TenantID and Hidden",
@@ -424,7 +408,7 @@ func TestRerun(t *testing.T) {
 			return
 		}
 		if err := kubeClient.DeleteAllOf(context.Background(), &prowjobv1.ProwJob{}, &ctrlruntimeclient.DeleteAllOfOptions{
-			ListOptions: ctrlruntimeclient.ListOptions{LabelSelector: labels},
+			LabelSelector: labels,
 		}); err != nil {
 			t.Logf("ERROR CLEANUP: %v", err)
 		}

@@ -89,10 +89,8 @@ func TestSpyglass_ListArtifacts(t *testing.T) {
 			fakeGCSClient := fakeGCSServer.Client()
 			ca := &config.Agent{}
 			ca.Set(&config.Config{
-				ProwConfig: config.ProwConfig{
-					Deck: config.Deck{
-						AllKnownStorageBuckets: sets.New[string]("test-bucket"),
-					},
+				Deck: config.Deck{
+					AllKnownStorageBuckets: sets.New[string]("test-bucket"),
 				},
 			})
 			sg := New(context.Background(), fakeJa, ca.Config, io.NewGCSOpener(fakeGCSClient), false)

@@ -32,8 +32,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	prowapi "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 	"sigs.k8s.io/prow/pkg/config"
 	"sigs.k8s.io/prow/pkg/crier/reporters/criercommonlib"
@@ -68,13 +66,11 @@ func TestGenerateMessageFromPJ(t *testing.T) {
 		{
 			name: "Prowjob with all information for presubmit jobs should work with no error",
 			pj: &prowapi.ProwJob{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "test1",
-					Labels: map[string]string{
-						PubSubProjectLabel: testPubSubProjectName,
-						PubSubTopicLabel:   testPubSubTopicName,
-						PubSubRunIDLabel:   testPubSubRunID,
-					},
+				Name: "test1",
+				Labels: map[string]string{
+					PubSubProjectLabel: testPubSubProjectName,
+					PubSubTopicLabel:   testPubSubTopicName,
+					PubSubRunIDLabel:   testPubSubRunID,
 				},
 				Status: prowapi.ProwJobStatus{
 					State: prowapi.SuccessState,
@@ -108,13 +104,11 @@ func TestGenerateMessageFromPJ(t *testing.T) {
 		{
 			name: "Prowjob with all information for periodic jobs should work with no error",
 			pj: &prowapi.ProwJob{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "test1",
-					Labels: map[string]string{
-						PubSubProjectLabel: testPubSubProjectName,
-						PubSubTopicLabel:   testPubSubTopicName,
-						PubSubRunIDLabel:   testPubSubRunID,
-					},
+				Name: "test1",
+				Labels: map[string]string{
+					PubSubProjectLabel: testPubSubProjectName,
+					PubSubTopicLabel:   testPubSubTopicName,
+					PubSubRunIDLabel:   testPubSubRunID,
 				},
 				Status: prowapi.ProwJobStatus{
 					State: prowapi.SuccessState,
@@ -140,12 +134,10 @@ func TestGenerateMessageFromPJ(t *testing.T) {
 		{
 			name: "Prowjob has no pubsub runID label, should return a message with runid empty",
 			pj: &prowapi.ProwJob{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-no-runID",
-					Labels: map[string]string{
-						PubSubProjectLabel: testPubSubProjectName,
-						PubSubTopicLabel:   testPubSubTopicName,
-					},
+				Name: "test-no-runID",
+				Labels: map[string]string{
+					PubSubProjectLabel: testPubSubProjectName,
+					PubSubTopicLabel:   testPubSubTopicName,
 				},
 				Status: prowapi.ProwJobStatus{
 					State: prowapi.SuccessState,
@@ -161,13 +153,11 @@ func TestGenerateMessageFromPJ(t *testing.T) {
 		{
 			name: "Prowjob with all information annotations should work with no error",
 			pj: &prowapi.ProwJob{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "test1",
-					Annotations: map[string]string{
-						PubSubProjectLabel: testPubSubProjectName,
-						PubSubTopicLabel:   testPubSubTopicName,
-						PubSubRunIDLabel:   testPubSubRunID,
-					},
+				Name: "test1",
+				Annotations: map[string]string{
+					PubSubProjectLabel: testPubSubProjectName,
+					PubSubTopicLabel:   testPubSubTopicName,
+					PubSubRunIDLabel:   testPubSubRunID,
 				},
 				Status: prowapi.ProwJobStatus{
 					State: prowapi.SuccessState,
@@ -187,12 +177,10 @@ func TestGenerateMessageFromPJ(t *testing.T) {
 		{
 			name: "Prowjob has no pubsub runID annotation, should return a message with runid empty",
 			pj: &prowapi.ProwJob{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-no-runID",
-					Annotations: map[string]string{
-						PubSubProjectLabel: testPubSubProjectName,
-						PubSubTopicLabel:   testPubSubTopicName,
-					},
+				Name: "test-no-runID",
+				Annotations: map[string]string{
+					PubSubProjectLabel: testPubSubProjectName,
+					PubSubTopicLabel:   testPubSubTopicName,
 				},
 				Status: prowapi.ProwJobStatus{
 					State: prowapi.SuccessState,
@@ -210,13 +198,11 @@ func TestGenerateMessageFromPJ(t *testing.T) {
 		{
 			name: "Prowjob with all information for presubmit jobs should work with no error",
 			pj: &prowapi.ProwJob{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "test1",
-					Labels: map[string]string{
-						PubSubProjectLabel: testPubSubProjectName,
-						PubSubTopicLabel:   testPubSubTopicName,
-						PubSubRunIDLabel:   testPubSubRunID,
-					},
+				Name: "test1",
+				Labels: map[string]string{
+					PubSubProjectLabel: testPubSubProjectName,
+					PubSubTopicLabel:   testPubSubTopicName,
+					PubSubRunIDLabel:   testPubSubRunID,
 				},
 				Status: prowapi.ProwJobStatus{
 					State: prowapi.SuccessState,
@@ -250,13 +236,11 @@ func TestGenerateMessageFromPJ(t *testing.T) {
 		{
 			name: "Prowjob with all information for periodic jobs should work with no error",
 			pj: &prowapi.ProwJob{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "test1",
-					Labels: map[string]string{
-						PubSubProjectLabel: testPubSubProjectName,
-						PubSubTopicLabel:   testPubSubTopicName,
-						PubSubRunIDLabel:   testPubSubRunID,
-					},
+				Name: "test1",
+				Labels: map[string]string{
+					PubSubProjectLabel: testPubSubProjectName,
+					PubSubTopicLabel:   testPubSubTopicName,
+					PubSubRunIDLabel:   testPubSubRunID,
 				},
 				Status: prowapi.ProwJobStatus{
 					State: prowapi.SuccessState,
@@ -282,13 +266,11 @@ func TestGenerateMessageFromPJ(t *testing.T) {
 		{
 			name: "Prowjob with all information annotations should work with no error",
 			pj: &prowapi.ProwJob{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "test1",
-					Annotations: map[string]string{
-						PubSubProjectLabel: testPubSubProjectName,
-						PubSubTopicLabel:   testPubSubTopicName,
-						PubSubRunIDLabel:   testPubSubRunID,
-					},
+				Name: "test1",
+				Annotations: map[string]string{
+					PubSubProjectLabel: testPubSubProjectName,
+					PubSubTopicLabel:   testPubSubTopicName,
+					PubSubRunIDLabel:   testPubSubRunID,
 				},
 				Status: prowapi.ProwJobStatus{
 					State: prowapi.SuccessState,
@@ -308,13 +290,11 @@ func TestGenerateMessageFromPJ(t *testing.T) {
 		{
 			name: "Status message",
 			pj: &prowapi.ProwJob{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "test1",
-					Annotations: map[string]string{
-						PubSubProjectLabel: testPubSubProjectName,
-						PubSubTopicLabel:   testPubSubTopicName,
-						PubSubRunIDLabel:   testPubSubRunID,
-					},
+				Name: "test1",
+				Annotations: map[string]string{
+					PubSubProjectLabel: testPubSubProjectName,
+					PubSubTopicLabel:   testPubSubTopicName,
+					PubSubRunIDLabel:   testPubSubRunID,
 				},
 				Status: prowapi.ProwJobStatus{
 					State:       prowapi.SuccessState,
@@ -338,10 +318,8 @@ func TestGenerateMessageFromPJ(t *testing.T) {
 	for _, tc := range testcases {
 		fca := &fca{
 			c: &config.Config{
-				ProwConfig: config.ProwConfig{
-					Plank: config.Plank{
-						JobURLPrefixConfig: map[string]string{"*": tc.jobURLPrefix},
-					},
+				Plank: config.Plank{
+					JobURLPrefixConfig: map[string]string{"*": tc.jobURLPrefix},
 				},
 			},
 		}
@@ -368,13 +346,11 @@ func TestShouldReport(t *testing.T) {
 		{
 			name: "Prowjob with all pubsub information labels should return",
 			pj: &prowapi.ProwJob{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "test1",
-					Labels: map[string]string{
-						PubSubProjectLabel: testPubSubProjectName,
-						PubSubTopicLabel:   testPubSubTopicName,
-						PubSubRunIDLabel:   testPubSubRunID,
-					},
+				Name: "test1",
+				Labels: map[string]string{
+					PubSubProjectLabel: testPubSubProjectName,
+					PubSubTopicLabel:   testPubSubTopicName,
+					PubSubRunIDLabel:   testPubSubRunID,
 				},
 				Status: prowapi.ProwJobStatus{
 					State: prowapi.SuccessState,
@@ -385,12 +361,10 @@ func TestShouldReport(t *testing.T) {
 		{
 			name: "Prowjob has no pubsub project label, should not report",
 			pj: &prowapi.ProwJob{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-no-project",
-					Labels: map[string]string{
-						PubSubTopicLabel: testPubSubTopicName,
-						PubSubRunIDLabel: testPubSubRunID,
-					},
+				Name: "test-no-project",
+				Labels: map[string]string{
+					PubSubTopicLabel: testPubSubTopicName,
+					PubSubRunIDLabel: testPubSubRunID,
 				},
 				Status: prowapi.ProwJobStatus{
 					State: prowapi.SuccessState,
@@ -401,12 +375,10 @@ func TestShouldReport(t *testing.T) {
 		{
 			name: "Prowjob has no pubsub topic label, should not report",
 			pj: &prowapi.ProwJob{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-no-topic",
-					Labels: map[string]string{
-						PubSubProjectLabel: testPubSubProjectName,
-						PubSubRunIDLabel:   testPubSubRunID,
-					},
+				Name: "test-no-topic",
+				Labels: map[string]string{
+					PubSubProjectLabel: testPubSubProjectName,
+					PubSubRunIDLabel:   testPubSubRunID,
 				},
 				Status: prowapi.ProwJobStatus{
 					State: prowapi.SuccessState,
@@ -417,13 +389,11 @@ func TestShouldReport(t *testing.T) {
 		{
 			name: "Prowjob with all pubsub information annotations should return",
 			pj: &prowapi.ProwJob{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "test1",
-					Annotations: map[string]string{
-						PubSubProjectLabel: testPubSubProjectName,
-						PubSubTopicLabel:   testPubSubTopicName,
-						PubSubRunIDLabel:   testPubSubRunID,
-					},
+				Name: "test1",
+				Annotations: map[string]string{
+					PubSubProjectLabel: testPubSubProjectName,
+					PubSubTopicLabel:   testPubSubTopicName,
+					PubSubRunIDLabel:   testPubSubRunID,
 				},
 				Status: prowapi.ProwJobStatus{
 					State: prowapi.SuccessState,
@@ -434,12 +404,10 @@ func TestShouldReport(t *testing.T) {
 		{
 			name: "Prowjob has no pubsub project annotation, should not report",
 			pj: &prowapi.ProwJob{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-no-project",
-					Annotations: map[string]string{
-						PubSubTopicLabel: testPubSubTopicName,
-						PubSubRunIDLabel: testPubSubRunID,
-					},
+				Name: "test-no-project",
+				Annotations: map[string]string{
+					PubSubTopicLabel: testPubSubTopicName,
+					PubSubRunIDLabel: testPubSubRunID,
 				},
 				Status: prowapi.ProwJobStatus{
 					State: prowapi.SuccessState,
@@ -450,12 +418,10 @@ func TestShouldReport(t *testing.T) {
 		{
 			name: "Prowjob has no pubsub topic annotation, should not report",
 			pj: &prowapi.ProwJob{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-no-topic",
-					Annotations: map[string]string{
-						PubSubProjectLabel: testPubSubProjectName,
-						PubSubRunIDLabel:   testPubSubRunID,
-					},
+				Name: "test-no-topic",
+				Annotations: map[string]string{
+					PubSubProjectLabel: testPubSubProjectName,
+					PubSubRunIDLabel:   testPubSubRunID,
 				},
 				Status: prowapi.ProwJobStatus{
 					State: prowapi.SuccessState,
@@ -532,12 +498,10 @@ func TestReport(t *testing.T) {
 				}
 			}
 			pj := &prowapi.ProwJob{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{
-						PubSubProjectLabel: testPubSubProjectName,
-						PubSubTopicLabel:   testPubSubTopicName,
-						PubSubRunIDLabel:   testPubSubRunID,
-					},
+				Labels: map[string]string{
+					PubSubProjectLabel: testPubSubProjectName,
+					PubSubTopicLabel:   testPubSubTopicName,
+					PubSubRunIDLabel:   testPubSubRunID,
 				},
 			}
 

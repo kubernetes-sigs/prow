@@ -89,29 +89,29 @@ func TestReconcile(t *testing.T) {
 		{
 			name: "Successfully assign a cluster when agent is k8s",
 			pj: &prowv1.ProwJob{
-				ObjectMeta: v1.ObjectMeta{Name: "pj", Namespace: "ns", ResourceVersion: "1"},
-				Spec:       prowv1.ProwJobSpec{Agent: prowv1.KubernetesAgent},
+				Name: "pj", Namespace: "ns", ResourceVersion: "1",
+				Spec: prowv1.ProwJobSpec{Agent: prowv1.KubernetesAgent},
 			},
 			request: reconcile.Request{NamespacedName: types.NamespacedName{Name: "pj", Namespace: "ns"}},
 			cluster: "foo",
 			wantPJ: &prowv1.ProwJob{
-				ObjectMeta: v1.ObjectMeta{Name: "pj", Namespace: "ns", ResourceVersion: "2"},
-				Spec:       prowv1.ProwJobSpec{Cluster: "foo", Agent: prowv1.KubernetesAgent},
-				Status:     prowv1.ProwJobStatus{State: prowv1.TriggeredState},
+				Name: "pj", Namespace: "ns", ResourceVersion: "2",
+				Spec:   prowv1.ProwJobSpec{Cluster: "foo", Agent: prowv1.KubernetesAgent},
+				Status: prowv1.ProwJobStatus{State: prowv1.TriggeredState},
 			},
 		},
 		{
 			name: "Successfully assign a cluster when agent is tekton",
 			pj: &prowv1.ProwJob{
-				ObjectMeta: v1.ObjectMeta{Name: "pj", Namespace: "ns", ResourceVersion: "1"},
-				Spec:       prowv1.ProwJobSpec{Agent: prowv1.TektonAgent},
+				Name: "pj", Namespace: "ns", ResourceVersion: "1",
+				Spec: prowv1.ProwJobSpec{Agent: prowv1.TektonAgent},
 			},
 			request: reconcile.Request{NamespacedName: types.NamespacedName{Name: "pj", Namespace: "ns"}},
 			cluster: "foo",
 			wantPJ: &prowv1.ProwJob{
-				ObjectMeta: v1.ObjectMeta{Name: "pj", Namespace: "ns", ResourceVersion: "2"},
-				Spec:       prowv1.ProwJobSpec{Cluster: "foo", Agent: prowv1.TektonAgent},
-				Status:     prowv1.ProwJobStatus{State: prowv1.TriggeredState},
+				Name: "pj", Namespace: "ns", ResourceVersion: "2",
+				Spec:   prowv1.ProwJobSpec{Cluster: "foo", Agent: prowv1.TektonAgent},
+				Status: prowv1.ProwJobStatus{State: prowv1.TriggeredState},
 			},
 		},
 		{
@@ -128,14 +128,14 @@ func TestReconcile(t *testing.T) {
 			name:    "Error patching Prowjob",
 			request: reconcile.Request{NamespacedName: types.NamespacedName{Name: "pj", Namespace: "ns"}},
 			pj: &prowv1.ProwJob{
-				ObjectMeta: v1.ObjectMeta{Name: "pj", Namespace: "ns", ResourceVersion: "1"},
-				Spec:       prowv1.ProwJobSpec{Agent: prowv1.KubernetesAgent},
+				Name: "pj", Namespace: "ns", ResourceVersion: "1",
+				Spec: prowv1.ProwJobSpec{Agent: prowv1.KubernetesAgent},
 			},
 			cluster: "foo",
 			wantPJ: &prowv1.ProwJob{
-				ObjectMeta: v1.ObjectMeta{Name: "pj", Namespace: "ns", ResourceVersion: "2"},
-				Spec:       prowv1.ProwJobSpec{Cluster: "foo"},
-				Status:     prowv1.ProwJobStatus{State: prowv1.TriggeredState},
+				Name: "pj", Namespace: "ns", ResourceVersion: "2",
+				Spec:   prowv1.ProwJobSpec{Cluster: "foo"},
+				Status: prowv1.ProwJobStatus{State: prowv1.TriggeredState},
 			},
 			clientErrors: map[string]error{"PATCH": errors.New("expected")},
 			wantError:    errors.New("patch prowjob: expected"),
@@ -143,8 +143,8 @@ func TestReconcile(t *testing.T) {
 		{
 			name: "Scheduling error",
 			pj: &prowv1.ProwJob{
-				ObjectMeta: v1.ObjectMeta{Name: "pj", Namespace: "ns", ResourceVersion: "1"},
-				Spec:       prowv1.ProwJobSpec{Agent: prowv1.KubernetesAgent},
+				Name: "pj", Namespace: "ns", ResourceVersion: "1",
+				Spec: prowv1.ProwJobSpec{Agent: prowv1.KubernetesAgent},
 			},
 			request:         reconcile.Request{NamespacedName: types.NamespacedName{Name: "pj", Namespace: "ns"}},
 			schedulingError: errors.New("expected"),
@@ -153,15 +153,15 @@ func TestReconcile(t *testing.T) {
 		{
 			name: "No agent set then schedule passthrough",
 			pj: &prowv1.ProwJob{
-				ObjectMeta: v1.ObjectMeta{Name: "pj", Namespace: "ns", ResourceVersion: "1"},
-				Spec:       prowv1.ProwJobSpec{Cluster: "untouched"},
+				Name: "pj", Namespace: "ns", ResourceVersion: "1",
+				Spec: prowv1.ProwJobSpec{Cluster: "untouched"},
 			},
 			request: reconcile.Request{NamespacedName: types.NamespacedName{Name: "pj", Namespace: "ns"}},
 			cluster: "untouched",
 			wantPJ: &prowv1.ProwJob{
-				ObjectMeta: v1.ObjectMeta{Name: "pj", Namespace: "ns", ResourceVersion: "2"},
-				Spec:       prowv1.ProwJobSpec{Cluster: "untouched"},
-				Status:     prowv1.ProwJobStatus{State: prowv1.TriggeredState},
+				Name: "pj", Namespace: "ns", ResourceVersion: "2",
+				Spec:   prowv1.ProwJobSpec{Cluster: "untouched"},
+				Status: prowv1.ProwJobStatus{State: prowv1.TriggeredState},
 			},
 		},
 	} {
@@ -229,31 +229,31 @@ func TestConfigHotReload(t *testing.T) {
 			configs: []config.Config{
 				{},
 				{
-					ProwConfig: config.ProwConfig{Scheduler: config.Scheduler{
+					Scheduler: config.Scheduler{
 						Failover: &config.FailoverScheduling{ClusterMappings: map[string]string{"foo": "bar"}},
-					}},
+					},
 				},
 			},
 			pjs: []client.Object{
 				&prowv1.ProwJob{
-					ObjectMeta: v1.ObjectMeta{Name: "job1", Namespace: "", ResourceVersion: "1"},
-					Spec:       prowv1.ProwJobSpec{Agent: prowv1.KubernetesAgent, Cluster: "foo"},
+					Name: "job1", Namespace: "", ResourceVersion: "1",
+					Spec: prowv1.ProwJobSpec{Agent: prowv1.KubernetesAgent, Cluster: "foo"},
 				},
 				&prowv1.ProwJob{
-					ObjectMeta: v1.ObjectMeta{Name: "job2", Namespace: "", ResourceVersion: "1"},
-					Spec:       prowv1.ProwJobSpec{Agent: prowv1.KubernetesAgent, Cluster: "foo"},
+					Name: "job2", Namespace: "", ResourceVersion: "1",
+					Spec: prowv1.ProwJobSpec{Agent: prowv1.KubernetesAgent, Cluster: "foo"},
 				},
 			},
 			wantPJs: []prowv1.ProwJob{
 				{
-					ObjectMeta: v1.ObjectMeta{Name: "job1", Namespace: "", ResourceVersion: "2"},
-					Spec:       prowv1.ProwJobSpec{Agent: prowv1.KubernetesAgent, Cluster: "foo"},
-					Status:     prowv1.ProwJobStatus{State: prowv1.TriggeredState},
+					Name: "job1", Namespace: "", ResourceVersion: "2",
+					Spec:   prowv1.ProwJobSpec{Agent: prowv1.KubernetesAgent, Cluster: "foo"},
+					Status: prowv1.ProwJobStatus{State: prowv1.TriggeredState},
 				},
 				{
-					ObjectMeta: v1.ObjectMeta{Name: "job2", Namespace: "", ResourceVersion: "2"},
-					Spec:       prowv1.ProwJobSpec{Agent: prowv1.KubernetesAgent, Cluster: "bar"},
-					Status:     prowv1.ProwJobStatus{State: prowv1.TriggeredState},
+					Name: "job2", Namespace: "", ResourceVersion: "2",
+					Spec:   prowv1.ProwJobSpec{Agent: prowv1.KubernetesAgent, Cluster: "bar"},
+					Status: prowv1.ProwJobStatus{State: prowv1.TriggeredState},
 				},
 			},
 		},
@@ -261,39 +261,39 @@ func TestConfigHotReload(t *testing.T) {
 			name: "Modify Failover",
 			configs: []config.Config{
 				{
-					ProwConfig: config.ProwConfig{Scheduler: config.Scheduler{
+					Scheduler: config.Scheduler{
 						Failover: &config.FailoverScheduling{ClusterMappings: map[string]string{"foo": "bar"}},
-					}},
+					},
 				},
 				{
-					ProwConfig: config.ProwConfig{Scheduler: config.Scheduler{
+					Scheduler: config.Scheduler{
 						Failover: &config.FailoverScheduling{ClusterMappings: map[string]string{
 							"foo":   "bar",
 							"super": "duper",
 						}},
-					}},
+					},
 				},
 			},
 			pjs: []client.Object{
 				&prowv1.ProwJob{
-					ObjectMeta: v1.ObjectMeta{Name: "job1", Namespace: "", ResourceVersion: "1"},
-					Spec:       prowv1.ProwJobSpec{Agent: prowv1.KubernetesAgent, Cluster: "foo"},
+					Name: "job1", Namespace: "", ResourceVersion: "1",
+					Spec: prowv1.ProwJobSpec{Agent: prowv1.KubernetesAgent, Cluster: "foo"},
 				},
 				&prowv1.ProwJob{
-					ObjectMeta: v1.ObjectMeta{Name: "job2", Namespace: "", ResourceVersion: "1"},
-					Spec:       prowv1.ProwJobSpec{Agent: prowv1.KubernetesAgent, Cluster: "super"},
+					Name: "job2", Namespace: "", ResourceVersion: "1",
+					Spec: prowv1.ProwJobSpec{Agent: prowv1.KubernetesAgent, Cluster: "super"},
 				},
 			},
 			wantPJs: []prowv1.ProwJob{
 				{
-					ObjectMeta: v1.ObjectMeta{Name: "job1", Namespace: "", ResourceVersion: "2"},
-					Spec:       prowv1.ProwJobSpec{Agent: prowv1.KubernetesAgent, Cluster: "bar"},
-					Status:     prowv1.ProwJobStatus{State: prowv1.TriggeredState},
+					Name: "job1", Namespace: "", ResourceVersion: "2",
+					Spec:   prowv1.ProwJobSpec{Agent: prowv1.KubernetesAgent, Cluster: "bar"},
+					Status: prowv1.ProwJobStatus{State: prowv1.TriggeredState},
 				},
 				{
-					ObjectMeta: v1.ObjectMeta{Name: "job2", Namespace: "", ResourceVersion: "2"},
-					Spec:       prowv1.ProwJobSpec{Agent: prowv1.KubernetesAgent, Cluster: "duper"},
-					Status:     prowv1.ProwJobStatus{State: prowv1.TriggeredState},
+					Name: "job2", Namespace: "", ResourceVersion: "2",
+					Spec:   prowv1.ProwJobSpec{Agent: prowv1.KubernetesAgent, Cluster: "duper"},
+					Status: prowv1.ProwJobStatus{State: prowv1.TriggeredState},
 				},
 			},
 		},
@@ -307,7 +307,7 @@ func TestConfigHotReload(t *testing.T) {
 
 			for i := range tc.configs {
 				cfg = &tc.configs[i]
-				request := reconcile.Request{NamespacedName: types.NamespacedName{Name: tc.pjs[i].GetName()}}
+				request := reconcile.Request{Name: tc.pjs[i].GetName()}
 				if _, err := reconciler.Reconcile(context.TODO(), request); err != nil {
 					t.Fatalf("Failed to reconcile %v: %s", request, err)
 				}

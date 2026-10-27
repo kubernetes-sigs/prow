@@ -42,12 +42,10 @@ func TestDeletePod(t *testing.T) {
 		{
 			name: "running-pod",
 			prowjob: &prowjobv1.ProwJob{
-				ObjectMeta: v1.ObjectMeta{
-					Labels: map[string]string{
-						"created-by-prow": "true",
-					},
-					Namespace: defaultNamespace,
+				Labels: map[string]string{
+					"created-by-prow": "true",
 				},
+				Namespace: defaultNamespace,
 				Spec: prowjobv1.ProwJobSpec{
 					Namespace: testpodNamespace,
 				},
@@ -57,12 +55,10 @@ func TestDeletePod(t *testing.T) {
 				},
 			},
 			pod: &corev1.Pod{
-				ObjectMeta: v1.ObjectMeta{
-					Labels: map[string]string{
-						"created-by-prow": "true",
-					},
-					Namespace: testpodNamespace,
+				Labels: map[string]string{
+					"created-by-prow": "true",
 				},
+				Namespace: testpodNamespace,
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
 						{
@@ -82,12 +78,10 @@ func TestDeletePod(t *testing.T) {
 		{
 			name: "orphaned-pod",
 			prowjob: &prowjobv1.ProwJob{
-				ObjectMeta: v1.ObjectMeta{
-					Labels: map[string]string{
-						"created-by-prow": "true",
-					},
-					Namespace: defaultNamespace,
+				Labels: map[string]string{
+					"created-by-prow": "true",
 				},
+				Namespace: defaultNamespace,
 				Spec: prowjobv1.ProwJobSpec{
 					Namespace: testpodNamespace,
 				},
@@ -97,12 +91,10 @@ func TestDeletePod(t *testing.T) {
 				},
 			},
 			pod: &corev1.Pod{
-				ObjectMeta: v1.ObjectMeta{
-					Labels: map[string]string{
-						"created-by-prow": "true",
-					},
-					Namespace: testpodNamespace,
+				Labels: map[string]string{
+					"created-by-prow": "true",
 				},
+				Namespace: testpodNamespace,
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
 						{
@@ -122,12 +114,10 @@ func TestDeletePod(t *testing.T) {
 		{
 			name: "ttl-deleted",
 			prowjob: &prowjobv1.ProwJob{
-				ObjectMeta: v1.ObjectMeta{
-					Labels: map[string]string{
-						"created-by-prow": "true",
-					},
-					Namespace: defaultNamespace,
+				Labels: map[string]string{
+					"created-by-prow": "true",
 				},
+				Namespace: defaultNamespace,
 				Spec: prowjobv1.ProwJobSpec{
 					Namespace: testpodNamespace,
 				},
@@ -138,12 +128,10 @@ func TestDeletePod(t *testing.T) {
 				},
 			},
 			pod: &corev1.Pod{
-				ObjectMeta: v1.ObjectMeta{
-					Labels: map[string]string{
-						"created-by-prow": "true",
-					},
-					Namespace: testpodNamespace,
+				Labels: map[string]string{
+					"created-by-prow": "true",
 				},
+				Namespace: testpodNamespace,
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
 						{
@@ -164,12 +152,10 @@ func TestDeletePod(t *testing.T) {
 		{
 			name: "max-prow-job-age",
 			prowjob: &prowjobv1.ProwJob{
-				ObjectMeta: v1.ObjectMeta{
-					Labels: map[string]string{
-						"created-by-prow": "true",
-					},
-					Namespace: defaultNamespace,
+				Labels: map[string]string{
+					"created-by-prow": "true",
 				},
+				Namespace: defaultNamespace,
 				Spec: prowjobv1.ProwJobSpec{
 					Namespace: testpodNamespace,
 				},
@@ -180,12 +166,10 @@ func TestDeletePod(t *testing.T) {
 				},
 			},
 			pod: &corev1.Pod{
-				ObjectMeta: v1.ObjectMeta{
-					Labels: map[string]string{
-						"created-by-prow": "true",
-					},
-					Namespace: testpodNamespace,
+				Labels: map[string]string{
+					"created-by-prow": "true",
 				},
+				Namespace: testpodNamespace,
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
 						{
@@ -206,9 +190,7 @@ func TestDeletePod(t *testing.T) {
 			name:    "orphaned-pod-not-prowjob",
 			prowjob: nil,
 			pod: &corev1.Pod{
-				ObjectMeta: v1.ObjectMeta{
-					Namespace: testpodNamespace,
-				},
+				Namespace: testpodNamespace,
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
 						{

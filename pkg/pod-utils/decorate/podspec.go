@@ -28,7 +28,6 @@ import (
 
 	"github.com/sirupsen/logrus"
 	coreapi "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation"
 
@@ -244,12 +243,10 @@ func ProwJobToPodLocal(pj prowapi.ProwJob, outputDir string) (*coreapi.Pod, erro
 
 	podLabels, annotations := LabelsAndAnnotationsForJob(pj)
 	return &coreapi.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        pj.ObjectMeta.Name,
-			Labels:      podLabels,
-			Annotations: annotations,
-		},
-		Spec: *spec,
+		Name:        pj.ObjectMeta.Name,
+		Labels:      podLabels,
+		Annotations: annotations,
+		Spec:        *spec,
 	}, nil
 }
 
@@ -283,10 +280,8 @@ func cloneEnv(opt clonerefs.Options) ([]coreapi.EnvVar, error) {
 // This is e.g. used by CloneRefs to store the known hosts file
 func tmpVolume(name string) (coreapi.Volume, coreapi.VolumeMount) {
 	v := coreapi.Volume{
-		Name: name,
-		VolumeSource: coreapi.VolumeSource{
-			EmptyDir: &coreapi.EmptyDirVolumeSource{},
-		},
+		Name:     name,
+		EmptyDir: &coreapi.EmptyDirVolumeSource{},
 	}
 
 	vm := coreapi.VolumeMount{
@@ -300,8 +295,7 @@ func tmpVolume(name string) (coreapi.Volume, coreapi.VolumeMount) {
 
 func oauthVolume(secret, key string) (coreapi.Volume, coreapi.VolumeMount) {
 	return coreapi.Volume{
-		Name: secret,
-		VolumeSource: coreapi.VolumeSource{
+			Name: secret,
 			Secret: &coreapi.SecretVolumeSource{
 				SecretName: secret,
 				Items: []coreapi.KeyToPath{{
@@ -309,18 +303,16 @@ func oauthVolume(secret, key string) (coreapi.Volume, coreapi.VolumeMount) {
 					Path: fmt.Sprintf("./%s", key),
 				}},
 			},
-		},
-	}, coreapi.VolumeMount{
-		Name:      secret,
-		MountPath: "/secrets/oauth",
-		ReadOnly:  true,
-	}
+		}, coreapi.VolumeMount{
+			Name:      secret,
+			MountPath: "/secrets/oauth",
+			ReadOnly:  true,
+		}
 }
 
 func githubAppVolume(secret, key string) (coreapi.Volume, coreapi.VolumeMount) {
 	return coreapi.Volume{
-		Name: secret,
-		VolumeSource: coreapi.VolumeSource{
+			Name: secret,
 			Secret: &coreapi.SecretVolumeSource{
 				SecretName: secret,
 				Items: []coreapi.KeyToPath{{
@@ -328,12 +320,11 @@ func githubAppVolume(secret, key string) (coreapi.Volume, coreapi.VolumeMount) {
 					Path: fmt.Sprintf("./%s", key),
 				}},
 			},
-		},
-	}, coreapi.VolumeMount{
-		Name:      secret,
-		MountPath: "/secrets/github-app",
-		ReadOnly:  true,
-	}
+		}, coreapi.VolumeMount{
+			Name:      secret,
+			MountPath: "/secrets/github-app",
+			ReadOnly:  true,
+		}
 }
 
 // sshVolume converts a secret holding ssh keys into the corresponding volume and mount.
@@ -345,11 +336,9 @@ func sshVolume(secret string) (coreapi.Volume, coreapi.VolumeMount) {
 	mountPath := path.Join("/secrets/ssh", secret)
 	v := coreapi.Volume{
 		Name: name,
-		VolumeSource: coreapi.VolumeSource{
-			Secret: &coreapi.SecretVolumeSource{
-				SecretName:  secret,
-				DefaultMode: &sshKeyMode,
-			},
+		Secret: &coreapi.SecretVolumeSource{
+			SecretName:  secret,
+			DefaultMode: &sshKeyMode,
 		},
 	}
 
@@ -383,11 +372,9 @@ func cookiefileVolume(secret string) (coreapi.Volume, coreapi.VolumeMount, strin
 	var cookiefileMode int32 = 0400 // u+r
 	vol := coreapi.Volume{
 		Name: "cookiefile",
-		VolumeSource: coreapi.VolumeSource{
-			Secret: &coreapi.SecretVolumeSource{
-				SecretName:  cookieSecret,
-				DefaultMode: &cookiefileMode,
-			},
+		Secret: &coreapi.SecretVolumeSource{
+			SecretName:  cookieSecret,
+			DefaultMode: &cookiefileMode,
 		},
 	}
 	mount := coreapi.VolumeMount{
@@ -596,10 +583,8 @@ func BlobStorageOptions(dc prowapi.DecorationConfig, localMode bool) ([]coreapi.
 	if dc.GCSCredentialsSecret != nil && *dc.GCSCredentialsSecret != "" {
 		volumes = append(volumes, coreapi.Volume{
 			Name: gcsCredentialsMountName,
-			VolumeSource: coreapi.VolumeSource{
-				Secret: &coreapi.SecretVolumeSource{
-					SecretName: *dc.GCSCredentialsSecret,
-				},
+			Secret: &coreapi.SecretVolumeSource{
+				SecretName: *dc.GCSCredentialsSecret,
 			},
 		})
 		mounts = append(mounts, coreapi.VolumeMount{
@@ -611,10 +596,8 @@ func BlobStorageOptions(dc prowapi.DecorationConfig, localMode bool) ([]coreapi.
 	if dc.S3CredentialsSecret != nil && *dc.S3CredentialsSecret != "" {
 		volumes = append(volumes, coreapi.Volume{
 			Name: s3CredentialsMountName,
-			VolumeSource: coreapi.VolumeSource{
-				Secret: &coreapi.SecretVolumeSource{
-					SecretName: *dc.S3CredentialsSecret,
-				},
+			Secret: &coreapi.SecretVolumeSource{
+				SecretName: *dc.S3CredentialsSecret,
 			},
 		})
 		mounts = append(mounts, coreapi.VolumeMount{
@@ -664,40 +647,34 @@ func InitUpload(config *prowapi.DecorationConfig, gcsOptions gcsupload.Options, 
 // LogMountAndVolume returns the canonical volume and mount used to persist container logs.
 func LogMountAndVolume() (coreapi.VolumeMount, coreapi.Volume) {
 	return coreapi.VolumeMount{
-		Name:      logMountName,
-		MountPath: logMountPath,
-	}, coreapi.Volume{
-		Name: logMountName,
-		VolumeSource: coreapi.VolumeSource{
+			Name:      logMountName,
+			MountPath: logMountPath,
+		}, coreapi.Volume{
+			Name:     logMountName,
 			EmptyDir: &coreapi.EmptyDirVolumeSource{},
-		},
-	}
+		}
 }
 
 // CodeMountAndVolume returns the canonical volume and mount used to share code under test
 func CodeMountAndVolume() (coreapi.VolumeMount, coreapi.Volume) {
 	return coreapi.VolumeMount{
-		Name:      codeMountName,
-		MountPath: codeMountPath,
-	}, coreapi.Volume{
-		Name: codeMountName,
-		VolumeSource: coreapi.VolumeSource{
+			Name:      codeMountName,
+			MountPath: codeMountPath,
+		}, coreapi.Volume{
+			Name:     codeMountName,
 			EmptyDir: &coreapi.EmptyDirVolumeSource{},
-		},
-	}
+		}
 }
 
 // ToolsMountAndVolume returns the canonical volume and mount used to propagate the entrypoint
 func ToolsMountAndVolume() (coreapi.VolumeMount, coreapi.Volume) {
 	return coreapi.VolumeMount{
-		Name:      toolsMountName,
-		MountPath: toolsMountPath,
-	}, coreapi.Volume{
-		Name: toolsMountName,
-		VolumeSource: coreapi.VolumeSource{
+			Name:      toolsMountName,
+			MountPath: toolsMountPath,
+		}, coreapi.Volume{
+			Name:     toolsMountName,
 			EmptyDir: &coreapi.EmptyDirVolumeSource{},
-		},
-	}
+		}
 }
 
 func decorate(spec *coreapi.PodSpec, pj *prowapi.ProwJob, rawEnv map[string]string, outputDir string) error {
@@ -721,10 +698,8 @@ func decorate(spec *coreapi.PodSpec, pj *prowapi.ProwJob, rawEnv map[string]stri
 		}
 		outputVolume = &coreapi.Volume{
 			Name: outputMountName,
-			VolumeSource: coreapi.VolumeSource{
-				HostPath: &coreapi.HostPathVolumeSource{
-					Path: outputDir,
-				},
+			HostPath: &coreapi.HostPathVolumeSource{
+				Path: outputDir,
 			},
 		}
 	}

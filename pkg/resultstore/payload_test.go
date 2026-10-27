@@ -43,9 +43,7 @@ func TestInvocationID(t *testing.T) {
 			desc: "success",
 			payload: Payload{
 				Job: &v1.ProwJob{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "job-name",
-					},
+					Name: "job-name",
 				},
 			},
 			want: "job-name",
@@ -86,16 +84,14 @@ func TestInvocation(t *testing.T) {
 			desc: "complete",
 			payload: &Payload{
 				Job: &v1.ProwJob{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "job-name",
-						Labels: map[string]string{
-							kube.ProwJobTypeLabel:  "job-type-label",
-							kube.RepoLabel:         "repo-label",
-							kube.PullLabel:         "pull-label",
-							kube.GerritPatchset:    "gerrit-patchset-label",
-							kube.ProwBuildIDLabel:  "build-id-label",
-							kube.ProwJobAnnotation: "job-label",
-						},
+					Name: "job-name",
+					Labels: map[string]string{
+						kube.ProwJobTypeLabel:  "job-type-label",
+						kube.RepoLabel:         "repo-label",
+						kube.PullLabel:         "pull-label",
+						kube.GerritPatchset:    "gerrit-patchset-label",
+						kube.ProwBuildIDLabel:  "build-id-label",
+						kube.ProwJobAnnotation: "job-label",
 					},
 					Spec: v1.ProwJobSpec{
 						Job: "spec-job",
@@ -203,14 +199,12 @@ func TestInvocation(t *testing.T) {
 			desc: "completiontime started finished nil",
 			payload: &Payload{
 				Job: &v1.ProwJob{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "job-name",
-						Labels: map[string]string{
-							kube.ProwJobTypeLabel:  "job-type-label",
-							kube.RepoLabel:         "repo-label",
-							kube.ProwBuildIDLabel:  "build-id-label",
-							kube.ProwJobAnnotation: "job-label",
-						},
+					Name: "job-name",
+					Labels: map[string]string{
+						kube.ProwJobTypeLabel:  "job-type-label",
+						kube.RepoLabel:         "repo-label",
+						kube.ProwBuildIDLabel:  "build-id-label",
+						kube.ProwJobAnnotation: "job-label",
 					},
 					Spec: v1.ProwJobSpec{
 						Job: "spec-job",

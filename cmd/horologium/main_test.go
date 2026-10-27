@@ -219,12 +219,8 @@ func TestSync(t *testing.T) {
 	for _, tc := range testcases {
 		t.Run(tc.testName, func(t *testing.T) {
 			cfg := config.Config{
-				ProwConfig: config.ProwConfig{
-					ProwJobNamespace: "prowjobs",
-				},
-				JobConfig: config.JobConfig{
-					Periodics: []config.Periodic{{JobBase: config.JobBase{Name: "j"}, Retry: tc.retry}},
-				},
+				ProwJobNamespace: "prowjobs",
+				Periodics:        []config.Periodic{{Name: "j", Retry: tc.retry}},
 			}
 			cfg.Periodics[0].SetInterval(time.Minute * 30)
 			if cfg.JobConfig.Periodics[0].Retry != nil {
@@ -235,10 +231,8 @@ func TestSync(t *testing.T) {
 			now := time.Now()
 			if tc.jobName != "" {
 				job := &prowapi.ProwJob{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "with-interval",
-						Namespace: "prowjobs",
-					},
+					Name:      "with-interval",
+					Namespace: "prowjobs",
 					Spec: prowapi.ProwJobSpec{
 						Type: prowapi.PeriodicJob,
 						Job:  tc.jobName,
@@ -359,12 +353,8 @@ func TestSyncMinimumInterval(t *testing.T) {
 	}
 	for _, tc := range testcases {
 		cfg := config.Config{
-			ProwConfig: config.ProwConfig{
-				ProwJobNamespace: "prowjobs",
-			},
-			JobConfig: config.JobConfig{
-				Periodics: []config.Periodic{{JobBase: config.JobBase{Name: "j"}}},
-			},
+			ProwJobNamespace: "prowjobs",
+			Periodics:        []config.Periodic{{Name: "j"}},
 		}
 		cfg.Periodics[0].MinimumInterval = "1m"
 		cfg.Periodics[0].SetMinimumInterval(time.Minute)
@@ -373,10 +363,8 @@ func TestSyncMinimumInterval(t *testing.T) {
 		now := time.Now()
 		if tc.jobName != "" {
 			job := &prowapi.ProwJob{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "with-minimum_interval",
-					Namespace: "prowjobs",
-				},
+				Name:      "with-minimum_interval",
+				Namespace: "prowjobs",
 				Spec: prowapi.ProwJobSpec{
 					Type: prowapi.PeriodicJob,
 					Job:  tc.jobName,
@@ -447,23 +435,17 @@ func TestSyncCron(t *testing.T) {
 	}
 	for _, tc := range testcases {
 		cfg := config.Config{
-			ProwConfig: config.ProwConfig{
-				ProwJobNamespace: "prowjobs",
-				Scheduler:        config.Scheduler{Enabled: tc.enableScheduling},
-			},
-			JobConfig: config.JobConfig{
-				Periodics: []config.Periodic{{JobBase: config.JobBase{Name: "j"}, Cron: "@every 1m"}},
-			},
+			ProwJobNamespace: "prowjobs",
+			Scheduler:        config.Scheduler{Enabled: tc.enableScheduling},
+			Periodics:        []config.Periodic{{Name: "j", Cron: "@every 1m"}},
 		}
 
 		var jobs []client.Object
 		now := time.Now()
 		if tc.jobName != "" {
 			job := &prowapi.ProwJob{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "with-cron",
-					Namespace: "prowjobs",
-				},
+				Name:      "with-cron",
+				Namespace: "prowjobs",
 				Spec: prowapi.ProwJobSpec{
 					Type: prowapi.PeriodicJob,
 					Job:  tc.jobName,
@@ -633,20 +615,20 @@ func TestSyncStatsAndPerJobLogLevel(t *testing.T) {
 	finished := func(name string, started time.Time) client.Object {
 		completed := metav1.NewTime(started.Add(time.Minute))
 		return &prowapi.ProwJob{
-			ObjectMeta: metav1.ObjectMeta{Name: name + "-run", Namespace: "prowjobs"},
-			Spec:       prowapi.ProwJobSpec{Type: prowapi.PeriodicJob, Job: name},
-			Status:     prowapi.ProwJobStatus{StartTime: metav1.NewTime(started), CompletionTime: &completed},
+			Name: name + "-run", Namespace: "prowjobs",
+			Spec:   prowapi.ProwJobSpec{Type: prowapi.PeriodicJob, Job: name},
+			Status: prowapi.ProwJobStatus{StartTime: metav1.NewTime(started), CompletionTime: &completed},
 		}
 	}
 	cfg := config.Config{
-		ProwConfig: config.ProwConfig{ProwJobNamespace: "prowjobs"},
-		JobConfig: config.JobConfig{Periodics: []config.Periodic{
-			{JobBase: config.JobBase{Name: "interval-never-run"}},
-			{JobBase: config.JobBase{Name: "interval-ran-recently"}},
-			{JobBase: config.JobBase{Name: "cron-queued"}, Cron: "@every 1m"},
-			{JobBase: config.JobBase{Name: "cron-not-queued-1"}, Cron: "0 0 * * *"},
-			{JobBase: config.JobBase{Name: "cron-not-queued-2"}, Cron: "0 0 * * *"},
-		}},
+		ProwJobNamespace: "prowjobs",
+		Periodics: []config.Periodic{
+			{Name: "interval-never-run"},
+			{Name: "interval-ran-recently"},
+			{Name: "cron-queued", Cron: "@every 1m"},
+			{Name: "cron-not-queued-1", Cron: "0 0 * * *"},
+			{Name: "cron-not-queued-2", Cron: "0 0 * * *"},
+		},
 	}
 	cfg.Periodics[0].SetInterval(time.Hour)
 	cfg.Periodics[1].SetInterval(time.Hour)

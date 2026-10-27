@@ -70,20 +70,14 @@ var maxRevivals = 3
 func newFakeConfigAgent(t *testing.T, maxConcurrency int, queueCapacities map[string]int) *fca {
 	presubmits := []config.Presubmit{
 		{
-			JobBase: config.JobBase{
-				Name: "test-bazel-build",
-			},
+			Name: "test-bazel-build",
 		},
 		{
-			JobBase: config.JobBase{
-				Name: "test-e2e",
-			},
+			Name: "test-e2e",
 		},
 		{
 			AlwaysRun: true,
-			JobBase: config.JobBase{
-				Name: "test-bazel-test",
-			},
+			Name:      "test-bazel-test",
 		},
 	}
 	if err := config.SetPresubmitRegexes(presubmits); err != nil {
@@ -95,25 +89,21 @@ func newFakeConfigAgent(t *testing.T, maxConcurrency int, queueCapacities map[st
 
 	return &fca{
 		c: &config.Config{
-			ProwConfig: config.ProwConfig{
-				ProwJobNamespace: "prowjobs",
-				PodNamespace:     "pods",
-				Plank: config.Plank{
-					Controller: config.Controller{
-						JobURLTemplate: template.Must(template.New("test").Parse("{{.ObjectMeta.Name}}/{{.Status.State}}")),
-						MaxConcurrency: maxConcurrency,
-						MaxGoroutines:  20,
-					},
-					JobQueueCapacities:    queueCapacities,
-					PodPendingTimeout:     &metav1.Duration{Duration: podPendingTimeout},
-					PodRunningTimeout:     &metav1.Duration{Duration: podRunningTimeout},
-					PodUnscheduledTimeout: &metav1.Duration{Duration: podUnscheduledTimeout},
-					MaxRevivals:           &maxRevivals,
+			ProwJobNamespace: "prowjobs",
+			PodNamespace:     "pods",
+			Plank: config.Plank{
+				Controller: config.Controller{
+					JobURLTemplate: template.Must(template.New("test").Parse("{{.ObjectMeta.Name}}/{{.Status.State}}")),
+					MaxConcurrency: maxConcurrency,
+					MaxGoroutines:  20,
 				},
+				JobQueueCapacities:    queueCapacities,
+				PodPendingTimeout:     &metav1.Duration{Duration: podPendingTimeout},
+				PodRunningTimeout:     &metav1.Duration{Duration: podRunningTimeout},
+				PodUnscheduledTimeout: &metav1.Duration{Duration: podUnscheduledTimeout},
+				MaxRevivals:           &maxRevivals,
 			},
-			JobConfig: config.JobConfig{
-				PresubmitsStatic: presubmitMap,
-			},
+			PresubmitsStatic: presubmitMap,
 		},
 	}
 }
@@ -141,7 +131,7 @@ func TestTerminateDupes(t *testing.T) {
 
 			PJs: []prowapi.ProwJob{
 				{
-					ObjectMeta: metav1.ObjectMeta{Name: "newest", Namespace: "prowjobs"},
+					Name: "newest", Namespace: "prowjobs",
 					Spec: prowapi.ProwJobSpec{
 						Agent: prowapi.KubernetesAgent,
 						Type:  prowapi.PresubmitJob,
@@ -154,7 +144,7 @@ func TestTerminateDupes(t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{Name: "old", Namespace: "prowjobs"},
+					Name: "old", Namespace: "prowjobs",
 					Spec: prowapi.ProwJobSpec{
 						Agent: prowapi.KubernetesAgent,
 						Type:  prowapi.PresubmitJob,
@@ -167,7 +157,7 @@ func TestTerminateDupes(t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{Name: "older", Namespace: "prowjobs"},
+					Name: "older", Namespace: "prowjobs",
 					Spec: prowapi.ProwJobSpec{
 						Agent: prowapi.KubernetesAgent,
 						Type:  prowapi.PresubmitJob,
@@ -180,7 +170,7 @@ func TestTerminateDupes(t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{Name: "complete", Namespace: "prowjobs"},
+					Name: "complete", Namespace: "prowjobs",
 					Spec: prowapi.ProwJobSpec{
 						Agent: prowapi.KubernetesAgent,
 						Type:  prowapi.PresubmitJob,
@@ -194,7 +184,7 @@ func TestTerminateDupes(t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{Name: "newest_j2", Namespace: "prowjobs"},
+					Name: "newest_j2", Namespace: "prowjobs",
 					Spec: prowapi.ProwJobSpec{
 						Agent: prowapi.KubernetesAgent,
 						Type:  prowapi.PresubmitJob,
@@ -207,7 +197,7 @@ func TestTerminateDupes(t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{Name: "old_j2", Namespace: "prowjobs"},
+					Name: "old_j2", Namespace: "prowjobs",
 					Spec: prowapi.ProwJobSpec{
 						Agent: prowapi.KubernetesAgent,
 						Type:  prowapi.PresubmitJob,
@@ -220,7 +210,7 @@ func TestTerminateDupes(t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{Name: "old_j3", Namespace: "prowjobs"},
+					Name: "old_j3", Namespace: "prowjobs",
 					Spec: prowapi.ProwJobSpec{
 						Agent: prowapi.KubernetesAgent,
 						Type:  prowapi.PresubmitJob,
@@ -233,7 +223,7 @@ func TestTerminateDupes(t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{Name: "new_j3", Namespace: "prowjobs"},
+					Name: "new_j3", Namespace: "prowjobs",
 					Spec: prowapi.ProwJobSpec{
 						Agent: prowapi.KubernetesAgent,
 						Type:  prowapi.PresubmitJob,
@@ -262,10 +252,8 @@ func TestTerminateDupes(t *testing.T) {
 			ctx := context.Background()
 			fca := &fca{
 				c: &config.Config{
-					ProwConfig: config.ProwConfig{
-						ProwJobNamespace: "prowjobs",
-						PodNamespace:     "pods",
-					},
+					ProwJobNamespace: "prowjobs",
+					PodNamespace:     "pods",
 				},
 			}
 
@@ -386,10 +374,8 @@ func TestSyncTriggeredJobs(t *testing.T) {
 			Pods: map[string][]v1.Pod{
 				"default": {
 					{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:      "same-42",
-							Namespace: "pods",
-						},
+						Name:      "same-42",
+						Namespace: "pods",
 						Status: v1.PodStatus{
 							Phase: v1.PodRunning,
 						},
@@ -424,10 +410,8 @@ func TestSyncTriggeredJobs(t *testing.T) {
 			Pods: map[string][]v1.Pod{
 				"trusted": {
 					{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:      "same-42",
-							Namespace: "pods",
-						},
+						Name:      "same-42",
+						Namespace: "pods",
 						Status: v1.PodStatus{
 							Phase: v1.PodRunning,
 						},
@@ -458,10 +442,8 @@ func TestSyncTriggeredJobs(t *testing.T) {
 			Pods: map[string][]v1.Pod{
 				"default": {
 					{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:      "other-42",
-							Namespace: "pods",
-						},
+						Name:      "other-42",
+						Namespace: "pods",
 						Status: v1.PodStatus{
 							Phase: v1.PodRunning,
 						},
@@ -633,12 +615,10 @@ func TestSyncTriggeredJobs(t *testing.T) {
 			Pods: map[string][]v1.Pod{
 				"default": {
 					{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:      "foo",
-							Namespace: "pods",
-							Labels: map[string]string{
-								kube.ProwBuildIDLabel: "0987654321",
-							},
+						Name:      "foo",
+						Namespace: "pods",
+						Labels: map[string]string{
+							kube.ProwBuildIDLabel: "0987654321",
 						},
 						Status: v1.PodStatus{
 							Phase: v1.PodRunning,
@@ -672,12 +652,10 @@ func TestSyncTriggeredJobs(t *testing.T) {
 			Pods: map[string][]v1.Pod{
 				"default": {
 					{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:      "foo",
-							Namespace: "pods",
-							Labels: map[string]string{
-								kube.ProwBuildIDLabel: "",
-							},
+						Name:      "foo",
+						Namespace: "pods",
+						Labels: map[string]string{
+							kube.ProwBuildIDLabel: "",
 						},
 						Spec: v1.PodSpec{
 							Containers: []v1.Container{
@@ -760,10 +738,8 @@ func TestSyncTriggeredJobs(t *testing.T) {
 			for jobName, numJobsToCreate := range tc.PendingJobs {
 				for i := range numJobsToCreate {
 					if err := fakeProwJobClient.Create(ctx, &prowapi.ProwJob{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:      fmt.Sprintf("%s-%d", jobName, i),
-							Namespace: "prowjobs",
-						},
+						Name:      fmt.Sprintf("%s-%d", jobName, i),
+						Namespace: "prowjobs",
 						Spec: prowapi.ProwJobSpec{
 							Agent: prowapi.KubernetesAgent,
 							Job:   jobName,
@@ -904,10 +880,8 @@ func TestSyncPendingJob(t *testing.T) {
 			},
 			Pods: []v1.Pod{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "boop-41",
-						Namespace: "pods",
-					},
+					Name:      "boop-41",
+					Namespace: "pods",
 					Status: v1.PodStatus{
 						Phase: v1.PodUnknown,
 					},
@@ -933,11 +907,9 @@ func TestSyncPendingJob(t *testing.T) {
 			},
 			Pods: []v1.Pod{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:       "boop-41",
-						Namespace:  "pods",
-						Finalizers: []string{"prow.x-k8s.io/gcsk8sreporter"},
-					},
+					Name:       "boop-41",
+					Namespace:  "pods",
+					Finalizers: []string{"prow.x-k8s.io/gcsk8sreporter"},
 					Status: v1.PodStatus{
 						Phase: v1.PodUnknown,
 					},
@@ -965,10 +937,8 @@ func TestSyncPendingJob(t *testing.T) {
 			},
 			Pods: []v1.Pod{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "boop-42",
-						Namespace: "pods",
-					},
+					Name:      "boop-42",
+					Namespace: "pods",
 					Status: v1.PodStatus{
 						Phase: v1.PodSucceeded,
 					},
@@ -999,10 +969,8 @@ func TestSyncPendingJob(t *testing.T) {
 			},
 			Pods: []v1.Pod{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "boop-42",
-						Namespace: "pods",
-					},
+					Name:      "boop-42",
+					Namespace: "pods",
 					Status: v1.PodStatus{
 						Phase:             v1.PodSucceeded,
 						ContainerStatuses: []v1.ContainerStatus{{LastTerminationState: v1.ContainerState{Terminated: &v1.ContainerStateTerminated{}}}},
@@ -1034,10 +1002,8 @@ func TestSyncPendingJob(t *testing.T) {
 			},
 			Pods: []v1.Pod{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "boop-42",
-						Namespace: "pods",
-					},
+					Name:      "boop-42",
+					Namespace: "pods",
 					Status: v1.PodStatus{
 						Phase:                 v1.PodSucceeded,
 						InitContainerStatuses: []v1.ContainerStatus{{LastTerminationState: v1.ContainerState{Terminated: &v1.ContainerStateTerminated{}}}},
@@ -1073,10 +1039,8 @@ func TestSyncPendingJob(t *testing.T) {
 			},
 			Pods: []v1.Pod{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "boop-42",
-						Namespace: "pods",
-					},
+					Name:      "boop-42",
+					Namespace: "pods",
 					Status: v1.PodStatus{
 						Phase: v1.PodFailed,
 					},
@@ -1104,10 +1068,8 @@ func TestSyncPendingJob(t *testing.T) {
 			},
 			Pods: []v1.Pod{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "boop-42",
-						Namespace: "pods",
-					},
+					Name:      "boop-42",
+					Namespace: "pods",
 					Status: v1.PodStatus{
 						Phase:  v1.PodFailed,
 						Reason: Evicted,
@@ -1135,11 +1097,9 @@ func TestSyncPendingJob(t *testing.T) {
 			},
 			Pods: []v1.Pod{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:       "boop-42",
-						Namespace:  "pods",
-						Finalizers: []string{"prow.x-k8s.io/gcsk8sreporter"},
-					},
+					Name:       "boop-42",
+					Namespace:  "pods",
+					Finalizers: []string{"prow.x-k8s.io/gcsk8sreporter"},
 					Status: v1.PodStatus{
 						Phase:  v1.PodFailed,
 						Reason: Evicted,
@@ -1168,10 +1128,8 @@ func TestSyncPendingJob(t *testing.T) {
 			},
 			Pods: []v1.Pod{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "boop-42",
-						Namespace: "pods",
-					},
+					Name:      "boop-42",
+					Namespace: "pods",
 					Status: v1.PodStatus{
 						Phase:  v1.PodFailed,
 						Reason: Evicted,
@@ -1201,10 +1159,8 @@ func TestSyncPendingJob(t *testing.T) {
 			},
 			Pods: []v1.Pod{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "boop-42",
-						Namespace: "pods",
-					},
+					Name:      "boop-42",
+					Namespace: "pods",
 					Status: v1.PodStatus{
 						Phase:  v1.PodFailed,
 						Reason: Evicted,
@@ -1236,10 +1192,8 @@ func TestSyncPendingJob(t *testing.T) {
 			},
 			Pods: []v1.Pod{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "boop-42",
-						Namespace: "pods",
-					},
+					Name:      "boop-42",
+					Namespace: "pods",
 					Status: v1.PodStatus{
 						Phase:  v1.PodFailed,
 						Reason: Terminated,
@@ -1266,10 +1220,8 @@ func TestSyncPendingJob(t *testing.T) {
 			},
 			Pods: []v1.Pod{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "boop-42",
-						Namespace: "pods",
-					},
+					Name:      "boop-42",
+					Namespace: "pods",
 					Status: v1.PodStatus{
 						Phase: v1.PodRunning,
 					},
@@ -1294,10 +1246,8 @@ func TestSyncPendingJob(t *testing.T) {
 			},
 			Pods: []v1.Pod{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "boop-42",
-						Namespace: "pods",
-					},
+					Name:      "boop-42",
+					Namespace: "pods",
 					Status: v1.PodStatus{
 						Phase: v1.PodSucceeded,
 					},
@@ -1350,11 +1300,9 @@ func TestSyncPendingJob(t *testing.T) {
 			},
 			Pods: []v1.Pod{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:              "nightmare",
-						Namespace:         "pods",
-						CreationTimestamp: metav1.Time{Time: time.Now().Add(-podPendingTimeout)},
-					},
+					Name:              "nightmare",
+					Namespace:         "pods",
+					CreationTimestamp: metav1.Time{Time: time.Now().Add(-podPendingTimeout)},
 					Status: v1.PodStatus{
 						Phase:     v1.PodPending,
 						StartTime: startTime(time.Now().Add(-podPendingTimeout)),
@@ -1385,11 +1333,9 @@ func TestSyncPendingJob(t *testing.T) {
 			},
 			Pods: []v1.Pod{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:              "nightmare",
-						Namespace:         "pods",
-						CreationTimestamp: metav1.Time{Time: time.Now().Add(-time.Hour * 2)},
-					},
+					Name:              "nightmare",
+					Namespace:         "pods",
+					CreationTimestamp: metav1.Time{Time: time.Now().Add(-time.Hour * 2)},
 					Status: v1.PodStatus{
 						Phase:     v1.PodPending,
 						StartTime: startTime(time.Now().Add(-time.Hour * 2)),
@@ -1417,11 +1363,9 @@ func TestSyncPendingJob(t *testing.T) {
 			},
 			Pods: []v1.Pod{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:              "endless",
-						Namespace:         "pods",
-						CreationTimestamp: metav1.Time{Time: time.Now().Add(-podRunningTimeout)},
-					},
+					Name:              "endless",
+					Namespace:         "pods",
+					CreationTimestamp: metav1.Time{Time: time.Now().Add(-podRunningTimeout)},
 					Status: v1.PodStatus{
 						Phase:     v1.PodRunning,
 						StartTime: startTime(time.Now().Add(-podRunningTimeout)),
@@ -1452,11 +1396,9 @@ func TestSyncPendingJob(t *testing.T) {
 			},
 			Pods: []v1.Pod{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:              "endless",
-						Namespace:         "pods",
-						CreationTimestamp: metav1.Time{Time: time.Now().Add(-time.Hour)},
-					},
+					Name:              "endless",
+					Namespace:         "pods",
+					CreationTimestamp: metav1.Time{Time: time.Now().Add(-time.Hour)},
 					Status: v1.PodStatus{
 						Phase:     v1.PodRunning,
 						StartTime: startTime(time.Now().Add(-time.Hour)),
@@ -1484,11 +1426,9 @@ func TestSyncPendingJob(t *testing.T) {
 			},
 			Pods: []v1.Pod{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:              "homeless",
-						Namespace:         "pods",
-						CreationTimestamp: metav1.Time{Time: time.Now().Add(-podUnscheduledTimeout - time.Second)},
-					},
+					Name:              "homeless",
+					Namespace:         "pods",
+					CreationTimestamp: metav1.Time{Time: time.Now().Add(-podUnscheduledTimeout - time.Second)},
 					Status: v1.PodStatus{
 						Phase: v1.PodPending,
 					},
@@ -1518,11 +1458,9 @@ func TestSyncPendingJob(t *testing.T) {
 			},
 			Pods: []v1.Pod{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:              "homeless",
-						Namespace:         "pods",
-						CreationTimestamp: metav1.Time{Time: time.Now().Add(-2*time.Minute - time.Second)},
-					},
+					Name:              "homeless",
+					Namespace:         "pods",
+					CreationTimestamp: metav1.Time{Time: time.Now().Add(-2*time.Minute - time.Second)},
 					Status: v1.PodStatus{
 						Phase: v1.PodPending,
 					},
@@ -1549,11 +1487,9 @@ func TestSyncPendingJob(t *testing.T) {
 			},
 			Pods: []v1.Pod{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:              "slowpoke",
-						Namespace:         "pods",
-						CreationTimestamp: metav1.Time{Time: time.Now().Add(-(podPendingTimeout - 10*time.Minute))},
-					},
+					Name:              "slowpoke",
+					Namespace:         "pods",
+					CreationTimestamp: metav1.Time{Time: time.Now().Add(-(podPendingTimeout - 10*time.Minute))},
 					Status: v1.PodStatus{
 						Phase:     v1.PodPending,
 						StartTime: startTime(time.Now().Add(-(podPendingTimeout - 10*time.Minute))),
@@ -1579,11 +1515,9 @@ func TestSyncPendingJob(t *testing.T) {
 			},
 			Pods: []v1.Pod{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:              "just-waiting",
-						Namespace:         "pods",
-						CreationTimestamp: metav1.Time{Time: time.Now().Add(-time.Second)},
-					},
+					Name:              "just-waiting",
+					Namespace:         "pods",
+					CreationTimestamp: metav1.Time{Time: time.Now().Add(-time.Second)},
 					Status: v1.PodStatus{
 						Phase: v1.PodPending,
 					},
@@ -1608,13 +1542,11 @@ func TestSyncPendingJob(t *testing.T) {
 			},
 			Pods: []v1.Pod{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:              "deleted-pod-in-pending-marks-job-as-errored",
-						Namespace:         "pods",
-						CreationTimestamp: metav1.Time{Time: time.Now().Add(-time.Second)},
-						DeletionTimestamp: &metav1.Time{Time: time.Now()},
-						Finalizers:        []string{podDeletionPreventionFinalizer},
-					},
+					Name:              "deleted-pod-in-pending-marks-job-as-errored",
+					Namespace:         "pods",
+					CreationTimestamp: metav1.Time{Time: time.Now().Add(-time.Second)},
+					DeletionTimestamp: &metav1.Time{Time: time.Now()},
+					Finalizers:        []string{podDeletionPreventionFinalizer},
 					Status: v1.PodStatus{
 						Phase: v1.PodPending,
 					},
@@ -1639,13 +1571,11 @@ func TestSyncPendingJob(t *testing.T) {
 			},
 			Pods: []v1.Pod{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:              "pod-deleted-in-unset-phase",
-						Namespace:         "pods",
-						CreationTimestamp: metav1.Time{Time: time.Now().Add(-time.Second)},
-						DeletionTimestamp: &metav1.Time{Time: time.Now()},
-						Finalizers:        []string{podDeletionPreventionFinalizer},
-					},
+					Name:              "pod-deleted-in-unset-phase",
+					Namespace:         "pods",
+					CreationTimestamp: metav1.Time{Time: time.Now().Add(-time.Second)},
+					DeletionTimestamp: &metav1.Time{Time: time.Now()},
+					Finalizers:        []string{podDeletionPreventionFinalizer},
 				},
 			},
 			ExpectedState:    prowapi.ErrorState,
@@ -1667,13 +1597,11 @@ func TestSyncPendingJob(t *testing.T) {
 			},
 			Pods: []v1.Pod{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:              "pod-deleted-in-unset-phase",
-						Namespace:         "pods",
-						CreationTimestamp: metav1.Time{Time: time.Now().Add(-time.Second)},
-						DeletionTimestamp: &metav1.Time{Time: time.Now()},
-						Finalizers:        []string{podDeletionPreventionFinalizer},
-					},
+					Name:              "pod-deleted-in-unset-phase",
+					Namespace:         "pods",
+					CreationTimestamp: metav1.Time{Time: time.Now().Add(-time.Second)},
+					DeletionTimestamp: &metav1.Time{Time: time.Now()},
+					Finalizers:        []string{podDeletionPreventionFinalizer},
 					Status: v1.PodStatus{
 						Phase: v1.PodRunning,
 					},
@@ -1698,13 +1626,11 @@ func TestSyncPendingJob(t *testing.T) {
 			},
 			Pods: []v1.Pod{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:              "pod-deleted-in-running-phase",
-						Namespace:         "pods",
-						CreationTimestamp: metav1.Time{Time: time.Now().Add(-time.Second)},
-						DeletionTimestamp: &metav1.Time{Time: time.Now()},
-						Finalizers:        []string{"prow.x-k8s.io/gcsk8sreporter"},
-					},
+					Name:              "pod-deleted-in-running-phase",
+					Namespace:         "pods",
+					CreationTimestamp: metav1.Time{Time: time.Now().Add(-time.Second)},
+					DeletionTimestamp: &metav1.Time{Time: time.Now()},
+					Finalizers:        []string{"prow.x-k8s.io/gcsk8sreporter"},
 					Status: v1.PodStatus{
 						Phase:  v1.PodRunning,
 						Reason: "NodeLost",
@@ -1838,12 +1764,10 @@ func podWouldBeGone(pod corev1.Pod) bool {
 // TestPeriodic walks through the happy path of a periodic job.
 func TestPeriodic(t *testing.T) {
 	per := config.Periodic{
-		JobBase: config.JobBase{
-			Name:    "ci-periodic-job",
-			Agent:   "kubernetes",
-			Cluster: "trusted",
-			Spec:    &v1.PodSpec{Containers: []v1.Container{{Name: "test-name", Env: []v1.EnvVar{}}}},
-		},
+		Name:    "ci-periodic-job",
+		Agent:   "kubernetes",
+		Cluster: "trusted",
+		Spec:    &v1.PodSpec{Containers: []v1.Container{{Name: "test-name", Env: []v1.EnvVar{}}}},
 	}
 
 	totServ := httptest.NewServer(http.HandlerFunc(handleTot))
@@ -1962,9 +1886,7 @@ func TestMaxConcurrencyWithNewlyTriggeredJobs(t *testing.T) {
 			Name: "avoid starting a triggered job",
 			PJs: []prowapi.ProwJob{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "first",
-					},
+					Name: "first",
 					Spec: prowapi.ProwJobSpec{
 						Job:            "test-bazel-build",
 						Type:           prowapi.PostsubmitJob,
@@ -1977,10 +1899,8 @@ func TestMaxConcurrencyWithNewlyTriggeredJobs(t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:              "second",
-						CreationTimestamp: metav1.Now(),
-					},
+					Name:              "second",
+					CreationTimestamp: metav1.Now(),
 					Spec: prowapi.ProwJobSpec{
 						Job:            "test-bazel-build",
 						Type:           prowapi.PostsubmitJob,
@@ -2000,9 +1920,7 @@ func TestMaxConcurrencyWithNewlyTriggeredJobs(t *testing.T) {
 			Name: "both triggered jobs can start",
 			PJs: []prowapi.ProwJob{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "first",
-					},
+					Name: "first",
 					Spec: prowapi.ProwJobSpec{
 						Job:            "test-bazel-build",
 						Type:           prowapi.PostsubmitJob,
@@ -2015,9 +1933,7 @@ func TestMaxConcurrencyWithNewlyTriggeredJobs(t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "second",
-					},
+					Name: "second",
 					Spec: prowapi.ProwJobSpec{
 						Job:            "test-bazel-build",
 						Type:           prowapi.PostsubmitJob,
@@ -2037,10 +1953,8 @@ func TestMaxConcurrencyWithNewlyTriggeredJobs(t *testing.T) {
 			Name: "no triggered job can start",
 			PJs: []prowapi.ProwJob{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:              "first",
-						CreationTimestamp: metav1.Now(),
-					},
+					Name:              "first",
+					CreationTimestamp: metav1.Now(),
 					Spec: prowapi.ProwJobSpec{
 						Job:            "test-bazel-build",
 						Type:           prowapi.PostsubmitJob,
@@ -2053,10 +1967,8 @@ func TestMaxConcurrencyWithNewlyTriggeredJobs(t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:              "second",
-						CreationTimestamp: metav1.Now(),
-					},
+					Name:              "second",
+					CreationTimestamp: metav1.Now(),
 					Spec: prowapi.ProwJobSpec{
 						Job:            "test-bazel-build",
 						Type:           prowapi.PostsubmitJob,
@@ -2114,10 +2026,8 @@ func TestMaxConcurrencyWithNewlyTriggeredJobs(t *testing.T) {
 			for jobName, numJobsToCreate := range test.PendingJobs {
 				for i := range numJobsToCreate {
 					if err := fakeProwJobClient.Create(ctx, &prowapi.ProwJob{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:      fmt.Sprintf("%s-%d", jobName, i),
-							Namespace: "prowjobs",
-						},
+						Name:      fmt.Sprintf("%s-%d", jobName, i),
+						Namespace: "prowjobs",
 						Spec: prowapi.ProwJobSpec{
 							Agent: prowapi.KubernetesAgent,
 							Job:   jobName,
@@ -2133,10 +2043,9 @@ func TestMaxConcurrencyWithNewlyTriggeredJobs(t *testing.T) {
 			r := newReconciler(ctx, fakeProwJobClient, nil, config, nil, "")
 			r.buildClients = buildClients
 			for _, job := range test.PJs {
-				request := reconcile.Request{NamespacedName: types.NamespacedName{
+				request := reconcile.Request{
 					Name:      job.Name,
-					Namespace: job.Namespace,
-				}}
+					Namespace: job.Namespace}
 				if _, err := r.Reconcile(ctx, request); err != nil {
 					t.Fatalf("failed to reconcile job %s: %v", request.String(), err)
 				}
@@ -2199,8 +2108,8 @@ func TestMaxConcurrency(t *testing.T) {
 			},
 			ExistingProwJobs: []prowapi.ProwJob{
 				{
-					ObjectMeta: metav1.ObjectMeta{Namespace: "prowjobs"},
-					Spec:       prowapi.ProwJobSpec{Agent: prowapi.KubernetesAgent, Job: "my-pj"},
+					Namespace: "prowjobs",
+					Spec:      prowapi.ProwJobSpec{Agent: prowapi.KubernetesAgent, Job: "my-pj"},
 					Status: prowapi.ProwJobStatus{
 						State: prowapi.TriggeredState,
 					},
@@ -2241,10 +2150,8 @@ func TestMaxConcurrency(t *testing.T) {
 			},
 			ExistingProwJobs: []prowapi.ProwJob{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						CreationTimestamp: metav1.Now(),
-					},
-					Spec: prowapi.ProwJobSpec{Job: "my-pj"},
+					CreationTimestamp: metav1.Now(),
+					Spec:              prowapi.ProwJobSpec{Job: "my-pj"},
 					Status: prowapi.ProwJobStatus{
 						State: prowapi.TriggeredState,
 					},
@@ -2319,10 +2226,8 @@ func TestMaxConcurrency(t *testing.T) {
 			for jobName, jobsToCreateParams := range tc.PendingJobs {
 				for i := 0; i < jobsToCreateParams.Duplicates; i++ {
 					prowJobs = append(prowJobs, &prowapi.ProwJob{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:      fmt.Sprintf("%s-%d", jobName, i),
-							Namespace: "prowjobs",
-						},
+						Name:      fmt.Sprintf("%s-%d", jobName, i),
+						Namespace: "prowjobs",
 						Spec: prowapi.ProwJobSpec{
 							Agent:        prowapi.KubernetesAgent,
 							Job:          jobName,
@@ -2438,7 +2343,7 @@ func TestSyncAbortedJob(t *testing.T) {
 	testCases := []testCase{
 		{
 			Name:           "Pod is deleted",
-			Pod:            &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "my-pj"}},
+			Pod:            &v1.Pod{Name: "my-pj"},
 			ExpectDelete:   true,
 			ExpectComplete: true,
 		},
@@ -2449,14 +2354,14 @@ func TestSyncAbortedJob(t *testing.T) {
 		},
 		{
 			Name:           "NotFound on delete is tolerated",
-			Pod:            &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "my-pj"}},
+			Pod:            &v1.Pod{Name: "my-pj"},
 			DeleteError:    kapierrors.NewNotFound(schema.GroupResource{}, "my-pj"),
 			ExpectDelete:   false,
 			ExpectComplete: true,
 		},
 		{
 			Name:           "Failed delete does not set job to completed",
-			Pod:            &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "my-pj"}},
+			Pod:            &v1.Pod{Name: "my-pj"},
 			DeleteError:    errors.New("erroring as requested"),
 			ExpectSyncFail: true,
 			ExpectDelete:   false,
@@ -2468,9 +2373,7 @@ func TestSyncAbortedJob(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.Name, func(t *testing.T) {
 			pj := &prowapi.ProwJob{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "my-pj",
-				},
+				Name: "my-pj",
 				Spec: prowapi.ProwJobSpec{
 					Cluster: cluster,
 				},
@@ -2586,12 +2489,12 @@ func TestPodPredicate(t *testing.T) {
 	}{
 		{
 			name:       "Accept Pod if created by Prow",
-			obj:        &v1.Pod{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{kube.CreatedByProw: "true"}}},
+			obj:        &v1.Pod{Labels: map[string]string{kube.CreatedByProw: "true"}},
 			wantResult: true,
 		},
 		{
 			name:       "Accept Pod if matches additional selector",
-			obj:        &v1.Pod{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{kube.CreatedByProw: "true", "foo": "bar"}}},
+			obj:        &v1.Pod{Labels: map[string]string{kube.CreatedByProw: "true", "foo": "bar"}},
 			selector:   "foo=bar",
 			wantResult: true,
 		},

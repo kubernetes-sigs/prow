@@ -68,10 +68,8 @@ func TestProwToGCS(t *testing.T) {
 				},
 				config: func() *config.Config {
 					return &config.Config{
-						ProwConfig: config.ProwConfig{
-							Plank: config.Plank{
-								JobURLPrefixConfig: map[string]string{"*": "https://prow.k8s.io/view/gcs/"},
-							},
+						Plank: config.Plank{
+							JobURLPrefixConfig: map[string]string{"*": "https://prow.k8s.io/view/gcs/"},
 						},
 					}
 				},
@@ -102,10 +100,8 @@ func TestProwToGCS(t *testing.T) {
 				},
 				config: func() *config.Config {
 					return &config.Config{
-						ProwConfig: config.ProwConfig{
-							Plank: config.Plank{
-								JobURLPrefixConfig: map[string]string{"*": "https://prow.k8s.io/view/gcs/"},
-							},
+						Plank: config.Plank{
+							JobURLPrefixConfig: map[string]string{"*": "https://prow.k8s.io/view/gcs/"},
 						},
 					}
 				},
@@ -136,10 +132,8 @@ func TestProwToGCS(t *testing.T) {
 				},
 				config: func() *config.Config {
 					return &config.Config{
-						ProwConfig: config.ProwConfig{
-							Plank: config.Plank{
-								JobURLPrefixConfig: map[string]string{"*": "https://prow.k8s.io/view/"},
-							},
+						Plank: config.Plank{
+							JobURLPrefixConfig: map[string]string{"*": "https://prow.k8s.io/view/"},
 						},
 					}
 				},
@@ -170,10 +164,8 @@ func TestProwToGCS(t *testing.T) {
 				},
 				config: func() *config.Config {
 					return &config.Config{
-						ProwConfig: config.ProwConfig{
-							Plank: config.Plank{
-								JobURLPrefixConfig: map[string]string{"*": "https://prow.k8s.io/view/"},
-							},
+						Plank: config.Plank{
+							JobURLPrefixConfig: map[string]string{"*": "https://prow.k8s.io/view/"},
 						},
 					}
 				},

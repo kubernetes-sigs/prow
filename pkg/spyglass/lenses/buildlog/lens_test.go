@@ -1157,10 +1157,8 @@ func (ea *errArtifact) Size() (int64, error) {
 
 func TestBodyReadAllError(t *testing.T) {
 	art := &errArtifact{
-		Artifact: fake.Artifact{
-			Path:    "build-log.txt",
-			Content: []byte("content"),
-		},
+		Path:       "build-log.txt",
+		Content:    []byte("content"),
 		readAllErr: fmt.Errorf("file size over specified limit"),
 	}
 	got := Lens{}.Body([]api.Artifact{art}, ".", "", nil, prowconfig.Spyglass{})
@@ -1178,10 +1176,8 @@ func TestBodyReadAllError(t *testing.T) {
 func TestBodyLargeLogSkipsHighlight(t *testing.T) {
 	largeSize := int64(highlightSizeThreshold + 1)
 	art := &errArtifact{
-		Artifact: fake.Artifact{
-			Path:    "build-log.txt",
-			Content: []byte("line one\nERROR: something failed\nline three\n"),
-		},
+		Path:         "build-log.txt",
+		Content:      []byte("line one\nERROR: something failed\nline three\n"),
 		sizeOverride: &largeSize,
 	}
 	got := Lens{}.Body([]api.Artifact{art}, ".", "", nil, prowconfig.Spyglass{})
@@ -1201,10 +1197,8 @@ func TestBodyLargeLogSkipsHighlight(t *testing.T) {
 
 func TestBodySizeErrorDisablesHighlight(t *testing.T) {
 	art := &errArtifact{
-		Artifact: fake.Artifact{
-			Path:    "build-log.txt",
-			Content: []byte("line one\nERROR: something failed\nline three\n"),
-		},
+		Path:    "build-log.txt",
+		Content: []byte("line one\nERROR: something failed\nline three\n"),
 		sizeErr: fmt.Errorf("network timeout"),
 	}
 	got := Lens{}.Body([]api.Artifact{art}, ".", "", nil, prowconfig.Spyglass{})

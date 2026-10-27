@@ -393,57 +393,43 @@ func TestPartitionActive(t *testing.T) {
 		{
 			pjs: []prowapi.ProwJob{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "foo",
-					},
+					Name: "foo",
 					Status: prowapi.ProwJobStatus{
 						State: prowapi.TriggeredState,
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "bar",
-					},
+					Name: "bar",
 					Status: prowapi.ProwJobStatus{
 						State: prowapi.PendingState,
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "baz",
-					},
+					Name: "baz",
 					Status: prowapi.ProwJobStatus{
 						State: prowapi.SuccessState,
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "error",
-					},
+					Name: "error",
 					Status: prowapi.ProwJobStatus{
 						State: prowapi.ErrorState,
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "bak",
-					},
+					Name: "bak",
 					Status: prowapi.ProwJobStatus{
 						State: prowapi.PendingState,
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "aborted",
-					},
+					Name: "aborted",
 					Status: prowapi.ProwJobStatus{
 						State: prowapi.AbortedState,
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "aborted-and-completed",
-					},
+					Name: "aborted-and-completed",
 					Status: prowapi.ProwJobStatus{
 						State:          prowapi.AbortedState,
 						CompletionTime: &[]metav1.Time{metav1.Now()}[0],
@@ -489,9 +475,7 @@ func TestGetLatestProwJobs(t *testing.T) {
 		{
 			pjs: []prowapi.ProwJob{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "831c7df0-baa4-11e7-a1a4-0a58ac10134a",
-					},
+					Name: "831c7df0-baa4-11e7-a1a4-0a58ac10134a",
 					Spec: prowapi.ProwJobSpec{
 						Type:  prowapi.PresubmitJob,
 						Agent: prowapi.JenkinsAgent,
@@ -524,9 +508,7 @@ func TestGetLatestProwJobs(t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "0079d4d3-ba25-11e7-ae3f-0a58ac10123b",
-					},
+					Name: "0079d4d3-ba25-11e7-ae3f-0a58ac10123b",
 					Spec: prowapi.ProwJobSpec{
 						Type:  prowapi.PresubmitJob,
 						Agent: prowapi.JenkinsAgent,
@@ -1063,8 +1045,8 @@ func TestNewPresubmitWithModifiers(t *testing.T) {
 			pr:      &pr,
 			baseSHA: "987654",
 			job: &config.Presubmit{
-				JobBase:  config.JobBase{Name: "job"},
-				Reporter: config.Reporter{Context: "job-context"},
+				Name:    "job",
+				Context: "job-context",
 			},
 			eventGUID: "0001",
 			wantProwJob: prowapi.ProwJob{
@@ -1128,8 +1110,8 @@ func TestNewPresubmitWithModifiers(t *testing.T) {
 			pr:      &pr,
 			baseSHA: "987654",
 			job: &config.Presubmit{
-				JobBase:  config.JobBase{Name: "job"},
-				Reporter: config.Reporter{Context: "job-context"},
+				Name:    "job",
+				Context: "job-context",
 			},
 			eventGUID: "0001",
 			options:   []Modifier{RequireScheduling(true)},

@@ -281,9 +281,7 @@ func TestJobs(t *testing.T) {
 
 func TestListProwJobs(t *testing.T) {
 	templateJob := &prowapi.ProwJob{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "prowjobs",
-		},
+		Namespace: "prowjobs",
 	}
 
 	var testCases = []struct {

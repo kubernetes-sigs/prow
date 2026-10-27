@@ -29,7 +29,6 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	githubql "github.com/shurcooL/githubv4"
 	"github.com/sirupsen/logrus"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -529,7 +528,7 @@ func TestExpectedStatus(t *testing.T) {
 			requiredContexts: []string{"foo", "bar"},
 			prowJobs: []runtime.Object{
 				&prowapi.ProwJob{
-					ObjectMeta: metav1.ObjectMeta{Name: "123"},
+					Name: "123",
 					Spec: prowapi.ProwJobSpec{
 						Context: "foo",
 						Refs: &prowapi.Refs{
@@ -543,7 +542,7 @@ func TestExpectedStatus(t *testing.T) {
 					},
 				},
 				&prowapi.ProwJob{
-					ObjectMeta: metav1.ObjectMeta{Name: "1234"},
+					Name: "1234",
 					Spec: prowapi.ProwJobSpec{
 						Context: "bar",
 						Refs: &prowapi.Refs{
@@ -568,7 +567,7 @@ func TestExpectedStatus(t *testing.T) {
 			requiredContexts: []string{"foo", "bar", "baz"},
 			prowJobs: []runtime.Object{
 				&prowapi.ProwJob{
-					ObjectMeta: metav1.ObjectMeta{Name: "123"},
+					Name: "123",
 					Spec: prowapi.ProwJobSpec{
 						Context: "foo",
 						Refs: &prowapi.Refs{
@@ -582,7 +581,7 @@ func TestExpectedStatus(t *testing.T) {
 					},
 				},
 				&prowapi.ProwJob{
-					ObjectMeta: metav1.ObjectMeta{Name: "1234"},
+					Name: "1234",
 					Spec: prowapi.ProwJobSpec{
 						Context: "bar",
 						Refs: &prowapi.Refs{
@@ -596,7 +595,7 @@ func TestExpectedStatus(t *testing.T) {
 					},
 				},
 				&prowapi.ProwJob{
-					ObjectMeta: metav1.ObjectMeta{Name: "12345"},
+					Name: "12345",
 					Spec: prowapi.ProwJobSpec{
 						Context: "baz",
 						Refs: &prowapi.Refs{
@@ -621,7 +620,7 @@ func TestExpectedStatus(t *testing.T) {
 			requiredContexts: []string{"foo", "bar", "baz"},
 			prowJobs: []runtime.Object{
 				&prowapi.ProwJob{
-					ObjectMeta: metav1.ObjectMeta{Name: "123"},
+					Name: "123",
 					Spec: prowapi.ProwJobSpec{
 						Context: "foo",
 						Refs: &prowapi.Refs{
@@ -635,7 +634,7 @@ func TestExpectedStatus(t *testing.T) {
 					},
 				},
 				&prowapi.ProwJob{
-					ObjectMeta: metav1.ObjectMeta{Name: "1234"},
+					Name: "1234",
 					Spec: prowapi.ProwJobSpec{
 						Context: "baz",
 						Refs: &prowapi.Refs{
@@ -649,7 +648,7 @@ func TestExpectedStatus(t *testing.T) {
 					},
 				},
 				&prowapi.ProwJob{
-					ObjectMeta: metav1.ObjectMeta{Name: "12345"},
+					Name: "12345",
 					Spec: prowapi.ProwJobSpec{
 						Context: "bar",
 						Refs: &prowapi.Refs{
@@ -677,7 +676,7 @@ func TestExpectedStatus(t *testing.T) {
 			},
 			prowJobs: []runtime.Object{
 				&prowapi.ProwJob{
-					ObjectMeta: metav1.ObjectMeta{Name: "123"},
+					Name: "123",
 					Spec: prowapi.ProwJobSpec{
 						Context: strings.Repeat("very-long-context", 8),
 						Refs: &prowapi.Refs{
@@ -691,7 +690,7 @@ func TestExpectedStatus(t *testing.T) {
 					},
 				},
 				&prowapi.ProwJob{
-					ObjectMeta: metav1.ObjectMeta{Name: "1234"},
+					Name: "1234",
 					Spec: prowapi.ProwJobSpec{
 						Context: strings.Repeat("also-long-content", 8),
 						Refs: &prowapi.Refs{
@@ -824,12 +823,12 @@ func TestExpectedStatus(t *testing.T) {
 			blocks.Repo[blockers.OrgRepo{Org: "", Repo: ""}] = items
 
 			ca := &config.Agent{}
-			ca.Set(&config.Config{ProwConfig: config.ProwConfig{Tide: config.Tide{
+			ca.Set(&config.Config{Tide: config.Tide{
 				TideGitHubConfig: config.TideGitHubConfig{
 					DisplayAllQueriesInStatus: tc.displayAllTideQueries,
 					MergeLabel:                mergeLabel,
 					SquashLabel:               squashLabel,
-				}}}})
+				}}})
 			mmc := newMergeChecker(ca.Config, &fgc{})
 
 			ctx := context.Background()
@@ -1581,13 +1580,11 @@ func TestContextCheckerGetterFactoryAppend(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Create a mock config with base required contexts
 			cfg := &config.Config{
-				ProwConfig: config.ProwConfig{
-					Tide: config.Tide{
-						TideGitHubConfig: config.TideGitHubConfig{
-							ContextOptions: config.TideContextPolicyOptions{
-								TideContextPolicy: config.TideContextPolicy{
-									RequiredContexts: tc.baseRequiredContexts,
-								},
+				Tide: config.Tide{
+					TideGitHubConfig: config.TideGitHubConfig{
+						ContextOptions: config.TideContextPolicyOptions{
+							TideContextPolicy: config.TideContextPolicy{
+								RequiredContexts: tc.baseRequiredContexts,
 							},
 						},
 					},
@@ -2153,7 +2150,7 @@ func TestTargetUrl(t *testing.T) {
 
 	for _, tc := range testcases {
 		log := logrus.WithField("controller", "status-update")
-		c := &config.Config{ProwConfig: config.ProwConfig{Tide: tc.config}}
+		c := &config.Config{Tide: tc.config}
 		if actual, expected := targetURL(c, CodeReviewCommonFromPullRequest(tc.pr), log), tc.expectedURL; actual != expected {
 			t.Errorf("%s: expected target URL %s but got %s", tc.name, expected, actual)
 		}
@@ -2384,9 +2381,9 @@ func TestStatusControllerSearch(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ghc := &fgc{prs: tc.prs}
 			cfg := func() *config.Config {
-				return &config.Config{ProwConfig: config.ProwConfig{Tide: config.Tide{
+				return &config.Config{Tide: config.Tide{
 					MaxQueryConcurrency: tc.maxQueryConcurrency,
-					TideGitHubConfig:    config.TideGitHubConfig{Queries: config.TideQueries{{Orgs: []string{"org-a", "org-b", "org-c"}}}}}}}
+					TideGitHubConfig:    config.TideGitHubConfig{Queries: config.TideQueries{{Orgs: []string{"org-a", "org-b", "org-c"}}}}}}
 			}
 			ctx := context.Background()
 			mgr := newFakeManager(t, ctx)

@@ -75,14 +75,10 @@ func TestDisabledClustersWatcher(t *testing.T) {
 		}
 
 		before := config.Config{
-			ProwConfig: config.ProwConfig{
-				DisabledClusters: tc.before,
-			},
+			DisabledClusters: tc.before,
 		}
 		after := config.Config{
-			ProwConfig: config.ProwConfig{
-				DisabledClusters: tc.after,
-			},
+			DisabledClusters: tc.after,
 		}
 
 		changes := make(chan config.Delta, 1)

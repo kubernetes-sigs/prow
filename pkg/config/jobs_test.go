@@ -29,12 +29,8 @@ import (
 func TestRunIfChangedPresubmits(t *testing.T) {
 	PresubmitsStatic := []Presubmit{
 		{
-			JobBase: JobBase{
-				Name: "cross build",
-			},
-			RegexpChangeMatcher: RegexpChangeMatcher{
-				RunIfChanged: `(Makefile|\.sh|_(windows|linux|osx|unknown)(_test)?\.go)$`,
-			},
+			Name:         "cross build",
+			RunIfChanged: `(Makefile|\.sh|_(windows|linux|osx|unknown)(_test)?\.go)$`,
 		},
 	}
 	SetPresubmitRegexes(PresubmitsStatic)
@@ -62,12 +58,8 @@ func TestRunIfChangedPresubmits(t *testing.T) {
 func TestRunIfChangedPostsubmits(t *testing.T) {
 	PostsubmitsStatic := []Postsubmit{
 		{
-			JobBase: JobBase{
-				Name: "cross build",
-			},
-			RegexpChangeMatcher: RegexpChangeMatcher{
-				RunIfChanged: `(Makefile|\.sh|_(windows|linux|osx|unknown)(_test)?\.go)$`,
-			},
+			Name:         "cross build",
+			RunIfChanged: `(Makefile|\.sh|_(windows|linux|osx|unknown)(_test)?\.go)$`,
 		},
 	}
 	SetPostsubmitRegexes(PostsubmitsStatic)
@@ -94,16 +86,12 @@ func TestRunIfChangedPostsubmits(t *testing.T) {
 func TestSkipIfOnlyChangedPresubmits(t *testing.T) {
 	PresubmitsStatic := []Presubmit{
 		{
-			JobBase: JobBase{
-				Name: "cross build",
-			},
-			RegexpChangeMatcher: RegexpChangeMatcher{
-				// Files satisfying any of:
-				// - in the top-level docs/ directory
-				// - with .md/.adoc extensions
-				// - with basename README or OWNERS
-				SkipIfOnlyChanged: `^docs/|\.(md|adoc)$|/?(README|OWNERS)$`,
-			},
+			Name: "cross build",
+			// Files satisfying any of:
+			// - in the top-level docs/ directory
+			// - with .md/.adoc extensions
+			// - with basename README or OWNERS
+			SkipIfOnlyChanged: `^docs/|\.(md|adoc)$|/?(README|OWNERS)$`,
 		},
 	}
 	SetPresubmitRegexes(PresubmitsStatic)
@@ -134,16 +122,12 @@ func TestSkipIfOnlyChangedPresubmits(t *testing.T) {
 func TestSkipIfOnlyChangedPostsubmits(t *testing.T) {
 	PostsubmitsStatic := []Postsubmit{
 		{
-			JobBase: JobBase{
-				Name: "cross build",
-			},
-			RegexpChangeMatcher: RegexpChangeMatcher{
-				// Files satisfying any of:
-				// - in the top-level docs/ directory
-				// - with .md/.adoc extensions
-				// - with basename README or OWNERS
-				SkipIfOnlyChanged: `^docs/|\.(md|adoc)$|/?(README|OWNERS)$`,
-			},
+			Name: "cross build",
+			// Files satisfying any of:
+			// - in the top-level docs/ directory
+			// - with .md/.adoc extensions
+			// - with basename README or OWNERS
+			SkipIfOnlyChanged: `^docs/|\.(md|adoc)$|/?(README|OWNERS)$`,
 		},
 	}
 	SetPostsubmitRegexes(PostsubmitsStatic)
@@ -172,31 +156,25 @@ func TestSkipIfOnlyChangedPostsubmits(t *testing.T) {
 
 func TestListPresubmit(t *testing.T) {
 	c := &Config{
-		JobConfig: JobConfig{
-			PresubmitsStatic: map[string][]Presubmit{
-				"r1": {
-					{
-						JobBase: JobBase{
-							Name: "a",
-						},
-					},
-					{JobBase: JobBase{Name: "b"}},
+		PresubmitsStatic: map[string][]Presubmit{
+			"r1": {
+				{
+					Name: "a",
 				},
-				"r2": {
-					{
-						JobBase: JobBase{
-							Name: "c",
-						},
-					},
-					{JobBase: JobBase{Name: "d"}},
+				{Name: "b"},
+			},
+			"r2": {
+				{
+					Name: "c",
 				},
+				{Name: "d"},
 			},
-			PostsubmitsStatic: map[string][]Postsubmit{
-				"r1": {{JobBase: JobBase{Name: "e"}}},
-			},
-			Periodics: []Periodic{
-				{JobBase: JobBase{Name: "f"}},
-			},
+		},
+		PostsubmitsStatic: map[string][]Postsubmit{
+			"r1": {{Name: "e"}},
+		},
+		Periodics: []Periodic{
+			{Name: "f"},
 		},
 	}
 
@@ -239,24 +217,20 @@ func TestListPresubmit(t *testing.T) {
 
 func TestListPostsubmit(t *testing.T) {
 	c := &Config{
-		JobConfig: JobConfig{
-			PresubmitsStatic: map[string][]Presubmit{
-				"r1": {{JobBase: JobBase{Name: "a"}}},
-			},
-			PostsubmitsStatic: map[string][]Postsubmit{
-				"r1": {
-					{
-						JobBase: JobBase{
-							Name: "c",
-						},
-					},
-					{JobBase: JobBase{Name: "d"}},
+		PresubmitsStatic: map[string][]Presubmit{
+			"r1": {{Name: "a"}},
+		},
+		PostsubmitsStatic: map[string][]Postsubmit{
+			"r1": {
+				{
+					Name: "c",
 				},
-				"r2": {{JobBase: JobBase{Name: "e"}}},
+				{Name: "d"},
 			},
-			Periodics: []Periodic{
-				{JobBase: JobBase{Name: "f"}},
-			},
+			"r2": {{Name: "e"}},
+		},
+		Periodics: []Periodic{
+			{Name: "f"},
 		},
 	}
 
@@ -299,21 +273,17 @@ func TestListPostsubmit(t *testing.T) {
 
 func TestListPeriodic(t *testing.T) {
 	c := &Config{
-		JobConfig: JobConfig{
-			PresubmitsStatic: map[string][]Presubmit{
-				"r1": {{JobBase: JobBase{Name: "a"}}},
+		PresubmitsStatic: map[string][]Presubmit{
+			"r1": {{Name: "a"}},
+		},
+		PostsubmitsStatic: map[string][]Postsubmit{
+			"r1": {{Name: "b"}},
+		},
+		Periodics: []Periodic{
+			{
+				Name: "c",
 			},
-			PostsubmitsStatic: map[string][]Postsubmit{
-				"r1": {{JobBase: JobBase{Name: "b"}}},
-			},
-			Periodics: []Periodic{
-				{
-					JobBase: JobBase{
-						Name: "c",
-					},
-				},
-				{JobBase: JobBase{Name: "d"}},
-			},
+			{Name: "d"},
 		},
 	}
 
@@ -339,39 +309,25 @@ func TestListPeriodic(t *testing.T) {
 func TestRunAgainstBranch(t *testing.T) {
 	jobs := []Presubmit{
 		{
-			JobBase: JobBase{
-				Name: "a",
-			},
-			Brancher: Brancher{SkipBranches: []string{"s"}},
+			Name:         "a",
+			SkipBranches: []string{"s"},
 		},
 		{
-			JobBase: JobBase{
-				Name: "b",
-			},
-			Brancher: Brancher{Branches: []string{"r"}},
+			Name:     "b",
+			Branches: []string{"r"},
 		},
 		{
-			JobBase: JobBase{
-				Name: "c",
-			},
-			Brancher: Brancher{
-				SkipBranches: []string{"s"},
-				Branches:     []string{"r"},
-			},
+			Name:         "c",
+			SkipBranches: []string{"s"},
+			Branches:     []string{"r"},
 		},
 		{
-			JobBase: JobBase{
-				Name: "d",
-			},
-			Brancher: Brancher{
-				SkipBranches: []string{"s"},
-				Branches:     []string{"s", "r"},
-			},
+			Name:         "d",
+			SkipBranches: []string{"s"},
+			Branches:     []string{"s", "r"},
 		},
 		{
-			JobBase: JobBase{
-				Name: "default",
-			},
+			Name: "default",
 		},
 	}
 
@@ -1459,43 +1415,29 @@ func TestJobBase_GetPipelineRunSpec(t *testing.T) {
 
 func TestPeriodicsMatchingExtraRefs(t *testing.T) {
 	c := &Config{
-		JobConfig: JobConfig{
-			PresubmitsStatic: map[string][]Presubmit{
-				"r1": {{
-					JobBase: JobBase{
-						Name: "a",
-						UtilityConfig: UtilityConfig{
-							ExtraRefs: []prowapi.Refs{
-								{Org: "o", Repo: "r1"},
-							},
-						},
-					}},
+		PresubmitsStatic: map[string][]Presubmit{
+			"r1": {{
+				Name: "a",
+				ExtraRefs: []prowapi.Refs{
+					{Org: "o", Repo: "r1"},
+				}},
+			},
+		},
+		PostsubmitsStatic: map[string][]Postsubmit{
+			"r1": {{Name: "b"}},
+		},
+		Periodics: []Periodic{
+			{
+				Name: "c",
+				ExtraRefs: []prowapi.Refs{
+					{Org: "o", Repo: "r1"},
 				},
 			},
-			PostsubmitsStatic: map[string][]Postsubmit{
-				"r1": {{JobBase: JobBase{Name: "b"}}},
-			},
-			Periodics: []Periodic{
-				{
-					JobBase: JobBase{
-						Name: "c",
-						UtilityConfig: UtilityConfig{
-							ExtraRefs: []prowapi.Refs{
-								{Org: "o", Repo: "r1"},
-							},
-						},
-					},
-				},
-				{JobBase: JobBase{Name: "d"}},
-				{
-					JobBase: JobBase{
-						Name: "e",
-						UtilityConfig: UtilityConfig{
-							ExtraRefs: []prowapi.Refs{
-								{Org: "o", Repo: "r1"},
-							},
-						},
-					},
+			{Name: "d"},
+			{
+				Name: "e",
+				ExtraRefs: []prowapi.Refs{
+					{Org: "o", Repo: "r1"},
 				},
 			},
 		},

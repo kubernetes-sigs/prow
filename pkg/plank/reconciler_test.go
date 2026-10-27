@@ -74,56 +74,50 @@ func TestAdd(t *testing.T) {
 		{
 			name: "Prowjob with Kubernetes agent generates event",
 			prowJob: &prowv1.ProwJob{
-				ObjectMeta: metav1.ObjectMeta{Namespace: prowJobNamespace, Name: "my-pj"},
-				Spec:       prowv1.ProwJobSpec{Agent: prowv1.KubernetesAgent},
+				Namespace: prowJobNamespace, Name: "my-pj",
+				Spec: prowv1.ProwJobSpec{Agent: prowv1.KubernetesAgent},
 			},
 			expectedRequest: prowJobNamespace + "/my-pj",
 		},
 		{
 			name: "Prowjob without Kubernetes agent does not generate event",
 			prowJob: &prowv1.ProwJob{
-				ObjectMeta: metav1.ObjectMeta{Namespace: prowJobNamespace, Name: "my-pj"},
-				Spec:       prowv1.ProwJobSpec{Agent: prowv1.ProwJobAgent("my-other-agent")},
+				Namespace: prowJobNamespace, Name: "my-pj",
+				Spec: prowv1.ProwJobSpec{Agent: prowv1.ProwJobAgent("my-other-agent")},
 			},
 			expectPredicateDenied: true,
 		},
 		{
 			name: "ProwJob that is completed does not generate event",
 			prowJob: &prowv1.ProwJob{
-				ObjectMeta: metav1.ObjectMeta{Namespace: prowJobNamespace, Name: "my-pj"},
-				Spec:       prowv1.ProwJobSpec{Agent: prowv1.KubernetesAgent},
-				Status:     prowv1.ProwJobStatus{CompletionTime: &metav1.Time{}},
+				Namespace: prowJobNamespace, Name: "my-pj",
+				Spec:   prowv1.ProwJobSpec{Agent: prowv1.KubernetesAgent},
+				Status: prowv1.ProwJobStatus{CompletionTime: &metav1.Time{}},
 			},
 			expectPredicateDenied: true,
 		},
 		{
 			name: "Pod generates event",
 			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:   "my-pod",
-					Labels: map[string]string{"created-by-prow": "true"},
-				},
+				Name:   "my-pod",
+				Labels: map[string]string{"created-by-prow": "true"},
 			},
 			expectedRequest: prowJobNamespace + "/my-pod",
 		},
 		{
 			name: "Pod without created-by-prow does not generate event",
 			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "my-pod",
-				},
+				Name: "my-pod",
 			},
 			expectPredicateDenied: true,
 		},
 		{
 			name: "Pod that does match additionalSelector does generate event",
 			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "my-pod",
-					Labels: map[string]string{
-						"created-by-prow": "true",
-						"unicorn":         "true",
-					},
+				Name: "my-pod",
+				Labels: map[string]string{
+					"created-by-prow": "true",
+					"unicorn":         "true",
 				},
 			},
 			additionalSelector: "unicorn=true",
@@ -132,10 +126,8 @@ func TestAdd(t *testing.T) {
 		{
 			name: "Pod that doesn't match additionalSelector does not generate event",
 			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:   "my-pod",
-					Labels: map[string]string{"created-by-prow": "true"},
-				},
+				Name:   "my-pod",
+				Labels: map[string]string{"created-by-prow": "true"},
 			},
 			additionalSelector:    "unicorn=true",
 			expectPredicateDenied: true,
@@ -165,7 +157,7 @@ func TestAdd(t *testing.T) {
 			}
 			buildMgrs := map[string]cluster.Cluster{"default": buildCluster}
 			cfg := func() *config.Config {
-				return &config.Config{ProwConfig: config.ProwConfig{ProwJobNamespace: prowJobNamespace}}
+				return &config.Config{ProwJobNamespace: prowJobNamespace}
 			}
 
 			receivedRequestChan := make(chan string, 1)
@@ -304,10 +296,8 @@ func TestProwJobIndexer(t *testing.T) {
 	const pjJobQueue = "pj-queue"
 	pj := func(modify ...func(*prowv1.ProwJob)) *prowv1.ProwJob {
 		pj := &prowv1.ProwJob{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: pjNS,
-				Name:      "some-job",
-			},
+			Namespace: pjNS,
+			Name:      "some-job",
 			Spec: prowv1.ProwJobSpec{
 				Job:          pjName,
 				JobQueueName: pjJobQueue,
@@ -410,12 +400,12 @@ func TestMaxConcurrencyConsidersCacheStaleness(t *testing.T) {
 
 			ctx := context.Background()
 			cfg := func() *config.Config {
-				return &config.Config{ProwConfig: config.ProwConfig{Plank: config.Plank{
+				return &config.Config{Plank: config.Plank{
 					Controller: config.Controller{
 						JobURLTemplate: &template.Template{},
 					},
 					JobQueueCapacities: map[string]int{"queue-1": 1},
-				}}}
+				}}
 			}
 
 			fakeMgr, err := testutil.NewFakeManager(
@@ -441,7 +431,7 @@ func TestMaxConcurrencyConsidersCacheStaleness(t *testing.T) {
 			startAsyncReconcile := func(pjName string) {
 				go func() {
 					defer wg.Done()
-					result, err := r.Reconcile(context.Background(), reconcile.Request{NamespacedName: types.NamespacedName{Name: pjName}})
+					result, err := r.Reconcile(context.Background(), reconcile.Request{Name: pjName})
 					if err != nil {
 						t.Errorf("reconciliation of pj %s failed: %v", pjName, err)
 					}
@@ -482,7 +472,7 @@ func TestMaxConcurrencyConsidersCacheStaleness(t *testing.T) {
 		}
 	}
 	pja := &prowv1.ProwJob{
-		ObjectMeta: metav1.ObjectMeta{Name: "a"},
+		Name: "a",
 		Spec: prowv1.ProwJobSpec{
 			Type:           prowv1.PeriodicJob,
 			Cluster:        "cluster",
@@ -564,7 +554,7 @@ func TestStartPodBlocksUntilItHasThePodInCache(t *testing.T) {
 		config: cfg,
 	}
 	pj := &prowv1.ProwJob{
-		ObjectMeta: metav1.ObjectMeta{Name: "name"},
+		Name: "name",
 		Spec: prowv1.ProwJobSpec{
 			PodSpec: &corev1.PodSpec{Containers: []corev1.Container{{}}},
 			Refs:    &prowv1.Refs{},
@@ -688,7 +678,7 @@ func TestSyncClusterStatus(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			cfg := func() *config.Config {
-				return &config.Config{ProwConfig: config.ProwConfig{Plank: config.Plank{BuildClusterStatusFile: tc.location}}}
+				return &config.Config{Plank: config.Plank{BuildClusterStatusFile: tc.location}}
 			}
 
 			clients := map[string]buildClient{}

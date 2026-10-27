@@ -148,7 +148,7 @@ func TestGetProwYAMLCached(t *testing.T) {
 		fakeProwYAMLGetter[fakeCacheKey] = &ProwYAML{
 			Presubmits: []Presubmit{
 				{
-					JobBase: JobBase{Name: string(fakeCacheKey)},
+					Name: string(fakeCacheKey),
 				},
 			},
 		}
@@ -201,7 +201,7 @@ func TestGetProwYAMLCached(t *testing.T) {
 				prowYAML: &ProwYAML{
 					Presubmits: []Presubmit{
 						{
-							JobBase: JobBase{Name: `{"identifier":"foo/bar","baseSHA":"ba5e","headSHAs":["abcd","ef01"]}`}},
+							Name: `{"identifier":"foo/bar","baseSHA":"ba5e","headSHAs":["abcd","ef01"]}`},
 					},
 				},
 				cacheLen: 1,
@@ -254,7 +254,7 @@ func TestGetProwYAMLCached(t *testing.T) {
 				prowYAML: &ProwYAML{
 					Presubmits: []Presubmit{
 						{
-							JobBase: JobBase{Name: `{"identifier":"foo/bar","baseSHA":"ba5e","headSHAs":["abcd","ef01"]}`},
+							Name: `{"identifier":"foo/bar","baseSHA":"ba5e","headSHAs":["abcd","ef01"]}`,
 						},
 					},
 				},
@@ -304,7 +304,7 @@ func TestGetProwYAMLCached(t *testing.T) {
 				prowYAML: &ProwYAML{
 					Presubmits: []Presubmit{
 						{
-							JobBase: JobBase{Name: `{"identifier":"foo/bar","baseSHA":"ba5e","headSHAs":["abcd","ef01"]}`}},
+							Name: `{"identifier":"foo/bar","baseSHA":"ba5e","headSHAs":["abcd","ef01"]}`},
 					},
 				},
 				cacheLen: 1,
@@ -369,10 +369,8 @@ func TestGetProwYAMLCached(t *testing.T) {
 
 			fca := &fakeConfigAgent{
 				c: &Config{
-					ProwConfig: ProwConfig{
-						InRepoConfig: InRepoConfig{
-							Enabled: maybeEnabled,
-						},
+					InRepoConfig: InRepoConfig{
+						Enabled: maybeEnabled,
 					},
 				},
 			}
@@ -390,7 +388,7 @@ func TestGetProwYAMLCached(t *testing.T) {
 				_, _, _ = cache.GetOrAdd(k, goodValConstructorForInitialState(ProwYAML{
 					Presubmits: []Presubmit{
 						{
-							JobBase: JobBase{Name: string(k)}},
+							Name: string(k)},
 					},
 				}))
 			}
@@ -522,63 +520,51 @@ func TestGetProwYAMLCachedAndDefaulted(t *testing.T) {
 
 	defaultedPresubmit := func(env []v1.EnvVar, dc *prowapi.DecorationConfig) Presubmit {
 		return Presubmit{
-			JobBase: JobBase{
-				Name:           "presubmitFoo",
-				Agent:          "kubernetes",
-				Cluster:        "clusterFoo",
-				Namespace:      new("default"),
-				ProwJobDefault: &prowapi.ProwJobDefault{TenantID: "GlobalDefaultID"},
-				Spec: &v1.PodSpec{
-					Containers: []v1.Container{
-						{
-							Name:    "hello",
-							Image:   "there",
-							Command: []string{"earthlings"},
-							Env:     env,
-						},
+			Name:           "presubmitFoo",
+			Agent:          "kubernetes",
+			Cluster:        "clusterFoo",
+			Namespace:      new("default"),
+			ProwJobDefault: &prowapi.ProwJobDefault{TenantID: "GlobalDefaultID"},
+			Spec: &v1.PodSpec{
+				Containers: []v1.Container{
+					{
+						Name:    "hello",
+						Image:   "there",
+						Command: []string{"earthlings"},
+						Env:     env,
 					},
 				},
-				UtilityConfig: UtilityConfig{
-					Decorate:         &true_,
-					DecorationConfig: dc,
-				},
 			},
-			Trigger:      `(?m)^/test( | .* )presubmitFoo,?($|\s.*)`,
-			RerunCommand: "/test presubmitFoo",
-			Reporter: Reporter{
-				Context:    "presubmitFoo",
-				SkipReport: false,
-			},
+			Decorate:         &true_,
+			DecorationConfig: dc,
+			Trigger:          `(?m)^/test( | .* )presubmitFoo,?($|\s.*)`,
+			RerunCommand:     "/test presubmitFoo",
+			Context:          "presubmitFoo",
+			SkipReport:       false,
 		}
 	}
 
 	defaultedPostsubmit := func(env []v1.EnvVar, dc *prowapi.DecorationConfig) Postsubmit {
 		return Postsubmit{
-			JobBase: JobBase{
-				Name:           "postsubmitFoo",
-				Agent:          "kubernetes",
-				Cluster:        "clusterFoo",
-				Namespace:      new("default"),
-				ProwJobDefault: &prowapi.ProwJobDefault{TenantID: "GlobalDefaultID"},
-				Spec: &v1.PodSpec{
-					Containers: []v1.Container{
-						{
-							Name:    "hello",
-							Image:   "there",
-							Command: []string{"earthlings"},
-							Env:     env,
-						},
+			Name:           "postsubmitFoo",
+			Agent:          "kubernetes",
+			Cluster:        "clusterFoo",
+			Namespace:      new("default"),
+			ProwJobDefault: &prowapi.ProwJobDefault{TenantID: "GlobalDefaultID"},
+			Spec: &v1.PodSpec{
+				Containers: []v1.Container{
+					{
+						Name:    "hello",
+						Image:   "there",
+						Command: []string{"earthlings"},
+						Env:     env,
 					},
 				},
-				UtilityConfig: UtilityConfig{
-					Decorate:         &true_,
-					DecorationConfig: dc,
-				},
 			},
-			Reporter: Reporter{
-				Context:    "postsubmitFoo",
-				SkipReport: false,
-			},
+			Decorate:         &true_,
+			DecorationConfig: dc,
+			Context:          "postsubmitFoo",
+			SkipReport:       false,
 		}
 	}
 	inRepoConfigEnabled := make(map[string]*bool)
@@ -591,33 +577,29 @@ func TestGetProwYAMLCachedAndDefaulted(t *testing.T) {
 	// of the test cases in this unit test.
 	fakeProwYAMLGetterFunc := func() ProwYAMLGetter {
 		presubmitUndecorated := Presubmit{
-			JobBase: JobBase{
-				Name:      "presubmitFoo",
-				Cluster:   "clusterFoo",
-				Namespace: new("default"),
-				Spec: &v1.PodSpec{
-					Containers: []v1.Container{
-						{
-							Name:    "hello",
-							Image:   "there",
-							Command: []string{"earthlings"},
-						},
+			Name:      "presubmitFoo",
+			Cluster:   "clusterFoo",
+			Namespace: new("default"),
+			Spec: &v1.PodSpec{
+				Containers: []v1.Container{
+					{
+						Name:    "hello",
+						Image:   "there",
+						Command: []string{"earthlings"},
 					},
 				},
 			},
 		}
 		postsubmitUndecorated := Postsubmit{
-			JobBase: JobBase{
-				Name:      "postsubmitFoo",
-				Cluster:   "clusterFoo",
-				Namespace: new("default"),
-				Spec: &v1.PodSpec{
-					Containers: []v1.Container{
-						{
-							Name:    "hello",
-							Image:   "there",
-							Command: []string{"earthlings"},
-						},
+			Name:      "postsubmitFoo",
+			Cluster:   "clusterFoo",
+			Namespace: new("default"),
+			Spec: &v1.PodSpec{
+				Containers: []v1.Container{
+					{
+						Name:    "hello",
+						Image:   "there",
+						Command: []string{"earthlings"},
 					},
 				},
 			},
@@ -629,25 +611,21 @@ func TestGetProwYAMLCachedAndDefaulted(t *testing.T) {
 
 	makeConfig := func(env []v1.EnvVar, ddc []*DefaultDecorationConfigEntry) *Config {
 		return &Config{
-			ProwConfig: ProwConfig{
-				InRepoConfig: InRepoConfig{
-					AllowedClusters: map[string][]string{
-						"org/repo": {"clusterFoo"},
-					},
-					Enabled: inRepoConfigEnabled,
+			InRepoConfig: InRepoConfig{
+				AllowedClusters: map[string][]string{
+					"org/repo": {"clusterFoo"},
 				},
-				Plank: Plank{
-					DefaultDecorationConfigs: ddc,
-				},
-				PodNamespace: "default",
+				Enabled: inRepoConfigEnabled,
 			},
-			JobConfig: JobConfig{
-				DecorateAllJobs: true,
-				ProwYAMLGetter:  fakeProwYAMLGetterFunc(),
-				Presets: []Preset{
-					{
-						Env: env,
-					},
+			Plank: Plank{
+				DefaultDecorationConfigs: ddc,
+			},
+			PodNamespace:    "default",
+			DecorateAllJobs: true,
+			ProwYAMLGetter:  fakeProwYAMLGetterFunc(),
+			Presets: []Preset{
+				{
+					Env: env,
 				},
 			},
 		}
@@ -729,64 +707,52 @@ func TestGetProwYAMLCachedAndDefaulted(t *testing.T) {
 			expectedAfter: expected{
 				presubmits: []Presubmit{
 					{
-						JobBase: JobBase{
-							Name:           "presubmitFoo",
-							Agent:          "kubernetes",
-							Cluster:        "clusterFoo",
-							Namespace:      new("default"),
-							ProwJobDefault: &prowapi.ProwJobDefault{TenantID: "GlobalDefaultID"},
-							Spec: &v1.PodSpec{
-								Containers: []v1.Container{
-									{
-										Name:    "hello",
-										Image:   "there",
-										Command: []string{"earthlings"},
-										// Env field is a nil pointer!
-										Env: nil,
-									},
+						Name:           "presubmitFoo",
+						Agent:          "kubernetes",
+						Cluster:        "clusterFoo",
+						Namespace:      new("default"),
+						ProwJobDefault: &prowapi.ProwJobDefault{TenantID: "GlobalDefaultID"},
+						Spec: &v1.PodSpec{
+							Containers: []v1.Container{
+								{
+									Name:    "hello",
+									Image:   "there",
+									Command: []string{"earthlings"},
+									// Env field is a nil pointer!
+									Env: nil,
 								},
 							},
-							UtilityConfig: UtilityConfig{
-								Decorate:         &true_,
-								DecorationConfig: decorationConfigAfter,
-							},
 						},
-						Trigger:      `(?m)^/test( | .* )presubmitFoo,?($|\s.*)`,
-						RerunCommand: "/test presubmitFoo",
-						Reporter: Reporter{
-							Context:    "presubmitFoo",
-							SkipReport: false,
-						},
+						Decorate:         &true_,
+						DecorationConfig: decorationConfigAfter,
+						Trigger:          `(?m)^/test( | .* )presubmitFoo,?($|\s.*)`,
+						RerunCommand:     "/test presubmitFoo",
+						Context:          "presubmitFoo",
+						SkipReport:       false,
 					},
 				},
 				postsubmits: []Postsubmit{
 					{
-						JobBase: JobBase{
-							Name:           "postsubmitFoo",
-							Agent:          "kubernetes",
-							Cluster:        "clusterFoo",
-							Namespace:      new("default"),
-							ProwJobDefault: &prowapi.ProwJobDefault{TenantID: "GlobalDefaultID"},
-							Spec: &v1.PodSpec{
-								Containers: []v1.Container{
-									{
-										Name:    "hello",
-										Image:   "there",
-										Command: []string{"earthlings"},
-										// Env field is a nil pointer!
-										Env: nil,
-									},
+						Name:           "postsubmitFoo",
+						Agent:          "kubernetes",
+						Cluster:        "clusterFoo",
+						Namespace:      new("default"),
+						ProwJobDefault: &prowapi.ProwJobDefault{TenantID: "GlobalDefaultID"},
+						Spec: &v1.PodSpec{
+							Containers: []v1.Container{
+								{
+									Name:    "hello",
+									Image:   "there",
+									Command: []string{"earthlings"},
+									// Env field is a nil pointer!
+									Env: nil,
 								},
 							},
-							UtilityConfig: UtilityConfig{
-								Decorate:         &true_,
-								DecorationConfig: decorationConfigAfter,
-							},
 						},
-						Reporter: Reporter{
-							Context:    "postsubmitFoo",
-							SkipReport: false,
-						},
+						Decorate:         &true_,
+						DecorationConfig: decorationConfigAfter,
+						Context:          "postsubmitFoo",
+						SkipReport:       false,
 					},
 				},
 			},

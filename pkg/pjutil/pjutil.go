@@ -68,16 +68,12 @@ func NewProwJob(spec prowapi.ProwJobSpec, extraLabels, extraAnnotations map[stri
 	uuidV1 := uuid.New()
 
 	pj := prowapi.ProwJob{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "prow.k8s.io/v1",
-			Kind:       "ProwJob",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        uuidV1.String(),
-			Labels:      labels,
-			Annotations: annotations,
-		},
-		Spec: *specCopy,
+		APIVersion:  "prow.k8s.io/v1",
+		Kind:        "ProwJob",
+		Name:        uuidV1.String(),
+		Labels:      labels,
+		Annotations: annotations,
+		Spec:        *specCopy,
 		Status: prowapi.ProwJobStatus{
 			StartTime: metav1.Now(),
 			State:     prowapi.TriggeredState,

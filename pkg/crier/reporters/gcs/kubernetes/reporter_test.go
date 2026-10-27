@@ -226,11 +226,9 @@ func TestReportPodInfo(t *testing.T) {
 			pjName:     "ba123965-4fd4-421f-8509-7590c129ab69",
 			pjComplete: true,
 			pod: &v1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "ba123965-4fd4-421f-8509-7590c129ab69",
-					Namespace: "test-pods",
-					Labels:    map[string]string{"created-by-prow": "true"},
-				},
+				Name:      "ba123965-4fd4-421f-8509-7590c129ab69",
+				Namespace: "test-pods",
+				Labels:    map[string]string{"created-by-prow": "true"},
 				Spec: v1.PodSpec{
 					NodeName: "test-node",
 				},
@@ -242,9 +240,7 @@ func TestReportPodInfo(t *testing.T) {
 				},
 			},
 			node: &v1.Node{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-node",
-				},
+				Name: "test-node",
 			},
 			expectReport: true,
 		},
@@ -253,11 +249,9 @@ func TestReportPodInfo(t *testing.T) {
 			pjName:     "ba123965-4fd4-421f-8509-7590c129ab69",
 			pjComplete: true,
 			pod: &v1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "ba123965-4fd4-421f-8509-7590c129ab69",
-					Namespace: "test-pods",
-					Labels:    map[string]string{"created-by-prow": "true"},
-				},
+				Name:      "ba123965-4fd4-421f-8509-7590c129ab69",
+				Namespace: "test-pods",
+				Labels:    map[string]string{"created-by-prow": "true"},
 			},
 			expectReport: true,
 		},
@@ -273,11 +267,9 @@ func TestReportPodInfo(t *testing.T) {
 			pjComplete: true,
 			dryRun:     true,
 			pod: &v1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "ba123965-4fd4-421f-8509-7590c129ab69",
-					Namespace: "test-pods",
-					Labels:    map[string]string{"created-by-prow": "true"},
-				},
+				Name:      "ba123965-4fd4-421f-8509-7590c129ab69",
+				Namespace: "test-pods",
+				Labels:    map[string]string{"created-by-prow": "true"},
 			},
 			events: []v1.Event{
 				{
@@ -293,11 +285,9 @@ func TestReportPodInfo(t *testing.T) {
 			pjPending:  true,
 			pjComplete: false,
 			pod: &v1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "ba123965-4fd4-421f-8509-7590c129ab69",
-					Namespace: "test-pods",
-					Labels:    map[string]string{"created-by-prow": "true"},
-				},
+				Name:      "ba123965-4fd4-421f-8509-7590c129ab69",
+				Namespace: "test-pods",
+				Labels:    map[string]string{"created-by-prow": "true"},
 			},
 			expectReport:  false,
 			expectedPatch: `{"metadata":{"finalizers":["prow.x-k8s.io/gcsk8sreporter"]}}`,
@@ -306,13 +296,11 @@ func TestReportPodInfo(t *testing.T) {
 			name:   "Finalizer is not added to deleted pod",
 			pjName: "ba123965-4fd4-421f-8509-7590c129ab69",
 			pod: &v1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Finalizers:        []string{"gcsk8sreporter"},
-					Name:              "ba123965-4fd4-421f-8509-7590c129ab69",
-					Namespace:         "test-pods",
-					Labels:            map[string]string{"created-by-prow": "true"},
-					DeletionTimestamp: func() *metav1.Time { t := metav1.Now(); return &t }(),
-				},
+				Finalizers:        []string{"gcsk8sreporter"},
+				Name:              "ba123965-4fd4-421f-8509-7590c129ab69",
+				Namespace:         "test-pods",
+				Labels:            map[string]string{"created-by-prow": "true"},
+				DeletionTimestamp: func() *metav1.Time { t := metav1.Now(); return &t }(),
 			},
 			expectReport:  false,
 			expectedPatch: `{"metadata":{"finalizers":null}}`,
@@ -321,11 +309,9 @@ func TestReportPodInfo(t *testing.T) {
 			name:   "Pod gets deleted between check and finalizer add request, error is swallowed",
 			pjName: "ba123965-4fd4-421f-8509-7590c129ab69",
 			pod: &v1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "ba123965-4fd4-421f-8509-7590c129ab69",
-					Namespace: "test-pods",
-					Labels:    map[string]string{"created-by-prow": "true"},
-				},
+				Name:      "ba123965-4fd4-421f-8509-7590c129ab69",
+				Namespace: "test-pods",
+				Labels:    map[string]string{"created-by-prow": "true"},
 			},
 			patchErr:     errors.New(`Pod "b2c94437-e0e2-11eb-a92c-0a580a801781" is invalid: metadata.finalizers: Forbidden: no new finalizers can be added if the object is being deleted, found new finalizers []string{"prow.x-k8s.io/gcsk8sreporter"}`),
 			expectReport: false,
@@ -336,12 +322,10 @@ func TestReportPodInfo(t *testing.T) {
 			pjPending:  false,
 			pjComplete: true,
 			pod: &v1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Finalizers: []string{"gcsk8sreporter"},
-					Name:       "ba123965-4fd4-421f-8509-7590c129ab69",
-					Namespace:  "test-pods",
-					Labels:     map[string]string{"created-by-prow": "true"},
-				},
+				Finalizers: []string{"gcsk8sreporter"},
+				Name:       "ba123965-4fd4-421f-8509-7590c129ab69",
+				Namespace:  "test-pods",
+				Labels:     map[string]string{"created-by-prow": "true"},
 			},
 			expectReport:  true,
 			expectedPatch: `{"metadata":{"finalizers":null}}`,
@@ -362,12 +346,10 @@ func TestReportPodInfo(t *testing.T) {
 			pjPending:  false,
 			pjComplete: true,
 			pod: &v1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Finalizers: []string{"gcsk8sreporter"},
-					Name:       "ba123965-4fd4-421f-8509-7590c129ab69",
-					Namespace:  "test-pods",
-					Labels:     map[string]string{"created-by-prow": "true"},
-				},
+				Finalizers: []string{"gcsk8sreporter"},
+				Name:       "ba123965-4fd4-421f-8509-7590c129ab69",
+				Namespace:  "test-pods",
+				Labels:     map[string]string{"created-by-prow": "true"},
 			},
 			expectReport:  true,
 			expectedPatch: `{"metadata":{"finalizers":null}}`,
@@ -377,9 +359,7 @@ func TestReportPodInfo(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			pj := &prowv1.ProwJob{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: tc.pjName,
-				},
+				Name: tc.pjName,
 				Spec: prowv1.ProwJobSpec{
 					Agent:   prowv1.KubernetesAgent,
 					Cluster: "the-build-cluster",

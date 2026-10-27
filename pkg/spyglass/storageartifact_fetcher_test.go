@@ -492,10 +492,8 @@ RU5EIFBSSVZBVEUgS0VZLS0tLS1cbgo=`)
 func createConfigGetter(bucketNames ...string) config.Getter {
 	ca := config.Agent{}
 	ca.Set(&config.Config{
-		ProwConfig: config.ProwConfig{
-			Deck: config.Deck{
-				AllKnownStorageBuckets: sets.New[string](bucketNames...),
-			},
+		Deck: config.Deck{
+			AllKnownStorageBuckets: sets.New[string](bucketNames...),
 		},
 	})
 	return ca.Config

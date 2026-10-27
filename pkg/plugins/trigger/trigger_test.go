@@ -113,15 +113,11 @@ func TestRunRequested(t *testing.T) {
 				},
 			},
 			requestedJobs: []config.Presubmit{{
-				JobBase: config.JobBase{
-					Name: "first",
-				},
-				Reporter: config.Reporter{Context: "first-context"},
+				Name:    "first",
+				Context: "first-context",
 			}, {
-				JobBase: config.JobBase{
-					Name: "second",
-				},
-				Reporter: config.Reporter{Context: "second-context"},
+				Name:    "second",
+				Context: "second-context",
 			}},
 			expectedJobs: sets.New[string]("first", "second"),
 		},
@@ -142,15 +138,11 @@ func TestRunRequested(t *testing.T) {
 				},
 			},
 			requestedJobs: []config.Presubmit{{
-				JobBase: config.JobBase{
-					Name: "first",
-				},
-				Reporter: config.Reporter{Context: "first-context"},
+				Name:    "first",
+				Context: "first-context",
 			}, {
-				JobBase: config.JobBase{
-					Name: "second",
-				},
-				Reporter: config.Reporter{Context: "second-context"},
+				Name:    "second",
+				Context: "second-context",
 			}},
 			expectedJobs: sets.New[string]("first", "second"),
 		},
@@ -171,15 +163,11 @@ func TestRunRequested(t *testing.T) {
 				},
 			},
 			requestedJobs: []config.Presubmit{{
-				JobBase: config.JobBase{
-					Name: "first",
-				},
-				Reporter: config.Reporter{Context: "first-context"},
+				Name:    "first",
+				Context: "first-context",
 			}, {
-				JobBase: config.JobBase{
-					Name: "second",
-				},
-				Reporter: config.Reporter{Context: "second-context"},
+				Name:    "second",
+				Context: "second-context",
 			}},
 			jobCreationErrs: sets.New[string]("first"),
 			expectedJobs:    sets.New[string]("second"),
@@ -203,15 +191,11 @@ func TestRunRequested(t *testing.T) {
 				Mergable: new(false),
 			},
 			requestedJobs: []config.Presubmit{{
-				JobBase: config.JobBase{
-					Name: "first",
-				},
-				Reporter: config.Reporter{Context: "first-context"},
+				Name:    "first",
+				Context: "first-context",
 			}, {
-				JobBase: config.JobBase{
-					Name: "second",
-				},
-				Reporter: config.Reporter{Context: "second-context"},
+				Name:    "second",
+				Context: "second-context",
 			}},
 			expectedJobs: sets.New[string](),
 		},
@@ -282,30 +266,30 @@ func TestValidateContextOverlap(t *testing.T) {
 		},
 		{
 			name:   "disjoint sets mean no error",
-			toRun:  []config.Presubmit{{Reporter: config.Reporter{Context: "foo"}}},
-			toSkip: []config.Presubmit{{Reporter: config.Reporter{Context: "bar"}}},
+			toRun:  []config.Presubmit{{Context: "foo"}},
+			toSkip: []config.Presubmit{{Context: "bar"}},
 		},
 		{
 			name:   "complex disjoint sets mean no error",
-			toRun:  []config.Presubmit{{Reporter: config.Reporter{Context: "foo"}}, {Reporter: config.Reporter{Context: "otherfoo"}}},
-			toSkip: []config.Presubmit{{Reporter: config.Reporter{Context: "bar"}}, {Reporter: config.Reporter{Context: "otherbar"}}},
+			toRun:  []config.Presubmit{{Context: "foo"}, {Context: "otherfoo"}},
+			toSkip: []config.Presubmit{{Context: "bar"}, {Context: "otherbar"}},
 		},
 		{
 			name:        "overlapping sets error",
-			toRun:       []config.Presubmit{{Reporter: config.Reporter{Context: "foo"}}, {Reporter: config.Reporter{Context: "otherfoo"}}},
-			toSkip:      []config.Presubmit{{Reporter: config.Reporter{Context: "bar"}}, {Reporter: config.Reporter{Context: "otherfoo"}}},
+			toRun:       []config.Presubmit{{Context: "foo"}, {Context: "otherfoo"}},
+			toSkip:      []config.Presubmit{{Context: "bar"}, {Context: "otherfoo"}},
 			expectedErr: true,
 		},
 		{
 			name:        "identical sets error",
-			toRun:       []config.Presubmit{{Reporter: config.Reporter{Context: "foo"}}, {Reporter: config.Reporter{Context: "otherfoo"}}},
-			toSkip:      []config.Presubmit{{Reporter: config.Reporter{Context: "foo"}}, {Reporter: config.Reporter{Context: "otherfoo"}}},
+			toRun:       []config.Presubmit{{Context: "foo"}, {Context: "otherfoo"}},
+			toSkip:      []config.Presubmit{{Context: "foo"}, {Context: "otherfoo"}},
 			expectedErr: true,
 		},
 		{
 			name:        "superset callErrors",
-			toRun:       []config.Presubmit{{Reporter: config.Reporter{Context: "foo"}}, {Reporter: config.Reporter{Context: "otherfoo"}}},
-			toSkip:      []config.Presubmit{{Reporter: config.Reporter{Context: "foo"}}, {Reporter: config.Reporter{Context: "otherfoo"}}, {Reporter: config.Reporter{Context: "thirdfoo"}}},
+			toRun:       []config.Presubmit{{Context: "foo"}, {Context: "otherfoo"}},
+			toSkip:      []config.Presubmit{{Context: "foo"}, {Context: "otherfoo"}, {Context: "thirdfoo"}},
 			expectedErr: true,
 		},
 	}
@@ -480,23 +464,19 @@ func TestGetPresubmits(t *testing.T) {
 		{
 			name: "Result of GetPresubmits is used by default",
 			cfg: &config.Config{
-				JobConfig: config.JobConfig{
-					PresubmitsStatic: map[string][]config.Presubmit{
-						orgRepo: {{
-							JobBase: config.JobBase{Name: "my-static-presubmit"},
+				PresubmitsStatic: map[string][]config.Presubmit{
+					orgRepo: {{
+						Name: "my-static-presubmit",
+					}},
+				},
+				ProwYAMLGetterWithDefaults: func(_ *config.Config, _ git.ClientFactory, _, _, _ string, _ ...string) (*config.ProwYAML, error) {
+					return &config.ProwYAML{
+						Presubmits: []config.Presubmit{{
+							Name: "my-inrepoconfig-presubmit",
 						}},
-					},
-					ProwYAMLGetterWithDefaults: func(_ *config.Config, _ git.ClientFactory, _, _, _ string, _ ...string) (*config.ProwYAML, error) {
-						return &config.ProwYAML{
-							Presubmits: []config.Presubmit{{
-								JobBase: config.JobBase{Name: "my-inrepoconfig-presubmit"},
-							}},
-						}, nil
-					},
+					}, nil
 				},
-				ProwConfig: config.ProwConfig{
-					InRepoConfig: config.InRepoConfig{Enabled: map[string]*bool{"*": new(true)}},
-				},
+				InRepoConfig: config.InRepoConfig{Enabled: map[string]*bool{"*": new(true)}},
 			},
 
 			expectedPresubmits: sets.New[string]("my-inrepoconfig-presubmit", "my-static-presubmit"),
@@ -504,23 +484,19 @@ func TestGetPresubmits(t *testing.T) {
 		{
 			name: "Fallback to static presubmits",
 			cfg: &config.Config{
-				JobConfig: config.JobConfig{
-					PresubmitsStatic: map[string][]config.Presubmit{
-						orgRepo: {{
-							JobBase: config.JobBase{Name: "my-static-presubmit"},
+				PresubmitsStatic: map[string][]config.Presubmit{
+					orgRepo: {{
+						Name: "my-static-presubmit",
+					}},
+				},
+				ProwYAMLGetterWithDefaults: func(_ *config.Config, _ git.ClientFactory, _, _, _ string, _ ...string) (*config.ProwYAML, error) {
+					return &config.ProwYAML{
+						Presubmits: []config.Presubmit{{
+							Name: "my-inrepoconfig-presubmit",
 						}},
-					},
-					ProwYAMLGetterWithDefaults: func(_ *config.Config, _ git.ClientFactory, _, _, _ string, _ ...string) (*config.ProwYAML, error) {
-						return &config.ProwYAML{
-							Presubmits: []config.Presubmit{{
-								JobBase: config.JobBase{Name: "my-inrepoconfig-presubmit"},
-							}},
-						}, errors.New("some error")
-					},
+					}, errors.New("some error")
 				},
-				ProwConfig: config.ProwConfig{
-					InRepoConfig: config.InRepoConfig{Enabled: map[string]*bool{"*": new(true)}},
-				},
+				InRepoConfig: config.InRepoConfig{Enabled: map[string]*bool{"*": new(true)}},
 			},
 
 			expectedPresubmits: sets.New[string]("my-static-presubmit"),
@@ -558,23 +534,19 @@ func TestGetPostsubmits(t *testing.T) {
 		{
 			name: "Result of GetPostsubmits is used by default",
 			cfg: &config.Config{
-				JobConfig: config.JobConfig{
-					PostsubmitsStatic: map[string][]config.Postsubmit{
-						orgRepo: {{
-							JobBase: config.JobBase{Name: "my-static-postsubmit"},
+				PostsubmitsStatic: map[string][]config.Postsubmit{
+					orgRepo: {{
+						Name: "my-static-postsubmit",
+					}},
+				},
+				ProwYAMLGetterWithDefaults: func(_ *config.Config, _ git.ClientFactory, _, _, _ string, _ ...string) (*config.ProwYAML, error) {
+					return &config.ProwYAML{
+						Postsubmits: []config.Postsubmit{{
+							Name: "my-inrepoconfig-postsubmit",
 						}},
-					},
-					ProwYAMLGetterWithDefaults: func(_ *config.Config, _ git.ClientFactory, _, _, _ string, _ ...string) (*config.ProwYAML, error) {
-						return &config.ProwYAML{
-							Postsubmits: []config.Postsubmit{{
-								JobBase: config.JobBase{Name: "my-inrepoconfig-postsubmit"},
-							}},
-						}, nil
-					},
+					}, nil
 				},
-				ProwConfig: config.ProwConfig{
-					InRepoConfig: config.InRepoConfig{Enabled: map[string]*bool{"*": new(true)}},
-				},
+				InRepoConfig: config.InRepoConfig{Enabled: map[string]*bool{"*": new(true)}},
 			},
 
 			expectedPostsubmits: sets.New[string]("my-inrepoconfig-postsubmit", "my-static-postsubmit"),
@@ -582,23 +554,19 @@ func TestGetPostsubmits(t *testing.T) {
 		{
 			name: "Fallback to static postsubmits",
 			cfg: &config.Config{
-				JobConfig: config.JobConfig{
-					PostsubmitsStatic: map[string][]config.Postsubmit{
-						orgRepo: {{
-							JobBase: config.JobBase{Name: "my-static-postsubmit"},
+				PostsubmitsStatic: map[string][]config.Postsubmit{
+					orgRepo: {{
+						Name: "my-static-postsubmit",
+					}},
+				},
+				ProwYAMLGetterWithDefaults: func(_ *config.Config, _ git.ClientFactory, _, _, _ string, _ ...string) (*config.ProwYAML, error) {
+					return &config.ProwYAML{
+						Postsubmits: []config.Postsubmit{{
+							Name: "my-inrepoconfig-postsubmit",
 						}},
-					},
-					ProwYAMLGetterWithDefaults: func(_ *config.Config, _ git.ClientFactory, _, _, _ string, _ ...string) (*config.ProwYAML, error) {
-						return &config.ProwYAML{
-							Postsubmits: []config.Postsubmit{{
-								JobBase: config.JobBase{Name: "my-inrepoconfig-postsubmit"},
-							}},
-						}, errors.New("some error")
-					},
+					}, errors.New("some error")
 				},
-				ProwConfig: config.ProwConfig{
-					InRepoConfig: config.InRepoConfig{Enabled: map[string]*bool{"*": new(true)}},
-				},
+				InRepoConfig: config.InRepoConfig{Enabled: map[string]*bool{"*": new(true)}},
 			},
 
 			expectedPostsubmits: sets.New[string]("my-static-postsubmit"),
@@ -656,7 +624,7 @@ func TestCreateWithRetry(t *testing.T) {
 				return false, nil, nil
 			})
 
-			pj := &prowapi.ProwJob{ObjectMeta: metav1.ObjectMeta{Name: "foo"}}
+			pj := &prowapi.ProwJob{Name: "foo"}
 
 			var errMsg string
 			err := createWithRetry(context.TODO(), fakeProwJobClient.ProwV1().ProwJobs(""), pj, time.Nanosecond)

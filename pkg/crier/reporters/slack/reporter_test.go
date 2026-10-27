@@ -363,9 +363,7 @@ func TestUsesChannelOverrideFromJob(t *testing.T) {
 					},
 				}
 				return config.Config{
-					ProwConfig: config.ProwConfig{
-						SlackReporterConfigs: slackCfg,
-					},
+					SlackReporterConfigs: slackCfg,
 				}
 			},
 			pj:          &v1.ProwJob{Spec: v1.ProwJobSpec{}},
@@ -389,9 +387,7 @@ func TestUsesChannelOverrideFromJob(t *testing.T) {
 					},
 				}
 				return config.Config{
-					ProwConfig: config.ProwConfig{
-						SlackReporterConfigs: slackCfg,
-					},
+					SlackReporterConfigs: slackCfg,
 				}
 			},
 			pj: &v1.ProwJob{
@@ -420,9 +416,7 @@ func TestUsesChannelOverrideFromJob(t *testing.T) {
 					},
 				}
 				return config.Config{
-					ProwConfig: config.ProwConfig{
-						SlackReporterConfigs: slackCfg,
-					},
+					SlackReporterConfigs: slackCfg,
 				}
 			},
 			pj: &v1.ProwJob{
@@ -456,9 +450,7 @@ func TestUsesChannelOverrideFromJob(t *testing.T) {
 					},
 				}
 				return config.Config{
-					ProwConfig: config.ProwConfig{
-						SlackReporterConfigs: slackCfg,
-					},
+					SlackReporterConfigs: slackCfg,
 				}
 			},
 			pj: &v1.ProwJob{
@@ -492,9 +484,7 @@ func TestUsesChannelOverrideFromJob(t *testing.T) {
 					},
 				}
 				return config.Config{
-					ProwConfig: config.ProwConfig{
-						SlackReporterConfigs: slackCfg,
-					},
+					SlackReporterConfigs: slackCfg,
 				}
 			},
 			pj: &v1.ProwJob{
@@ -525,9 +515,7 @@ func TestUsesChannelOverrideFromJob(t *testing.T) {
 					},
 				}
 				return config.Config{
-					ProwConfig: config.ProwConfig{
-						SlackReporterConfigs: slackCfg,
-					},
+					SlackReporterConfigs: slackCfg,
 				}
 			},
 			pj: &v1.ProwJob{
@@ -551,9 +539,7 @@ func TestUsesChannelOverrideFromJob(t *testing.T) {
 					},
 				}
 				return config.Config{
-					ProwConfig: config.ProwConfig{
-						SlackReporterConfigs: slackCfg,
-					},
+					SlackReporterConfigs: slackCfg,
 				}
 			},
 			pj: &v1.ProwJob{
@@ -605,10 +591,8 @@ func TestShouldReportDefaultsToExtraRefs(t *testing.T) {
 		config: func(r *v1.Refs) config.SlackReporter {
 			if r.Org == "org" {
 				return config.SlackReporter{
-					JobTypesToReport: []v1.ProwJobType{v1.PeriodicJob},
-					SlackReporterConfig: v1.SlackReporterConfig{
-						JobStatesToReport: []v1.ProwJobState{v1.SuccessState},
-					},
+					JobTypesToReport:  []v1.ProwJobType{v1.PeriodicJob},
+					JobStatesToReport: []v1.ProwJobState{v1.SuccessState},
 				}
 			}
 			return config.SlackReporter{}
@@ -649,12 +633,10 @@ func TestReportDefaultsToExtraRefs(t *testing.T) {
 		config: func(r *v1.Refs) config.SlackReporter {
 			if r.Org == "org" {
 				return config.SlackReporter{
-					JobTypesToReport: []v1.ProwJobType{v1.PeriodicJob},
-					SlackReporterConfig: v1.SlackReporterConfig{
-						JobStatesToReport: []v1.ProwJobState{v1.SuccessState},
-						Channel:           "emercengy",
-						ReportTemplate:    "there you go",
-					},
+					JobTypesToReport:  []v1.ProwJobType{v1.PeriodicJob},
+					JobStatesToReport: []v1.ProwJobState{v1.SuccessState},
+					Channel:           "emercengy",
+					ReportTemplate:    "there you go",
 				}
 			}
 			return config.SlackReporter{}

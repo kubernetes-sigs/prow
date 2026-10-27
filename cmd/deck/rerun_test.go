@@ -42,53 +42,43 @@ import (
 func getPresubmitConfig() *config.Config {
 	presubmitJobs := []config.Presubmit{
 		{
-			JobBase: config.JobBase{
-				Name: "whoa",
-				Labels: map[string]string{
-					"foo": "foo",
-				},
-				Annotations: map[string]string{
-					"foo": "foo",
-				},
-				RerunAuthConfig: &prowapi.RerunAuthConfig{
-					AllowAnyone:   false,
-					GitHubUsers:   []string{"authorized", "alsoauthorized"},
-					GitHubTeamIDs: []int{42},
-				},
+			Name: "whoa",
+			Labels: map[string]string{
+				"foo": "foo",
 			},
-			Brancher: config.Brancher{
-				Branches: []string{"master"},
+			Annotations: map[string]string{
+				"foo": "foo",
 			},
+			RerunAuthConfig: &prowapi.RerunAuthConfig{
+				AllowAnyone:   false,
+				GitHubUsers:   []string{"authorized", "alsoauthorized"},
+				GitHubTeamIDs: []int{42},
+			},
+			Branches: []string{"master"},
 		},
 	}
 	config.SetPresubmitRegexes(presubmitJobs)
 	return &config.Config{
-		JobConfig: config.JobConfig{
-			PresubmitsStatic: map[string][]config.Presubmit{"org/repo": presubmitJobs},
-		},
+		PresubmitsStatic: map[string][]config.Presubmit{"org/repo": presubmitJobs},
 	}
 }
 
 func getPeriodicConfig() *config.Config {
 	return &config.Config{
-		JobConfig: config.JobConfig{
-			Periodics: []config.Periodic{{
-				JobBase: config.JobBase{
-					Name: "whoa",
-					Labels: map[string]string{
-						"foo": "foo",
-					},
-					Annotations: map[string]string{
-						"foo": "foo",
-					},
-					RerunAuthConfig: &prowapi.RerunAuthConfig{
-						AllowAnyone:   false,
-						GitHubUsers:   []string{"authorized", "alsoauthorized"},
-						GitHubTeamIDs: []int{42},
-					},
-				},
-			}},
-		},
+		Periodics: []config.Periodic{{
+			Name: "whoa",
+			Labels: map[string]string{
+				"foo": "foo",
+			},
+			Annotations: map[string]string{
+				"foo": "foo",
+			},
+			RerunAuthConfig: &prowapi.RerunAuthConfig{
+				AllowAnyone:   false,
+				GitHubUsers:   []string{"authorized", "alsoauthorized"},
+				GitHubTeamIDs: []int{42},
+			},
+		}},
 	}
 }
 
@@ -209,10 +199,8 @@ func TestRerun(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			fakeProwJobClient := fake.NewSimpleClientset(&prowapi.ProwJob{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "wowsuch",
-					Namespace: "prowjobs",
-				},
+				Name:      "wowsuch",
+				Namespace: "prowjobs",
 				Spec: prowapi.ProwJobSpec{
 					Job:  "whoa",
 					Type: prowapi.PresubmitJob,
@@ -271,7 +259,7 @@ func TestRerun(t *testing.T) {
 			rc.OrgMembers = map[string][]string{"org": {"org-member"}}
 			pca := plugins.NewFakeConfigAgent()
 			cfg := func() *config.Config {
-				return &config.Config{ProwConfig: config.ProwConfig{Scheduler: config.Scheduler{Enabled: tc.enableScheduling}}}
+				return &config.Config{Scheduler: config.Scheduler{Enabled: tc.enableScheduling}}
 			}
 			handler := handleRerun(cfg, fakeProwJobClient.ProwV1().ProwJobs("prowjobs"), tc.rerunCreatesJob, authCfgGetter, goa, ghc, rc, &pca, logrus.WithField("handler", "/rerun"))
 			handler.ServeHTTP(rr, req)
@@ -488,17 +476,15 @@ func TestLatestRerun(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			fakeProwJobClient := fake.NewSimpleClientset(&prowapi.ProwJob{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "wowsuch",
-					Namespace: "prowjobs",
-					Labels: map[string]string{
-						kube.GerritReportLabel: "foo",
-						"random":               "foo",
-					},
-					Annotations: map[string]string{
-						kube.GerritID: "foo",
-						"random":      "foo",
-					},
+				Name:      "wowsuch",
+				Namespace: "prowjobs",
+				Labels: map[string]string{
+					kube.GerritReportLabel: "foo",
+					"random":               "foo",
+				},
+				Annotations: map[string]string{
+					kube.GerritID: "foo",
+					"random":      "foo",
 				},
 				Spec: prowapi.ProwJobSpec{
 					Job:  "whoa",
@@ -585,29 +571,25 @@ func TestLatestRerun(t *testing.T) {
 				}
 			} else if !tc.rerunCreatesJob && tc.httpCode == http.StatusOK {
 				expectedProwJob := prowapi.ProwJob{
-					TypeMeta: metav1.TypeMeta{
-						Kind:       "ProwJob",
-						APIVersion: "prow.k8s.io/v1",
+					Kind:       "ProwJob",
+					APIVersion: "prow.k8s.io/v1",
+					Labels: map[string]string{
+						"created-by-prow":                 "true",
+						"foo":                             "foo",
+						"prow.k8s.io/context":             "",
+						"prow.k8s.io/gerrit-report-label": "foo",
+						"prow.k8s.io/job":                 "whoa",
+						"prow.k8s.io/refs.base_ref":       "master",
+						"prow.k8s.io/refs.org":            "org",
+						"prow.k8s.io/refs.pull":           "1",
+						"prow.k8s.io/refs.repo":           "repo",
+						"prow.k8s.io/type":                string(tc.pjType),
 					},
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"created-by-prow":                 "true",
-							"foo":                             "foo",
-							"prow.k8s.io/context":             "",
-							"prow.k8s.io/gerrit-report-label": "foo",
-							"prow.k8s.io/job":                 "whoa",
-							"prow.k8s.io/refs.base_ref":       "master",
-							"prow.k8s.io/refs.org":            "org",
-							"prow.k8s.io/refs.pull":           "1",
-							"prow.k8s.io/refs.repo":           "repo",
-							"prow.k8s.io/type":                string(tc.pjType),
-						},
-						Annotations: map[string]string{
-							"foo":                   "foo",
-							"prow.k8s.io/context":   "",
-							"prow.k8s.io/gerrit-id": "foo",
-							"prow.k8s.io/job":       "whoa",
-						},
+					Annotations: map[string]string{
+						"foo":                   "foo",
+						"prow.k8s.io/context":   "",
+						"prow.k8s.io/gerrit-id": "foo",
+						"prow.k8s.io/job":       "whoa",
 					},
 					Spec: prowapi.ProwJobSpec{
 						Job:  "whoa",

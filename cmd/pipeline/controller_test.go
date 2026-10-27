@@ -204,10 +204,8 @@ func TestEnqueueKey(t *testing.T) {
 			name:    "enqueue pipeline directly",
 			context: "hey",
 			obj: &pipelinev1.PipelineRun{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: "foo",
-					Name:      "bar",
-				},
+				Namespace: "foo",
+				Name:      "bar",
 			},
 			expected: toKey("hey", "foo", "bar"),
 		},
@@ -215,10 +213,8 @@ func TestEnqueueKey(t *testing.T) {
 			name:    "enqueue prowjob's spec namespace",
 			context: "rolo",
 			obj: &prowjobv1.ProwJob{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: "default",
-					Name:      "dude",
-				},
+				Namespace: "default",
+				Name:      "dude",
 				Spec: prowjobv1.ProwJobSpec{
 					Namespace: "tomassi",
 				},
@@ -966,9 +962,7 @@ func TestReconcileWithAllowConcurrentPostsubmitJobs(t *testing.T) {
 			name:               "feature flag enabled: presubmit duplicate jobs are still aborted",
 			duplicateStartTime: &future,
 			observedJob: &prowjobv1.ProwJob{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: fakePJNS,
-				},
+				Namespace: fakePJNS,
 				Status: prowjobv1.ProwJobStatus{
 					State:     prowjobv1.TriggeredState,
 					BuildID:   pipelineID,
@@ -1011,9 +1005,7 @@ func TestReconcileWithAllowConcurrentPostsubmitJobs(t *testing.T) {
 			name:               "feature flag enabled: postsubmit duplicate jobs are NOT aborted",
 			duplicateStartTime: &future,
 			observedJob: &prowjobv1.ProwJob{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: fakePJNS,
-				},
+				Namespace: fakePJNS,
 				Status: prowjobv1.ProwJobStatus{
 					State:     prowjobv1.TriggeredState,
 					BuildID:   pipelineID,
@@ -1250,9 +1242,10 @@ func TestMakeResourcesBeta1(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			const randomPipelineRunID = "so-many-pipelines"
-			pj := prowjobv1.ProwJob{}
-			pj.Name = "world"
-			pj.Namespace = "hello"
+			pj := prowjobv1.ProwJob{
+				Name:      "world",
+				Namespace: "hello",
+			}
 			pj.Spec.Type = prowjobv1.PeriodicJob
 			pj.Spec.Job = "ci-job"
 			pj.Spec.TektonPipelineRunSpec = &prowjobv1.TektonPipelineRunSpec{

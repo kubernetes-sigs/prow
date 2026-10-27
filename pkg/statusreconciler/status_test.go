@@ -46,13 +46,9 @@ func (t *testOpener) Writer(ctx context.Context, path string, _ ...io.WriterOpti
 
 func TestLoadState(t *testing.T) {
 	config := config.Config{
-		ProwConfig: config.ProwConfig{
-			ProwJobNamespace: "default",
-		},
-		JobConfig: config.JobConfig{
-			PresubmitsStatic: map[string][]config.Presubmit{
-				"org/repo": getPresubmits([]string{"foo"}),
-			},
+		ProwJobNamespace: "default",
+		PresubmitsStatic: map[string][]config.Presubmit{
+			"org/repo": getPresubmits([]string{"foo"}),
 		},
 	}
 	configFile, cleanup := getConfigFile(t, config)
@@ -78,13 +74,9 @@ func TestLoad(t *testing.T) {
 	presubmitBar := "presubmit-bar"
 
 	savedConfig := config.Config{
-		ProwConfig: config.ProwConfig{
-			ProwJobNamespace: "default",
-		},
-		JobConfig: config.JobConfig{
-			PresubmitsStatic: map[string][]config.Presubmit{
-				"org/repo": getPresubmits([]string{presubmitFoo}),
-			},
+		ProwJobNamespace: "default",
+		PresubmitsStatic: map[string][]config.Presubmit{
+			"org/repo": getPresubmits([]string{presubmitFoo}),
 		},
 	}
 
@@ -270,12 +262,10 @@ func getPresubmits(names []string) []config.Presubmit {
 	var presubmits []config.Presubmit
 	for _, name := range names {
 		ps := config.Presubmit{
-			JobBase: config.JobBase{
-				Name: name,
-				Spec: spec,
-			},
+			Name:      name,
+			Spec:      spec,
 			AlwaysRun: true,
-			Reporter:  config.Reporter{Context: name},
+			Context:   name,
 		}
 		presubmits = append(presubmits, ps)
 	}

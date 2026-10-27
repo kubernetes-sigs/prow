@@ -161,35 +161,25 @@ func TestHandlePE(t *testing.T) {
 		c := Client{
 			GitHubClient:  g,
 			ProwJobClient: fakeProwJobClient.ProwV1().ProwJobs("prowjobs"),
-			Config:        &config.Config{ProwConfig: config.ProwConfig{ProwJobNamespace: "prowjobs"}},
+			Config:        &config.Config{ProwJobNamespace: "prowjobs"},
 			Logger:        logrus.WithField("plugin", PluginName),
 		}
 		postsubmits := map[string][]config.Postsubmit{
 			"org/repo": {
 				{
-					JobBase: config.JobBase{
-						Name: "pass-butter",
-					},
-					RegexpChangeMatcher: config.RegexpChangeMatcher{
-						RunIfChanged: "\\.sh$",
-					},
+					Name:         "pass-butter",
+					RunIfChanged: "\\.sh$",
 				},
 			},
 			"org2/repo2": {
 				{
-					JobBase: config.JobBase{
-						Name: "pass-salt",
-					},
+					Name: "pass-salt",
 				},
 			},
 			"org3/repo3": {
 				{
-					JobBase: config.JobBase{
-						Name: "pass-pepper",
-					},
-					Brancher: config.Brancher{
-						Branches: []string{"release/v1.14"},
-					},
+					Name:     "pass-pepper",
+					Branches: []string{"release/v1.14"},
 				},
 			},
 		}
@@ -253,10 +243,9 @@ func TestHandlePEScheduling(t *testing.T) {
 			c := Client{
 				GitHubClient:  ghClient,
 				ProwJobClient: fakeProwJobClient.ProwV1().ProwJobs("prowjobs"),
-				Config: &config.Config{ProwConfig: config.ProwConfig{
+				Config: &config.Config{
 					ProwJobNamespace: "prowjobs",
-					Scheduler:        config.Scheduler{Enabled: tc.enableScheduling},
-				}},
+					Scheduler:        config.Scheduler{Enabled: tc.enableScheduling}},
 				Logger: logrus.WithField("plugin", PluginName),
 			}
 

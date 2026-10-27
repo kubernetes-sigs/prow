@@ -79,13 +79,11 @@ func TestApplyGlobalConfigOnce(t *testing.T) {
 
 	// Fixed org/repo, as this test doesn't check the output.
 	cfg := config.Config{
-		ProwConfig: config.ProwConfig{
-			Gerrit: config.Gerrit{
-				OrgReposConfig: &config.GerritOrgRepoConfigs{
-					{
-						Org:   "foo1",
-						Repos: []string{"bar1"},
-					},
+		Gerrit: config.Gerrit{
+			OrgReposConfig: &config.GerritOrgRepoConfigs{
+				{
+					Org:   "foo1",
+					Repos: []string{"bar1"},
 				},
 			},
 		},

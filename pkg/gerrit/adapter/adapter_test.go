@@ -34,7 +34,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	clienttesting "k8s.io/client-go/testing"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	prowapi "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 	prowfake "sigs.k8s.io/prow/pkg/client/clientset/versioned/fake"
@@ -120,36 +119,24 @@ func fakeProwYAMLGetter(
 
 	presubmits := []config.Presubmit{
 		{
-			JobBase: config.JobBase{
-				Name:      "always-runs-inRepoConfig",
-				Spec:      &v1.PodSpec{Containers: []v1.Container{{Name: "always-runs-inRepoConfig", Env: []v1.EnvVar{}}}},
-				Namespace: &namespace,
-			},
-			Brancher: config.Brancher{
-				Branches: []string{"inRepoConfig"},
-			},
-			AlwaysRun: true,
-			Reporter: config.Reporter{
-				Context:    "always-runs-inRepoConfig",
-				SkipReport: true,
-			},
+			Name:       "always-runs-inRepoConfig",
+			Spec:       &v1.PodSpec{Containers: []v1.Container{{Name: "always-runs-inRepoConfig", Env: []v1.EnvVar{}}}},
+			Namespace:  &namespace,
+			Branches:   []string{"inRepoConfig"},
+			AlwaysRun:  true,
+			Context:    "always-runs-inRepoConfig",
+			SkipReport: true,
 		},
 	}
 	postsubmits := []config.Postsubmit{
 		{
-			JobBase: config.JobBase{
-				Name:      "always-runs-inRepoConfig-Post",
-				Spec:      &v1.PodSpec{Containers: []v1.Container{{Name: "always-runs-inRepoConfig-Post", Env: []v1.EnvVar{}}}},
-				Namespace: &namespace,
-			},
-			Brancher: config.Brancher{
-				Branches: []string{"inRepoConfig"},
-			},
-			AlwaysRun: &trueBool,
-			Reporter: config.Reporter{
-				Context:    "always-runs-inRepoConfig-Post",
-				SkipReport: true,
-			},
+			Name:       "always-runs-inRepoConfig-Post",
+			Spec:       &v1.PodSpec{Containers: []v1.Container{{Name: "always-runs-inRepoConfig-Post", Env: []v1.EnvVar{}}}},
+			Namespace:  &namespace,
+			Branches:   []string{"inRepoConfig"},
+			AlwaysRun:  &trueBool,
+			Context:    "always-runs-inRepoConfig-Post",
+			SkipReport: true,
 		},
 	}
 	if err := config.SetPostsubmitRegexes(postsubmits); err != nil {
@@ -174,7 +161,7 @@ func TestShouldTriggerJobs(t *testing.T) {
 		configAgent: &config.Agent{},
 	}
 	presubmitTriggerRawString := "(?mi)/test\\s.*"
-	c.configAgent.Set(&config.Config{ProwConfig: config.ProwConfig{Gerrit: config.Gerrit{AllowedPresubmitTriggerReRawString: presubmitTriggerRawString}}})
+	c.configAgent.Set(&config.Config{Gerrit: config.Gerrit{AllowedPresubmitTriggerReRawString: presubmitTriggerRawString}})
 	presubmitTriggerRegex, err := regexp.Compile(presubmitTriggerRawString)
 	if err != nil {
 		t.Fatalf("failed to compile regex for allowed presubmit triggers: %s", err.Error())
@@ -366,7 +353,7 @@ func TestHandleInRepoConfigError(t *testing.T) {
 			controller := &Controller{
 				inRepoConfigFailuresTracker: tc.startingFailures,
 				gc:                          gc,
-				config:                      func() *config.Config { return &config.Config{ProwConfig: config.ProwConfig{Gerrit: gerritConfig}} },
+				config:                      func() *config.Config { return &config.Config{Gerrit: gerritConfig} },
 			}
 
 			ret := controller.handleInRepoConfigError(tc.err, instanceName, change)
@@ -692,27 +679,25 @@ func TestTriggerJobs(t *testing.T) {
 			instance:     testInstance,
 			wantPjs: []*prowapi.ProwJob{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"prow.k8s.io/refs.repo":           "test-infra",
-							"prow.k8s.io/gerrit-patchset":     "0",
-							"prow.k8s.io/job":                 "always-runs-all-branches",
-							"prow.k8s.io/context":             "always-runs-all-branches",
-							"prow.k8s.io/gerrit-report-label": "Code-Review",
-							"prow.k8s.io/gerrit-revision":     "1",
-							"created-by-prow":                 "true",
-							"prow.k8s.io/type":                "presubmit",
-							"prow.k8s.io/refs.base_ref":       "",
-							"prow.k8s.io/refs.pull":           "0",
-							"prow.k8s.io/refs.org":            "gerrit",
-						},
-						Annotations: map[string]string{
-							"prow.k8s.io/job":             "always-runs-all-branches",
-							"prow.k8s.io/context":         "always-runs-all-branches",
-							"foo":                         "bar",
-							"prow.k8s.io/gerrit-instance": "https://gerrit",
-							"prow.k8s.io/gerrit-id":       "",
-						},
+					Labels: map[string]string{
+						"prow.k8s.io/refs.repo":           "test-infra",
+						"prow.k8s.io/gerrit-patchset":     "0",
+						"prow.k8s.io/job":                 "always-runs-all-branches",
+						"prow.k8s.io/context":             "always-runs-all-branches",
+						"prow.k8s.io/gerrit-report-label": "Code-Review",
+						"prow.k8s.io/gerrit-revision":     "1",
+						"created-by-prow":                 "true",
+						"prow.k8s.io/type":                "presubmit",
+						"prow.k8s.io/refs.base_ref":       "",
+						"prow.k8s.io/refs.pull":           "0",
+						"prow.k8s.io/refs.org":            "gerrit",
+					},
+					Annotations: map[string]string{
+						"prow.k8s.io/job":             "always-runs-all-branches",
+						"prow.k8s.io/context":         "always-runs-all-branches",
+						"foo":                         "bar",
+						"prow.k8s.io/gerrit-instance": "https://gerrit",
+						"prow.k8s.io/gerrit-id":       "",
 					},
 					Spec: prowapi.ProwJobSpec{
 						Refs: &prowapi.Refs{
@@ -735,26 +720,24 @@ func TestTriggerJobs(t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"prow.k8s.io/gerrit-patchset":     "0",
-							"prow.k8s.io/job":                 "runs-on-all-but-baz-branch",
-							"prow.k8s.io/context":             "runs-on-all-but-baz-branch",
-							"prow.k8s.io/refs.base_ref":       "",
-							"prow.k8s.io/refs.pull":           "0",
-							"prow.k8s.io/gerrit-revision":     "1",
-							"prow.k8s.io/refs.repo":           "test-infra",
-							"prow.k8s.io/gerrit-report-label": "Code-Review",
-							"created-by-prow":                 "true",
-							"prow.k8s.io/type":                "presubmit",
-							"prow.k8s.io/refs.org":            "gerrit",
-						},
-						Annotations: map[string]string{
-							"prow.k8s.io/context":         "runs-on-all-but-baz-branch",
-							"prow.k8s.io/gerrit-id":       "",
-							"prow.k8s.io/gerrit-instance": "https://gerrit",
-							"prow.k8s.io/job":             "runs-on-all-but-baz-branch",
-						},
+					Labels: map[string]string{
+						"prow.k8s.io/gerrit-patchset":     "0",
+						"prow.k8s.io/job":                 "runs-on-all-but-baz-branch",
+						"prow.k8s.io/context":             "runs-on-all-but-baz-branch",
+						"prow.k8s.io/refs.base_ref":       "",
+						"prow.k8s.io/refs.pull":           "0",
+						"prow.k8s.io/gerrit-revision":     "1",
+						"prow.k8s.io/refs.repo":           "test-infra",
+						"prow.k8s.io/gerrit-report-label": "Code-Review",
+						"created-by-prow":                 "true",
+						"prow.k8s.io/type":                "presubmit",
+						"prow.k8s.io/refs.org":            "gerrit",
+					},
+					Annotations: map[string]string{
+						"prow.k8s.io/context":         "runs-on-all-but-baz-branch",
+						"prow.k8s.io/gerrit-id":       "",
+						"prow.k8s.io/gerrit-instance": "https://gerrit",
+						"prow.k8s.io/job":             "runs-on-all-but-baz-branch",
 					},
 					Spec: prowapi.ProwJobSpec{
 						Refs: &prowapi.Refs{
@@ -813,27 +796,25 @@ func TestTriggerJobs(t *testing.T) {
 			instance:     testInstance,
 			wantPjs: []*prowapi.ProwJob{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"prow.k8s.io/gerrit-report-label": "Code-Review",
-							"prow.k8s.io/context":             "always-runs-all-branches",
-							"prow.k8s.io/refs.repo":           "test-infra",
-							"prow.k8s.io/refs.base_ref":       "",
-							"prow.k8s.io/refs.pull":           "0",
-							"prow.k8s.io/refs.org":            "gerrit",
-							"prow.k8s.io/gerrit-patchset":     "42",
-							"prow.k8s.io/gerrit-revision":     "rev42",
-							"created-by-prow":                 "true",
-							"prow.k8s.io/type":                "presubmit",
-							"prow.k8s.io/job":                 "always-runs-all-branches",
-						},
-						Annotations: map[string]string{
-							"prow.k8s.io/gerrit-instance": "https://gerrit",
-							"prow.k8s.io/gerrit-id":       "",
-							"prow.k8s.io/job":             "always-runs-all-branches",
-							"prow.k8s.io/context":         "always-runs-all-branches",
-							"foo":                         "bar",
-						},
+					Labels: map[string]string{
+						"prow.k8s.io/gerrit-report-label": "Code-Review",
+						"prow.k8s.io/context":             "always-runs-all-branches",
+						"prow.k8s.io/refs.repo":           "test-infra",
+						"prow.k8s.io/refs.base_ref":       "",
+						"prow.k8s.io/refs.pull":           "0",
+						"prow.k8s.io/refs.org":            "gerrit",
+						"prow.k8s.io/gerrit-patchset":     "42",
+						"prow.k8s.io/gerrit-revision":     "rev42",
+						"created-by-prow":                 "true",
+						"prow.k8s.io/type":                "presubmit",
+						"prow.k8s.io/job":                 "always-runs-all-branches",
+					},
+					Annotations: map[string]string{
+						"prow.k8s.io/gerrit-instance": "https://gerrit",
+						"prow.k8s.io/gerrit-id":       "",
+						"prow.k8s.io/job":             "always-runs-all-branches",
+						"prow.k8s.io/context":         "always-runs-all-branches",
+						"foo":                         "bar",
 					},
 					Spec: prowapi.ProwJobSpec{
 						Refs: &prowapi.Refs{
@@ -856,26 +837,24 @@ func TestTriggerJobs(t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"prow.k8s.io/refs.base_ref":       "",
-							"prow.k8s.io/refs.pull":           "0",
-							"created-by-prow":                 "true",
-							"prow.k8s.io/context":             "runs-on-all-but-baz-branch",
-							"prow.k8s.io/refs.repo":           "test-infra",
-							"prow.k8s.io/gerrit-report-label": "Code-Review",
-							"prow.k8s.io/job":                 "runs-on-all-but-baz-branch",
-							"prow.k8s.io/refs.org":            "gerrit",
-							"prow.k8s.io/gerrit-revision":     "rev42",
-							"prow.k8s.io/gerrit-patchset":     "42",
-							"prow.k8s.io/type":                "presubmit",
-						},
-						Annotations: map[string]string{
-							"prow.k8s.io/context":         "runs-on-all-but-baz-branch",
-							"prow.k8s.io/gerrit-instance": "https://gerrit",
-							"prow.k8s.io/gerrit-id":       "",
-							"prow.k8s.io/job":             "runs-on-all-but-baz-branch",
-						},
+					Labels: map[string]string{
+						"prow.k8s.io/refs.base_ref":       "",
+						"prow.k8s.io/refs.pull":           "0",
+						"created-by-prow":                 "true",
+						"prow.k8s.io/context":             "runs-on-all-but-baz-branch",
+						"prow.k8s.io/refs.repo":           "test-infra",
+						"prow.k8s.io/gerrit-report-label": "Code-Review",
+						"prow.k8s.io/job":                 "runs-on-all-but-baz-branch",
+						"prow.k8s.io/refs.org":            "gerrit",
+						"prow.k8s.io/gerrit-revision":     "rev42",
+						"prow.k8s.io/gerrit-patchset":     "42",
+						"prow.k8s.io/type":                "presubmit",
+					},
+					Annotations: map[string]string{
+						"prow.k8s.io/context":         "runs-on-all-but-baz-branch",
+						"prow.k8s.io/gerrit-instance": "https://gerrit",
+						"prow.k8s.io/gerrit-id":       "",
+						"prow.k8s.io/job":             "runs-on-all-but-baz-branch",
 					},
 					Spec: prowapi.ProwJobSpec{
 						Refs: &prowapi.Refs{
@@ -920,27 +899,25 @@ func TestTriggerJobs(t *testing.T) {
 			instance:     testInstance,
 			wantPjs: []*prowapi.ProwJob{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"prow.k8s.io/job":                 "always-runs-all-branches",
-							"prow.k8s.io/gerrit-patchset":     "0",
-							"prow.k8s.io/context":             "always-runs-all-branches",
-							"prow.k8s.io/refs.pull":           "0",
-							"prow.k8s.io/gerrit-report-label": "Code-Review",
-							"prow.k8s.io/refs.repo":           "test-infra",
-							"prow.k8s.io/gerrit-revision":     "2",
-							"created-by-prow":                 "true",
-							"prow.k8s.io/type":                "presubmit",
-							"prow.k8s.io/refs.org":            "gerrit",
-							"prow.k8s.io/refs.base_ref":       "",
-						},
-						Annotations: map[string]string{
-							"prow.k8s.io/job":             "always-runs-all-branches",
-							"prow.k8s.io/context":         "always-runs-all-branches",
-							"prow.k8s.io/gerrit-id":       "",
-							"foo":                         "bar",
-							"prow.k8s.io/gerrit-instance": "https://gerrit",
-						},
+					Labels: map[string]string{
+						"prow.k8s.io/job":                 "always-runs-all-branches",
+						"prow.k8s.io/gerrit-patchset":     "0",
+						"prow.k8s.io/context":             "always-runs-all-branches",
+						"prow.k8s.io/refs.pull":           "0",
+						"prow.k8s.io/gerrit-report-label": "Code-Review",
+						"prow.k8s.io/refs.repo":           "test-infra",
+						"prow.k8s.io/gerrit-revision":     "2",
+						"created-by-prow":                 "true",
+						"prow.k8s.io/type":                "presubmit",
+						"prow.k8s.io/refs.org":            "gerrit",
+						"prow.k8s.io/refs.base_ref":       "",
+					},
+					Annotations: map[string]string{
+						"prow.k8s.io/job":             "always-runs-all-branches",
+						"prow.k8s.io/context":         "always-runs-all-branches",
+						"prow.k8s.io/gerrit-id":       "",
+						"foo":                         "bar",
+						"prow.k8s.io/gerrit-instance": "https://gerrit",
 					},
 					Spec: prowapi.ProwJobSpec{
 						Refs: &prowapi.Refs{
@@ -963,26 +940,24 @@ func TestTriggerJobs(t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"prow.k8s.io/refs.pull":           "0",
-							"created-by-prow":                 "true",
-							"prow.k8s.io/type":                "presubmit",
-							"prow.k8s.io/context":             "runs-on-all-but-baz-branch",
-							"prow.k8s.io/refs.repo":           "test-infra",
-							"prow.k8s.io/job":                 "runs-on-all-but-baz-branch",
-							"prow.k8s.io/gerrit-patchset":     "0",
-							"prow.k8s.io/gerrit-report-label": "Code-Review",
-							"prow.k8s.io/refs.org":            "gerrit",
-							"prow.k8s.io/gerrit-revision":     "2",
-							"prow.k8s.io/refs.base_ref":       "",
-						},
-						Annotations: map[string]string{
-							"prow.k8s.io/gerrit-instance": "https://gerrit",
-							"prow.k8s.io/job":             "runs-on-all-but-baz-branch",
-							"prow.k8s.io/context":         "runs-on-all-but-baz-branch",
-							"prow.k8s.io/gerrit-id":       "",
-						},
+					Labels: map[string]string{
+						"prow.k8s.io/refs.pull":           "0",
+						"created-by-prow":                 "true",
+						"prow.k8s.io/type":                "presubmit",
+						"prow.k8s.io/context":             "runs-on-all-but-baz-branch",
+						"prow.k8s.io/refs.repo":           "test-infra",
+						"prow.k8s.io/job":                 "runs-on-all-but-baz-branch",
+						"prow.k8s.io/gerrit-patchset":     "0",
+						"prow.k8s.io/gerrit-report-label": "Code-Review",
+						"prow.k8s.io/refs.org":            "gerrit",
+						"prow.k8s.io/gerrit-revision":     "2",
+						"prow.k8s.io/refs.base_ref":       "",
+					},
+					Annotations: map[string]string{
+						"prow.k8s.io/gerrit-instance": "https://gerrit",
+						"prow.k8s.io/job":             "runs-on-all-but-baz-branch",
+						"prow.k8s.io/context":         "runs-on-all-but-baz-branch",
+						"prow.k8s.io/gerrit-id":       "",
 					},
 					Spec: prowapi.ProwJobSpec{
 						Refs: &prowapi.Refs{
@@ -1023,26 +998,24 @@ func TestTriggerJobs(t *testing.T) {
 			instance:     testInstance,
 			wantPjs: []*prowapi.ProwJob{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"prow.k8s.io/context":             "other-test",
-							"prow.k8s.io/refs.pull":           "0",
-							"created-by-prow":                 "true",
-							"prow.k8s.io/gerrit-revision":     "1",
-							"prow.k8s.io/type":                "presubmit",
-							"prow.k8s.io/refs.base_ref":       "",
-							"prow.k8s.io/gerrit-patchset":     "0",
-							"prow.k8s.io/gerrit-report-label": "Code-Review",
-							"prow.k8s.io/refs.repo":           "other-repo",
-							"prow.k8s.io/job":                 "other-test",
-							"prow.k8s.io/refs.org":            "gerrit",
-						},
-						Annotations: map[string]string{
-							"prow.k8s.io/job":             "other-test",
-							"prow.k8s.io/context":         "other-test",
-							"prow.k8s.io/gerrit-instance": "https://gerrit",
-							"prow.k8s.io/gerrit-id":       "",
-						},
+					Labels: map[string]string{
+						"prow.k8s.io/context":             "other-test",
+						"prow.k8s.io/refs.pull":           "0",
+						"created-by-prow":                 "true",
+						"prow.k8s.io/gerrit-revision":     "1",
+						"prow.k8s.io/type":                "presubmit",
+						"prow.k8s.io/refs.base_ref":       "",
+						"prow.k8s.io/gerrit-patchset":     "0",
+						"prow.k8s.io/gerrit-report-label": "Code-Review",
+						"prow.k8s.io/refs.repo":           "other-repo",
+						"prow.k8s.io/job":                 "other-test",
+						"prow.k8s.io/refs.org":            "gerrit",
+					},
+					Annotations: map[string]string{
+						"prow.k8s.io/job":             "other-test",
+						"prow.k8s.io/context":         "other-test",
+						"prow.k8s.io/gerrit-instance": "https://gerrit",
+						"prow.k8s.io/gerrit-id":       "",
 					},
 					Spec: prowapi.ProwJobSpec{
 						Refs: &prowapi.Refs{
@@ -1083,26 +1056,24 @@ func TestTriggerJobs(t *testing.T) {
 			instance:     testInstance,
 			wantPjs: []*prowapi.ProwJob{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"created-by-prow":                 "true",
-							"prow.k8s.io/context":             "test-bar",
-							"prow.k8s.io/gerrit-patchset":     "0",
-							"prow.k8s.io/gerrit-report-label": "Code-Review",
-							"prow.k8s.io/gerrit-revision":     "1",
-							"prow.k8s.io/job":                 "test-bar",
-							"prow.k8s.io/refs.base_ref":       "",
-							"prow.k8s.io/refs.org":            "gerrit",
-							"prow.k8s.io/refs.pull":           "0",
-							"prow.k8s.io/refs.repo":           "postsubmits-project",
-							"prow.k8s.io/type":                "postsubmit",
-						},
-						Annotations: map[string]string{
-							"prow.k8s.io/context":         "test-bar",
-							"prow.k8s.io/gerrit-id":       "",
-							"prow.k8s.io/gerrit-instance": "https://gerrit",
-							"prow.k8s.io/job":             "test-bar",
-						},
+					Labels: map[string]string{
+						"created-by-prow":                 "true",
+						"prow.k8s.io/context":             "test-bar",
+						"prow.k8s.io/gerrit-patchset":     "0",
+						"prow.k8s.io/gerrit-report-label": "Code-Review",
+						"prow.k8s.io/gerrit-revision":     "1",
+						"prow.k8s.io/job":                 "test-bar",
+						"prow.k8s.io/refs.base_ref":       "",
+						"prow.k8s.io/refs.org":            "gerrit",
+						"prow.k8s.io/refs.pull":           "0",
+						"prow.k8s.io/refs.repo":           "postsubmits-project",
+						"prow.k8s.io/type":                "postsubmit",
+					},
+					Annotations: map[string]string{
+						"prow.k8s.io/context":         "test-bar",
+						"prow.k8s.io/gerrit-id":       "",
+						"prow.k8s.io/gerrit-instance": "https://gerrit",
+						"prow.k8s.io/job":             "test-bar",
 					},
 					Spec: prowapi.ProwJobSpec{
 						Refs: &prowapi.Refs{
@@ -1163,27 +1134,25 @@ func TestTriggerJobs(t *testing.T) {
 			instance:     testInstance,
 			wantPjs: []*prowapi.ProwJob{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"prow.k8s.io/refs.org":            "gerrit",
-							"prow.k8s.io/gerrit-revision":     "1",
-							"prow.k8s.io/refs.pull":           "0",
-							"prow.k8s.io/job":                 "always-runs-all-branches",
-							"prow.k8s.io/gerrit-report-label": "Code-Review",
-							"prow.k8s.io/gerrit-patchset":     "0",
-							"prow.k8s.io/refs.base_ref":       "",
-							"created-by-prow":                 "true",
-							"prow.k8s.io/context":             "always-runs-all-branches",
-							"prow.k8s.io/refs.repo":           "test-infra",
-							"prow.k8s.io/type":                "presubmit",
-						},
-						Annotations: map[string]string{
-							"prow.k8s.io/gerrit-instance": "https://gerrit",
-							"prow.k8s.io/gerrit-id":       "",
-							"foo":                         "bar",
-							"prow.k8s.io/context":         "always-runs-all-branches",
-							"prow.k8s.io/job":             "always-runs-all-branches",
-						},
+					Labels: map[string]string{
+						"prow.k8s.io/refs.org":            "gerrit",
+						"prow.k8s.io/gerrit-revision":     "1",
+						"prow.k8s.io/refs.pull":           "0",
+						"prow.k8s.io/job":                 "always-runs-all-branches",
+						"prow.k8s.io/gerrit-report-label": "Code-Review",
+						"prow.k8s.io/gerrit-patchset":     "0",
+						"prow.k8s.io/refs.base_ref":       "",
+						"created-by-prow":                 "true",
+						"prow.k8s.io/context":             "always-runs-all-branches",
+						"prow.k8s.io/refs.repo":           "test-infra",
+						"prow.k8s.io/type":                "presubmit",
+					},
+					Annotations: map[string]string{
+						"prow.k8s.io/gerrit-instance": "https://gerrit",
+						"prow.k8s.io/gerrit-id":       "",
+						"foo":                         "bar",
+						"prow.k8s.io/context":         "always-runs-all-branches",
+						"prow.k8s.io/job":             "always-runs-all-branches",
 					},
 					Spec: prowapi.ProwJobSpec{
 						Refs: &prowapi.Refs{
@@ -1205,26 +1174,24 @@ func TestTriggerJobs(t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"prow.k8s.io/job":                 "run-if-changed-all-branches",
-							"prow.k8s.io/refs.org":            "gerrit",
-							"prow.k8s.io/gerrit-revision":     "1",
-							"prow.k8s.io/gerrit-patchset":     "0",
-							"prow.k8s.io/gerrit-report-label": "Code-Review",
-							"prow.k8s.io/type":                "presubmit",
-							"created-by-prow":                 "true",
-							"prow.k8s.io/refs.pull":           "0",
-							"prow.k8s.io/context":             "run-if-changed-all-branches",
-							"prow.k8s.io/refs.repo":           "test-infra",
-							"prow.k8s.io/refs.base_ref":       "",
-						},
-						Annotations: map[string]string{
-							"prow.k8s.io/job":             "run-if-changed-all-branches",
-							"prow.k8s.io/gerrit-id":       "",
-							"prow.k8s.io/gerrit-instance": "https://gerrit",
-							"prow.k8s.io/context":         "run-if-changed-all-branches",
-						},
+					Labels: map[string]string{
+						"prow.k8s.io/job":                 "run-if-changed-all-branches",
+						"prow.k8s.io/refs.org":            "gerrit",
+						"prow.k8s.io/gerrit-revision":     "1",
+						"prow.k8s.io/gerrit-patchset":     "0",
+						"prow.k8s.io/gerrit-report-label": "Code-Review",
+						"prow.k8s.io/type":                "presubmit",
+						"created-by-prow":                 "true",
+						"prow.k8s.io/refs.pull":           "0",
+						"prow.k8s.io/context":             "run-if-changed-all-branches",
+						"prow.k8s.io/refs.repo":           "test-infra",
+						"prow.k8s.io/refs.base_ref":       "",
+					},
+					Annotations: map[string]string{
+						"prow.k8s.io/job":             "run-if-changed-all-branches",
+						"prow.k8s.io/gerrit-id":       "",
+						"prow.k8s.io/gerrit-instance": "https://gerrit",
+						"prow.k8s.io/context":         "run-if-changed-all-branches",
 					},
 					Spec: prowapi.ProwJobSpec{
 						Refs: &prowapi.Refs{
@@ -1246,26 +1213,24 @@ func TestTriggerJobs(t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"prow.k8s.io/refs.base_ref":       "",
-							"prow.k8s.io/gerrit-patchset":     "0",
-							"prow.k8s.io/gerrit-report-label": "Code-Review",
-							"prow.k8s.io/refs.org":            "gerrit",
-							"prow.k8s.io/refs.pull":           "0",
-							"prow.k8s.io/type":                "presubmit",
-							"prow.k8s.io/job":                 "runs-on-all-but-baz-branch",
-							"created-by-prow":                 "true",
-							"prow.k8s.io/context":             "runs-on-all-but-baz-branch",
-							"prow.k8s.io/refs.repo":           "test-infra",
-							"prow.k8s.io/gerrit-revision":     "1",
-						},
-						Annotations: map[string]string{
-							"prow.k8s.io/job":             "runs-on-all-but-baz-branch",
-							"prow.k8s.io/context":         "runs-on-all-but-baz-branch",
-							"prow.k8s.io/gerrit-instance": "https://gerrit",
-							"prow.k8s.io/gerrit-id":       "",
-						},
+					Labels: map[string]string{
+						"prow.k8s.io/refs.base_ref":       "",
+						"prow.k8s.io/gerrit-patchset":     "0",
+						"prow.k8s.io/gerrit-report-label": "Code-Review",
+						"prow.k8s.io/refs.org":            "gerrit",
+						"prow.k8s.io/refs.pull":           "0",
+						"prow.k8s.io/type":                "presubmit",
+						"prow.k8s.io/job":                 "runs-on-all-but-baz-branch",
+						"created-by-prow":                 "true",
+						"prow.k8s.io/context":             "runs-on-all-but-baz-branch",
+						"prow.k8s.io/refs.repo":           "test-infra",
+						"prow.k8s.io/gerrit-revision":     "1",
+					},
+					Annotations: map[string]string{
+						"prow.k8s.io/job":             "runs-on-all-but-baz-branch",
+						"prow.k8s.io/context":         "runs-on-all-but-baz-branch",
+						"prow.k8s.io/gerrit-instance": "https://gerrit",
+						"prow.k8s.io/gerrit-id":       "",
 					},
 					Spec: prowapi.ProwJobSpec{
 						Refs: &prowapi.Refs{
@@ -1309,27 +1274,25 @@ func TestTriggerJobs(t *testing.T) {
 			instance:     testInstance,
 			wantPjs: []*prowapi.ProwJob{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"prow.k8s.io/refs.org":            "gerrit",
-							"prow.k8s.io/gerrit-revision":     "1",
-							"prow.k8s.io/refs.pull":           "0",
-							"prow.k8s.io/job":                 "always-runs-all-branches",
-							"prow.k8s.io/gerrit-report-label": "Code-Review",
-							"prow.k8s.io/gerrit-patchset":     "0",
-							"prow.k8s.io/refs.base_ref":       "",
-							"created-by-prow":                 "true",
-							"prow.k8s.io/context":             "always-runs-all-branches",
-							"prow.k8s.io/refs.repo":           "test-infra",
-							"prow.k8s.io/type":                "presubmit",
-						},
-						Annotations: map[string]string{
-							"prow.k8s.io/gerrit-instance": "https://gerrit",
-							"prow.k8s.io/gerrit-id":       "",
-							"foo":                         "bar",
-							"prow.k8s.io/context":         "always-runs-all-branches",
-							"prow.k8s.io/job":             "always-runs-all-branches",
-						},
+					Labels: map[string]string{
+						"prow.k8s.io/refs.org":            "gerrit",
+						"prow.k8s.io/gerrit-revision":     "1",
+						"prow.k8s.io/refs.pull":           "0",
+						"prow.k8s.io/job":                 "always-runs-all-branches",
+						"prow.k8s.io/gerrit-report-label": "Code-Review",
+						"prow.k8s.io/gerrit-patchset":     "0",
+						"prow.k8s.io/refs.base_ref":       "",
+						"created-by-prow":                 "true",
+						"prow.k8s.io/context":             "always-runs-all-branches",
+						"prow.k8s.io/refs.repo":           "test-infra",
+						"prow.k8s.io/type":                "presubmit",
+					},
+					Annotations: map[string]string{
+						"prow.k8s.io/gerrit-instance": "https://gerrit",
+						"prow.k8s.io/gerrit-id":       "",
+						"foo":                         "bar",
+						"prow.k8s.io/context":         "always-runs-all-branches",
+						"prow.k8s.io/job":             "always-runs-all-branches",
 					},
 					Spec: prowapi.ProwJobSpec{
 						Refs: &prowapi.Refs{
@@ -1351,26 +1314,24 @@ func TestTriggerJobs(t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"prow.k8s.io/job":                 "reported-job-runs-on-foo-file-change",
-							"prow.k8s.io/refs.org":            "gerrit",
-							"prow.k8s.io/gerrit-revision":     "1",
-							"prow.k8s.io/gerrit-patchset":     "0",
-							"prow.k8s.io/gerrit-report-label": "Code-Review",
-							"prow.k8s.io/type":                "presubmit",
-							"created-by-prow":                 "true",
-							"prow.k8s.io/refs.pull":           "0",
-							"prow.k8s.io/context":             "foo-job-reported",
-							"prow.k8s.io/refs.repo":           "test-infra",
-							"prow.k8s.io/refs.base_ref":       "",
-						},
-						Annotations: map[string]string{
-							"prow.k8s.io/job":             "reported-job-runs-on-foo-file-change",
-							"prow.k8s.io/gerrit-id":       "",
-							"prow.k8s.io/gerrit-instance": "https://gerrit",
-							"prow.k8s.io/context":         "foo-job-reported",
-						},
+					Labels: map[string]string{
+						"prow.k8s.io/job":                 "reported-job-runs-on-foo-file-change",
+						"prow.k8s.io/refs.org":            "gerrit",
+						"prow.k8s.io/gerrit-revision":     "1",
+						"prow.k8s.io/gerrit-patchset":     "0",
+						"prow.k8s.io/gerrit-report-label": "Code-Review",
+						"prow.k8s.io/type":                "presubmit",
+						"created-by-prow":                 "true",
+						"prow.k8s.io/refs.pull":           "0",
+						"prow.k8s.io/context":             "foo-job-reported",
+						"prow.k8s.io/refs.repo":           "test-infra",
+						"prow.k8s.io/refs.base_ref":       "",
+					},
+					Annotations: map[string]string{
+						"prow.k8s.io/job":             "reported-job-runs-on-foo-file-change",
+						"prow.k8s.io/gerrit-id":       "",
+						"prow.k8s.io/gerrit-instance": "https://gerrit",
+						"prow.k8s.io/context":         "foo-job-reported",
 					},
 					Spec: prowapi.ProwJobSpec{
 						Refs: &prowapi.Refs{
@@ -1392,26 +1353,24 @@ func TestTriggerJobs(t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"prow.k8s.io/refs.base_ref":       "",
-							"prow.k8s.io/gerrit-patchset":     "0",
-							"prow.k8s.io/gerrit-report-label": "Code-Review",
-							"prow.k8s.io/refs.org":            "gerrit",
-							"prow.k8s.io/refs.pull":           "0",
-							"prow.k8s.io/type":                "presubmit",
-							"prow.k8s.io/job":                 "runs-on-all-but-baz-branch",
-							"created-by-prow":                 "true",
-							"prow.k8s.io/context":             "runs-on-all-but-baz-branch",
-							"prow.k8s.io/refs.repo":           "test-infra",
-							"prow.k8s.io/gerrit-revision":     "1",
-						},
-						Annotations: map[string]string{
-							"prow.k8s.io/job":             "runs-on-all-but-baz-branch",
-							"prow.k8s.io/context":         "runs-on-all-but-baz-branch",
-							"prow.k8s.io/gerrit-instance": "https://gerrit",
-							"prow.k8s.io/gerrit-id":       "",
-						},
+					Labels: map[string]string{
+						"prow.k8s.io/refs.base_ref":       "",
+						"prow.k8s.io/gerrit-patchset":     "0",
+						"prow.k8s.io/gerrit-report-label": "Code-Review",
+						"prow.k8s.io/refs.org":            "gerrit",
+						"prow.k8s.io/refs.pull":           "0",
+						"prow.k8s.io/type":                "presubmit",
+						"prow.k8s.io/job":                 "runs-on-all-but-baz-branch",
+						"created-by-prow":                 "true",
+						"prow.k8s.io/context":             "runs-on-all-but-baz-branch",
+						"prow.k8s.io/refs.repo":           "test-infra",
+						"prow.k8s.io/gerrit-revision":     "1",
+					},
+					Annotations: map[string]string{
+						"prow.k8s.io/job":             "runs-on-all-but-baz-branch",
+						"prow.k8s.io/context":         "runs-on-all-but-baz-branch",
+						"prow.k8s.io/gerrit-instance": "https://gerrit",
+						"prow.k8s.io/gerrit-id":       "",
 					},
 					Spec: prowapi.ProwJobSpec{
 						Refs: &prowapi.Refs{
@@ -1476,27 +1435,25 @@ func TestTriggerJobs(t *testing.T) {
 			instance:     testInstance,
 			wantPjs: []*prowapi.ProwJob{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"prow.k8s.io/job":                 "always-runs-all-branches",
-							"prow.k8s.io/refs.base_ref":       "",
-							"prow.k8s.io/gerrit-revision":     "1",
-							"prow.k8s.io/context":             "always-runs-all-branches",
-							"prow.k8s.io/refs.pull":           "0",
-							"prow.k8s.io/gerrit-report-label": "Code-Review",
-							"created-by-prow":                 "true",
-							"prow.k8s.io/type":                "presubmit",
-							"prow.k8s.io/gerrit-patchset":     "0",
-							"prow.k8s.io/refs.org":            "gerrit",
-							"prow.k8s.io/refs.repo":           "test-infra",
-						},
-						Annotations: map[string]string{
-							"prow.k8s.io/context":         "always-runs-all-branches",
-							"prow.k8s.io/job":             "always-runs-all-branches",
-							"foo":                         "bar",
-							"prow.k8s.io/gerrit-instance": "https://gerrit",
-							"prow.k8s.io/gerrit-id":       "",
-						},
+					Labels: map[string]string{
+						"prow.k8s.io/job":                 "always-runs-all-branches",
+						"prow.k8s.io/refs.base_ref":       "",
+						"prow.k8s.io/gerrit-revision":     "1",
+						"prow.k8s.io/context":             "always-runs-all-branches",
+						"prow.k8s.io/refs.pull":           "0",
+						"prow.k8s.io/gerrit-report-label": "Code-Review",
+						"created-by-prow":                 "true",
+						"prow.k8s.io/type":                "presubmit",
+						"prow.k8s.io/gerrit-patchset":     "0",
+						"prow.k8s.io/refs.org":            "gerrit",
+						"prow.k8s.io/refs.repo":           "test-infra",
+					},
+					Annotations: map[string]string{
+						"prow.k8s.io/context":         "always-runs-all-branches",
+						"prow.k8s.io/job":             "always-runs-all-branches",
+						"foo":                         "bar",
+						"prow.k8s.io/gerrit-instance": "https://gerrit",
+						"prow.k8s.io/gerrit-id":       "",
 					},
 					Spec: prowapi.ProwJobSpec{
 						Refs: &prowapi.Refs{
@@ -1518,26 +1475,24 @@ func TestTriggerJobs(t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"prow.k8s.io/job":                 "runs-on-all-but-baz-branch",
-							"prow.k8s.io/context":             "runs-on-all-but-baz-branch",
-							"prow.k8s.io/gerrit-patchset":     "0",
-							"prow.k8s.io/type":                "presubmit",
-							"prow.k8s.io/refs.base_ref":       "",
-							"prow.k8s.io/refs.pull":           "0",
-							"prow.k8s.io/gerrit-revision":     "1",
-							"prow.k8s.io/gerrit-report-label": "Code-Review",
-							"created-by-prow":                 "true",
-							"prow.k8s.io/refs.org":            "gerrit",
-							"prow.k8s.io/refs.repo":           "test-infra",
-						},
-						Annotations: map[string]string{
-							"prow.k8s.io/job":             "runs-on-all-but-baz-branch",
-							"prow.k8s.io/context":         "runs-on-all-but-baz-branch",
-							"prow.k8s.io/gerrit-instance": "https://gerrit",
-							"prow.k8s.io/gerrit-id":       "",
-						},
+					Labels: map[string]string{
+						"prow.k8s.io/job":                 "runs-on-all-but-baz-branch",
+						"prow.k8s.io/context":             "runs-on-all-but-baz-branch",
+						"prow.k8s.io/gerrit-patchset":     "0",
+						"prow.k8s.io/type":                "presubmit",
+						"prow.k8s.io/refs.base_ref":       "",
+						"prow.k8s.io/refs.pull":           "0",
+						"prow.k8s.io/gerrit-revision":     "1",
+						"prow.k8s.io/gerrit-report-label": "Code-Review",
+						"created-by-prow":                 "true",
+						"prow.k8s.io/refs.org":            "gerrit",
+						"prow.k8s.io/refs.repo":           "test-infra",
+					},
+					Annotations: map[string]string{
+						"prow.k8s.io/job":             "runs-on-all-but-baz-branch",
+						"prow.k8s.io/context":         "runs-on-all-but-baz-branch",
+						"prow.k8s.io/gerrit-instance": "https://gerrit",
+						"prow.k8s.io/gerrit-id":       "",
 					},
 					Spec: prowapi.ProwJobSpec{
 						Refs: &prowapi.Refs{
@@ -1577,27 +1532,25 @@ func TestTriggerJobs(t *testing.T) {
 			instance:     testInstance,
 			wantPjs: []*prowapi.ProwJob{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"prow.k8s.io/gerrit-revision":     "1",
-							"prow.k8s.io/gerrit-patchset":     "0",
-							"created-by-prow":                 "true",
-							"prow.k8s.io/context":             "always-runs-all-branches",
-							"prow.k8s.io/job":                 "always-runs-all-branches",
-							"prow.k8s.io/refs.org":            "gerrit",
-							"prow.k8s.io/type":                "presubmit",
-							"prow.k8s.io/refs.base_ref":       "pony",
-							"prow.k8s.io/refs.repo":           "test-infra",
-							"prow.k8s.io/refs.pull":           "0",
-							"prow.k8s.io/gerrit-report-label": "Code-Review",
-						},
-						Annotations: map[string]string{
-							"prow.k8s.io/context":         "always-runs-all-branches",
-							"prow.k8s.io/job":             "always-runs-all-branches",
-							"foo":                         "bar",
-							"prow.k8s.io/gerrit-instance": "https://gerrit",
-							"prow.k8s.io/gerrit-id":       "",
-						},
+					Labels: map[string]string{
+						"prow.k8s.io/gerrit-revision":     "1",
+						"prow.k8s.io/gerrit-patchset":     "0",
+						"created-by-prow":                 "true",
+						"prow.k8s.io/context":             "always-runs-all-branches",
+						"prow.k8s.io/job":                 "always-runs-all-branches",
+						"prow.k8s.io/refs.org":            "gerrit",
+						"prow.k8s.io/type":                "presubmit",
+						"prow.k8s.io/refs.base_ref":       "pony",
+						"prow.k8s.io/refs.repo":           "test-infra",
+						"prow.k8s.io/refs.pull":           "0",
+						"prow.k8s.io/gerrit-report-label": "Code-Review",
+					},
+					Annotations: map[string]string{
+						"prow.k8s.io/context":         "always-runs-all-branches",
+						"prow.k8s.io/job":             "always-runs-all-branches",
+						"foo":                         "bar",
+						"prow.k8s.io/gerrit-instance": "https://gerrit",
+						"prow.k8s.io/gerrit-id":       "",
 					},
 					Spec: prowapi.ProwJobSpec{
 						Refs: &prowapi.Refs{
@@ -1620,26 +1573,24 @@ func TestTriggerJobs(t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"created-by-prow":                 "true",
-							"prow.k8s.io/job":                 "runs-on-pony-branch",
-							"prow.k8s.io/type":                "presubmit",
-							"prow.k8s.io/refs.org":            "gerrit",
-							"prow.k8s.io/refs.repo":           "test-infra",
-							"prow.k8s.io/context":             "runs-on-pony-branch",
-							"prow.k8s.io/refs.pull":           "0",
-							"prow.k8s.io/gerrit-revision":     "1",
-							"prow.k8s.io/gerrit-patchset":     "0",
-							"prow.k8s.io/gerrit-report-label": "Code-Review",
-							"prow.k8s.io/refs.base_ref":       "pony",
-						},
-						Annotations: map[string]string{
-							"prow.k8s.io/job":             "runs-on-pony-branch",
-							"prow.k8s.io/context":         "runs-on-pony-branch",
-							"prow.k8s.io/gerrit-instance": "https://gerrit",
-							"prow.k8s.io/gerrit-id":       "",
-						},
+					Labels: map[string]string{
+						"created-by-prow":                 "true",
+						"prow.k8s.io/job":                 "runs-on-pony-branch",
+						"prow.k8s.io/type":                "presubmit",
+						"prow.k8s.io/refs.org":            "gerrit",
+						"prow.k8s.io/refs.repo":           "test-infra",
+						"prow.k8s.io/context":             "runs-on-pony-branch",
+						"prow.k8s.io/refs.pull":           "0",
+						"prow.k8s.io/gerrit-revision":     "1",
+						"prow.k8s.io/gerrit-patchset":     "0",
+						"prow.k8s.io/gerrit-report-label": "Code-Review",
+						"prow.k8s.io/refs.base_ref":       "pony",
+					},
+					Annotations: map[string]string{
+						"prow.k8s.io/job":             "runs-on-pony-branch",
+						"prow.k8s.io/context":         "runs-on-pony-branch",
+						"prow.k8s.io/gerrit-instance": "https://gerrit",
+						"prow.k8s.io/gerrit-id":       "",
 					},
 					Spec: prowapi.ProwJobSpec{
 						Refs: &prowapi.Refs{
@@ -1662,26 +1613,24 @@ func TestTriggerJobs(t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"prow.k8s.io/gerrit-report-label": "Code-Review",
-							"created-by-prow":                 "true",
-							"prow.k8s.io/refs.org":            "gerrit",
-							"prow.k8s.io/refs.repo":           "test-infra",
-							"prow.k8s.io/gerrit-patchset":     "0",
-							"prow.k8s.io/type":                "presubmit",
-							"prow.k8s.io/gerrit-revision":     "1",
-							"prow.k8s.io/context":             "runs-on-all-but-baz-branch",
-							"prow.k8s.io/refs.pull":           "0",
-							"prow.k8s.io/job":                 "runs-on-all-but-baz-branch",
-							"prow.k8s.io/refs.base_ref":       "pony",
-						},
-						Annotations: map[string]string{
-							"prow.k8s.io/job":             "runs-on-all-but-baz-branch",
-							"prow.k8s.io/context":         "runs-on-all-but-baz-branch",
-							"prow.k8s.io/gerrit-instance": "https://gerrit",
-							"prow.k8s.io/gerrit-id":       "",
-						},
+					Labels: map[string]string{
+						"prow.k8s.io/gerrit-report-label": "Code-Review",
+						"created-by-prow":                 "true",
+						"prow.k8s.io/refs.org":            "gerrit",
+						"prow.k8s.io/refs.repo":           "test-infra",
+						"prow.k8s.io/gerrit-patchset":     "0",
+						"prow.k8s.io/type":                "presubmit",
+						"prow.k8s.io/gerrit-revision":     "1",
+						"prow.k8s.io/context":             "runs-on-all-but-baz-branch",
+						"prow.k8s.io/refs.pull":           "0",
+						"prow.k8s.io/job":                 "runs-on-all-but-baz-branch",
+						"prow.k8s.io/refs.base_ref":       "pony",
+					},
+					Annotations: map[string]string{
+						"prow.k8s.io/job":             "runs-on-all-but-baz-branch",
+						"prow.k8s.io/context":         "runs-on-all-but-baz-branch",
+						"prow.k8s.io/gerrit-instance": "https://gerrit",
+						"prow.k8s.io/gerrit-id":       "",
 					},
 					Spec: prowapi.ProwJobSpec{
 						Refs: &prowapi.Refs{
@@ -1722,27 +1671,25 @@ func TestTriggerJobs(t *testing.T) {
 			instance:     testInstance,
 			wantPjs: []*prowapi.ProwJob{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"prow.k8s.io/refs.pull":           "0",
-							"prow.k8s.io/gerrit-report-label": "Code-Review",
-							"prow.k8s.io/job":                 "always-runs-all-branches",
-							"prow.k8s.io/refs.org":            "gerrit",
-							"prow.k8s.io/gerrit-patchset":     "0",
-							"created-by-prow":                 "true",
-							"prow.k8s.io/context":             "always-runs-all-branches",
-							"prow.k8s.io/refs.repo":           "test-infra",
-							"prow.k8s.io/refs.base_ref":       "baz",
-							"prow.k8s.io/type":                "presubmit",
-							"prow.k8s.io/gerrit-revision":     "1",
-						},
-						Annotations: map[string]string{
-							"foo":                         "bar",
-							"prow.k8s.io/gerrit-instance": "https://gerrit",
-							"prow.k8s.io/gerrit-id":       "",
-							"prow.k8s.io/context":         "always-runs-all-branches",
-							"prow.k8s.io/job":             "always-runs-all-branches",
-						},
+					Labels: map[string]string{
+						"prow.k8s.io/refs.pull":           "0",
+						"prow.k8s.io/gerrit-report-label": "Code-Review",
+						"prow.k8s.io/job":                 "always-runs-all-branches",
+						"prow.k8s.io/refs.org":            "gerrit",
+						"prow.k8s.io/gerrit-patchset":     "0",
+						"created-by-prow":                 "true",
+						"prow.k8s.io/context":             "always-runs-all-branches",
+						"prow.k8s.io/refs.repo":           "test-infra",
+						"prow.k8s.io/refs.base_ref":       "baz",
+						"prow.k8s.io/type":                "presubmit",
+						"prow.k8s.io/gerrit-revision":     "1",
+					},
+					Annotations: map[string]string{
+						"foo":                         "bar",
+						"prow.k8s.io/gerrit-instance": "https://gerrit",
+						"prow.k8s.io/gerrit-id":       "",
+						"prow.k8s.io/context":         "always-runs-all-branches",
+						"prow.k8s.io/job":             "always-runs-all-branches",
 					},
 					Spec: prowapi.ProwJobSpec{
 						Refs: &prowapi.Refs{
@@ -1791,26 +1738,24 @@ func TestTriggerJobs(t *testing.T) {
 			instance:     testInstance,
 			wantPjs: []*prowapi.ProwJob{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"prow.k8s.io/refs.pull":           "0",
-							"prow.k8s.io/gerrit-report-label": "Code-Review",
-							"prow.k8s.io/job":                 "trigger-regex-all-branches",
-							"prow.k8s.io/refs.base_ref":       "baz",
-							"prow.k8s.io/gerrit-revision":     "1",
-							"created-by-prow":                 "true",
-							"prow.k8s.io/type":                "presubmit",
-							"prow.k8s.io/refs.org":            "gerrit",
-							"prow.k8s.io/gerrit-patchset":     "1",
-							"prow.k8s.io/context":             "trigger-regex-all-branches",
-							"prow.k8s.io/refs.repo":           "test-infra",
-						},
-						Annotations: map[string]string{
-							"prow.k8s.io/job":             "trigger-regex-all-branches",
-							"prow.k8s.io/context":         "trigger-regex-all-branches",
-							"prow.k8s.io/gerrit-instance": "https://gerrit",
-							"prow.k8s.io/gerrit-id":       "",
-						},
+					Labels: map[string]string{
+						"prow.k8s.io/refs.pull":           "0",
+						"prow.k8s.io/gerrit-report-label": "Code-Review",
+						"prow.k8s.io/job":                 "trigger-regex-all-branches",
+						"prow.k8s.io/refs.base_ref":       "baz",
+						"prow.k8s.io/gerrit-revision":     "1",
+						"created-by-prow":                 "true",
+						"prow.k8s.io/type":                "presubmit",
+						"prow.k8s.io/refs.org":            "gerrit",
+						"prow.k8s.io/gerrit-patchset":     "1",
+						"prow.k8s.io/context":             "trigger-regex-all-branches",
+						"prow.k8s.io/refs.repo":           "test-infra",
+					},
+					Annotations: map[string]string{
+						"prow.k8s.io/job":             "trigger-regex-all-branches",
+						"prow.k8s.io/context":         "trigger-regex-all-branches",
+						"prow.k8s.io/gerrit-instance": "https://gerrit",
+						"prow.k8s.io/gerrit-id":       "",
 					},
 					Spec: prowapi.ProwJobSpec{
 						Refs: &prowapi.Refs{
@@ -1883,27 +1828,25 @@ func TestTriggerJobs(t *testing.T) {
 			instance:     testInstance,
 			wantPjs: []*prowapi.ProwJob{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"prow.k8s.io/gerrit-report-label": "Code-Review",
-							"created-by-prow":                 "true",
-							"prow.k8s.io/type":                "presubmit",
-							"prow.k8s.io/job":                 "always-runs-all-branches",
-							"prow.k8s.io/refs.pull":           "0",
-							"prow.k8s.io/refs.repo":           "test-infra",
-							"prow.k8s.io/refs.org":            "gerrit",
-							"prow.k8s.io/refs.base_ref":       "baz",
-							"prow.k8s.io/gerrit-revision":     "1",
-							"prow.k8s.io/gerrit-patchset":     "1",
-							"prow.k8s.io/context":             "always-runs-all-branches",
-						},
-						Annotations: map[string]string{
-							"prow.k8s.io/gerrit-instance": "https://gerrit",
-							"prow.k8s.io/gerrit-id":       "",
-							"prow.k8s.io/job":             "always-runs-all-branches",
-							"prow.k8s.io/context":         "always-runs-all-branches",
-							"foo":                         "bar",
-						},
+					Labels: map[string]string{
+						"prow.k8s.io/gerrit-report-label": "Code-Review",
+						"created-by-prow":                 "true",
+						"prow.k8s.io/type":                "presubmit",
+						"prow.k8s.io/job":                 "always-runs-all-branches",
+						"prow.k8s.io/refs.pull":           "0",
+						"prow.k8s.io/refs.repo":           "test-infra",
+						"prow.k8s.io/refs.org":            "gerrit",
+						"prow.k8s.io/refs.base_ref":       "baz",
+						"prow.k8s.io/gerrit-revision":     "1",
+						"prow.k8s.io/gerrit-patchset":     "1",
+						"prow.k8s.io/context":             "always-runs-all-branches",
+					},
+					Annotations: map[string]string{
+						"prow.k8s.io/gerrit-instance": "https://gerrit",
+						"prow.k8s.io/gerrit-id":       "",
+						"prow.k8s.io/job":             "always-runs-all-branches",
+						"prow.k8s.io/context":         "always-runs-all-branches",
+						"foo":                         "bar",
 					},
 					Spec: prowapi.ProwJobSpec{
 						Refs: &prowapi.Refs{
@@ -1952,27 +1895,25 @@ func TestTriggerJobs(t *testing.T) {
 			instance:     testInstance,
 			wantPjs: []*prowapi.ProwJob{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"prow.k8s.io/type":                "presubmit",
-							"prow.k8s.io/context":             "always-runs-all-branches",
-							"created-by-prow":                 "true",
-							"prow.k8s.io/refs.base_ref":       "baz",
-							"prow.k8s.io/gerrit-report-label": "Code-Review",
-							"prow.k8s.io/gerrit-revision":     "1",
-							"prow.k8s.io/job":                 "always-runs-all-branches",
-							"prow.k8s.io/refs.pull":           "0",
-							"prow.k8s.io/refs.org":            "gerrit",
-							"prow.k8s.io/refs.repo":           "test-infra",
-							"prow.k8s.io/gerrit-patchset":     "1",
-						},
-						Annotations: map[string]string{
-							"prow.k8s.io/job":             "always-runs-all-branches",
-							"prow.k8s.io/context":         "always-runs-all-branches",
-							"foo":                         "bar",
-							"prow.k8s.io/gerrit-instance": "https://gerrit",
-							"prow.k8s.io/gerrit-id":       "",
-						},
+					Labels: map[string]string{
+						"prow.k8s.io/type":                "presubmit",
+						"prow.k8s.io/context":             "always-runs-all-branches",
+						"created-by-prow":                 "true",
+						"prow.k8s.io/refs.base_ref":       "baz",
+						"prow.k8s.io/gerrit-report-label": "Code-Review",
+						"prow.k8s.io/gerrit-revision":     "1",
+						"prow.k8s.io/job":                 "always-runs-all-branches",
+						"prow.k8s.io/refs.pull":           "0",
+						"prow.k8s.io/refs.org":            "gerrit",
+						"prow.k8s.io/refs.repo":           "test-infra",
+						"prow.k8s.io/gerrit-patchset":     "1",
+					},
+					Annotations: map[string]string{
+						"prow.k8s.io/job":             "always-runs-all-branches",
+						"prow.k8s.io/context":         "always-runs-all-branches",
+						"foo":                         "bar",
+						"prow.k8s.io/gerrit-instance": "https://gerrit",
+						"prow.k8s.io/gerrit-id":       "",
 					},
 					Spec: prowapi.ProwJobSpec{
 						Refs: &prowapi.Refs{
@@ -2027,26 +1968,24 @@ func TestTriggerJobs(t *testing.T) {
 			instance:     testInstance,
 			wantPjs: []*prowapi.ProwJob{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"prow.k8s.io/refs.org":            "gerrit",
-							"prow.k8s.io/refs.pull":           "0",
-							"prow.k8s.io/gerrit-report-label": "Code-Review",
-							"prow.k8s.io/job":                 "bar-job",
-							"prow.k8s.io/refs.repo":           "test-infra",
-							"prow.k8s.io/type":                "presubmit",
-							"prow.k8s.io/context":             "bar-job",
-							"prow.k8s.io/gerrit-patchset":     "1",
-							"created-by-prow":                 "true",
-							"prow.k8s.io/refs.base_ref":       "retest-branch",
-							"prow.k8s.io/gerrit-revision":     "1",
-						},
-						Annotations: map[string]string{
-							"prow.k8s.io/job":             "bar-job",
-							"prow.k8s.io/context":         "bar-job",
-							"prow.k8s.io/gerrit-instance": "https://gerrit",
-							"prow.k8s.io/gerrit-id":       "",
-						},
+					Labels: map[string]string{
+						"prow.k8s.io/refs.org":            "gerrit",
+						"prow.k8s.io/refs.pull":           "0",
+						"prow.k8s.io/gerrit-report-label": "Code-Review",
+						"prow.k8s.io/job":                 "bar-job",
+						"prow.k8s.io/refs.repo":           "test-infra",
+						"prow.k8s.io/type":                "presubmit",
+						"prow.k8s.io/context":             "bar-job",
+						"prow.k8s.io/gerrit-patchset":     "1",
+						"created-by-prow":                 "true",
+						"prow.k8s.io/refs.base_ref":       "retest-branch",
+						"prow.k8s.io/gerrit-revision":     "1",
+					},
+					Annotations: map[string]string{
+						"prow.k8s.io/job":             "bar-job",
+						"prow.k8s.io/context":         "bar-job",
+						"prow.k8s.io/gerrit-instance": "https://gerrit",
+						"prow.k8s.io/gerrit-id":       "",
 					},
 					Spec: prowapi.ProwJobSpec{
 						Refs: &prowapi.Refs{
@@ -2107,26 +2046,24 @@ func TestTriggerJobs(t *testing.T) {
 			instance:     testInstance,
 			wantPjs: []*prowapi.ProwJob{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"prow.k8s.io/gerrit-patchset":     "1",
-							"prow.k8s.io/refs.org":            "gerrit",
-							"prow.k8s.io/refs.repo":           "test-infra",
-							"prow.k8s.io/refs.base_ref":       "retest-branch",
-							"prow.k8s.io/refs.pull":           "0",
-							"prow.k8s.io/gerrit-report-label": "Code-Review",
-							"prow.k8s.io/job":                 "bar-job",
-							"prow.k8s.io/gerrit-revision":     "1",
-							"prow.k8s.io/type":                "presubmit",
-							"prow.k8s.io/context":             "bar-job",
-							"created-by-prow":                 "true",
-						},
-						Annotations: map[string]string{
-							"prow.k8s.io/context":         "bar-job",
-							"prow.k8s.io/gerrit-instance": "https://gerrit",
-							"prow.k8s.io/gerrit-id":       "",
-							"prow.k8s.io/job":             "bar-job",
-						},
+					Labels: map[string]string{
+						"prow.k8s.io/gerrit-patchset":     "1",
+						"prow.k8s.io/refs.org":            "gerrit",
+						"prow.k8s.io/refs.repo":           "test-infra",
+						"prow.k8s.io/refs.base_ref":       "retest-branch",
+						"prow.k8s.io/refs.pull":           "0",
+						"prow.k8s.io/gerrit-report-label": "Code-Review",
+						"prow.k8s.io/job":                 "bar-job",
+						"prow.k8s.io/gerrit-revision":     "1",
+						"prow.k8s.io/type":                "presubmit",
+						"prow.k8s.io/context":             "bar-job",
+						"created-by-prow":                 "true",
+					},
+					Annotations: map[string]string{
+						"prow.k8s.io/context":         "bar-job",
+						"prow.k8s.io/gerrit-instance": "https://gerrit",
+						"prow.k8s.io/gerrit-id":       "",
+						"prow.k8s.io/job":             "bar-job",
 					},
 					Spec: prowapi.ProwJobSpec{
 						Refs: &prowapi.Refs{
@@ -2187,26 +2124,24 @@ func TestTriggerJobs(t *testing.T) {
 			instance:     testInstance,
 			wantPjs: []*prowapi.ProwJob{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"prow.k8s.io/job":                 "foo-job",
-							"prow.k8s.io/refs.org":            "gerrit",
-							"prow.k8s.io/refs.repo":           "test-infra",
-							"prow.k8s.io/refs.pull":           "0",
-							"created-by-prow":                 "true",
-							"prow.k8s.io/gerrit-patchset":     "1",
-							"prow.k8s.io/context":             "foo-job",
-							"prow.k8s.io/refs.base_ref":       "retest-branch",
-							"prow.k8s.io/gerrit-revision":     "1",
-							"prow.k8s.io/gerrit-report-label": "Code-Review",
-							"prow.k8s.io/type":                "presubmit",
-						},
-						Annotations: map[string]string{
-							"prow.k8s.io/job":             "foo-job",
-							"prow.k8s.io/context":         "foo-job",
-							"prow.k8s.io/gerrit-instance": "https://gerrit",
-							"prow.k8s.io/gerrit-id":       "",
-						},
+					Labels: map[string]string{
+						"prow.k8s.io/job":                 "foo-job",
+						"prow.k8s.io/refs.org":            "gerrit",
+						"prow.k8s.io/refs.repo":           "test-infra",
+						"prow.k8s.io/refs.pull":           "0",
+						"created-by-prow":                 "true",
+						"prow.k8s.io/gerrit-patchset":     "1",
+						"prow.k8s.io/context":             "foo-job",
+						"prow.k8s.io/refs.base_ref":       "retest-branch",
+						"prow.k8s.io/gerrit-revision":     "1",
+						"prow.k8s.io/gerrit-report-label": "Code-Review",
+						"prow.k8s.io/type":                "presubmit",
+					},
+					Annotations: map[string]string{
+						"prow.k8s.io/job":             "foo-job",
+						"prow.k8s.io/context":         "foo-job",
+						"prow.k8s.io/gerrit-instance": "https://gerrit",
+						"prow.k8s.io/gerrit-id":       "",
 					},
 					Spec: prowapi.ProwJobSpec{
 						Refs: &prowapi.Refs{
@@ -2229,26 +2164,24 @@ func TestTriggerJobs(t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"prow.k8s.io/type":                "presubmit",
-							"prow.k8s.io/refs.pull":           "0",
-							"prow.k8s.io/gerrit-patchset":     "1",
-							"prow.k8s.io/gerrit-report-label": "Code-Review",
-							"prow.k8s.io/refs.org":            "gerrit",
-							"prow.k8s.io/context":             "bar-job",
-							"prow.k8s.io/refs.base_ref":       "retest-branch",
-							"prow.k8s.io/gerrit-revision":     "1",
-							"created-by-prow":                 "true",
-							"prow.k8s.io/job":                 "bar-job",
-							"prow.k8s.io/refs.repo":           "test-infra",
-						},
-						Annotations: map[string]string{
-							"prow.k8s.io/context":         "bar-job",
-							"prow.k8s.io/gerrit-instance": "https://gerrit",
-							"prow.k8s.io/gerrit-id":       "",
-							"prow.k8s.io/job":             "bar-job",
-						},
+					Labels: map[string]string{
+						"prow.k8s.io/type":                "presubmit",
+						"prow.k8s.io/refs.pull":           "0",
+						"prow.k8s.io/gerrit-patchset":     "1",
+						"prow.k8s.io/gerrit-report-label": "Code-Review",
+						"prow.k8s.io/refs.org":            "gerrit",
+						"prow.k8s.io/context":             "bar-job",
+						"prow.k8s.io/refs.base_ref":       "retest-branch",
+						"prow.k8s.io/gerrit-revision":     "1",
+						"created-by-prow":                 "true",
+						"prow.k8s.io/job":                 "bar-job",
+						"prow.k8s.io/refs.repo":           "test-infra",
+					},
+					Annotations: map[string]string{
+						"prow.k8s.io/context":         "bar-job",
+						"prow.k8s.io/gerrit-instance": "https://gerrit",
+						"prow.k8s.io/gerrit-id":       "",
+						"prow.k8s.io/job":             "bar-job",
 					},
 					Spec: prowapi.ProwJobSpec{
 						Refs: &prowapi.Refs{
@@ -2333,26 +2266,24 @@ func TestTriggerJobs(t *testing.T) {
 			instance:     testInstance,
 			wantPjs: []*prowapi.ProwJob{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"prow.k8s.io/gerrit-report-label": "Code-Review",
-							"created-by-prow":                 "true",
-							"prow.k8s.io/job":                 "foo-job",
-							"prow.k8s.io/gerrit-revision":     "1",
-							"prow.k8s.io/type":                "presubmit",
-							"prow.k8s.io/context":             "foo-job",
-							"prow.k8s.io/refs.org":            "gerrit",
-							"prow.k8s.io/refs.base_ref":       "retest-branch",
-							"prow.k8s.io/refs.pull":           "0",
-							"prow.k8s.io/refs.repo":           "test-infra",
-							"prow.k8s.io/gerrit-patchset":     "1",
-						},
-						Annotations: map[string]string{
-							"prow.k8s.io/gerrit-id":       "",
-							"prow.k8s.io/job":             "foo-job",
-							"prow.k8s.io/context":         "foo-job",
-							"prow.k8s.io/gerrit-instance": "https://gerrit",
-						},
+					Labels: map[string]string{
+						"prow.k8s.io/gerrit-report-label": "Code-Review",
+						"created-by-prow":                 "true",
+						"prow.k8s.io/job":                 "foo-job",
+						"prow.k8s.io/gerrit-revision":     "1",
+						"prow.k8s.io/type":                "presubmit",
+						"prow.k8s.io/context":             "foo-job",
+						"prow.k8s.io/refs.org":            "gerrit",
+						"prow.k8s.io/refs.base_ref":       "retest-branch",
+						"prow.k8s.io/refs.pull":           "0",
+						"prow.k8s.io/refs.repo":           "test-infra",
+						"prow.k8s.io/gerrit-patchset":     "1",
+					},
+					Annotations: map[string]string{
+						"prow.k8s.io/gerrit-id":       "",
+						"prow.k8s.io/job":             "foo-job",
+						"prow.k8s.io/context":         "foo-job",
+						"prow.k8s.io/gerrit-instance": "https://gerrit",
 					},
 					Spec: prowapi.ProwJobSpec{
 						Refs: &prowapi.Refs{
@@ -2375,26 +2306,24 @@ func TestTriggerJobs(t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"prow.k8s.io/gerrit-revision":     "1",
-							"prow.k8s.io/gerrit-patchset":     "1",
-							"created-by-prow":                 "true",
-							"prow.k8s.io/context":             "bar-job",
-							"prow.k8s.io/refs.repo":           "test-infra",
-							"prow.k8s.io/refs.org":            "gerrit",
-							"prow.k8s.io/refs.base_ref":       "retest-branch",
-							"prow.k8s.io/refs.pull":           "0",
-							"prow.k8s.io/type":                "presubmit",
-							"prow.k8s.io/job":                 "bar-job",
-							"prow.k8s.io/gerrit-report-label": "Code-Review",
-						},
-						Annotations: map[string]string{
-							"prow.k8s.io/gerrit-id":       "",
-							"prow.k8s.io/job":             "bar-job",
-							"prow.k8s.io/context":         "bar-job",
-							"prow.k8s.io/gerrit-instance": "https://gerrit",
-						},
+					Labels: map[string]string{
+						"prow.k8s.io/gerrit-revision":     "1",
+						"prow.k8s.io/gerrit-patchset":     "1",
+						"created-by-prow":                 "true",
+						"prow.k8s.io/context":             "bar-job",
+						"prow.k8s.io/refs.repo":           "test-infra",
+						"prow.k8s.io/refs.org":            "gerrit",
+						"prow.k8s.io/refs.base_ref":       "retest-branch",
+						"prow.k8s.io/refs.pull":           "0",
+						"prow.k8s.io/type":                "presubmit",
+						"prow.k8s.io/job":                 "bar-job",
+						"prow.k8s.io/gerrit-report-label": "Code-Review",
+					},
+					Annotations: map[string]string{
+						"prow.k8s.io/gerrit-id":       "",
+						"prow.k8s.io/job":             "bar-job",
+						"prow.k8s.io/context":         "bar-job",
+						"prow.k8s.io/gerrit-instance": "https://gerrit",
 					},
 					Spec: prowapi.ProwJobSpec{
 						Refs: &prowapi.Refs{
@@ -2435,27 +2364,25 @@ func TestTriggerJobs(t *testing.T) {
 			instance:     testInstance,
 			wantPjs: []*prowapi.ProwJob{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"prow.k8s.io/refs.org":            "gerrit",
-							"prow.k8s.io/refs.pull":           "0",
-							"prow.k8s.io/refs.base_ref":       "",
-							"prow.k8s.io/gerrit-report-label": "Code-Review",
-							"created-by-prow":                 "true",
-							"prow.k8s.io/job":                 "always-runs-all-branches",
-							"prow.k8s.io/gerrit-revision":     "1",
-							"prow.k8s.io/gerrit-patchset":     "0",
-							"prow.k8s.io/type":                "presubmit",
-							"prow.k8s.io/context":             "always-runs-all-branches",
-							"prow.k8s.io/refs.repo":           "test-infra",
-						},
-						Annotations: map[string]string{
-							"prow.k8s.io/gerrit-instance": "https://gerrit",
-							"prow.k8s.io/gerrit-id":       "",
-							"prow.k8s.io/job":             "always-runs-all-branches",
-							"prow.k8s.io/context":         "always-runs-all-branches",
-							"foo":                         "bar",
-						},
+					Labels: map[string]string{
+						"prow.k8s.io/refs.org":            "gerrit",
+						"prow.k8s.io/refs.pull":           "0",
+						"prow.k8s.io/refs.base_ref":       "",
+						"prow.k8s.io/gerrit-report-label": "Code-Review",
+						"created-by-prow":                 "true",
+						"prow.k8s.io/job":                 "always-runs-all-branches",
+						"prow.k8s.io/gerrit-revision":     "1",
+						"prow.k8s.io/gerrit-patchset":     "0",
+						"prow.k8s.io/type":                "presubmit",
+						"prow.k8s.io/context":             "always-runs-all-branches",
+						"prow.k8s.io/refs.repo":           "test-infra",
+					},
+					Annotations: map[string]string{
+						"prow.k8s.io/gerrit-instance": "https://gerrit",
+						"prow.k8s.io/gerrit-id":       "",
+						"prow.k8s.io/job":             "always-runs-all-branches",
+						"prow.k8s.io/context":         "always-runs-all-branches",
+						"foo":                         "bar",
 					},
 					Spec: prowapi.ProwJobSpec{
 						Refs: &prowapi.Refs{
@@ -2478,26 +2405,24 @@ func TestTriggerJobs(t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"prow.k8s.io/gerrit-patchset":     "0",
-							"prow.k8s.io/type":                "presubmit",
-							"prow.k8s.io/refs.org":            "gerrit",
-							"created-by-prow":                 "true",
-							"prow.k8s.io/job":                 "runs-on-all-but-baz-branch",
-							"prow.k8s.io/context":             "runs-on-all-but-baz-branch",
-							"prow.k8s.io/refs.base_ref":       "",
-							"prow.k8s.io/gerrit-revision":     "1",
-							"prow.k8s.io/gerrit-report-label": "Code-Review",
-							"prow.k8s.io/refs.repo":           "test-infra",
-							"prow.k8s.io/refs.pull":           "0",
-						},
-						Annotations: map[string]string{
-							"prow.k8s.io/gerrit-instance": "https://gerrit",
-							"prow.k8s.io/gerrit-id":       "",
-							"prow.k8s.io/job":             "runs-on-all-but-baz-branch",
-							"prow.k8s.io/context":         "runs-on-all-but-baz-branch",
-						},
+					Labels: map[string]string{
+						"prow.k8s.io/gerrit-patchset":     "0",
+						"prow.k8s.io/type":                "presubmit",
+						"prow.k8s.io/refs.org":            "gerrit",
+						"created-by-prow":                 "true",
+						"prow.k8s.io/job":                 "runs-on-all-but-baz-branch",
+						"prow.k8s.io/context":             "runs-on-all-but-baz-branch",
+						"prow.k8s.io/refs.base_ref":       "",
+						"prow.k8s.io/gerrit-revision":     "1",
+						"prow.k8s.io/gerrit-report-label": "Code-Review",
+						"prow.k8s.io/refs.repo":           "test-infra",
+						"prow.k8s.io/refs.pull":           "0",
+					},
+					Annotations: map[string]string{
+						"prow.k8s.io/gerrit-instance": "https://gerrit",
+						"prow.k8s.io/gerrit-id":       "",
+						"prow.k8s.io/job":             "runs-on-all-but-baz-branch",
+						"prow.k8s.io/context":         "runs-on-all-but-baz-branch",
 					},
 					Spec: prowapi.ProwJobSpec{
 						Refs: &prowapi.Refs{
@@ -2542,27 +2467,25 @@ func TestTriggerJobs(t *testing.T) {
 			instance:     testInstance,
 			wantPjs: []*prowapi.ProwJob{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"prow.k8s.io/context":             "always-runs-all-branches",
-							"prow.k8s.io/refs.base_ref":       "",
-							"prow.k8s.io/type":                "presubmit",
-							"created-by-prow":                 "true",
-							"prow.k8s.io/job":                 "always-runs-all-branches",
-							"prow.k8s.io/refs.org":            "gerrit",
-							"prow.k8s.io/refs.repo":           "test-infra",
-							"prow.k8s.io/refs.pull":           "0",
-							"prow.k8s.io/gerrit-revision":     "1",
-							"prow.k8s.io/gerrit-patchset":     "0",
-							"prow.k8s.io/gerrit-report-label": "Code-Review",
-						},
-						Annotations: map[string]string{
-							"foo":                         "bar",
-							"prow.k8s.io/gerrit-instance": "https://gerrit",
-							"prow.k8s.io/gerrit-id":       "",
-							"prow.k8s.io/job":             "always-runs-all-branches",
-							"prow.k8s.io/context":         "always-runs-all-branches",
-						},
+					Labels: map[string]string{
+						"prow.k8s.io/context":             "always-runs-all-branches",
+						"prow.k8s.io/refs.base_ref":       "",
+						"prow.k8s.io/type":                "presubmit",
+						"created-by-prow":                 "true",
+						"prow.k8s.io/job":                 "always-runs-all-branches",
+						"prow.k8s.io/refs.org":            "gerrit",
+						"prow.k8s.io/refs.repo":           "test-infra",
+						"prow.k8s.io/refs.pull":           "0",
+						"prow.k8s.io/gerrit-revision":     "1",
+						"prow.k8s.io/gerrit-patchset":     "0",
+						"prow.k8s.io/gerrit-report-label": "Code-Review",
+					},
+					Annotations: map[string]string{
+						"foo":                         "bar",
+						"prow.k8s.io/gerrit-instance": "https://gerrit",
+						"prow.k8s.io/gerrit-id":       "",
+						"prow.k8s.io/job":             "always-runs-all-branches",
+						"prow.k8s.io/context":         "always-runs-all-branches",
 					},
 					Spec: prowapi.ProwJobSpec{
 						Refs: &prowapi.Refs{
@@ -2585,26 +2508,24 @@ func TestTriggerJobs(t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"created-by-prow":                 "true",
-							"prow.k8s.io/type":                "presubmit",
-							"prow.k8s.io/gerrit-report-label": "Code-Review",
-							"prow.k8s.io/job":                 "runs-on-all-but-baz-branch",
-							"prow.k8s.io/refs.base_ref":       "",
-							"prow.k8s.io/refs.org":            "gerrit",
-							"prow.k8s.io/refs.repo":           "test-infra",
-							"prow.k8s.io/gerrit-revision":     "1",
-							"prow.k8s.io/gerrit-patchset":     "0",
-							"prow.k8s.io/context":             "runs-on-all-but-baz-branch",
-							"prow.k8s.io/refs.pull":           "0",
-						},
-						Annotations: map[string]string{
-							"prow.k8s.io/gerrit-instance": "https://gerrit",
-							"prow.k8s.io/gerrit-id":       "",
-							"prow.k8s.io/context":         "runs-on-all-but-baz-branch",
-							"prow.k8s.io/job":             "runs-on-all-but-baz-branch",
-						},
+					Labels: map[string]string{
+						"created-by-prow":                 "true",
+						"prow.k8s.io/type":                "presubmit",
+						"prow.k8s.io/gerrit-report-label": "Code-Review",
+						"prow.k8s.io/job":                 "runs-on-all-but-baz-branch",
+						"prow.k8s.io/refs.base_ref":       "",
+						"prow.k8s.io/refs.org":            "gerrit",
+						"prow.k8s.io/refs.repo":           "test-infra",
+						"prow.k8s.io/gerrit-revision":     "1",
+						"prow.k8s.io/gerrit-patchset":     "0",
+						"prow.k8s.io/context":             "runs-on-all-but-baz-branch",
+						"prow.k8s.io/refs.pull":           "0",
+					},
+					Annotations: map[string]string{
+						"prow.k8s.io/gerrit-instance": "https://gerrit",
+						"prow.k8s.io/gerrit-id":       "",
+						"prow.k8s.io/context":         "runs-on-all-but-baz-branch",
+						"prow.k8s.io/job":             "runs-on-all-but-baz-branch",
 					},
 					Spec: prowapi.ProwJobSpec{
 						Refs: &prowapi.Refs{
@@ -2627,26 +2548,24 @@ func TestTriggerJobs(t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"prow.k8s.io/type":                "presubmit",
-							"prow.k8s.io/refs.repo":           "test-infra",
-							"prow.k8s.io/refs.pull":           "0",
-							"created-by-prow":                 "true",
-							"prow.k8s.io/gerrit-patchset":     "0",
-							"prow.k8s.io/gerrit-report-label": "Code-Review",
-							"prow.k8s.io/context":             "foo-job-reported",
-							"prow.k8s.io/refs.org":            "gerrit",
-							"prow.k8s.io/refs.base_ref":       "",
-							"prow.k8s.io/job":                 "reported-job-runs-on-foo-file-change",
-							"prow.k8s.io/gerrit-revision":     "1",
-						},
-						Annotations: map[string]string{
-							"prow.k8s.io/job":             "reported-job-runs-on-foo-file-change",
-							"prow.k8s.io/context":         "foo-job-reported",
-							"prow.k8s.io/gerrit-instance": "https://gerrit",
-							"prow.k8s.io/gerrit-id":       "",
-						},
+					Labels: map[string]string{
+						"prow.k8s.io/type":                "presubmit",
+						"prow.k8s.io/refs.repo":           "test-infra",
+						"prow.k8s.io/refs.pull":           "0",
+						"created-by-prow":                 "true",
+						"prow.k8s.io/gerrit-patchset":     "0",
+						"prow.k8s.io/gerrit-report-label": "Code-Review",
+						"prow.k8s.io/context":             "foo-job-reported",
+						"prow.k8s.io/refs.org":            "gerrit",
+						"prow.k8s.io/refs.base_ref":       "",
+						"prow.k8s.io/job":                 "reported-job-runs-on-foo-file-change",
+						"prow.k8s.io/gerrit-revision":     "1",
+					},
+					Annotations: map[string]string{
+						"prow.k8s.io/job":             "reported-job-runs-on-foo-file-change",
+						"prow.k8s.io/context":         "foo-job-reported",
+						"prow.k8s.io/gerrit-instance": "https://gerrit",
+						"prow.k8s.io/gerrit-id":       "",
 					},
 					Spec: prowapi.ProwJobSpec{
 						Refs: &prowapi.Refs{
@@ -2711,27 +2630,25 @@ func TestTriggerJobs(t *testing.T) {
 			instance:     testInstance,
 			wantPjs: []*prowapi.ProwJob{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"prow.k8s.io/job":                 "always-runs-all-branches",
-							"prow.k8s.io/refs.org":            "gerrit",
-							"prow.k8s.io/type":                "presubmit",
-							"prow.k8s.io/refs.repo":           "test-infra",
-							"prow.k8s.io/refs.pull":           "0",
-							"prow.k8s.io/gerrit-report-label": "Code-Review",
-							"created-by-prow":                 "true",
-							"prow.k8s.io/context":             "always-runs-all-branches",
-							"prow.k8s.io/refs.base_ref":       "inRepoConfig",
-							"prow.k8s.io/gerrit-patchset":     "0",
-							"prow.k8s.io/gerrit-revision":     "1",
-						},
-						Annotations: map[string]string{
-							"prow.k8s.io/context":         "always-runs-all-branches",
-							"foo":                         "bar",
-							"prow.k8s.io/gerrit-instance": "https://gerrit",
-							"prow.k8s.io/gerrit-id":       "",
-							"prow.k8s.io/job":             "always-runs-all-branches",
-						},
+					Labels: map[string]string{
+						"prow.k8s.io/job":                 "always-runs-all-branches",
+						"prow.k8s.io/refs.org":            "gerrit",
+						"prow.k8s.io/type":                "presubmit",
+						"prow.k8s.io/refs.repo":           "test-infra",
+						"prow.k8s.io/refs.pull":           "0",
+						"prow.k8s.io/gerrit-report-label": "Code-Review",
+						"created-by-prow":                 "true",
+						"prow.k8s.io/context":             "always-runs-all-branches",
+						"prow.k8s.io/refs.base_ref":       "inRepoConfig",
+						"prow.k8s.io/gerrit-patchset":     "0",
+						"prow.k8s.io/gerrit-revision":     "1",
+					},
+					Annotations: map[string]string{
+						"prow.k8s.io/context":         "always-runs-all-branches",
+						"foo":                         "bar",
+						"prow.k8s.io/gerrit-instance": "https://gerrit",
+						"prow.k8s.io/gerrit-id":       "",
+						"prow.k8s.io/job":             "always-runs-all-branches",
 					},
 					Spec: prowapi.ProwJobSpec{
 						Refs: &prowapi.Refs{
@@ -2755,26 +2672,24 @@ func TestTriggerJobs(t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"prow.k8s.io/job":                 "runs-on-all-but-baz-branch",
-							"prow.k8s.io/context":             "runs-on-all-but-baz-branch",
-							"prow.k8s.io/refs.org":            "gerrit",
-							"prow.k8s.io/gerrit-revision":     "1",
-							"prow.k8s.io/type":                "presubmit",
-							"prow.k8s.io/refs.repo":           "test-infra",
-							"prow.k8s.io/refs.base_ref":       "inRepoConfig",
-							"created-by-prow":                 "true",
-							"prow.k8s.io/gerrit-patchset":     "0",
-							"prow.k8s.io/gerrit-report-label": "Code-Review",
-							"prow.k8s.io/refs.pull":           "0",
-						},
-						Annotations: map[string]string{
-							"prow.k8s.io/gerrit-id":       "",
-							"prow.k8s.io/gerrit-instance": "https://gerrit",
-							"prow.k8s.io/job":             "runs-on-all-but-baz-branch",
-							"prow.k8s.io/context":         "runs-on-all-but-baz-branch",
-						},
+					Labels: map[string]string{
+						"prow.k8s.io/job":                 "runs-on-all-but-baz-branch",
+						"prow.k8s.io/context":             "runs-on-all-but-baz-branch",
+						"prow.k8s.io/refs.org":            "gerrit",
+						"prow.k8s.io/gerrit-revision":     "1",
+						"prow.k8s.io/type":                "presubmit",
+						"prow.k8s.io/refs.repo":           "test-infra",
+						"prow.k8s.io/refs.base_ref":       "inRepoConfig",
+						"created-by-prow":                 "true",
+						"prow.k8s.io/gerrit-patchset":     "0",
+						"prow.k8s.io/gerrit-report-label": "Code-Review",
+						"prow.k8s.io/refs.pull":           "0",
+					},
+					Annotations: map[string]string{
+						"prow.k8s.io/gerrit-id":       "",
+						"prow.k8s.io/gerrit-instance": "https://gerrit",
+						"prow.k8s.io/job":             "runs-on-all-but-baz-branch",
+						"prow.k8s.io/context":         "runs-on-all-but-baz-branch",
 					},
 					Spec: prowapi.ProwJobSpec{
 						Refs: &prowapi.Refs{
@@ -2798,26 +2713,24 @@ func TestTriggerJobs(t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"prow.k8s.io/job":                 "always-runs-inRepoConfig",
-							"prow.k8s.io/refs.org":            "gerrit",
-							"prow.k8s.io/gerrit-report-label": "Code-Review",
-							"prow.k8s.io/gerrit-revision":     "1",
-							"created-by-prow":                 "true",
-							"prow.k8s.io/type":                "presubmit",
-							"prow.k8s.io/refs.repo":           "test-infra",
-							"prow.k8s.io/refs.base_ref":       "inRepoConfig",
-							"prow.k8s.io/context":             "always-runs-inRepoConfig",
-							"prow.k8s.io/refs.pull":           "0",
-							"prow.k8s.io/gerrit-patchset":     "0",
-						},
-						Annotations: map[string]string{
-							"prow.k8s.io/job":             "always-runs-inRepoConfig",
-							"prow.k8s.io/context":         "always-runs-inRepoConfig",
-							"prow.k8s.io/gerrit-instance": "https://gerrit",
-							"prow.k8s.io/gerrit-id":       "",
-						},
+					Labels: map[string]string{
+						"prow.k8s.io/job":                 "always-runs-inRepoConfig",
+						"prow.k8s.io/refs.org":            "gerrit",
+						"prow.k8s.io/gerrit-report-label": "Code-Review",
+						"prow.k8s.io/gerrit-revision":     "1",
+						"created-by-prow":                 "true",
+						"prow.k8s.io/type":                "presubmit",
+						"prow.k8s.io/refs.repo":           "test-infra",
+						"prow.k8s.io/refs.base_ref":       "inRepoConfig",
+						"prow.k8s.io/context":             "always-runs-inRepoConfig",
+						"prow.k8s.io/refs.pull":           "0",
+						"prow.k8s.io/gerrit-patchset":     "0",
+					},
+					Annotations: map[string]string{
+						"prow.k8s.io/job":             "always-runs-inRepoConfig",
+						"prow.k8s.io/context":         "always-runs-inRepoConfig",
+						"prow.k8s.io/gerrit-instance": "https://gerrit",
+						"prow.k8s.io/gerrit-id":       "",
 					},
 					Spec: prowapi.ProwJobSpec{
 						Refs: &prowapi.Refs{
@@ -2860,26 +2773,24 @@ func TestTriggerJobs(t *testing.T) {
 			instance:     testInstance,
 			wantPjs: []*prowapi.ProwJob{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"prow.k8s.io/type":                "postsubmit",
-							"prow.k8s.io/refs.org":            "gerrit",
-							"prow.k8s.io/refs.base_ref":       "inRepoConfig",
-							"prow.k8s.io/refs.pull":           "0",
-							"created-by-prow":                 "true",
-							"prow.k8s.io/refs.repo":           "postsubmits-project",
-							"prow.k8s.io/gerrit-revision":     "1",
-							"prow.k8s.io/gerrit-report-label": "Code-Review",
-							"prow.k8s.io/job":                 "test-bar",
-							"prow.k8s.io/context":             "test-bar",
-							"prow.k8s.io/gerrit-patchset":     "0",
-						},
-						Annotations: map[string]string{
-							"prow.k8s.io/job":             "test-bar",
-							"prow.k8s.io/context":         "test-bar",
-							"prow.k8s.io/gerrit-id":       "",
-							"prow.k8s.io/gerrit-instance": "https://gerrit",
-						},
+					Labels: map[string]string{
+						"prow.k8s.io/type":                "postsubmit",
+						"prow.k8s.io/refs.org":            "gerrit",
+						"prow.k8s.io/refs.base_ref":       "inRepoConfig",
+						"prow.k8s.io/refs.pull":           "0",
+						"created-by-prow":                 "true",
+						"prow.k8s.io/refs.repo":           "postsubmits-project",
+						"prow.k8s.io/gerrit-revision":     "1",
+						"prow.k8s.io/gerrit-report-label": "Code-Review",
+						"prow.k8s.io/job":                 "test-bar",
+						"prow.k8s.io/context":             "test-bar",
+						"prow.k8s.io/gerrit-patchset":     "0",
+					},
+					Annotations: map[string]string{
+						"prow.k8s.io/job":             "test-bar",
+						"prow.k8s.io/context":         "test-bar",
+						"prow.k8s.io/gerrit-id":       "",
+						"prow.k8s.io/gerrit-instance": "https://gerrit",
 					},
 					Spec: prowapi.ProwJobSpec{
 						Refs: &prowapi.Refs{
@@ -2903,26 +2814,24 @@ func TestTriggerJobs(t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"prow.k8s.io/context":             "always-runs-inRepoConfig-Post",
-							"prow.k8s.io/gerrit-patchset":     "0",
-							"created-by-prow":                 "true",
-							"prow.k8s.io/type":                "postsubmit",
-							"prow.k8s.io/refs.base_ref":       "inRepoConfig",
-							"prow.k8s.io/gerrit-revision":     "1",
-							"prow.k8s.io/job":                 "always-runs-inRepoConfig-Post",
-							"prow.k8s.io/refs.repo":           "postsubmits-project",
-							"prow.k8s.io/refs.pull":           "0",
-							"prow.k8s.io/gerrit-report-label": "Code-Review",
-							"prow.k8s.io/refs.org":            "gerrit",
-						},
-						Annotations: map[string]string{
-							"prow.k8s.io/job":             "always-runs-inRepoConfig-Post",
-							"prow.k8s.io/context":         "always-runs-inRepoConfig-Post",
-							"prow.k8s.io/gerrit-instance": "https://gerrit",
-							"prow.k8s.io/gerrit-id":       "",
-						},
+					Labels: map[string]string{
+						"prow.k8s.io/context":             "always-runs-inRepoConfig-Post",
+						"prow.k8s.io/gerrit-patchset":     "0",
+						"created-by-prow":                 "true",
+						"prow.k8s.io/type":                "postsubmit",
+						"prow.k8s.io/refs.base_ref":       "inRepoConfig",
+						"prow.k8s.io/gerrit-revision":     "1",
+						"prow.k8s.io/job":                 "always-runs-inRepoConfig-Post",
+						"prow.k8s.io/refs.repo":           "postsubmits-project",
+						"prow.k8s.io/refs.pull":           "0",
+						"prow.k8s.io/gerrit-report-label": "Code-Review",
+						"prow.k8s.io/refs.org":            "gerrit",
+					},
+					Annotations: map[string]string{
+						"prow.k8s.io/job":             "always-runs-inRepoConfig-Post",
+						"prow.k8s.io/context":         "always-runs-inRepoConfig-Post",
+						"prow.k8s.io/gerrit-instance": "https://gerrit",
+						"prow.k8s.io/gerrit-id":       "",
 					},
 					Spec: prowapi.ProwJobSpec{
 						Refs: &prowapi.Refs{
@@ -2965,26 +2874,24 @@ func TestTriggerJobs(t *testing.T) {
 			instance:     testInstance,
 			wantPjs: []*prowapi.ProwJob{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"prow.k8s.io/refs.pull":           "0",
-							"prow.k8s.io/gerrit-patchset":     "0",
-							"prow.k8s.io/job":                 "always-runs-inRepoConfig",
-							"prow.k8s.io/refs.repo":           "test-infra",
-							"prow.k8s.io/context":             "always-runs-inRepoConfig",
-							"prow.k8s.io/refs.org":            "gerrit",
-							"prow.k8s.io/refs.base_ref":       "inRepoConfig",
-							"prow.k8s.io/gerrit-revision":     "1",
-							"prow.k8s.io/gerrit-report-label": "Code-Review",
-							"created-by-prow":                 "true",
-							"prow.k8s.io/type":                "presubmit",
-						},
-						Annotations: map[string]string{
-							"prow.k8s.io/context":         "always-runs-inRepoConfig",
-							"prow.k8s.io/gerrit-instance": "https://gerrit",
-							"prow.k8s.io/gerrit-id":       "",
-							"prow.k8s.io/job":             "always-runs-inRepoConfig",
-						},
+					Labels: map[string]string{
+						"prow.k8s.io/refs.pull":           "0",
+						"prow.k8s.io/gerrit-patchset":     "0",
+						"prow.k8s.io/job":                 "always-runs-inRepoConfig",
+						"prow.k8s.io/refs.repo":           "test-infra",
+						"prow.k8s.io/context":             "always-runs-inRepoConfig",
+						"prow.k8s.io/refs.org":            "gerrit",
+						"prow.k8s.io/refs.base_ref":       "inRepoConfig",
+						"prow.k8s.io/gerrit-revision":     "1",
+						"prow.k8s.io/gerrit-report-label": "Code-Review",
+						"created-by-prow":                 "true",
+						"prow.k8s.io/type":                "presubmit",
+					},
+					Annotations: map[string]string{
+						"prow.k8s.io/context":         "always-runs-inRepoConfig",
+						"prow.k8s.io/gerrit-instance": "https://gerrit",
+						"prow.k8s.io/gerrit-id":       "",
+						"prow.k8s.io/job":             "always-runs-inRepoConfig",
 					},
 					Spec: prowapi.ProwJobSpec{
 						Refs: &prowapi.Refs{
@@ -3008,26 +2915,24 @@ func TestTriggerJobs(t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"prow.k8s.io/refs.base_ref":       "inRepoConfig",
-							"prow.k8s.io/gerrit-revision":     "1",
-							"prow.k8s.io/gerrit-patchset":     "0",
-							"prow.k8s.io/gerrit-report-label": "Code-Review",
-							"prow.k8s.io/refs.repo":           "test-infra",
-							"prow.k8s.io/type":                "presubmit",
-							"prow.k8s.io/job":                 "other-test",
-							"prow.k8s.io/context":             "other-test",
-							"prow.k8s.io/refs.org":            "gerrit",
-							"prow.k8s.io/refs.pull":           "0",
-							"created-by-prow":                 "true",
-						},
-						Annotations: map[string]string{
-							"prow.k8s.io/job":             "other-test",
-							"prow.k8s.io/context":         "other-test",
-							"prow.k8s.io/gerrit-instance": "https://gerrit",
-							"prow.k8s.io/gerrit-id":       "",
-						},
+					Labels: map[string]string{
+						"prow.k8s.io/refs.base_ref":       "inRepoConfig",
+						"prow.k8s.io/gerrit-revision":     "1",
+						"prow.k8s.io/gerrit-patchset":     "0",
+						"prow.k8s.io/gerrit-report-label": "Code-Review",
+						"prow.k8s.io/refs.repo":           "test-infra",
+						"prow.k8s.io/type":                "presubmit",
+						"prow.k8s.io/job":                 "other-test",
+						"prow.k8s.io/context":             "other-test",
+						"prow.k8s.io/refs.org":            "gerrit",
+						"prow.k8s.io/refs.pull":           "0",
+						"created-by-prow":                 "true",
+					},
+					Annotations: map[string]string{
+						"prow.k8s.io/job":             "other-test",
+						"prow.k8s.io/context":         "other-test",
+						"prow.k8s.io/gerrit-instance": "https://gerrit",
+						"prow.k8s.io/gerrit-id":       "",
 					},
 					Spec: prowapi.ProwJobSpec{
 						Refs: &prowapi.Refs{
@@ -3056,93 +2961,53 @@ func TestTriggerJobs(t *testing.T) {
 
 	testInfraPresubmits := []config.Presubmit{
 		{
-			JobBase: config.JobBase{
-				Name:        "always-runs-all-branches",
-				Annotations: map[string]string{"foo": "bar"},
-			},
-			AlwaysRun: true,
-			Reporter: config.Reporter{
-				Context:    "always-runs-all-branches",
-				SkipReport: true,
-			},
+			Name:        "always-runs-all-branches",
+			Annotations: map[string]string{"foo": "bar"},
+			AlwaysRun:   true,
+			Context:     "always-runs-all-branches",
+			SkipReport:  true,
 		},
 		{
-			JobBase: config.JobBase{
-				Name: "run-if-changed-all-branches",
-			},
-			RegexpChangeMatcher: config.RegexpChangeMatcher{
-				RunIfChanged: "\\.go",
-			},
-			Reporter: config.Reporter{
-				Context:    "run-if-changed-all-branches",
-				SkipReport: true,
-			},
+			Name:         "run-if-changed-all-branches",
+			RunIfChanged: "\\.go",
+			Context:      "run-if-changed-all-branches",
+			SkipReport:   true,
 		},
 		{
-			JobBase: config.JobBase{
-				Name: "runs-on-pony-branch",
-			},
-			Brancher: config.Brancher{
-				Branches: []string{"pony"},
-			},
-			AlwaysRun: true,
-			Reporter: config.Reporter{
-				Context:    "runs-on-pony-branch",
-				SkipReport: true,
-			},
+			Name:       "runs-on-pony-branch",
+			Branches:   []string{"pony"},
+			AlwaysRun:  true,
+			Context:    "runs-on-pony-branch",
+			SkipReport: true,
 		},
 		{
-			JobBase: config.JobBase{
-				Name: "runs-on-all-but-baz-branch",
-			},
-			Brancher: config.Brancher{
-				SkipBranches: []string{"baz"},
-			},
-			AlwaysRun: true,
-			Reporter: config.Reporter{
-				Context:    "runs-on-all-but-baz-branch",
-				SkipReport: true,
-			},
+			Name:         "runs-on-all-but-baz-branch",
+			SkipBranches: []string{"baz"},
+			AlwaysRun:    true,
+			Context:      "runs-on-all-but-baz-branch",
+			SkipReport:   true,
 		},
 		{
-			JobBase: config.JobBase{
-				Name: "trigger-regex-all-branches",
-			},
+			Name:         "trigger-regex-all-branches",
 			Trigger:      `.*/test\s*troll.*`,
 			RerunCommand: "/test troll",
-			Reporter: config.Reporter{
-				Context:    "trigger-regex-all-branches",
-				SkipReport: true,
-			},
+			Context:      "trigger-regex-all-branches",
+			SkipReport:   true,
 		},
 		{
-			JobBase: config.JobBase{
-				Name: "foo-job",
-			},
-			Reporter: config.Reporter{
-				Context:    "foo-job",
-				SkipReport: true,
-			},
+			Name:       "foo-job",
+			Context:    "foo-job",
+			SkipReport: true,
 		},
 		{
-			JobBase: config.JobBase{
-				Name: "bar-job",
-			},
-			Reporter: config.Reporter{
-				Context:    "bar-job",
-				SkipReport: true,
-			},
+			Name:       "bar-job",
+			Context:    "bar-job",
+			SkipReport: true,
 		},
 		{
-			JobBase: config.JobBase{
-				Name: "reported-job-runs-on-foo-file-change",
-			},
-			RegexpChangeMatcher: config.RegexpChangeMatcher{
-				RunIfChanged: "\\.foo",
-			},
-			Reporter: config.Reporter{
-				Context: "foo-job-reported",
-			},
+			Name:         "reported-job-runs-on-foo-file-change",
+			RunIfChanged: "\\.foo",
+			Context:      "foo-job-reported",
 		},
 	}
 	if err := config.SetPresubmitRegexes(testInfraPresubmits); err != nil {
@@ -3150,56 +3015,40 @@ func TestTriggerJobs(t *testing.T) {
 	}
 
 	cfg := &config.Config{
-		JobConfig: config.JobConfig{
-			ProwYAMLGetterWithDefaults: fakeProwYAMLGetter,
-			ProwYAMLGetter:             fakeProwYAMLGetter,
-			PresubmitsStatic: map[string][]config.Presubmit{
-				"https://gerrit/test-infra": testInfraPresubmits,
-				"https://gerrit/kubernetes/test-infra": {
-					{
-						JobBase: config.JobBase{
-							Name: "other-test",
-						},
-						AlwaysRun: true,
-						Reporter: config.Reporter{
-							Context:    "other-test",
-							SkipReport: true,
-						},
-					},
-				},
-				"https://gerrit/other-repo": {
-					{
-						JobBase: config.JobBase{
-							Name: "other-test",
-						},
-						AlwaysRun: true,
-						Reporter: config.Reporter{
-							Context:    "other-test",
-							SkipReport: true,
-						},
-					},
+		ProwYAMLGetterWithDefaults: fakeProwYAMLGetter,
+		ProwYAMLGetter:             fakeProwYAMLGetter,
+		PresubmitsStatic: map[string][]config.Presubmit{
+			"https://gerrit/test-infra": testInfraPresubmits,
+			"https://gerrit/kubernetes/test-infra": {
+				{
+					Name:       "other-test",
+					AlwaysRun:  true,
+					Context:    "other-test",
+					SkipReport: true,
 				},
 			},
-			PostsubmitsStatic: map[string][]config.Postsubmit{
-				"https://gerrit/postsubmits-project": {
-					{
-						JobBase: config.JobBase{
-							Name: "test-bar",
-						},
-						Reporter: config.Reporter{
-							Context:    "test-bar",
-							SkipReport: true,
-						},
-					},
+			"https://gerrit/other-repo": {
+				{
+					Name:       "other-test",
+					AlwaysRun:  true,
+					Context:    "other-test",
+					SkipReport: true,
 				},
 			},
 		},
-		ProwConfig: config.ProwConfig{
-			PodNamespace: namespace,
-			InRepoConfig: config.InRepoConfig{
-				Enabled:         map[string]*bool{"*": &trueBool},
-				AllowedClusters: map[string][]string{"*": {kube.DefaultClusterAlias}},
+		PostsubmitsStatic: map[string][]config.Postsubmit{
+			"https://gerrit/postsubmits-project": {
+				{
+					Name:       "test-bar",
+					Context:    "test-bar",
+					SkipReport: true,
+				},
 			},
+		},
+		PodNamespace: namespace,
+		InRepoConfig: config.InRepoConfig{
+			Enabled:         map[string]*bool{"*": &trueBool},
+			AllowedClusters: map[string][]string{"*": {kube.DefaultClusterAlias}},
 		},
 	}
 	fca := &fca{
@@ -3250,10 +3099,8 @@ func TestTriggerJobs(t *testing.T) {
 						// in this test, so construct only ProwJob structs with
 						// only necessary information.
 						gotProwjobs = append(gotProwjobs, &prowapi.ProwJob{
-							ObjectMeta: metav1.ObjectMeta{
-								Labels:      prowjob.Labels,
-								Annotations: prowjob.Annotations,
-							},
+							Labels:      prowjob.Labels,
+							Annotations: prowjob.Annotations,
 							Spec: prowapi.ProwJobSpec{
 								Refs: prowjob.Spec.Refs,
 							},

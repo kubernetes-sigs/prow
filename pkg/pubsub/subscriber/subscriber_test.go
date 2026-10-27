@@ -193,13 +193,9 @@ func TestHandleMessage(t *testing.T) {
 				Name: "test",
 			},
 			config: &config.Config{
-				JobConfig: config.JobConfig{
-					Periodics: []config.Periodic{
-						{
-							JobBase: config.JobBase{
-								Name: "test",
-							},
-						},
+				Periodics: []config.Periodic{
+					{
+						Name: "test",
 					},
 				},
 			},
@@ -222,14 +218,10 @@ func TestHandleMessage(t *testing.T) {
 				},
 			},
 			config: &config.Config{
-				JobConfig: config.JobConfig{
-					PresubmitsStatic: map[string][]config.Presubmit{
-						"org/repo": {
-							{
-								JobBase: config.JobBase{
-									Name: "pull-github",
-								},
-							},
+				PresubmitsStatic: map[string][]config.Presubmit{
+					"org/repo": {
+						{
+							Name: "pull-github",
 						},
 					},
 				},
@@ -256,14 +248,10 @@ func TestHandleMessage(t *testing.T) {
 				},
 			},
 			config: &config.Config{
-				JobConfig: config.JobConfig{
-					PresubmitsStatic: map[string][]config.Presubmit{
-						"https://org/repo": {
-							{
-								JobBase: config.JobBase{
-									Name: "pull-gerrit",
-								},
-							},
+				PresubmitsStatic: map[string][]config.Presubmit{
+					"https://org/repo": {
+						{
+							Name: "pull-gerrit",
 						},
 					},
 				},
@@ -273,12 +261,10 @@ func TestHandleMessage(t *testing.T) {
 			name:      "UnknownEventType",
 			eventType: PeriodicProwJobEvent,
 			msg: &pubSubMessage{
-				Message: pubsub.Message{
-					Attributes: map[string]string{
-						ProwEventType: "unsupported",
-					},
-					Data: []byte("{}"),
+				Attributes: map[string]string{
+					ProwEventType: "unsupported",
 				},
+				Data: []byte("{}"),
 			},
 			config: &config.Config{},
 			err:    "unsupported event type: unsupported",
@@ -288,9 +274,7 @@ func TestHandleMessage(t *testing.T) {
 			name:      "NoEventType",
 			eventType: PeriodicProwJobEvent,
 			msg: &pubSubMessage{
-				Message: pubsub.Message{
-					Data: []byte("{}"),
-				},
+				Data: []byte("{}"),
 			},
 			config: &config.Config{},
 			err:    "unable to find \"prow.k8s.io/pubsub.EventType\" from the attributes",
@@ -317,16 +301,12 @@ func TestHandleMessage(t *testing.T) {
 				},
 			},
 			config: &config.Config{
-				JobConfig: config.JobConfig{
-					ProwYAMLGetterWithDefaults: fakeProwYAMLGetter,
-					ProwYAMLGetter:             fakeProwYAMLGetter,
-				},
-				ProwConfig: config.ProwConfig{
-					PodNamespace: namespace,
-					InRepoConfig: config.InRepoConfig{
-						Enabled:         map[string]*bool{"*": &trueBool},
-						AllowedClusters: map[string][]string{"*": {"default"}},
-					},
+				ProwYAMLGetterWithDefaults: fakeProwYAMLGetter,
+				ProwYAMLGetter:             fakeProwYAMLGetter,
+				PodNamespace:               namespace,
+				InRepoConfig: config.InRepoConfig{
+					Enabled:         map[string]*bool{"*": &trueBool},
+					AllowedClusters: map[string][]string{"*": {"default"}},
 				},
 			},
 		},
@@ -429,13 +409,9 @@ func TestHandlePeriodicJob(t *testing.T) {
 				Name: "test",
 			},
 			config: &config.Config{
-				JobConfig: config.JobConfig{
-					Periodics: []config.Periodic{
-						{
-							JobBase: config.JobBase{
-								Name: "test",
-							},
-						},
+				Periodics: []config.Periodic{
+					{
+						Name: "test",
 					},
 				},
 			},
@@ -460,19 +436,15 @@ func TestHandlePeriodicJob(t *testing.T) {
 				},
 			},
 			config: &config.Config{
-				JobConfig: config.JobConfig{
-					Periodics: []config.Periodic{
-						{
-							JobBase: config.JobBase{
-								Name:        "test",
-								Labels:      map[string]string{},
-								Annotations: map[string]string{},
-								Spec: &v1.PodSpec{
-									Containers: []v1.Container{
-										{
-											Name: "test",
-										},
-									},
+				Periodics: []config.Periodic{
+					{
+						Name:        "test",
+						Labels:      map[string]string{},
+						Annotations: map[string]string{},
+						Spec: &v1.PodSpec{
+							Containers: []v1.Container{
+								{
+									Name: "test",
 								},
 							},
 						},
@@ -488,14 +460,10 @@ func TestHandlePeriodicJob(t *testing.T) {
 				Name: "test",
 			},
 			config: &config.Config{
-				JobConfig: config.JobConfig{
-					Periodics: []config.Periodic{
-						{
-							JobBase: config.JobBase{
-								Name:    "test",
-								Cluster: "precious-cluster",
-							},
-						},
+				Periodics: []config.Periodic{
+					{
+						Name:    "test",
+						Cluster: "precious-cluster",
 					},
 				},
 			},
@@ -508,13 +476,9 @@ func TestHandlePeriodicJob(t *testing.T) {
 				Name: "test",
 			},
 			config: &config.Config{
-				JobConfig: config.JobConfig{
-					Periodics: []config.Periodic{
-						{
-							JobBase: config.JobBase{
-								Name: "test",
-							},
-						},
+				Periodics: []config.Periodic{
+					{
+						Name: "test",
 					},
 				},
 			},
@@ -532,13 +496,9 @@ func TestHandlePeriodicJob(t *testing.T) {
 				},
 			},
 			config: &config.Config{
-				JobConfig: config.JobConfig{
-					Periodics: []config.Periodic{
-						{
-							JobBase: config.JobBase{
-								Name: "test",
-							},
-						},
+				Periodics: []config.Periodic{
+					{
+						Name: "test",
 					},
 				},
 			},
@@ -664,13 +624,11 @@ func TestPullServer_RunHandlePullFail(t *testing.T) {
 		Metrics:       NewMetrics(),
 	}
 	c := &config.Config{
-		ProwConfig: config.ProwConfig{
-			PubSubTriggers: []config.PubSubTrigger{
-				{
-					Project:         "project",
-					Topics:          []string{"test"},
-					AllowedClusters: []string{"*"},
-				},
+		PubSubTriggers: []config.PubSubTrigger{
+			{
+				Project:         "project",
+				Topics:          []string{"test"},
+				AllowedClusters: []string{"*"},
 			},
 		},
 	}
@@ -721,13 +679,11 @@ func TestPullServer_RunConfigChange(t *testing.T) {
 		t.Error("should not fail")
 	case <-time.After(10 * time.Millisecond):
 		newConfig := &config.Config{
-			ProwConfig: config.ProwConfig{
-				PubSubTriggers: []config.PubSubTrigger{
-					{
-						Project:         "project",
-						Topics:          []string{"test"},
-						AllowedClusters: []string{"*"},
-					},
+			PubSubTriggers: []config.PubSubTrigger{
+				{
+					Project:         "project",
+					Topics:          []string{"test"},
+					AllowedClusters: []string{"*"},
 				},
 			},
 		}
@@ -862,16 +818,12 @@ func fakeProwYAMLGetter(
 
 	presubmits := []config.Presubmit{
 		{
-			JobBase: config.JobBase{
-				Name:      "pull-gerrit",
-				Spec:      &v1.PodSpec{Containers: []v1.Container{{Name: "always-runs-inRepoConfig", Env: []v1.EnvVar{}}}},
-				Namespace: &namespace,
-			},
-			AlwaysRun: true,
-			Reporter: config.Reporter{
-				Context:    "pull-gerrit",
-				SkipReport: true,
-			},
+			Name:       "pull-gerrit",
+			Spec:       &v1.PodSpec{Containers: []v1.Container{{Name: "always-runs-inRepoConfig", Env: []v1.EnvVar{}}}},
+			Namespace:  &namespace,
+			AlwaysRun:  true,
+			Context:    "pull-gerrit",
+			SkipReport: true,
 		},
 	}
 	if err := config.SetPresubmitRegexes(presubmits); err != nil {

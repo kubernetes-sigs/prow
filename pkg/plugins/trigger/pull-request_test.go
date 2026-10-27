@@ -145,15 +145,13 @@ func TestTrusted(t *testing.T) {
 
 func TestHandlePullRequest(t *testing.T) {
 	jobToAbort := &prowapi.ProwJob{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "job-to-abort",
-			Namespace: "namespace",
-			Labels: map[string]string{
-				kube.OrgLabel:         "org",
-				kube.RepoLabel:        "repo",
-				kube.PullLabel:        "0",
-				kube.ProwJobTypeLabel: string(prowapi.PresubmitJob),
-			},
+		Name:      "job-to-abort",
+		Namespace: "namespace",
+		Labels: map[string]string{
+			kube.OrgLabel:         "org",
+			kube.RepoLabel:        "repo",
+			kube.PullLabel:        "0",
+			kube.ProwJobTypeLabel: string(prowapi.PresubmitJob),
 		},
 	}
 
@@ -479,9 +477,7 @@ func TestHandlePullRequest(t *testing.T) {
 			presubmits := map[string][]config.Presubmit{
 				"org/repo": {
 					{
-						JobBase: config.JobBase{
-							Name: "jib",
-						},
+						Name:      "jib",
 						AlwaysRun: true,
 					},
 				},
@@ -570,14 +566,12 @@ func TestAbortAllJobs(t *testing.T) {
 	const org, repo, number = "org", "repo", 1
 	pj := func(modifier ...func(*prowapi.ProwJob)) *prowapi.ProwJob {
 		job := &prowapi.ProwJob{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "my-pj",
-				Labels: map[string]string{
-					kube.OrgLabel:         org,
-					kube.RepoLabel:        repo,
-					kube.PullLabel:        strconv.Itoa(number),
-					kube.ProwJobTypeLabel: string(prowapi.PresubmitJob),
-				},
+			Name: "my-pj",
+			Labels: map[string]string{
+				kube.OrgLabel:         org,
+				kube.RepoLabel:        repo,
+				kube.PullLabel:        strconv.Itoa(number),
+				kube.ProwJobTypeLabel: string(prowapi.PresubmitJob),
 			},
 		}
 

@@ -33,62 +33,58 @@ import (
 
 func TestFilter(t *testing.T) {
 	exampleConfigNoDefaults := config.Config{
-		ProwConfig: config.ProwConfig{
-			ProwJobDefaultEntries: []*config.ProwJobDefaultEntry{
-				{
-					OrgRepo: "tenanted",
-					Cluster: "*",
-					Config: &prowapi.ProwJobDefault{
-						TenantID: "t",
-					},
+		ProwJobDefaultEntries: []*config.ProwJobDefaultEntry{
+			{
+				OrgRepo: "tenanted",
+				Cluster: "*",
+				Config: &prowapi.ProwJobDefault{
+					TenantID: "t",
 				},
-				{
-					OrgRepo: "tenanted/repo",
-					Cluster: "*",
-					Config: &prowapi.ProwJobDefault{
-						TenantID: "t/r",
-					},
+			},
+			{
+				OrgRepo: "tenanted/repo",
+				Cluster: "*",
+				Config: &prowapi.ProwJobDefault{
+					TenantID: "t/r",
 				},
-				{
-					OrgRepo: "other",
-					Cluster: "*",
-					Config: &prowapi.ProwJobDefault{
-						TenantID: "o",
-					},
+			},
+			{
+				OrgRepo: "other",
+				Cluster: "*",
+				Config: &prowapi.ProwJobDefault{
+					TenantID: "o",
 				},
 			},
 		},
 	}
 	exampleConfigWithDefaults := config.Config{
-		ProwConfig: config.ProwConfig{
-			ProwJobDefaultEntries: []*config.ProwJobDefaultEntry{
-				{
-					OrgRepo: "*",
-					Cluster: "*",
-					Config: &prowapi.ProwJobDefault{
-						TenantID: "Default",
-					},
+		ProwJobDefaultEntries: []*config.ProwJobDefaultEntry{
+			{
+				OrgRepo: "*",
+				Cluster: "*",
+				Config: &prowapi.ProwJobDefault{
+					TenantID: "Default",
 				},
-				{
-					OrgRepo: "tenanted",
-					Cluster: "*",
-					Config: &prowapi.ProwJobDefault{
-						TenantID: "t",
-					},
+			},
+			{
+				OrgRepo: "tenanted",
+				Cluster: "*",
+				Config: &prowapi.ProwJobDefault{
+					TenantID: "t",
 				},
-				{
-					OrgRepo: "tenanted/repo",
-					Cluster: "*",
-					Config: &prowapi.ProwJobDefault{
-						TenantID: "t/r",
-					},
+			},
+			{
+				OrgRepo: "tenanted/repo",
+				Cluster: "*",
+				Config: &prowapi.ProwJobDefault{
+					TenantID: "t/r",
 				},
-				{
-					OrgRepo: "other",
-					Cluster: "*",
-					Config: &prowapi.ProwJobDefault{
-						TenantID: "o",
-					},
+			},
+			{
+				OrgRepo: "other",
+				Cluster: "*",
+				Config: &prowapi.ProwJobDefault{
+					TenantID: "o",
 				},
 			},
 		},

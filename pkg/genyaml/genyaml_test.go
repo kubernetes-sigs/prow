@@ -352,9 +352,7 @@ string: string
 			name:  "inline structs",
 			paths: []string{"example_config.go"},
 			structObj: &inlines.Resource{
-				Metadata: inlines.Metadata{
-					Name: "test",
-				},
+				Name: "test",
 			},
 			expected: true,
 		},

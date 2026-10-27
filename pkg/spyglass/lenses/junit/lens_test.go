@@ -1149,10 +1149,8 @@ func TestTemplate(t *testing.T) {
 			name: "Both stdout and stderr get rendered when there is one test",
 			input: JVD{NumTests: 1, Failed: []TestResult{{
 				Junit: []JunitResult{{
-					Result: junit.Result{
-						Output: new("output"),
-						Error:  new("error"),
-					},
+					Output: new("output"),
+					Error:  new("error"),
 				}},
 			}}},
 			expectedSubstrings: []string{
@@ -1167,16 +1165,12 @@ func TestTemplate(t *testing.T) {
 			input: JVD{NumTests: 1, Failed: []TestResult{{
 				Junit: []JunitResult{
 					{
-						Result: junit.Result{
-							Output: new("output"),
-							Error:  new("error"),
-						},
+						Output: new("output"),
+						Error:  new("error"),
 					},
 					{
-						Result: junit.Result{
-							Output: new("output"),
-							Error:  new("error"),
-						},
+						Output: new("output"),
+						Error:  new("error"),
 					},
 				},
 			}}},
@@ -1193,10 +1187,8 @@ func TestTemplate(t *testing.T) {
 			name: "Both stdout and stderr get rendered for flaky tests",
 			input: JVD{NumTests: 1, Flaky: []TestResult{{
 				Junit: []JunitResult{{
-					Result: junit.Result{
-						Output: new("output"),
-						Error:  new("error"),
-					},
+					Output: new("output"),
+					Error:  new("error"),
 				}},
 			}}},
 			expectedSubstrings: []string{
@@ -1213,19 +1205,15 @@ func TestTemplate(t *testing.T) {
 				NumTests:  2,
 				Failed: []TestResult{{
 					Junit: []JunitResult{{
-						Result: junit.Result{
-							Name:      "informing_fail",
-							ClassName: "fake_class",
-							Failure:   &junit.Failure{Value: "non-blocking failure"},
-						},
+						Name:      "informing_fail",
+						ClassName: "fake_class",
+						Failure:   &junit.Failure{Value: "non-blocking failure"},
 					}},
 				}},
 				Passed: []TestResult{{
 					Junit: []JunitResult{{
-						Result: junit.Result{
-							Name:      "informing_pass",
-							ClassName: "fake_class",
-						},
+						Name:      "informing_pass",
+						ClassName: "fake_class",
 					}},
 				}},
 			}}},
@@ -1246,11 +1234,9 @@ func TestTemplate(t *testing.T) {
 				NumTests:  1,
 				Failed: []TestResult{{
 					Junit: []JunitResult{{
-						Result: junit.Result{
-							Name:      "test_1",
-							ClassName: "cls",
-							Failure:   &junit.Failure{Value: "fail"},
-						},
+						Name:      "test_1",
+						ClassName: "cls",
+						Failure:   &junit.Failure{Value: "fail"},
 					}},
 				}},
 			}}},

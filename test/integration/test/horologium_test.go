@@ -79,7 +79,7 @@ func TestLaunchProwJob(t *testing.T) {
 		}
 		labels, _ := labels.Parse("prow.k8s.io/job = horologium-schedule-test-job")
 		if err := kubeClient.DeleteAllOf(context.Background(), &prowjobv1.ProwJob{}, &ctrlruntimeclient.DeleteAllOfOptions{
-			ListOptions: ctrlruntimeclient.ListOptions{LabelSelector: labels},
+			LabelSelector: labels,
 		}); err != nil {
 			t.Logf("ERROR CLEANUP: %v", err)
 		}

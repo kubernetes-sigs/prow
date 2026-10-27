@@ -98,24 +98,22 @@ func (l fakeLister) List(selector labels.Selector) ([]*prowapi.ProwJob, error) {
 				Agent: prowapi.KubernetesAgent,
 				Job:   "pull-test-infra-bazel",
 			},
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: "default",
-				Name:      "7785d7a6-e601-11e9-8512-da8015665453",
-				Labels: map[string]string{
-					"created-by-prow":          "true",
-					"event-GUID":               "770bab40-e601-11e9-8e50-08c45d902b6f",
-					"preset-bazel-scratch-dir": "true",
-					"preset-service-account":   "true",
-					"prow.k8s.io/job":          "pull-test-infra-bazel",
-					"prow.k8s.io/refs.org":     "kubernetes",
-					"prow.k8s.io/refs.pull":    "14543",
-					"prow.k8s.io/refs.repo":    "test-infra",
-					"prow.k8s.io/type":         "presubmit",
-				},
-				Annotations: map[string]string{
-					"prow.k8s.io/job":            "pull-test-infra-bazel",
-					"testgrid-create-test-group": "true",
-				},
+			Namespace: "default",
+			Name:      "7785d7a6-e601-11e9-8512-da8015665453",
+			Labels: map[string]string{
+				"created-by-prow":          "true",
+				"event-GUID":               "770bab40-e601-11e9-8e50-08c45d902b6f",
+				"preset-bazel-scratch-dir": "true",
+				"preset-service-account":   "true",
+				"prow.k8s.io/job":          "pull-test-infra-bazel",
+				"prow.k8s.io/refs.org":     "kubernetes",
+				"prow.k8s.io/refs.pull":    "14543",
+				"prow.k8s.io/refs.repo":    "test-infra",
+				"prow.k8s.io/type":         "presubmit",
+			},
+			Annotations: map[string]string{
+				"prow.k8s.io/job":            "pull-test-infra-bazel",
+				"testgrid-create-test-group": "true",
 			},
 		},
 		{
@@ -123,20 +121,18 @@ func (l fakeLister) List(selector labels.Selector) ([]*prowapi.ProwJob, error) {
 				Agent: prowapi.KubernetesAgent,
 				Job:   "branch-ci-openshift-release-master-config-updates",
 			},
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: "default",
-				Name:      "e44f91e5-e604-11e9-99c1-0a58ac10f9a6",
-				Labels: map[string]string{
-					"created-by-prow":       "true",
-					"event-GUID":            "e4216820-e604-11e9-8cf0-295472589b4f",
-					"prow.k8s.io/job":       "branch-ci-openshift-release-master-config-updates",
-					"prow.k8s.io/refs.org":  "openshift",
-					"prow.k8s.io/refs.repo": "release",
-					"prow.k8s.io/type":      "postsubmit",
-				},
-				Annotations: map[string]string{
-					"prow.k8s.io/job": "branch-ci-openshift-release-master-config-updates",
-				},
+			Namespace: "default",
+			Name:      "e44f91e5-e604-11e9-99c1-0a58ac10f9a6",
+			Labels: map[string]string{
+				"created-by-prow":       "true",
+				"event-GUID":            "e4216820-e604-11e9-8cf0-295472589b4f",
+				"prow.k8s.io/job":       "branch-ci-openshift-release-master-config-updates",
+				"prow.k8s.io/refs.org":  "openshift",
+				"prow.k8s.io/refs.repo": "release",
+				"prow.k8s.io/type":      "postsubmit",
+			},
+			Annotations: map[string]string{
+				"prow.k8s.io/job": "branch-ci-openshift-release-master-config-updates",
 			},
 		},
 	}, nil

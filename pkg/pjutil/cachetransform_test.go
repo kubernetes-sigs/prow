@@ -32,13 +32,11 @@ func fullProwJob() *prowapi.ProwJob {
 	started := metav1.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	completed := metav1.Date(2024, 1, 1, 0, 10, 0, 0, time.UTC)
 	return &prowapi.ProwJob{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:            "some-job",
-			Namespace:       "ns",
-			Labels:          map[string]string{kube.ReRunLabel: "2"},
-			ManagedFields:   []metav1.ManagedFieldsEntry{{Manager: "prow"}},
-			OwnerReferences: []metav1.OwnerReference{{Name: "owner"}},
-		},
+		Name:            "some-job",
+		Namespace:       "ns",
+		Labels:          map[string]string{kube.ReRunLabel: "2"},
+		ManagedFields:   []metav1.ManagedFieldsEntry{{Manager: "prow"}},
+		OwnerReferences: []metav1.OwnerReference{{Name: "owner"}},
 		Spec: prowapi.ProwJobSpec{
 			Type:    prowapi.PeriodicJob,
 			Job:     "some-periodic",
@@ -67,18 +65,16 @@ func fullPod() *corev1.Pod {
 	created := metav1.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	started := metav1.Date(2024, 1, 1, 0, 1, 0, 0, time.UTC)
 	return &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:              "some-pod",
-			Namespace:         "ns",
-			CreationTimestamp: created,
-			Labels: map[string]string{
-				kube.CreatedByProw:  "true",
-				kube.ProwJobIDLabel: "some-job",
-			},
-			Finalizers:      []string{"prow.x-k8s.io/gcsk8sreporter"},
-			ManagedFields:   []metav1.ManagedFieldsEntry{{Manager: "plank"}},
-			OwnerReferences: []metav1.OwnerReference{{Name: "owner"}},
+		Name:              "some-pod",
+		Namespace:         "ns",
+		CreationTimestamp: created,
+		Labels: map[string]string{
+			kube.CreatedByProw:  "true",
+			kube.ProwJobIDLabel: "some-job",
 		},
+		Finalizers:      []string{"prow.x-k8s.io/gcsk8sreporter"},
+		ManagedFields:   []metav1.ManagedFieldsEntry{{Manager: "plank"}},
+		OwnerReferences: []metav1.OwnerReference{{Name: "owner"}},
 		Spec: corev1.PodSpec{
 			Containers: []corev1.Container{{Name: "test", Image: "img"}},
 		},
@@ -140,7 +136,7 @@ func TestTrimCachedProwJob(t *testing.T) {
 	}
 
 	// Non-ProwJobs pass through.
-	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "some-pod"}}
+	pod := &corev1.Pod{Name: "some-pod"}
 	out, err := TrimCachedProwJob(pod)
 	if err != nil {
 		t.Fatalf("TrimCachedProwJob failed on a pod: %v", err)
@@ -199,7 +195,7 @@ func TestTrimCachedPod(t *testing.T) {
 	}
 
 	// Non-pods pass through.
-	pj := &prowapi.ProwJob{ObjectMeta: metav1.ObjectMeta{Name: "some-job"}}
+	pj := &prowapi.ProwJob{Name: "some-job"}
 	out, err := TrimCachedPod(pj)
 	if err != nil {
 		t.Fatalf("TrimCachedPod failed on a prowjob: %v", err)

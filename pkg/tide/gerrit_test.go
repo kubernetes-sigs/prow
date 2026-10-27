@@ -278,11 +278,9 @@ func TestQuery(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := config.Config{
-				ProwConfig: config.ProwConfig{
-					Tide: config.Tide{
-						Gerrit: &config.TideGerritConfig{
-							Queries: tc.queries,
-						},
+				Tide: config.Tide{
+					Gerrit: &config.TideGerritConfig{
+						Queries: tc.queries,
 					},
 				},
 			}
@@ -376,16 +374,14 @@ func TestGerritHeadContexts(t *testing.T) {
 			name: "normal",
 			jobs: []prowapi.ProwJob{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "not-important-1",
-						Namespace: "prowjobs",
-						Labels: map[string]string{
-							kube.GerritRevision:   "abc123",
-							kube.ProwJobTypeLabel: string(prowapi.PresubmitJob),
-							kube.OrgLabel:         "foo1",
-							kube.RepoLabel:        "bar1",
-							kube.PullLabel:        "1",
-						},
+					Name:      "not-important-1",
+					Namespace: "prowjobs",
+					Labels: map[string]string{
+						kube.GerritRevision:   "abc123",
+						kube.ProwJobTypeLabel: string(prowapi.PresubmitJob),
+						kube.OrgLabel:         "foo1",
+						kube.RepoLabel:        "bar1",
+						kube.PullLabel:        "1",
 					},
 					Spec: prowapi.ProwJobSpec{
 						Type:    prowapi.PresubmitJob,
@@ -413,16 +409,14 @@ func TestGerritHeadContexts(t *testing.T) {
 			name: "periodic",
 			jobs: []prowapi.ProwJob{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "not-important-1",
-						Namespace: "prowjobs",
-						Labels: map[string]string{
-							kube.GerritRevision:   "abc123",
-							kube.ProwJobTypeLabel: string(prowapi.PeriodicJob),
-							kube.OrgLabel:         "foo1",
-							kube.RepoLabel:        "bar1",
-							kube.PullLabel:        "1",
-						},
+					Name:      "not-important-1",
+					Namespace: "prowjobs",
+					Labels: map[string]string{
+						kube.GerritRevision:   "abc123",
+						kube.ProwJobTypeLabel: string(prowapi.PeriodicJob),
+						kube.OrgLabel:         "foo1",
+						kube.RepoLabel:        "bar1",
+						kube.PullLabel:        "1",
 					},
 					Spec: prowapi.ProwJobSpec{
 						Type:    prowapi.PeriodicJob,
@@ -443,16 +437,14 @@ func TestGerritHeadContexts(t *testing.T) {
 			name: "wrong-org",
 			jobs: []prowapi.ProwJob{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "not-important-1",
-						Namespace: "prowjobs",
-						Labels: map[string]string{
-							kube.GerritRevision:   "abc123",
-							kube.ProwJobTypeLabel: string(prowapi.PresubmitJob),
-							kube.OrgLabel:         "foo2",
-							kube.RepoLabel:        "bar1",
-							kube.PullLabel:        "1",
-						},
+					Name:      "not-important-1",
+					Namespace: "prowjobs",
+					Labels: map[string]string{
+						kube.GerritRevision:   "abc123",
+						kube.ProwJobTypeLabel: string(prowapi.PresubmitJob),
+						kube.OrgLabel:         "foo2",
+						kube.RepoLabel:        "bar1",
+						kube.PullLabel:        "1",
 					},
 					Spec: prowapi.ProwJobSpec{
 						Type:    prowapi.PresubmitJob,
@@ -473,16 +465,14 @@ func TestGerritHeadContexts(t *testing.T) {
 			name: "wrong-repo",
 			jobs: []prowapi.ProwJob{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "not-important-1",
-						Namespace: "prowjobs",
-						Labels: map[string]string{
-							kube.GerritRevision:   "abc123",
-							kube.ProwJobTypeLabel: string(prowapi.PresubmitJob),
-							kube.OrgLabel:         "foo1",
-							kube.RepoLabel:        "bar2",
-							kube.PullLabel:        "1",
-						},
+					Name:      "not-important-1",
+					Namespace: "prowjobs",
+					Labels: map[string]string{
+						kube.GerritRevision:   "abc123",
+						kube.ProwJobTypeLabel: string(prowapi.PresubmitJob),
+						kube.OrgLabel:         "foo1",
+						kube.RepoLabel:        "bar2",
+						kube.PullLabel:        "1",
 					},
 					Spec: prowapi.ProwJobSpec{
 						Type:    prowapi.PresubmitJob,
@@ -503,16 +493,14 @@ func TestGerritHeadContexts(t *testing.T) {
 			name: "wrong-revision",
 			jobs: []prowapi.ProwJob{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "not-important-1",
-						Namespace: "prowjobs",
-						Labels: map[string]string{
-							kube.GerritRevision:   "abc456",
-							kube.ProwJobTypeLabel: string(prowapi.PresubmitJob),
-							kube.OrgLabel:         "foo1",
-							kube.RepoLabel:        "bar1",
-							kube.PullLabel:        "1",
-						},
+					Name:      "not-important-1",
+					Namespace: "prowjobs",
+					Labels: map[string]string{
+						kube.GerritRevision:   "abc456",
+						kube.ProwJobTypeLabel: string(prowapi.PresubmitJob),
+						kube.OrgLabel:         "foo1",
+						kube.RepoLabel:        "bar1",
+						kube.PullLabel:        "1",
 					},
 					Spec: prowapi.ProwJobSpec{
 						Type:    prowapi.PresubmitJob,
@@ -533,16 +521,14 @@ func TestGerritHeadContexts(t *testing.T) {
 			name: "wrong-pull",
 			jobs: []prowapi.ProwJob{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "not-important-1",
-						Namespace: "prowjobs",
-						Labels: map[string]string{
-							kube.GerritRevision:   "abc123",
-							kube.ProwJobTypeLabel: string(prowapi.PresubmitJob),
-							kube.OrgLabel:         "foo1",
-							kube.RepoLabel:        "bar1",
-							kube.PullLabel:        "2",
-						},
+					Name:      "not-important-1",
+					Namespace: "prowjobs",
+					Labels: map[string]string{
+						kube.GerritRevision:   "abc123",
+						kube.ProwJobTypeLabel: string(prowapi.PresubmitJob),
+						kube.OrgLabel:         "foo1",
+						kube.RepoLabel:        "bar1",
+						kube.PullLabel:        "2",
 					},
 					Spec: prowapi.ProwJobSpec{
 						Type:    prowapi.PresubmitJob,
@@ -717,10 +703,8 @@ func TestMergePR(t *testing.T) {
 			fgc := newFakeGerritClient()
 			fgc.changes = tc.clientChanges
 			cfg := config.Config{
-				ProwConfig: config.ProwConfig{
-					Gerrit: config.Gerrit{
-						DeckURL: "http://foo.bar",
-					},
+				Gerrit: config.Gerrit{
+					DeckURL: "http://foo.bar",
 				},
 			}
 			fc := &GerritProvider{
@@ -775,11 +759,9 @@ func TestGetTideContextPolicy(t *testing.T) {
 			presubmits: map[string][]config.Presubmit{
 				"https://foo1/bar1": {
 					{
-						Reporter: config.Reporter{Context: "job-1"},
-						JobBase: config.JobBase{
-							Labels: map[string]string{
-								"prow.k8s.io/gerrit-report-label": "Verified",
-							},
+						Context: "job-1",
+						Labels: map[string]string{
+							"prow.k8s.io/gerrit-report-label": "Verified",
 						},
 					},
 				},
@@ -807,7 +789,7 @@ func TestGetTideContextPolicy(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg := config.Config{JobConfig: config.JobConfig{PresubmitsStatic: tc.presubmits}}
+			cfg := config.Config{PresubmitsStatic: tc.presubmits}
 			fc := &GerritProvider{cfg: func() *config.Config { return &cfg }}
 
 			got, gotErr := fc.GetTideContextPolicy("foo1", tc.pr.Project, tc.pr.Branch, nil, CodeReviewCommonFromGerrit(&tc.pr, "foo1"))
@@ -912,9 +894,9 @@ func TestJobIsRequiredByTide(t *testing.T) {
 		},
 		{
 			name: "required-label",
-			ps: &config.Presubmit{JobBase: config.JobBase{Labels: map[string]string{
+			ps: &config.Presubmit{Labels: map[string]string{
 				"prow.k8s.io/gerrit-report-label": "Verified-By-Prow",
-			}}},
+			}},
 			crc: &CodeReviewCommon{
 				Gerrit: &gerrit.ChangeInfo{Labels: map[string]gerrit.LabelInfo{"Verified-By-Prow": {}}},
 			},
@@ -922,9 +904,9 @@ func TestJobIsRequiredByTide(t *testing.T) {
 		},
 		{
 			name: "optional-label",
-			ps: &config.Presubmit{JobBase: config.JobBase{Labels: map[string]string{
+			ps: &config.Presubmit{Labels: map[string]string{
 				"prow.k8s.io/gerrit-report-label": "Verified-By-Prow",
-			}}},
+			}},
 			crc: &CodeReviewCommon{
 				Gerrit: &gerrit.ChangeInfo{Labels: map[string]gerrit.LabelInfo{"Verified-By-Prow": {Optional: true}}},
 			},

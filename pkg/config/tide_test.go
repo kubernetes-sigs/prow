@@ -577,12 +577,10 @@ func TestOrgExceptionsAndRepos(t *testing.T) {
 
 func TestMergeMethod(t *testing.T) {
 	ti := &Tide{
-		TideGitHubConfig: TideGitHubConfig{
-			MergeType: map[string]TideOrgMergeType{
-				"kubernetes/kops":             {MergeType: types.MergeRebase},
-				"kubernetes-helm":             {MergeType: types.MergeSquash},
-				"kubernetes-helm/chartmuseum": {MergeType: types.MergeMerge},
-			},
+		MergeType: map[string]TideOrgMergeType{
+			"kubernetes/kops":             {MergeType: types.MergeRebase},
+			"kubernetes-helm":             {MergeType: types.MergeSquash},
+			"kubernetes-helm/chartmuseum": {MergeType: types.MergeMerge},
 		},
 	}
 
@@ -1103,16 +1101,14 @@ func TestOrgRepoMatchMergeMethod(t *testing.T) {
 }
 func TestMergeTemplate(t *testing.T) {
 	ti := &Tide{
-		TideGitHubConfig: TideGitHubConfig{
-			MergeTemplate: map[string]TideMergeCommitTemplate{
-				"kubernetes/kops": {
-					TitleTemplate: "",
-					BodyTemplate:  "",
-				},
-				"kubernetes-helm": {
-					TitleTemplate: "{{ .Title }}",
-					BodyTemplate:  "{{ .Body }}",
-				},
+		MergeTemplate: map[string]TideMergeCommitTemplate{
+			"kubernetes/kops": {
+				TitleTemplate: "",
+				BodyTemplate:  "",
+			},
+			"kubernetes-helm": {
+				TitleTemplate: "{{ .Title }}",
+				BodyTemplate:  "{{ .Body }}",
 			},
 		},
 	}
@@ -1316,15 +1312,11 @@ func TestConfigGetTideContextPolicy(t *testing.T) {
 					PresubmitsStatic: map[string][]Presubmit{
 						"org/repo": {
 							Presubmit{
-								Reporter: Reporter{
-									Context: "pr1",
-								},
+								Context:   "pr1",
 								AlwaysRun: true,
 							},
 							Presubmit{
-								Reporter: Reporter{
-									Context: "po1",
-								},
+								Context:   "po1",
 								AlwaysRun: true,
 								Optional:  true,
 							},
@@ -1436,16 +1428,12 @@ func TestConfigGetTideContextPolicy(t *testing.T) {
 					PresubmitsStatic: map[string][]Presubmit{
 						"org/repo": {
 							Presubmit{
-								Reporter: Reporter{
-									Context: "pr1",
-								},
+								Context:   "pr1",
 								AlwaysRun: false,
 								Optional:  false,
 							},
 							Presubmit{
-								Reporter: Reporter{
-									Context: "pr2",
-								},
+								Context:   "pr2",
 								AlwaysRun: true,
 							},
 						},
@@ -1494,12 +1482,12 @@ func TestConfigGetTideContextPolicy(t *testing.T) {
 						[]Presubmit{
 							{
 								AlwaysRun: true,
-								Reporter:  Reporter{Context: "ir0"},
+								Context:   "ir0",
 							},
 							{
 								AlwaysRun: true,
 								Optional:  true,
-								Reporter:  Reporter{Context: "ir1"},
+								Context:   "ir1",
 							},
 						},
 						nil,
@@ -1524,15 +1512,11 @@ func TestConfigGetTideContextPolicy(t *testing.T) {
 					PresubmitsStatic: map[string][]Presubmit{
 						"org/repo": {
 							Presubmit{
-								Reporter: Reporter{
-									Context: "pr1",
-								},
+								Context:   "pr1",
 								AlwaysRun: true,
 							},
 							Presubmit{
-								Reporter: Reporter{
-									Context: "po1",
-								},
+								Context:   "po1",
 								AlwaysRun: true,
 								Optional:  true,
 							},
@@ -1542,12 +1526,12 @@ func TestConfigGetTideContextPolicy(t *testing.T) {
 						[]Presubmit{
 							{
 								AlwaysRun: true,
-								Reporter:  Reporter{Context: "ir0"},
+								Context:   "ir0",
 							},
 							{
 								AlwaysRun: true,
 								Optional:  true,
-								Reporter:  Reporter{Context: "ir1"},
+								Context:   "ir1",
 							},
 						},
 						nil,

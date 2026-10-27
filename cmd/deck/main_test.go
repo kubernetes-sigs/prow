@@ -40,7 +40,6 @@ import (
 	"github.com/sirupsen/logrus"
 	coreapi "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/apimachinery/pkg/util/sets"
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -285,13 +284,11 @@ func TestHandleLog(t *testing.T) {
 func TestHandleProwJobs(t *testing.T) {
 	kc := fkc{
 		prowapi.ProwJob{
-			ObjectMeta: metav1.ObjectMeta{
-				Annotations: map[string]string{
-					"hello": "world",
-				},
-				Labels: map[string]string{
-					"goodbye": "world",
-				},
+			Annotations: map[string]string{
+				"hello": "world",
+			},
+			Labels: map[string]string{
+				"goodbye": "world",
 			},
 			Spec: prowapi.ProwJobSpec{
 				Agent:            prowapi.KubernetesAgent,
@@ -312,13 +309,11 @@ func TestHandleProwJobs(t *testing.T) {
 			},
 		},
 		prowapi.ProwJob{
-			ObjectMeta: metav1.ObjectMeta{
-				Annotations: map[string]string{
-					"hello": "world",
-				},
-				Labels: map[string]string{
-					"goodbye": "world",
-				},
+			Annotations: map[string]string{
+				"hello": "world",
+			},
+			Labels: map[string]string{
+				"goodbye": "world",
 			},
 			Spec: prowapi.ProwJobSpec{
 				Agent:            prowapi.KubernetesAgent,
@@ -381,10 +376,8 @@ func TestHandleProwJobs(t *testing.T) {
 // the same status, and has equal spec.
 func TestProwJob(t *testing.T) {
 	fakeProwJobClient := fake.NewSimpleClientset(&prowapi.ProwJob{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "wowsuch",
-			Namespace: "prowjobs",
-		},
+		Name:      "wowsuch",
+		Namespace: "prowjobs",
 		Spec: prowapi.ProwJobSpec{
 			Job:  "whoa",
 			Type: prowapi.PresubmitJob,
@@ -433,11 +426,9 @@ func TestProwJob(t *testing.T) {
 func TestHandleProwJobsWithFilter(t *testing.T) {
 	kc := fkc{
 		{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "fullref",
-				Labels: map[string]string{
-					"goodbye": "world",
-				},
+			Name: "fullref",
+			Labels: map[string]string{
+				"goodbye": "world",
 			},
 			Spec: prowapi.ProwJobSpec{
 				Agent: prowapi.KubernetesAgent,
@@ -454,11 +445,9 @@ func TestHandleProwJobsWithFilter(t *testing.T) {
 			},
 		},
 		{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "differentorg",
-				Labels: map[string]string{
-					"goodbye": "world",
-				},
+			Name: "differentorg",
+			Labels: map[string]string{
+				"goodbye": "world",
 			},
 			Spec: prowapi.ProwJobSpec{
 				Agent: prowapi.KubernetesAgent,
@@ -475,18 +464,14 @@ func TestHandleProwJobsWithFilter(t *testing.T) {
 			},
 		},
 		{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "nullref",
-			},
+			Name: "nullref",
 			Spec: prowapi.ProwJobSpec{
 				Agent: prowapi.KubernetesAgent,
 				Job:   "job",
 			},
 		},
 		{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "extrarefs-org-match",
-			},
+			Name: "extrarefs-org-match",
 			Spec: prowapi.ProwJobSpec{
 				Agent: prowapi.KubernetesAgent,
 				Job:   "periodic-job",
@@ -499,9 +484,7 @@ func TestHandleProwJobsWithFilter(t *testing.T) {
 			},
 		},
 		{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "extrarefs-different-org",
-			},
+			Name: "extrarefs-different-org",
 			Spec: prowapi.ProwJobSpec{
 				Agent: prowapi.KubernetesAgent,
 				Job:   "periodic-job",
@@ -514,9 +497,7 @@ func TestHandleProwJobsWithFilter(t *testing.T) {
 			},
 		},
 		{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "noowner",
-			},
+			Name: "noowner",
 			Spec: prowapi.ProwJobSpec{
 				Agent: prowapi.KubernetesAgent,
 				Job:   "job",
@@ -527,9 +508,7 @@ func TestHandleProwJobsWithFilter(t *testing.T) {
 			},
 		},
 		{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "multiowner",
-			},
+			Name: "multiowner",
 			Spec: prowapi.ProwJobSpec{
 				Agent: prowapi.KubernetesAgent,
 				Job:   "job",
@@ -678,12 +657,10 @@ func TestTide(t *testing.T) {
 	}))
 	ca := &config.Agent{}
 	ca.Set(&config.Config{
-		ProwConfig: config.ProwConfig{
-			Tide: config.Tide{
-				TideGitHubConfig: config.TideGitHubConfig{
-					Queries: []config.TideQuery{
-						{Repos: []string{"prowapi.netes/test-infra"}},
-					},
+		Tide: config.Tide{
+			TideGitHubConfig: config.TideGitHubConfig{
+				Queries: []config.TideQuery{
+					{Repos: []string{"prowapi.netes/test-infra"}},
 				},
 			},
 		},
@@ -978,50 +955,40 @@ func Test_gatherOptions(t *testing.T) {
 func TestHandleConfig(t *testing.T) {
 	trueVal := true
 	c := config.Config{
-		JobConfig: config.JobConfig{
-			PresubmitsStatic: map[string][]config.Presubmit{
-				"org/repo": {
-					{
-						Reporter: config.Reporter{
-							Context: "gce",
+		PresubmitsStatic: map[string][]config.Presubmit{
+			"org/repo": {
+				{
+					Context:   "gce",
+					AlwaysRun: true,
+				},
+				{
+					Context:   "unit",
+					AlwaysRun: true,
+				},
+			},
+		},
+		BranchProtection: config.BranchProtection{
+			Orgs: map[string]config.Org{
+				"kubernetes": {
+					Policy: config.Policy{
+						Protect: &trueVal,
+						RequiredStatusChecks: &config.ContextPolicy{
+							Strict: &trueVal,
 						},
-						AlwaysRun: true,
-					},
-					{
-						Reporter: config.Reporter{
-							Context: "unit",
-						},
-						AlwaysRun: true,
 					},
 				},
 			},
 		},
-		ProwConfig: config.ProwConfig{
-			BranchProtection: config.BranchProtection{
-				Orgs: map[string]config.Org{
-					"kubernetes": {
-						Policy: config.Policy{
-							Protect: &trueVal,
-							RequiredStatusChecks: &config.ContextPolicy{
-								Strict: &trueVal,
-							},
-						},
-					},
-				},
-			},
-			Tide: config.Tide{
-				TideGitHubConfig: config.TideGitHubConfig{
-					Queries: []config.TideQuery{
-						{Repos: []string{"prowapi.netes/test-infra"}},
-					},
+		Tide: config.Tide{
+			TideGitHubConfig: config.TideGitHubConfig{
+				Queries: []config.TideQuery{
+					{Repos: []string{"prowapi.netes/test-infra"}},
 				},
 			},
 		},
 	}
 	cWithDisabledCluster := config.Config{
-		ProwConfig: config.ProwConfig{
-			DisabledClusters: []string{"build08", "build08", "build01"},
-		},
+		DisabledClusters: []string{"build08", "build08", "build01"},
 	}
 	dataC, err := yaml.Marshal(c)
 	if err != nil {
@@ -1150,15 +1117,13 @@ func TestHandlePluginConfig(t *testing.T) {
 
 func cfgWithLensNamed(lensName string) *config.Config {
 	return &config.Config{
-		ProwConfig: config.ProwConfig{
-			Deck: config.Deck{
-				Spyglass: config.Spyglass{
-					Lenses: []config.LensFileConfig{{
-						Lens: config.LensConfig{
-							Name: lensName,
-						},
-					}},
-				},
+		Deck: config.Deck{
+			Spyglass: config.Spyglass{
+				Lenses: []config.LensFileConfig{{
+					Lens: config.LensConfig{
+						Name: lensName,
+					},
+				}},
 			},
 		},
 	}

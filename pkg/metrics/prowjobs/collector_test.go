@@ -69,20 +69,16 @@ func TestProwJobLifecycleCollectorUpdate(t *testing.T) {
 			},
 			args: args{
 				oldJob: &prowapi.ProwJob{
-					ObjectMeta: v1.ObjectMeta{
-						UID:               "1234",
-						CreationTimestamp: v1.NewTime(fakeClock.Now()),
-					},
+					UID:               "1234",
+					CreationTimestamp: v1.NewTime(fakeClock.Now()),
 					Status: prowapi.ProwJobStatus{
 						CompletionTime: &defaultCompleteTime,
 						PendingTime:    &defaultPendingTime,
 					},
 				},
 				newJob: &prowapi.ProwJob{
-					ObjectMeta: v1.ObjectMeta{
-						UID:               "1234",
-						CreationTimestamp: v1.NewTime(fakeClock.Now()),
-					},
+					UID:               "1234",
+					CreationTimestamp: v1.NewTime(fakeClock.Now()),
 					Status: prowapi.ProwJobStatus{
 						CompletionTime: &defaultCompleteTime,
 						PendingTime:    &defaultPendingTime,
@@ -112,10 +108,8 @@ func TestProwJobLifecycleCollectorUpdate(t *testing.T) {
 			},
 			args: args{
 				oldJob: &prowapi.ProwJob{
-					ObjectMeta: v1.ObjectMeta{
-						UID:               "1234",
-						CreationTimestamp: v1.NewTime(fakeClock.Now().Add(-time.Hour)),
-					},
+					UID:               "1234",
+					CreationTimestamp: v1.NewTime(fakeClock.Now().Add(-time.Hour)),
 					Status: prowapi.ProwJobStatus{
 						CompletionTime: &defaultCompleteTime,
 						PendingTime:    &defaultPendingTime,
@@ -123,12 +117,10 @@ func TestProwJobLifecycleCollectorUpdate(t *testing.T) {
 					},
 				},
 				newJob: &prowapi.ProwJob{
-					ObjectMeta: v1.ObjectMeta{
-						UID:               "1234",
-						Name:              "testjob",
-						Namespace:         "testnamespace",
-						CreationTimestamp: v1.NewTime(fakeClock.Now().Add(-time.Hour)),
-					},
+					UID:               "1234",
+					Name:              "testjob",
+					Namespace:         "testnamespace",
+					CreationTimestamp: v1.NewTime(fakeClock.Now().Add(-time.Hour)),
 					Spec: prowapi.ProwJobSpec{
 						Job:  "testjob",
 						Type: prowapi.PeriodicJob,
@@ -177,10 +169,8 @@ func TestProwJobLifecycleCollectorUpdate(t *testing.T) {
 			},
 			args: args{
 				oldJob: &prowapi.ProwJob{
-					ObjectMeta: v1.ObjectMeta{
-						UID:               "1234",
-						CreationTimestamp: v1.NewTime(fakeClock.Now().Add(-time.Hour)),
-					},
+					UID:               "1234",
+					CreationTimestamp: v1.NewTime(fakeClock.Now().Add(-time.Hour)),
 					Status: prowapi.ProwJobStatus{
 						State:          prowapi.TriggeredState,
 						CompletionTime: &defaultCompleteTime,
@@ -188,12 +178,10 @@ func TestProwJobLifecycleCollectorUpdate(t *testing.T) {
 					},
 				},
 				newJob: &prowapi.ProwJob{
-					ObjectMeta: v1.ObjectMeta{
-						UID:               "1234",
-						Name:              "testjob",
-						Namespace:         "testnamespace",
-						CreationTimestamp: v1.NewTime(fakeClock.Now().Add(-time.Hour)),
-					},
+					UID:               "1234",
+					Name:              "testjob",
+					Namespace:         "testnamespace",
+					CreationTimestamp: v1.NewTime(fakeClock.Now().Add(-time.Hour)),
 					Spec: prowapi.ProwJobSpec{
 						Job:  "testjob",
 						Type: prowapi.PeriodicJob,

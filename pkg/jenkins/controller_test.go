@@ -49,20 +49,14 @@ type fca struct {
 func newFakeConfigAgent(t *testing.T, maxConcurrency int, operators []config.JenkinsOperator) *fca {
 	presubmits := []config.Presubmit{
 		{
-			JobBase: config.JobBase{
-				Name: "test-bazel-build",
-			},
+			Name: "test-bazel-build",
 		},
 		{
-			JobBase: config.JobBase{
-				Name: "test-e2e",
-			},
+			Name: "test-e2e",
 		},
 		{
 			AlwaysRun: true,
-			JobBase: config.JobBase{
-				Name: "test-bazel-test",
-			},
+			Name:      "test-bazel-test",
 		},
 	}
 	if err := config.SetPresubmitRegexes(presubmits); err != nil {
@@ -74,22 +68,16 @@ func newFakeConfigAgent(t *testing.T, maxConcurrency int, operators []config.Jen
 
 	ca := &fca{
 		c: &config.Config{
-			ProwConfig: config.ProwConfig{
-				ProwJobNamespace: "prowjobs",
-				JenkinsOperators: []config.JenkinsOperator{
-					{
-						Controller: config.Controller{
-							JobURLTemplate: template.Must(template.New("test").Parse("{{.Status.PodName}}/{{.Status.State}}")),
-							MaxConcurrency: maxConcurrency,
-							MaxGoroutines:  20,
-						},
-					},
+			ProwJobNamespace: "prowjobs",
+			JenkinsOperators: []config.JenkinsOperator{
+				{
+					JobURLTemplate: template.Must(template.New("test").Parse("{{.Status.PodName}}/{{.Status.State}}")),
+					MaxConcurrency: maxConcurrency,
+					MaxGoroutines:  20,
 				},
-				StatusErrorLink: "https://github.com/kubernetes/test-infra/issues",
 			},
-			JobConfig: config.JobConfig{
-				PresubmitsStatic: presubmitMap,
-			},
+			StatusErrorLink:  "https://github.com/kubernetes/test-infra/issues",
+			PresubmitsStatic: presubmitMap,
 		},
 	}
 	if len(operators) > 0 {
@@ -605,13 +593,9 @@ func pState(state string) *string {
 // TestBatch walks through the happy path of a batch job on Jenkins.
 func TestBatch(t *testing.T) {
 	pre := config.Presubmit{
-		JobBase: config.JobBase{
-			Name:  "pr-some-job",
-			Agent: "jenkins",
-		},
-		Reporter: config.Reporter{
-			Context: "Some Job Context",
-		},
+		Name:    "pr-some-job",
+		Agent:   "jenkins",
+		Context: "Some Job Context",
 	}
 	pj := pjutil.NewProwJob(pjutil.BatchSpec(pre, prowapi.Refs{
 		Org:     "o",
@@ -711,10 +695,8 @@ func TestMaxConcurrencyWithNewlyTriggeredJobs(t *testing.T) {
 			name: "avoid starting a triggered job",
 			pjs: []prowapi.ProwJob{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "first",
-						Namespace: "prowjobs",
-					},
+					Name:      "first",
+					Namespace: "prowjobs",
 					Spec: prowapi.ProwJobSpec{
 						Job:            "test-bazel-build",
 						Type:           prowapi.PostsubmitJob,
@@ -725,10 +707,8 @@ func TestMaxConcurrencyWithNewlyTriggeredJobs(t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "second",
-						Namespace: "prowjobs",
-					},
+					Name:      "second",
+					Namespace: "prowjobs",
 					Spec: prowapi.ProwJobSpec{
 						Job:            "test-bazel-build",
 						Type:           prowapi.PostsubmitJob,
@@ -746,10 +726,8 @@ func TestMaxConcurrencyWithNewlyTriggeredJobs(t *testing.T) {
 			name: "both triggered jobs can start",
 			pjs: []prowapi.ProwJob{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "first",
-						Namespace: "prowjobs",
-					},
+					Name:      "first",
+					Namespace: "prowjobs",
 					Spec: prowapi.ProwJobSpec{
 						Job:            "test-bazel-build",
 						Type:           prowapi.PostsubmitJob,
@@ -760,10 +738,8 @@ func TestMaxConcurrencyWithNewlyTriggeredJobs(t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "second",
-						Namespace: "prowjobs",
-					},
+					Name:      "second",
+					Namespace: "prowjobs",
 					Spec: prowapi.ProwJobSpec{
 						Job:            "test-bazel-build",
 						Type:           prowapi.PostsubmitJob,
@@ -781,10 +757,8 @@ func TestMaxConcurrencyWithNewlyTriggeredJobs(t *testing.T) {
 			name: "no triggered job can start",
 			pjs: []prowapi.ProwJob{
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "first",
-						Namespace: "prowjobs",
-					},
+					Name:      "first",
+					Namespace: "prowjobs",
 					Spec: prowapi.ProwJobSpec{
 						Job:            "test-bazel-build",
 						Type:           prowapi.PostsubmitJob,
@@ -795,10 +769,8 @@ func TestMaxConcurrencyWithNewlyTriggeredJobs(t *testing.T) {
 					},
 				},
 				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "second",
-						Namespace: "prowjobs",
-					},
+					Name:      "second",
+					Namespace: "prowjobs",
 					Spec: prowapi.ProwJobSpec{
 						Job:            "test-bazel-build",
 						Type:           prowapi.PostsubmitJob,
@@ -1018,18 +990,14 @@ func TestOperatorConfig(t *testing.T) {
 
 			operators: []config.JenkinsOperator{
 				{
-					Controller: config.Controller{
-						JobURLTemplate: template.Must(template.New("test").Parse("{{.Status.PodName}}/{{.Status.State}}")),
-						MaxConcurrency: 5,
-						MaxGoroutines:  10,
-					},
+					JobURLTemplate:      template.Must(template.New("test").Parse("{{.Status.PodName}}/{{.Status.State}}")),
+					MaxConcurrency:      5,
+					MaxGoroutines:       10,
 					LabelSelectorString: "master=ci.openshift.org",
 				},
 				{
-					Controller: config.Controller{
-						MaxConcurrency: 100,
-						MaxGoroutines:  100,
-					},
+					MaxConcurrency:      100,
+					MaxGoroutines:       100,
 					LabelSelectorString: "master=ci.jenkins.org",
 				},
 			},
@@ -1090,9 +1058,7 @@ func TestSyncAbortedJob(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 
 			pj := &prowapi.ProwJob{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "my-pj",
-				},
+				Name: "my-pj",
 				Status: prowapi.ProwJobStatus{
 					State: prowapi.AbortedState,
 				},

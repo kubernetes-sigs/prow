@@ -137,11 +137,9 @@ func Update(fg FileGetter, kc corev1.ConfigMapInterface, name, namespace string,
 
 	if cm == nil || isNotFound {
 		cm = &coreapi.ConfigMap{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      name,
-				Namespace: namespace,
-				Labels:    labels,
-			},
+			Name:      name,
+			Namespace: namespace,
+			Labels:    labels,
 		}
 	}
 

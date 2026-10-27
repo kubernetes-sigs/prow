@@ -42,46 +42,28 @@ func TestTestAllFilter(t *testing.T) {
 			name: "test all filter matches jobs which do not require human triggering",
 			presubmits: []config.Presubmit{
 				{
-					JobBase: config.JobBase{
-						Name: "always-runs",
-					},
+					Name:      "always-runs",
 					AlwaysRun: true,
 				},
 				{
-					JobBase: config.JobBase{
-						Name: "runs-if-changed",
-					},
-					AlwaysRun: false,
-					RegexpChangeMatcher: config.RegexpChangeMatcher{
-						RunIfChanged: "sometimes",
-					},
+					Name:         "runs-if-changed",
+					AlwaysRun:    false,
+					RunIfChanged: "sometimes",
 				},
 				{
-					JobBase: config.JobBase{
-						Name: "runs-if-changed",
-					},
-					AlwaysRun: false,
-					RegexpChangeMatcher: config.RegexpChangeMatcher{
-						SkipIfOnlyChanged: "sometimes",
-					},
+					Name:              "runs-if-changed",
+					AlwaysRun:         false,
+					SkipIfOnlyChanged: "sometimes",
 				},
 				{
-					JobBase: config.JobBase{
-						Name: "runs-if-triggered",
-					},
-					Reporter: config.Reporter{
-						Context: "runs-if-triggered",
-					},
+					Name:         "runs-if-triggered",
+					Context:      "runs-if-triggered",
 					Trigger:      `(?m)^/test (?:.*? )?trigger(?: .*?)?$`,
 					RerunCommand: "/test trigger",
 				},
 				{
-					JobBase: config.JobBase{
-						Name: "literal-test-all-trigger",
-					},
-					Reporter: config.Reporter{
-						Context: "runs-if-triggered",
-					},
+					Name:         "literal-test-all-trigger",
+					Context:      "runs-if-triggered",
 					Trigger:      `(?m)^/test (?:.*? )?all(?: .*?)?$`,
 					RerunCommand: "/test all",
 				},
@@ -121,29 +103,29 @@ func TestTestAllWithExistingStatusFilter(t *testing.T) {
 
 	presubmits := []config.Presubmit{
 		{
-			JobBase:   config.JobBase{Name: "already-passing"},
-			Reporter:  config.Reporter{Context: "already-passing"},
+			Name:      "already-passing",
+			Context:   "already-passing",
 			AlwaysRun: true,
 		},
 		{
-			JobBase:   config.JobBase{Name: "still-failing"},
-			Reporter:  config.Reporter{Context: "still-failing"},
+			Name:      "still-failing",
+			Context:   "still-failing",
 			AlwaysRun: true,
 		},
 		{
-			JobBase:   config.JobBase{Name: "no-status-yet"},
-			Reporter:  config.Reporter{Context: "no-status-yet"},
+			Name:      "no-status-yet",
+			Context:   "no-status-yet",
 			AlwaysRun: true,
 		},
 		{
-			JobBase:      config.JobBase{Name: "needs-explicit"},
-			Reporter:     config.Reporter{Context: "needs-explicit"},
+			Name:         "needs-explicit",
+			Context:      "needs-explicit",
 			Trigger:      `(?m)^/test (?:.*? )?explicit(?: .*?)?$`,
 			RerunCommand: "/test explicit",
 		},
 		{
-			JobBase:   config.JobBase{Name: "also-passing"},
-			Reporter:  config.Reporter{Context: "also-passing"},
+			Name:      "also-passing",
+			Context:   "also-passing",
 			AlwaysRun: true,
 		},
 	}
@@ -186,9 +168,7 @@ func TestCommandFilter(t *testing.T) {
 			body: "something/test job-abcdefg",
 			presubmits: []config.Presubmit{
 				{
-					JobBase: config.JobBase{
-						Name: "trigger",
-					},
+					Name:         "trigger",
 					Trigger:      `/test job-a`,
 					RerunCommand: "/test job-a", // rerun command has to be set when trigger is set.
 				},
@@ -204,16 +184,12 @@ func TestCommandFilter(t *testing.T) {
 			body: "/test trigger",
 			presubmits: []config.Presubmit{
 				{
-					JobBase: config.JobBase{
-						Name: "trigger",
-					},
+					Name:         "trigger",
 					Trigger:      `(?m)^/test (?:.*? )?trigger(?: .*?)?$`,
 					RerunCommand: "/test trigger",
 				},
 				{
-					JobBase: config.JobBase{
-						Name: "other-trigger",
-					},
+					Name:         "other-trigger",
 					Trigger:      `(?m)^/test (?:.*? )?other-trigger(?: .*?)?$`,
 					RerunCommand: "/test other-trigger",
 				},
@@ -228,9 +204,7 @@ fill in random content so that it exceeds the limit of half*2 chars`,
 			half: 10,
 			presubmits: []config.Presubmit{
 				{
-					JobBase: config.JobBase{
-						Name: "trigger",
-					},
+					Name:         "trigger",
 					Trigger:      `(?m)^/test (?:.*? )?trigger(?: .*?)?$`,
 					RerunCommand: "/test trigger",
 				},
@@ -300,11 +274,11 @@ func TestFilterPresubmits(t *testing.T) {
 				},
 			},
 			presubmits: []config.Presubmit{{
-				JobBase:  config.JobBase{Name: "ignored"},
-				Reporter: config.Reporter{Context: "first"},
+				Name:    "ignored",
+				Context: "first",
 			}, {
-				JobBase:  config.JobBase{Name: "ignored"},
-				Reporter: config.Reporter{Context: "second"},
+				Name:    "ignored",
+				Context: "second",
 			}},
 			changesError:      false,
 			expectedToTrigger: nil,
@@ -318,19 +292,19 @@ func TestFilterPresubmits(t *testing.T) {
 				},
 			},
 			presubmits: []config.Presubmit{{
-				JobBase:  config.JobBase{Name: "should-trigger"},
-				Reporter: config.Reporter{Context: "first"},
+				Name:    "should-trigger",
+				Context: "first",
 			}, {
-				JobBase:  config.JobBase{Name: "should-trigger"},
-				Reporter: config.Reporter{Context: "second"},
+				Name:    "should-trigger",
+				Context: "second",
 			}},
 			changesError: false,
 			expectedToTrigger: []config.Presubmit{{
-				JobBase:  config.JobBase{Name: "should-trigger"},
-				Reporter: config.Reporter{Context: "first"},
+				Name:    "should-trigger",
+				Context: "first",
 			}, {
-				JobBase:  config.JobBase{Name: "should-trigger"},
-				Reporter: config.Reporter{Context: "second"},
+				Name:    "should-trigger",
+				Context: "second",
 			}},
 			expectErr: false,
 		},
@@ -342,12 +316,12 @@ func TestFilterPresubmits(t *testing.T) {
 				},
 			},
 			presubmits: []config.Presubmit{{
-				JobBase:             config.JobBase{Name: "errors"},
-				Reporter:            config.Reporter{Context: "first"},
-				RegexpChangeMatcher: config.RegexpChangeMatcher{RunIfChanged: "oopsie"},
+				Name:         "errors",
+				Context:      "first",
+				RunIfChanged: "oopsie",
 			}, {
-				JobBase:  config.JobBase{Name: "ignored"},
-				Reporter: config.Reporter{Context: "second"},
+				Name:    "ignored",
+				Context: "second",
 			}},
 			changesError:      true,
 			expectedToTrigger: nil,
@@ -361,12 +335,12 @@ func TestFilterPresubmits(t *testing.T) {
 				},
 			},
 			presubmits: []config.Presubmit{{
-				JobBase:             config.JobBase{Name: "errors"},
-				Reporter:            config.Reporter{Context: "first"},
-				RegexpChangeMatcher: config.RegexpChangeMatcher{SkipIfOnlyChanged: "oopsie"},
+				Name:              "errors",
+				Context:           "first",
+				SkipIfOnlyChanged: "oopsie",
 			}, {
-				JobBase:  config.JobBase{Name: "ignored"},
-				Reporter: config.Reporter{Context: "second"},
+				Name:    "ignored",
+				Context: "second",
 			}},
 			changesError:      true,
 			expectedToTrigger: nil,
@@ -380,16 +354,16 @@ func TestFilterPresubmits(t *testing.T) {
 				},
 			},
 			presubmits: []config.Presubmit{{
-				JobBase:  config.JobBase{Name: "should-trigger"},
-				Reporter: config.Reporter{Context: "first"},
+				Name:    "should-trigger",
+				Context: "first",
 			}, {
-				JobBase:  config.JobBase{Name: "ignored"},
-				Reporter: config.Reporter{Context: "second"},
+				Name:    "ignored",
+				Context: "second",
 			}},
 			changesError: false,
 			expectedToTrigger: []config.Presubmit{{
-				JobBase:  config.JobBase{Name: "should-trigger"},
-				Reporter: config.Reporter{Context: "first"},
+				Name:    "should-trigger",
+				Context: "first",
 			}},
 			expectErr: false,
 		},
@@ -401,25 +375,25 @@ func TestFilterPresubmits(t *testing.T) {
 				},
 			},
 			presubmits: []config.Presubmit{{
-				JobBase:  config.JobBase{Name: "should-trigger"},
-				Reporter: config.Reporter{Context: "first"},
+				Name:    "should-trigger",
+				Context: "first",
 			}, {
-				JobBase:  config.JobBase{Name: "should-trigger"},
-				Reporter: config.Reporter{Context: "second"},
+				Name:    "should-trigger",
+				Context: "second",
 			}, {
-				JobBase:  config.JobBase{Name: "should-skip"},
-				Reporter: config.Reporter{Context: "third"},
+				Name:    "should-skip",
+				Context: "third",
 			}, {
-				JobBase:  config.JobBase{Name: "should-skip"},
-				Reporter: config.Reporter{Context: "fourth"},
+				Name:    "should-skip",
+				Context: "fourth",
 			}},
 			changesError: false,
 			expectedToTrigger: []config.Presubmit{{
-				JobBase:  config.JobBase{Name: "should-trigger"},
-				Reporter: config.Reporter{Context: "first"},
+				Name:    "should-trigger",
+				Context: "first",
 			}, {
-				JobBase:  config.JobBase{Name: "should-trigger"},
-				Reporter: config.Reporter{Context: "second"},
+				Name:    "should-trigger",
+				Context: "second",
 			}},
 			expectErr: false,
 		},
@@ -431,25 +405,25 @@ func TestFilterPresubmits(t *testing.T) {
 				},
 			},
 			presubmits: []config.Presubmit{{
-				JobBase:  config.JobBase{Name: "should-trigger"},
-				Reporter: config.Reporter{Context: "first"},
+				Name:    "should-trigger",
+				Context: "first",
 			}, {
-				JobBase:  config.JobBase{Name: "should-trigger"},
-				Reporter: config.Reporter{Context: "second"},
+				Name:    "should-trigger",
+				Context: "second",
 			}, {
-				JobBase:  config.JobBase{Name: "should-skip"},
-				Reporter: config.Reporter{Context: "third"},
+				Name:    "should-skip",
+				Context: "third",
 			}, {
-				JobBase:  config.JobBase{Name: "should-not-skip"},
-				Reporter: config.Reporter{Context: "second"},
+				Name:    "should-not-skip",
+				Context: "second",
 			}},
 			changesError: false,
 			expectedToTrigger: []config.Presubmit{{
-				JobBase:  config.JobBase{Name: "should-trigger"},
-				Reporter: config.Reporter{Context: "first"},
+				Name:    "should-trigger",
+				Context: "first",
 			}, {
-				JobBase:  config.JobBase{Name: "should-trigger"},
-				Reporter: config.Reporter{Context: "second"},
+				Name:    "should-trigger",
+				Context: "second",
 			}},
 			expectErr: false,
 		},
@@ -536,43 +510,23 @@ func TestPresubmitFilter(t *testing.T) {
 			ref:  "ref",
 			presubmits: []config.Presubmit{
 				{
-					JobBase: config.JobBase{
-						Name: "always-runs",
-					},
+					Name:      "always-runs",
 					AlwaysRun: true,
-					Reporter: config.Reporter{
-						Context: "always-runs",
-					},
+					Context:   "always-runs",
 				},
 				{
-					JobBase: config.JobBase{
-						Name: "runs-if-changed",
-					},
-					Reporter: config.Reporter{
-						Context: "runs-if-changed",
-					},
-					RegexpChangeMatcher: config.RegexpChangeMatcher{
-						RunIfChanged: "sometimes",
-					},
+					Name:         "runs-if-changed",
+					Context:      "runs-if-changed",
+					RunIfChanged: "sometimes",
 				},
 				{
-					JobBase: config.JobBase{
-						Name: "runs-if-changed",
-					},
-					Reporter: config.Reporter{
-						Context: "runs-if-changed",
-					},
-					RegexpChangeMatcher: config.RegexpChangeMatcher{
-						SkipIfOnlyChanged: "sometimes",
-					},
+					Name:              "runs-if-changed",
+					Context:           "runs-if-changed",
+					SkipIfOnlyChanged: "sometimes",
 				},
 				{
-					JobBase: config.JobBase{
-						Name: "runs-if-triggered",
-					},
-					Reporter: config.Reporter{
-						Context: "runs-if-triggered",
-					},
+					Name:         "runs-if-triggered",
+					Context:      "runs-if-triggered",
 					Trigger:      `(?m)^/test (?:.*? )?trigger(?: .*?)?$`,
 					RerunCommand: "/test trigger",
 				},
@@ -588,43 +542,23 @@ func TestPresubmitFilter(t *testing.T) {
 			ref:           "ref",
 			presubmits: []config.Presubmit{
 				{
-					JobBase: config.JobBase{
-						Name: "always-runs",
-					},
+					Name:      "always-runs",
 					AlwaysRun: true,
-					Reporter: config.Reporter{
-						Context: "always-runs",
-					},
+					Context:   "always-runs",
 				},
 				{
-					JobBase: config.JobBase{
-						Name: "runs-if-changed",
-					},
-					Reporter: config.Reporter{
-						Context: "runs-if-changed",
-					},
-					RegexpChangeMatcher: config.RegexpChangeMatcher{
-						RunIfChanged: "sometimes",
-					},
+					Name:         "runs-if-changed",
+					Context:      "runs-if-changed",
+					RunIfChanged: "sometimes",
 				},
 				{
-					JobBase: config.JobBase{
-						Name: "runs-if-changed",
-					},
-					Reporter: config.Reporter{
-						Context: "runs-if-changed",
-					},
-					RegexpChangeMatcher: config.RegexpChangeMatcher{
-						SkipIfOnlyChanged: "sometimes",
-					},
+					Name:              "runs-if-changed",
+					Context:           "runs-if-changed",
+					SkipIfOnlyChanged: "sometimes",
 				},
 				{
-					JobBase: config.JobBase{
-						Name: "runs-if-triggered",
-					},
-					Reporter: config.Reporter{
-						Context: "runs-if-triggered",
-					},
+					Name:         "runs-if-triggered",
+					Context:      "runs-if-triggered",
 					Trigger:      `(?m)^/test (?:.*? )?trigger(?: .*?)?$`,
 					RerunCommand: "/test trigger",
 				},
@@ -640,43 +574,23 @@ func TestPresubmitFilter(t *testing.T) {
 			ref:           "ref",
 			presubmits: []config.Presubmit{
 				{
-					JobBase: config.JobBase{
-						Name: "always-runs",
-					},
+					Name:      "always-runs",
 					AlwaysRun: true,
-					Reporter: config.Reporter{
-						Context: "always-runs",
-					},
+					Context:   "always-runs",
 				},
 				{
-					JobBase: config.JobBase{
-						Name: "runs-if-changed",
-					},
-					Reporter: config.Reporter{
-						Context: "runs-if-changed",
-					},
-					RegexpChangeMatcher: config.RegexpChangeMatcher{
-						RunIfChanged: "sometimes",
-					},
+					Name:         "runs-if-changed",
+					Context:      "runs-if-changed",
+					RunIfChanged: "sometimes",
 				},
 				{
-					JobBase: config.JobBase{
-						Name: "runs-if-changed",
-					},
-					Reporter: config.Reporter{
-						Context: "runs-if-changed",
-					},
-					RegexpChangeMatcher: config.RegexpChangeMatcher{
-						SkipIfOnlyChanged: "sometimes",
-					},
+					Name:              "runs-if-changed",
+					Context:           "runs-if-changed",
+					SkipIfOnlyChanged: "sometimes",
 				},
 				{
-					JobBase: config.JobBase{
-						Name: "runs-if-triggered",
-					},
-					Reporter: config.Reporter{
-						Context: "runs-if-triggered",
-					},
+					Name:         "runs-if-triggered",
+					Context:      "runs-if-triggered",
 					Trigger:      `(?m)^/test (?:.*? )?trigger(?: .*?)?$`,
 					RerunCommand: "/test trigger",
 				},
@@ -713,44 +627,24 @@ func TestPresubmitFilter(t *testing.T) {
 			ref:  "ref",
 			presubmits: []config.Presubmit{
 				{
-					JobBase: config.JobBase{
-						Name: "successful-job",
-					},
-					Reporter: config.Reporter{
-						Context: "existing-successful",
-					},
+					Name:    "successful-job",
+					Context: "existing-successful",
 				},
 				{
-					JobBase: config.JobBase{
-						Name: "pending-job",
-					},
-					Reporter: config.Reporter{
-						Context: "existing-pending",
-					},
+					Name:    "pending-job",
+					Context: "existing-pending",
 				},
 				{
-					JobBase: config.JobBase{
-						Name: "failure-job",
-					},
-					Reporter: config.Reporter{
-						Context: "existing-failure",
-					},
+					Name:    "failure-job",
+					Context: "existing-failure",
 				},
 				{
-					JobBase: config.JobBase{
-						Name: "error-job",
-					},
-					Reporter: config.Reporter{
-						Context: "existing-error",
-					},
+					Name:    "error-job",
+					Context: "existing-error",
 				},
 				{
-					JobBase: config.JobBase{
-						Name: "missing-always-runs",
-					},
-					Reporter: config.Reporter{
-						Context: "missing-always-runs",
-					},
+					Name:      "missing-always-runs",
+					Context:   "missing-always-runs",
 					AlwaysRun: true,
 				},
 			},
@@ -764,45 +658,25 @@ func TestPresubmitFilter(t *testing.T) {
 			ref:  "ref",
 			presubmits: []config.Presubmit{
 				{
-					JobBase: config.JobBase{
-						Name: "successful-job",
-					},
-					Reporter: config.Reporter{
-						Context: "existing-successful",
-					},
+					Name:    "successful-job",
+					Context: "existing-successful",
 				},
 				{
-					JobBase: config.JobBase{
-						Name: "pending-job",
-					},
-					Reporter: config.Reporter{
-						Context: "existing-pending",
-					},
+					Name:    "pending-job",
+					Context: "existing-pending",
 				},
 				{
-					JobBase: config.JobBase{
-						Name: "failure-job",
-					},
-					Reporter: config.Reporter{
-						Context: "existing-failure",
-					},
+					Name:     "failure-job",
+					Context:  "existing-failure",
 					Optional: true,
 				},
 				{
-					JobBase: config.JobBase{
-						Name: "error-job",
-					},
-					Reporter: config.Reporter{
-						Context: "existing-error",
-					},
+					Name:    "error-job",
+					Context: "existing-error",
 				},
 				{
-					JobBase: config.JobBase{
-						Name: "missing-always-runs",
-					},
-					Reporter: config.Reporter{
-						Context: "missing-always-runs",
-					},
+					Name:      "missing-always-runs",
+					Context:   "missing-always-runs",
 					AlwaysRun: true,
 				},
 			},
@@ -816,40 +690,36 @@ func TestPresubmitFilter(t *testing.T) {
 			ref:  "ref",
 			presubmits: []config.Presubmit{
 				{
-					JobBase:      config.JobBase{Name: "manual-required"},
-					Reporter:     config.Reporter{Context: "manual-required"},
+					Name:         "manual-required",
+					Context:      "manual-required",
 					Trigger:      `(?m)^/test (?:.*? )?manual(?: .*?)?$`,
 					RerunCommand: "/test manual",
 				},
 				{
-					JobBase:      config.JobBase{Name: "manual-optional"},
+					Name:         "manual-optional",
 					Optional:     true,
-					Reporter:     config.Reporter{Context: "manual-optional"},
+					Context:      "manual-optional",
 					Trigger:      `(?m)^/test (?:.*? )?manual-optional(?: .*?)?$`,
 					RerunCommand: "/test manual-optional",
 				},
 				{
-					JobBase:   config.JobBase{Name: "always-runs"},
+					Name:      "always-runs",
 					AlwaysRun: true,
-					Reporter:  config.Reporter{Context: "always-runs"},
+					Context:   "always-runs",
 				},
 				{
-					JobBase:      config.JobBase{Name: "run-if-changed"},
-					Reporter:     config.Reporter{Context: "run-if-changed"},
+					Name:         "run-if-changed",
+					Context:      "run-if-changed",
 					Trigger:      `(?m)^/test (?:.*? )?conditional(?: .*?)?$`,
 					RerunCommand: "/test conditional",
-					RegexpChangeMatcher: config.RegexpChangeMatcher{
-						RunIfChanged: "sometimes",
-					},
+					RunIfChanged: "sometimes",
 				},
 				{
-					JobBase:      config.JobBase{Name: "skip-if-only-changed"},
-					Reporter:     config.Reporter{Context: "skip-if-only-changed"},
-					Trigger:      `(?m)^/test (?:.*? )?skip(?: .*?)?$`,
-					RerunCommand: "/test skip",
-					RegexpChangeMatcher: config.RegexpChangeMatcher{
-						SkipIfOnlyChanged: "sometimes",
-					},
+					Name:              "skip-if-only-changed",
+					Context:           "skip-if-only-changed",
+					Trigger:           `(?m)^/test (?:.*? )?skip(?: .*?)?$`,
+					RerunCommand:      "/test skip",
+					SkipIfOnlyChanged: "sometimes",
 				},
 			},
 			expected: [][]bool{
@@ -868,96 +738,56 @@ func TestPresubmitFilter(t *testing.T) {
 			ref:  "ref",
 			presubmits: []config.Presubmit{
 				{
-					JobBase: config.JobBase{
-						Name: "always-runs",
-					},
-					AlwaysRun: true,
-					Reporter: config.Reporter{
-						Context: "always-runs",
-					},
+					Name:         "always-runs",
+					AlwaysRun:    true,
+					Context:      "always-runs",
 					Trigger:      `(?m)^/test (?:.*? )?trigger(?: .*?)?$`,
 					RerunCommand: "/test trigger",
 				},
 				{
-					JobBase: config.JobBase{
-						Name: "runs-if-changed",
-					},
-					Reporter: config.Reporter{
-						Context: "runs-if-changed",
-					},
-					RegexpChangeMatcher: config.RegexpChangeMatcher{
-						RunIfChanged: "sometimes",
-					},
+					Name:         "runs-if-changed",
+					Context:      "runs-if-changed",
+					RunIfChanged: "sometimes",
 					Trigger:      `(?m)^/test (?:.*? )?trigger(?: .*?)?$`,
 					RerunCommand: "/test trigger",
 				},
 				{
-					JobBase: config.JobBase{
-						Name: "runs-if-changed",
-					},
-					Reporter: config.Reporter{
-						Context: "runs-if-changed",
-					},
-					RegexpChangeMatcher: config.RegexpChangeMatcher{
-						SkipIfOnlyChanged: "sometimes",
-					},
+					Name:              "runs-if-changed",
+					Context:           "runs-if-changed",
+					SkipIfOnlyChanged: "sometimes",
+					Trigger:           `(?m)^/test (?:.*? )?trigger(?: .*?)?$`,
+					RerunCommand:      "/test trigger",
+				},
+				{
+					Name:         "runs-if-triggered",
+					Context:      "runs-if-triggered",
 					Trigger:      `(?m)^/test (?:.*? )?trigger(?: .*?)?$`,
 					RerunCommand: "/test trigger",
 				},
 				{
-					JobBase: config.JobBase{
-						Name: "runs-if-triggered",
-					},
-					Reporter: config.Reporter{
-						Context: "runs-if-triggered",
-					},
-					Trigger:      `(?m)^/test (?:.*? )?trigger(?: .*?)?$`,
-					RerunCommand: "/test trigger",
-				},
-				{
-					JobBase: config.JobBase{
-						Name: "always-runs",
-					},
-					AlwaysRun: true,
-					Reporter: config.Reporter{
-						Context: "always-runs",
-					},
+					Name:         "always-runs",
+					AlwaysRun:    true,
+					Context:      "always-runs",
 					Trigger:      `(?m)^/test (?:.*? )?other-trigger(?: .*?)?$`,
 					RerunCommand: "/test other-trigger",
 				},
 				{
-					JobBase: config.JobBase{
-						Name: "runs-if-changed",
-					},
-					Reporter: config.Reporter{
-						Context: "runs-if-changed",
-					},
-					RegexpChangeMatcher: config.RegexpChangeMatcher{
-						RunIfChanged: "sometimes",
-					},
+					Name:         "runs-if-changed",
+					Context:      "runs-if-changed",
+					RunIfChanged: "sometimes",
 					Trigger:      `(?m)^/test (?:.*? )?other-trigger(?: .*?)?$`,
 					RerunCommand: "/test other-trigger",
 				},
 				{
-					JobBase: config.JobBase{
-						Name: "runs-if-changed",
-					},
-					Reporter: config.Reporter{
-						Context: "runs-if-changed",
-					},
-					RegexpChangeMatcher: config.RegexpChangeMatcher{
-						SkipIfOnlyChanged: "sometimes",
-					},
-					Trigger:      `(?m)^/test (?:.*? )?other-trigger(?: .*?)?$`,
-					RerunCommand: "/test other-trigger",
+					Name:              "runs-if-changed",
+					Context:           "runs-if-changed",
+					SkipIfOnlyChanged: "sometimes",
+					Trigger:           `(?m)^/test (?:.*? )?other-trigger(?: .*?)?$`,
+					RerunCommand:      "/test other-trigger",
 				},
 				{
-					JobBase: config.JobBase{
-						Name: "runs-if-triggered",
-					},
-					Reporter: config.Reporter{
-						Context: "runs-if-triggered",
-					},
+					Name:         "runs-if-triggered",
+					Context:      "runs-if-triggered",
 					Trigger:      `(?m)^/test (?:.*? )?other-trigger(?: .*?)?$`,
 					RerunCommand: "/test other-trigger",
 				},
@@ -983,92 +813,52 @@ func TestPresubmitFilter(t *testing.T) {
 			ref:  "ref",
 			presubmits: []config.Presubmit{
 				{
-					JobBase: config.JobBase{
-						Name: "always-runs",
-					},
-					AlwaysRun: true,
-					Reporter: config.Reporter{
-						Context: "existing-successful",
-					},
+					Name:         "always-runs",
+					AlwaysRun:    true,
+					Context:      "existing-successful",
 					Trigger:      `(?m)^/test (?:.*? )?other-trigger(?: .*?)?$`,
 					RerunCommand: "/test other-trigger",
 				},
 				{
-					JobBase: config.JobBase{
-						Name: "runs-if-changed",
-					},
-					Reporter: config.Reporter{
-						Context: "existing-successful",
-					},
-					RegexpChangeMatcher: config.RegexpChangeMatcher{
-						RunIfChanged: "sometimes",
-					},
+					Name:         "runs-if-changed",
+					Context:      "existing-successful",
+					RunIfChanged: "sometimes",
 					Trigger:      `(?m)^/test (?:.*? )?other-trigger(?: .*?)?$`,
 					RerunCommand: "/test other-trigger",
 				},
 				{
-					JobBase: config.JobBase{
-						Name: "runs-if-changed",
-					},
-					Reporter: config.Reporter{
-						Context: "existing-successful",
-					},
-					RegexpChangeMatcher: config.RegexpChangeMatcher{
-						SkipIfOnlyChanged: "sometimes",
-					},
-					Trigger:      `(?m)^/test (?:.*? )?other-trigger(?: .*?)?$`,
-					RerunCommand: "/test other-trigger",
+					Name:              "runs-if-changed",
+					Context:           "existing-successful",
+					SkipIfOnlyChanged: "sometimes",
+					Trigger:           `(?m)^/test (?:.*? )?other-trigger(?: .*?)?$`,
+					RerunCommand:      "/test other-trigger",
 				},
 				{
-					JobBase: config.JobBase{
-						Name: "runs-if-triggered",
-					},
-					Reporter: config.Reporter{
-						Context: "runs-if-triggered",
-					},
+					Name:         "runs-if-triggered",
+					Context:      "runs-if-triggered",
 					Trigger:      `(?m)^/test (?:.*? )?trigger(?: .*?)?$`,
 					RerunCommand: "/test trigger",
 				},
 				{
-					JobBase: config.JobBase{
-						Name: "successful-job",
-					},
-					Reporter: config.Reporter{
-						Context: "existing-successful",
-					},
+					Name:    "successful-job",
+					Context: "existing-successful",
 				},
 				{
-					JobBase: config.JobBase{
-						Name: "pending-job",
-					},
-					Reporter: config.Reporter{
-						Context: "existing-pending",
-					},
+					Name:    "pending-job",
+					Context: "existing-pending",
 				},
 				{
-					JobBase: config.JobBase{
-						Name: "failure-job",
-					},
-					Reporter: config.Reporter{
-						Context: "existing-failure",
-					},
+					Name:    "failure-job",
+					Context: "existing-failure",
 				},
 				{
-					JobBase: config.JobBase{
-						Name: "error-job",
-					},
-					Reporter: config.Reporter{
-						Context: "existing-error",
-					},
+					Name:    "error-job",
+					Context: "existing-error",
 				},
 				{
-					JobBase: config.JobBase{
-						Name: "missing-always-runs",
-					},
+					Name:      "missing-always-runs",
 					AlwaysRun: true,
-					Reporter: config.Reporter{
-						Context: "missing-always-runs",
-					},
+					Context:   "missing-always-runs",
 				},
 			},
 			expected: [][]bool{

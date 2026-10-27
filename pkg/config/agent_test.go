@@ -28,7 +28,7 @@ import (
 )
 
 func cfg(sha string) *Config {
-	return &Config{ProwConfig: ProwConfig{ConfigVersionSHA: sha}}
+	return &Config{ConfigVersionSHA: sha}
 }
 
 func TestSetCoalescesForBusySubscriber(t *testing.T) {

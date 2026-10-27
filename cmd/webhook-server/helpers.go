@@ -206,13 +206,9 @@ func ensureValidatingWebhookConfig(ctx context.Context, caPem string, client ctr
 	sideEffects := admregistration.SideEffectClass("None")
 
 	validatingWebhookConfig := &admregistration.ValidatingWebhookConfiguration{
-		TypeMeta: v1.TypeMeta{
-			Kind:       "ValidatingWebhookConfiguration",
-			APIVersion: "admissionregistration.k8s.io/v1",
-		},
-		ObjectMeta: v1.ObjectMeta{
-			Name: prowJobValidatingWebhookName,
-		},
+		Kind:       "ValidatingWebhookConfiguration",
+		APIVersion: "admissionregistration.k8s.io/v1",
+		Name:       prowJobValidatingWebhookName,
 		Webhooks: []admregistration.ValidatingWebhook{
 			{
 				Name: prowJobValidatingWebhookName,
@@ -223,13 +219,11 @@ func ensureValidatingWebhookConfig(ctx context.Context, caPem string, client ctr
 				},
 				Rules: []admregistration.RuleWithOperations{
 					{
-						Operations: operations,
-						Rule: admregistration.Rule{
-							APIGroups:   []string{"prow.k8s.io"},
-							APIVersions: []string{"v1"},
-							Resources:   []string{"prowjobs"},
-							Scope:       &scope,
-						},
+						Operations:  operations,
+						APIGroups:   []string{"prow.k8s.io"},
+						APIVersions: []string{"v1"},
+						Resources:   []string{"prowjobs"},
+						Scope:       &scope,
 					},
 				},
 				ClientConfig: admregistration.WebhookClientConfig{
@@ -291,13 +285,9 @@ func ensureMutatingWebhookConfig(ctx context.Context, caPem string, client ctrlr
 	sideEffects := admregistration.SideEffectClass("None")
 
 	mutatingWebhookConfig := &admregistration.MutatingWebhookConfiguration{
-		TypeMeta: v1.TypeMeta{
-			Kind:       "MutatingWebhookConfiguration",
-			APIVersion: "admissionregistration.k8s.io/v1",
-		},
-		ObjectMeta: v1.ObjectMeta{
-			Name: prowJobMutatingWebhookName,
-		},
+		Kind:       "MutatingWebhookConfiguration",
+		APIVersion: "admissionregistration.k8s.io/v1",
+		Name:       prowJobMutatingWebhookName,
 		Webhooks: []admregistration.MutatingWebhook{
 			{
 				Name: prowJobMutatingWebhookName,
@@ -309,13 +299,11 @@ func ensureMutatingWebhookConfig(ctx context.Context, caPem string, client ctrlr
 				},
 				Rules: []admregistration.RuleWithOperations{
 					{
-						Operations: operations,
-						Rule: admregistration.Rule{
-							APIGroups:   []string{"prow.k8s.io"},
-							APIVersions: []string{"v1"},
-							Resources:   []string{"prowjobs"},
-							Scope:       &scope,
-						},
+						Operations:  operations,
+						APIGroups:   []string{"prow.k8s.io"},
+						APIVersions: []string{"v1"},
+						Resources:   []string{"prowjobs"},
+						Scope:       &scope,
 					},
 				},
 				ClientConfig: admregistration.WebhookClientConfig{

@@ -34,7 +34,6 @@ import (
 
 	"github.com/fsouza/fake-gcs-server/fakestorage"
 	"github.com/sirupsen/logrus"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	tgconf "github.com/GoogleCloudPlatform/testgrid/pb/config"
 
@@ -85,27 +84,21 @@ func TestMain(m *testing.M) {
 	}
 	fakeGCSServer = fakestorage.NewServer([]fakestorage.Object{
 		{
-			ObjectAttrs: fakestorage.ObjectAttrs{
-				BucketName: "test-bucket",
-				Name:       "logs/example-ci-run/403/build-log.txt",
-				Metadata: map[string]string{
-					"foo": "bar",
-				},
+			BucketName: "test-bucket",
+			Name:       "logs/example-ci-run/403/build-log.txt",
+			Metadata: map[string]string{
+				"foo": "bar",
 			},
 			Content: []byte("Oh wow\nlogs\nthis is\ncrazy"),
 		},
 		{
-			ObjectAttrs: fakestorage.ObjectAttrs{
-				BucketName: "test-bucket",
-				Name:       "logs/example-ci-run/403/long-log.txt",
-			},
-			Content: []byte(longLog.String()),
+			BucketName: "test-bucket",
+			Name:       "logs/example-ci-run/403/long-log.txt",
+			Content:    []byte(longLog.String()),
 		},
 		{
-			ObjectAttrs: fakestorage.ObjectAttrs{
-				BucketName: "test-bucket",
-				Name:       "logs/example-ci-run/403/junit_01.xml",
-			},
+			BucketName: "test-bucket",
+			Name:       "logs/example-ci-run/403/junit_01.xml",
 			Content: []byte(`<testsuite tests="1017" failures="1017" time="0.016981535">
 <testcase name="BeforeSuite" classname="Kubernetes e2e suite" time="0.006343795">
 <failure type="Failure">
@@ -115,10 +108,8 @@ test/e2e/e2e.go:137 BeforeSuite on Node 1 failed test/e2e/e2e.go:137
 </testsuite>`),
 		},
 		{
-			ObjectAttrs: fakestorage.ObjectAttrs{
-				BucketName: "test-bucket",
-				Name:       "logs/example-ci-run/403/started.json",
-			},
+			BucketName: "test-bucket",
+			Name:       "logs/example-ci-run/403/started.json",
 			Content: []byte(`{
 						  "node": "gke-prow-default-pool-3c8994a8-qfhg",
 						  "repo-version": "v1.12.0-alpha.0.985+e6f64d0a79243c",
@@ -134,10 +125,8 @@ test/e2e/e2e.go:137 BeforeSuite on Node 1 failed test/e2e/e2e.go:137
 						}`),
 		},
 		{
-			ObjectAttrs: fakestorage.ObjectAttrs{
-				BucketName: "test-bucket",
-				Name:       "logs/example-ci-run/403/finished.json",
-			},
+			BucketName: "test-bucket",
+			Name:       "logs/example-ci-run/403/finished.json",
 			Content: []byte(`{
 						  "timestamp": 1528742943,
 						  "version": "v1.12.0-alpha.0.985+e6f64d0a79243c",
@@ -157,18 +146,14 @@ test/e2e/e2e.go:137 BeforeSuite on Node 1 failed test/e2e/e2e.go:137
 						},`),
 		},
 		{
-			ObjectAttrs: fakestorage.ObjectAttrs{
-				BucketName: "test-bucket",
-				Name:       "logs/symlink-party/123.txt",
-			},
-			Content: []byte(`gs://test-bucket/logs/the-actual-place/123`),
+			BucketName: "test-bucket",
+			Name:       "logs/symlink-party/123.txt",
+			Content:    []byte(`gs://test-bucket/logs/the-actual-place/123`),
 		},
 		{
-			ObjectAttrs: fakestorage.ObjectAttrs{
-				BucketName: "multi-container-one-log",
-				Name:       "logs/job/123/test-1-build-log.txt",
-			},
-			Content: []byte("this log exists in gcs!"),
+			BucketName: "multi-container-one-log",
+			Name:       "logs/job/123/test-1-build-log.txt",
+			Content:    []byte("this log exists in gcs!"),
 		},
 	})
 	defer fakeGCSServer.Stop()
@@ -520,7 +505,7 @@ func TestJobPath(t *testing.T) {
 func TestProwJob(t *testing.T) {
 	kc := fkc{
 		prowapi.ProwJob{
-			ObjectMeta: metav1.ObjectMeta{Name: "flying-whales-1"},
+			Name: "flying-whales-1",
 			Spec: prowapi.ProwJobSpec{
 				Type: prowapi.PeriodicJob,
 				Job:  "example-periodic-job",
@@ -537,7 +522,7 @@ func TestProwJob(t *testing.T) {
 			},
 		},
 		prowapi.ProwJob{
-			ObjectMeta: metav1.ObjectMeta{Name: "flying-whales-2"},
+			Name: "flying-whales-2",
 			Spec: prowapi.ProwJobSpec{
 				Type: prowapi.PresubmitJob,
 				Job:  "example-presubmit-job",
@@ -554,7 +539,7 @@ func TestProwJob(t *testing.T) {
 			},
 		},
 		prowapi.ProwJob{
-			ObjectMeta: metav1.ObjectMeta{Name: "flying-whales-3"},
+			Name: "flying-whales-3",
 			Spec: prowapi.ProwJobSpec{
 				Type: prowapi.PresubmitJob,
 				Job:  "undecorated-job",
@@ -771,10 +756,8 @@ func TestRunPath(t *testing.T) {
 		fakeOpener := io.NewGCSOpener(fakeGCSClient)
 		fca := config.Agent{}
 		fca.Set(&config.Config{
-			ProwConfig: config.ProwConfig{
-				Plank: config.Plank{
-					JobURLPrefixConfig: map[string]string{"*": "http://magic/view/gcs/"},
-				},
+			Plank: config.Plank{
+				JobURLPrefixConfig: map[string]string{"*": "http://magic/view/gcs/"},
 			},
 		})
 		sg := New(context.Background(), fakeJa, fca.Config, fakeOpener, false)
@@ -921,20 +904,18 @@ func TestRunToPR(t *testing.T) {
 		fakeGCSClient := fakeGCSServer.Client()
 		fca := config.Agent{}
 		fca.Set(&config.Config{
-			ProwConfig: config.ProwConfig{
-				Plank: config.Plank{
-					DefaultDecorationConfigs: config.DefaultDecorationMapToSliceTesting(
-						map[string]*prowapi.DecorationConfig{
-							"*": {
-								GCSConfiguration: &prowapi.GCSConfiguration{
-									Bucket:       "kubernetes-jenkins",
-									DefaultOrg:   "kubernetes",
-									DefaultRepo:  "kubernetes",
-									PathStrategy: "legacy",
-								},
+			Plank: config.Plank{
+				DefaultDecorationConfigs: config.DefaultDecorationMapToSliceTesting(
+					map[string]*prowapi.DecorationConfig{
+						"*": {
+							GCSConfiguration: &prowapi.GCSConfiguration{
+								Bucket:       "kubernetes-jenkins",
+								DefaultOrg:   "kubernetes",
+								DefaultRepo:  "kubernetes",
+								PathStrategy: "legacy",
 							},
-						}),
-				},
+						},
+					}),
 			},
 		})
 		sg := New(context.Background(), fakeJa, fca.Config, io.NewGCSOpener(fakeGCSClient), false)
@@ -1263,11 +1244,9 @@ func TestTestGridLink(t *testing.T) {
 		fakeGCSClient := fakeGCSServer.Client()
 		fca := config.Agent{}
 		fca.Set(&config.Config{
-			ProwConfig: config.ProwConfig{
-				Deck: config.Deck{
-					Spyglass: config.Spyglass{
-						TestGridRoot: "https://testgrid.com/",
-					},
+			Deck: config.Deck{
+				Spyglass: config.Spyglass{
+					TestGridRoot: "https://testgrid.com/",
 				},
 			},
 		})
@@ -1609,11 +1588,9 @@ func TestExtraLinks(t *testing.T) {
 			if tc.content != "" {
 				objects = []fakestorage.Object{
 					{
-						ObjectAttrs: fakestorage.ObjectAttrs{
-							BucketName: "test-bucket",
-							Name:       "logs/some-job/42/started.json",
-						},
-						Content: []byte(tc.content),
+						BucketName: "test-bucket",
+						Name:       "logs/some-job/42/started.json",
+						Content:    []byte(tc.content),
 					},
 				}
 			}

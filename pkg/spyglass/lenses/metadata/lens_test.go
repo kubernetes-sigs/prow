@@ -25,7 +25,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	prowv1 "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 	"sigs.k8s.io/prow/pkg/config"
 
@@ -183,9 +182,7 @@ func TestHintFromPodInfo(t *testing.T) {
 			name: "normal failed run has no output",
 			info: k8sreporter.PodReport{
 				Pod: &v1.Pod{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "8ef160fc-46b6-11ea-a907-1a9873703b03",
-					},
+					Name: "8ef160fc-46b6-11ea-a907-1a9873703b03",
 					Spec: v1.PodSpec{
 						Containers: []v1.Container{
 							{
@@ -218,9 +215,7 @@ func TestHintFromPodInfo(t *testing.T) {
 			expected: `The test container could not start because it could not pull "gcr.io/k8s-staging-test-infra/kubekins-e2e:latest-master". Check your images. Full message: "rpc error: code = Unknown desc"`,
 			info: k8sreporter.PodReport{
 				Pod: &v1.Pod{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "8ef160fc-46b6-11ea-a907-1a9873703b03",
-					},
+					Name: "8ef160fc-46b6-11ea-a907-1a9873703b03",
 					Spec: v1.PodSpec{
 						Containers: []v1.Container{
 							{
@@ -253,9 +248,7 @@ func TestHintFromPodInfo(t *testing.T) {
 			expected: `The test container could not start because it could not pull "gcr.io/k8s-staging-test-infra/kubekins-e2e:latest-master". Check your images. Full message: "rpc error: code = Unknown desc"`,
 			info: k8sreporter.PodReport{
 				Pod: &v1.Pod{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "8ef160fc-46b6-11ea-a907-1a9873703b03",
-					},
+					Name: "8ef160fc-46b6-11ea-a907-1a9873703b03",
 					Spec: v1.PodSpec{
 						Containers: []v1.Container{
 							{
@@ -288,9 +281,7 @@ func TestHintFromPodInfo(t *testing.T) {
 			expected: `The pod could not start because it could not mount the volume "some-volume": secrets "no-such-secret" not found`,
 			info: k8sreporter.PodReport{
 				Pod: &v1.Pod{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "8ef160fc-46b6-11ea-a907-1a9873703b03",
-					},
+					Name: "8ef160fc-46b6-11ea-a907-1a9873703b03",
 					Spec: v1.PodSpec{
 						Containers: []v1.Container{
 							{
@@ -307,10 +298,8 @@ func TestHintFromPodInfo(t *testing.T) {
 						Volumes: []v1.Volume{
 							{
 								Name: "some-volume",
-								VolumeSource: v1.VolumeSource{
-									Secret: &v1.SecretVolumeSource{
-										SecretName: "no-such-secret",
-									},
+								Secret: &v1.SecretVolumeSource{
+									SecretName: "no-such-secret",
 								},
 							},
 						},
@@ -345,9 +334,7 @@ func TestHintFromPodInfo(t *testing.T) {
 			expected: "The job could not start because it was scheduled to a node that does not satisfy its NodeSelector",
 			info: k8sreporter.PodReport{
 				Pod: &v1.Pod{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "8ef160fc-46b6-11ea-a907-1a9873703b03",
-					},
+					Name: "8ef160fc-46b6-11ea-a907-1a9873703b03",
 					Spec: v1.PodSpec{
 						Containers: []v1.Container{
 							{
@@ -368,9 +355,7 @@ func TestHintFromPodInfo(t *testing.T) {
 			expected: "There are no nodes that your pod can schedule to - check your requests, tolerations, and node selectors (0/3 nodes are available: 3 node(s) didn't match node selector.)",
 			info: k8sreporter.PodReport{
 				Pod: &v1.Pod{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "8ef160fc-46b6-11ea-a907-1a9873703b03",
-					},
+					Name: "8ef160fc-46b6-11ea-a907-1a9873703b03",
 					Spec: v1.PodSpec{
 						Containers: []v1.Container{
 							{
@@ -397,9 +382,7 @@ func TestHintFromPodInfo(t *testing.T) {
 			expected: "The job may have executed on an unhealthy node. Contact your prow maintainers with a link to this page or check the detailed pod information.",
 			info: k8sreporter.PodReport{
 				Pod: &v1.Pod{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "8ef160fc-46b6-11ea-a907-1a9873703b03",
-					},
+					Name: "8ef160fc-46b6-11ea-a907-1a9873703b03",
 					Spec: v1.PodSpec{
 						Containers: []v1.Container{
 							{
@@ -437,9 +420,7 @@ func TestHintFromPodInfo(t *testing.T) {
 			expected: "Init container initupload not ready: (state: terminated, reason: \"Error\", message: \"failed fetching oauth2 token\")",
 			info: k8sreporter.PodReport{
 				Pod: &v1.Pod{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "8ef160fc-46b6-11ea-a907-1a9873703b03",
-					},
+					Name: "8ef160fc-46b6-11ea-a907-1a9873703b03",
 					Spec: v1.PodSpec{
 						Containers: []v1.Container{
 							{
@@ -483,9 +464,7 @@ func TestHintFromPodInfo(t *testing.T) {
 			expected: "Init container initupload not ready: (state: running)",
 			info: k8sreporter.PodReport{
 				Pod: &v1.Pod{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "8ef160fc-46b6-11ea-a907-1a9873703b03",
-					},
+					Name: "8ef160fc-46b6-11ea-a907-1a9873703b03",
 					Spec: v1.PodSpec{
 						Containers: []v1.Container{
 							{
@@ -526,9 +505,7 @@ func TestHintFromPodInfo(t *testing.T) {
 			expected: "Init container entrypoint not ready: (state: waiting, reason: \"PodInitializing\", message: \"\")\nInit container initupload not ready: (state: terminated, reason: \"Error\", message: \"failed fetching oauth2 token\")",
 			info: k8sreporter.PodReport{
 				Pod: &v1.Pod{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "8ef160fc-46b6-11ea-a907-1a9873703b03",
-					},
+					Name: "8ef160fc-46b6-11ea-a907-1a9873703b03",
 					Spec: v1.PodSpec{
 						Containers: []v1.Container{
 							{

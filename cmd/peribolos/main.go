@@ -327,10 +327,8 @@ func dumpOrgConfig(client dumpClient, orgName string, ignoreSecretTeams bool, ig
 		slugToName[t.Slug] = t.Name
 		d := t.Description
 		nt := org.Team{
-			TeamMetadata: org.TeamMetadata{
-				Description: &d,
-				Privacy:     &p,
-			},
+			Description: &d,
+			Privacy:     &p,
 			Maintainers: []string{},
 			Members:     []string{},
 			Children:    map[string]org.Team{},
@@ -1272,21 +1270,19 @@ type repoClient interface {
 
 func newRepoCreateRequest(name string, definition org.Repo) github.RepoCreateRequest {
 	repoCreate := github.RepoCreateRequest{
-		RepoRequest: github.RepoRequest{
-			Name:                     &name,
-			Description:              definition.Description,
-			Homepage:                 definition.HomePage,
-			Visibility:               definition.Visibility,
-			HasIssues:                definition.HasIssues,
-			HasProjects:              definition.HasProjects,
-			HasWiki:                  definition.HasWiki,
-			AllowSquashMerge:         definition.AllowSquashMerge,
-			AllowMergeCommit:         definition.AllowMergeCommit,
-			AllowRebaseMerge:         definition.AllowRebaseMerge,
-			SquashMergeCommitTitle:   definition.SquashMergeCommitTitle,
-			SquashMergeCommitMessage: definition.SquashMergeCommitMessage,
-			DeleteBranchOnMerge:      definition.DeleteBranchOnMerge,
-		},
+		Name:                     &name,
+		Description:              definition.Description,
+		Homepage:                 definition.HomePage,
+		Visibility:               definition.Visibility,
+		HasIssues:                definition.HasIssues,
+		HasProjects:              definition.HasProjects,
+		HasWiki:                  definition.HasWiki,
+		AllowSquashMerge:         definition.AllowSquashMerge,
+		AllowMergeCommit:         definition.AllowMergeCommit,
+		AllowRebaseMerge:         definition.AllowRebaseMerge,
+		SquashMergeCommitTitle:   definition.SquashMergeCommitTitle,
+		SquashMergeCommitMessage: definition.SquashMergeCommitMessage,
+		DeleteBranchOnMerge:      definition.DeleteBranchOnMerge,
 	}
 
 	if definition.OnCreate != nil {
@@ -1336,23 +1332,21 @@ func setIfChanged[T comparable](current T, want *T) *T {
 // needed to update the current repo into the target state.
 func newRepoUpdateRequest(current github.FullRepo, name string, repo org.Repo) github.RepoUpdateRequest {
 	repoUpdate := github.RepoUpdateRequest{
-		RepoRequest: github.RepoRequest{
-			Name:                     setIfChanged(current.Name, &name),
-			Description:              setIfChanged(current.Description, repo.Description),
-			Homepage:                 setIfChanged(current.Homepage, repo.HomePage),
-			Visibility:               setIfChanged(current.Visibility, repo.Visibility),
-			HasIssues:                setIfChanged(current.HasIssues, repo.HasIssues),
-			HasProjects:              setIfChanged(current.HasProjects, repo.HasProjects),
-			HasWiki:                  setIfChanged(current.HasWiki, repo.HasWiki),
-			AllowSquashMerge:         setIfChanged(current.AllowSquashMerge, repo.AllowSquashMerge),
-			AllowMergeCommit:         setIfChanged(current.AllowMergeCommit, repo.AllowMergeCommit),
-			AllowRebaseMerge:         setIfChanged(current.AllowRebaseMerge, repo.AllowRebaseMerge),
-			SquashMergeCommitTitle:   setIfChanged(current.SquashMergeCommitTitle, repo.SquashMergeCommitTitle),
-			SquashMergeCommitMessage: setIfChanged(current.SquashMergeCommitMessage, repo.SquashMergeCommitMessage),
-			DeleteBranchOnMerge:      setIfChanged(current.DeleteBranchOnMerge, repo.DeleteBranchOnMerge),
-		},
-		DefaultBranch: setIfChanged(current.DefaultBranch, repo.DefaultBranch),
-		Archived:      setIfChanged(current.Archived, repo.Archived),
+		Name:                     setIfChanged(current.Name, &name),
+		Description:              setIfChanged(current.Description, repo.Description),
+		Homepage:                 setIfChanged(current.Homepage, repo.HomePage),
+		Visibility:               setIfChanged(current.Visibility, repo.Visibility),
+		HasIssues:                setIfChanged(current.HasIssues, repo.HasIssues),
+		HasProjects:              setIfChanged(current.HasProjects, repo.HasProjects),
+		HasWiki:                  setIfChanged(current.HasWiki, repo.HasWiki),
+		AllowSquashMerge:         setIfChanged(current.AllowSquashMerge, repo.AllowSquashMerge),
+		AllowMergeCommit:         setIfChanged(current.AllowMergeCommit, repo.AllowMergeCommit),
+		AllowRebaseMerge:         setIfChanged(current.AllowRebaseMerge, repo.AllowRebaseMerge),
+		SquashMergeCommitTitle:   setIfChanged(current.SquashMergeCommitTitle, repo.SquashMergeCommitTitle),
+		SquashMergeCommitMessage: setIfChanged(current.SquashMergeCommitMessage, repo.SquashMergeCommitMessage),
+		DeleteBranchOnMerge:      setIfChanged(current.DeleteBranchOnMerge, repo.DeleteBranchOnMerge),
+		DefaultBranch:            setIfChanged(current.DefaultBranch, repo.DefaultBranch),
+		Archived:                 setIfChanged(current.Archived, repo.Archived),
 	}
 
 	return repoUpdate

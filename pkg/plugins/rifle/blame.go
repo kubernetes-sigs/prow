@@ -133,8 +133,8 @@ func diverseFileSelection(files []github.PullRequestChange, limit int) []github.
 }
 
 func fileDir(path string) string {
-	if i := strings.LastIndex(path, "/"); i >= 0 {
-		return path[:i]
+	if dir, _, found := strings.CutLast(path, "/"); found {
+		return dir
 	}
 	return "."
 }

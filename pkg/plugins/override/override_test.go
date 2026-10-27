@@ -797,12 +797,8 @@ func TestHandle(t *testing.T) {
 			},
 			presubmits: []config.Presubmit{
 				{
-					JobBase: config.JobBase{
-						Name: "hung-prow-job",
-					},
-					Reporter: config.Reporter{
-						Context: "hung-test",
-					},
+					Name:    "hung-prow-job",
+					Context: "hung-test",
 				},
 			},
 			expected: []github.Status{
@@ -1077,12 +1073,8 @@ func TestHandle(t *testing.T) {
 			},
 			presubmits: []config.Presubmit{
 				{
-					JobBase: config.JobBase{
-						Name: "passing-job",
-					},
-					Reporter: config.Reporter{
-						Context: "passing-ctx",
-					},
+					Name:    "passing-job",
+					Context: "passing-ctx",
 				},
 			},
 			expected: []github.Status{
@@ -1199,12 +1191,8 @@ func TestHandle(t *testing.T) {
 			},
 			presubmits: []config.Presubmit{
 				{
-					JobBase: config.JobBase{
-						Name: "prow-job",
-					},
-					Reporter: config.Reporter{
-						Context: "prow-job",
-					},
+					Name:    "prow-job",
+					Context: "prow-job",
 				},
 			},
 			jobs: sets.New[string]("prow-job"),
@@ -1228,12 +1216,8 @@ func TestHandle(t *testing.T) {
 			},
 			presubmits: []config.Presubmit{
 				{
-					JobBase: config.JobBase{
-						Name: "prow-job",
-					},
-					Reporter: config.Reporter{
-						Context: "ci/prow/pkg-job",
-					},
+					Name:    "prow-job",
+					Context: "ci/prow/pkg-job",
 				},
 			},
 			jobs: sets.New[string]("ci/prow/pkg-job"),
@@ -1262,12 +1246,8 @@ func TestHandle(t *testing.T) {
 			},
 			presubmits: []config.Presubmit{
 				{
-					JobBase: config.JobBase{
-						Name: "prow-job",
-					},
-					Reporter: config.Reporter{
-						Context: "ci/prow/pkg-job",
-					},
+					Name:    "prow-job",
+					Context: "ci/prow/pkg-job",
 				},
 			},
 			jobs: sets.New[string]("ci/prow/pkg-job"),
@@ -1296,12 +1276,8 @@ func TestHandle(t *testing.T) {
 			},
 			presubmits: []config.Presubmit{
 				{
-					JobBase: config.JobBase{
-						Name: "prow-job",
-					},
-					Reporter: config.Reporter{
-						Context: "ci/prow/pkg-job",
-					},
+					Name:    "prow-job",
+					Context: "ci/prow/pkg-job",
 				},
 			},
 			jobs: sets.New[string]("ci/prow/pkg-job"),
@@ -1510,12 +1486,8 @@ func TestHandle(t *testing.T) {
 			},
 			presubmits: []config.Presubmit{
 				{
-					JobBase: config.JobBase{
-						Name: "problematic-test",
-					},
-					Reporter: config.Reporter{
-						Context: "problematic-test",
-					},
+					Name:    "problematic-test",
+					Context: "problematic-test",
 				},
 			},
 			jobs: sets.New[string]("problematic-test"),
@@ -2287,14 +2259,12 @@ func TestStickyDescriptionFitsGitHubLimit(t *testing.T) {
 
 func testPresubmitJob(name, context, sha string, state prowapi.ProwJobState, complete, report bool, pull int) prowapi.ProwJob {
 	pj := prowapi.ProwJob{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: name + "-pj",
-			Labels: map[string]string{
-				kube.OrgLabel:         fakeOrg,
-				kube.RepoLabel:        fakeRepo,
-				kube.PullLabel:        strconv.Itoa(pull),
-				kube.ProwJobTypeLabel: string(prowapi.PresubmitJob),
-			},
+		Name: name + "-pj",
+		Labels: map[string]string{
+			kube.OrgLabel:         fakeOrg,
+			kube.RepoLabel:        fakeRepo,
+			kube.PullLabel:        strconv.Itoa(pull),
+			kube.ProwJobTypeLabel: string(prowapi.PresubmitJob),
 		},
 		Spec: prowapi.ProwJobSpec{
 			Type:    prowapi.PresubmitJob,
@@ -2331,12 +2301,8 @@ func aborted(pj prowapi.ProwJob) prowapi.ProwJob {
 func TestAbortJobsOnOverride(t *testing.T) {
 	log := logrus.WithField("plugin", pluginName)
 	jobPresubmit := config.Presubmit{
-		JobBase: config.JobBase{
-			Name: "job-a",
-		},
-		Reporter: config.Reporter{
-			Context: "job-a",
-		},
+		Name:    "job-a",
+		Context: "job-a",
 	}
 
 	jobA := testPresubmitJob("job-a", "job-a", fakeSHA, prowapi.PendingState, false, true, fakePR)

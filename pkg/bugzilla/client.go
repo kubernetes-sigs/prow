@@ -920,10 +920,8 @@ func (c *client) RemovePullRequestAsExternalBug(id int, org, repo string, num in
 		ID:      "identifier", // this is useful when fielding asynchronous responses, but not here
 		Parameters: []RemoveExternalBugParameters{{
 			BugIDs: []int{id},
-			ExternalBugIdentifier: ExternalBugIdentifier{
-				Type: "https://github.com/",
-				ID:   pullIdentifier,
-			},
+			Type:   "https://github.com/",
+			ID:     pullIdentifier,
 		}},
 	}
 	body, err := json.Marshal(rpcPayload)

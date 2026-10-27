@@ -91,13 +91,13 @@ func testPullsMatchList(t *testing.T, test string, actual []CodeReviewCommon, ex
 func TestAccumulateBatch(t *testing.T) {
 	jobSet := []config.Presubmit{
 		{
-			Reporter: config.Reporter{Context: "foo"},
+			Context: "foo",
 		},
 		{
-			Reporter: config.Reporter{Context: "bar"},
+			Context: "bar",
 		},
 		{
-			Reporter: config.Reporter{Context: "baz"},
+			Context: "baz",
 		},
 	}
 	type pull struct {
@@ -125,7 +125,7 @@ func TestAccumulateBatch(t *testing.T) {
 		{
 			name: "batch pending",
 			presubmits: []config.Presubmit{
-				{Reporter: config.Reporter{Context: "foo"}},
+				{Context: "foo"},
 			},
 			pulls:    []pull{{1, "a"}, {2, "b"}},
 			prowJobs: []prowjob{{job: "foo", state: prowapi.PendingState, prs: []pull{{1, "a"}}}},
@@ -210,7 +210,7 @@ func TestAccumulateBatch(t *testing.T) {
 			},
 			prowYAMLGetter: prowYAMLGetterForHeadRefs([]string{"a", "b"}, []config.Presubmit{{
 				AlwaysRun: true,
-				Reporter:  config.Reporter{Context: "boo"},
+				Context:   "boo",
 			}}),
 		},
 		{
@@ -283,15 +283,11 @@ func TestAccumulateBatch(t *testing.T) {
 			}
 			cfg := func() *config.Config {
 				return &config.Config{
-					JobConfig: config.JobConfig{
-						PresubmitsStatic: map[string][]config.Presubmit{
-							"org/repo": test.presubmits,
-						},
-						ProwYAMLGetterWithDefaults: test.prowYAMLGetter,
+					PresubmitsStatic: map[string][]config.Presubmit{
+						"org/repo": test.presubmits,
 					},
-					ProwConfig: config.ProwConfig{
-						InRepoConfig: inrepoconfig,
-					},
+					ProwYAMLGetterWithDefaults: test.prowYAMLGetter,
+					InRepoConfig:               inrepoconfig,
 				}
 			}
 			c := &syncController{
@@ -314,14 +310,10 @@ func TestAccumulate(t *testing.T) {
 	const baseSHA = "8d287a3aeae90fd0aef4a70009c715712ff302cd"
 	jobSet := []config.Presubmit{
 		{
-			Reporter: config.Reporter{
-				Context: "job1",
-			},
+			Context: "job1",
 		},
 		{
-			Reporter: config.Reporter{
-				Context: "job2",
-			},
+			Context: "job2",
 		},
 	}
 	type prowjob struct {
@@ -376,10 +368,10 @@ func TestAccumulate(t *testing.T) {
 			pullRequests: map[int]string{7: ""},
 			presubmits: map[int][]config.Presubmit{
 				7: {
-					{Reporter: config.Reporter{Context: "job1"}},
-					{Reporter: config.Reporter{Context: "job2"}},
-					{Reporter: config.Reporter{Context: "job3"}},
-					{Reporter: config.Reporter{Context: "job4"}},
+					{Context: "job1"},
+					{Context: "job2"},
+					{Context: "job3"},
+					{Context: "job4"},
 				},
 			},
 			prowJobs: []prowjob{
@@ -402,10 +394,10 @@ func TestAccumulate(t *testing.T) {
 			pullRequests: map[int]string{7: ""},
 			presubmits: map[int][]config.Presubmit{
 				7: {
-					{Reporter: config.Reporter{Context: "job1"}},
-					{Reporter: config.Reporter{Context: "job2"}},
-					{Reporter: config.Reporter{Context: "job3"}},
-					{Reporter: config.Reporter{Context: "job4"}},
+					{Context: "job1"},
+					{Context: "job2"},
+					{Context: "job3"},
+					{Context: "job4"},
 				},
 			},
 			prowJobs: []prowjob{
@@ -428,10 +420,10 @@ func TestAccumulate(t *testing.T) {
 			pullRequests: map[int]string{7: ""},
 			presubmits: map[int][]config.Presubmit{
 				7: {
-					{Reporter: config.Reporter{Context: "job1"}},
-					{Reporter: config.Reporter{Context: "job2"}},
-					{Reporter: config.Reporter{Context: "job3"}},
-					{Reporter: config.Reporter{Context: "job4"}},
+					{Context: "job1"},
+					{Context: "job2"},
+					{Context: "job3"},
+					{Context: "job4"},
 				},
 			},
 			prowJobs: []prowjob{
@@ -455,10 +447,10 @@ func TestAccumulate(t *testing.T) {
 			pullRequests: map[int]string{7: ""},
 			presubmits: map[int][]config.Presubmit{
 				7: {
-					{Reporter: config.Reporter{Context: "job1"}},
-					{Reporter: config.Reporter{Context: "job2"}},
-					{Reporter: config.Reporter{Context: "job3"}},
-					{Reporter: config.Reporter{Context: "job4"}},
+					{Context: "job1"},
+					{Context: "job2"},
+					{Context: "job3"},
+					{Context: "job4"},
 				},
 			},
 			prowJobs: []prowjob{
@@ -481,7 +473,7 @@ func TestAccumulate(t *testing.T) {
 		{
 			presubmits: map[int][]config.Presubmit{
 				7: {
-					{Reporter: config.Reporter{Context: "job1"}},
+					{Context: "job1"},
 				},
 			},
 			pullRequests: map[int]string{7: "new", 8: "new"},
@@ -506,7 +498,7 @@ func TestAccumulate(t *testing.T) {
 		},
 		{
 			name:         "Results from successful status context for which we do not have a prowjob anymore are considered",
-			presubmits:   map[int][]config.Presubmit{1: {{Reporter: config.Reporter{Context: "job1"}}}},
+			presubmits:   map[int][]config.Presubmit{1: {{Context: "job1"}}},
 			pullRequests: map[int]string{1: "headsha"},
 			pullRequestModifier: func(pr *PullRequest) {
 				pr.Commits.Nodes = []struct{ Commit Commit }{{
@@ -524,7 +516,7 @@ func TestAccumulate(t *testing.T) {
 		},
 		{
 			name:         "Results from successful status context for wrong baseSHA is ignored",
-			presubmits:   map[int][]config.Presubmit{1: {{Reporter: config.Reporter{Context: "job1"}}}},
+			presubmits:   map[int][]config.Presubmit{1: {{Context: "job1"}}},
 			pullRequests: map[int]string{1: "headsha"},
 			pullRequestModifier: func(pr *PullRequest) {
 				pr.Commits.Nodes = []struct{ Commit Commit }{{
@@ -542,7 +534,7 @@ func TestAccumulate(t *testing.T) {
 		},
 		{
 			name:         "Results from failed status context for which we do not have a prowjob anymore are irrelevant",
-			presubmits:   map[int][]config.Presubmit{1: {{Reporter: config.Reporter{Context: "job1"}}}},
+			presubmits:   map[int][]config.Presubmit{1: {{Context: "job1"}}},
 			pullRequests: map[int]string{1: "headsha"},
 			pullRequestModifier: func(pr *PullRequest) {
 				pr.Commits.Nodes = []struct{ Commit Commit }{{
@@ -560,7 +552,7 @@ func TestAccumulate(t *testing.T) {
 		},
 		{
 			name:         "Successful status context and prowjob, success",
-			presubmits:   map[int][]config.Presubmit{1: {{Reporter: config.Reporter{Context: "job1"}}}},
+			presubmits:   map[int][]config.Presubmit{1: {{Context: "job1"}}},
 			pullRequests: map[int]string{1: "headsha"},
 			pullRequestModifier: func(pr *PullRequest) {
 				pr.Commits.Nodes = []struct{ Commit Commit }{{
@@ -579,7 +571,7 @@ func TestAccumulate(t *testing.T) {
 		},
 		{
 			name:         "Successful status context, failed prowjob, success",
-			presubmits:   map[int][]config.Presubmit{1: {{Reporter: config.Reporter{Context: "job1"}}}},
+			presubmits:   map[int][]config.Presubmit{1: {{Context: "job1"}}},
 			pullRequests: map[int]string{1: "headsha"},
 			pullRequestModifier: func(pr *PullRequest) {
 				pr.Commits.Nodes = []struct{ Commit Commit }{{
@@ -598,7 +590,7 @@ func TestAccumulate(t *testing.T) {
 		},
 		{
 			name:         "Failed status context, successful prowjob, success",
-			presubmits:   map[int][]config.Presubmit{1: {{Reporter: config.Reporter{Context: "job1"}}}},
+			presubmits:   map[int][]config.Presubmit{1: {{Context: "job1"}}},
 			pullRequests: map[int]string{1: "headsha"},
 			pullRequestModifier: func(pr *PullRequest) {
 				pr.Commits.Nodes = []struct{ Commit Commit }{{
@@ -617,7 +609,7 @@ func TestAccumulate(t *testing.T) {
 		},
 		{
 			name:         "Failed status context and prowjob, failure",
-			presubmits:   map[int][]config.Presubmit{1: {{Reporter: config.Reporter{Context: "job1"}}}},
+			presubmits:   map[int][]config.Presubmit{1: {{Context: "job1"}}},
 			pullRequests: map[int]string{1: "headsha"},
 			pullRequestModifier: func(pr *PullRequest) {
 				pr.Commits.Nodes = []struct{ Commit Commit }{{
@@ -637,8 +629,8 @@ func TestAccumulate(t *testing.T) {
 		{
 			name: "Mixture of results from status context and prowjobs",
 			presubmits: map[int][]config.Presubmit{1: {
-				{Reporter: config.Reporter{Context: "job1"}},
-				{Reporter: config.Reporter{Context: "job2"}},
+				{Context: "job1"},
+				{Context: "job2"},
 			}},
 			pullRequests: map[int]string{1: "headsha"},
 			pullRequestModifier: func(pr *PullRequest) {
@@ -1059,9 +1051,7 @@ func TestDividePool(t *testing.T) {
 
 	configGetter := func() *config.Config {
 		return &config.Config{
-			ProwConfig: config.ProwConfig{
-				ProwJobNamespace: "default",
-			},
+			ProwJobNamespace: "default",
 		}
 	}
 
@@ -1089,10 +1079,8 @@ func TestDividePool(t *testing.T) {
 	}
 	for idx, pj := range testPJs {
 		prowjob := &prowapi.ProwJob{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      fmt.Sprintf("pj-%d", idx),
-				Namespace: "default",
-			},
+			Name:      fmt.Sprintf("pj-%d", idx),
+			Namespace: "default",
 			Spec: prowapi.ProwJobSpec{
 				Type: pj.jobType,
 				Refs: &prowapi.Refs{
@@ -1266,20 +1254,14 @@ func testPickBatch(clients localgit.Clients, t *testing.T) {
 	}
 	ca := &config.Agent{}
 	ca.Set(&config.Config{
-		ProwConfig: config.ProwConfig{
-			Tide: config.Tide{
-				BatchSizeLimitMap: map[string]int{"*": 5},
-			},
+		Tide: config.Tide{
+			BatchSizeLimitMap: map[string]int{"*": 5},
 		},
-		JobConfig: config.JobConfig{
-			PresubmitsStatic: map[string][]config.Presubmit{
-				"o/r": {{
-					AlwaysRun: true,
-					JobBase: config.JobBase{
-						Name: "my-presubmit",
-					},
-				}},
-			},
+		PresubmitsStatic: map[string][]config.Presubmit{
+			"o/r": {{
+				AlwaysRun: true,
+				Name:      "my-presubmit",
+			}},
 		},
 	})
 	logger := logrus.WithField("component", "tide")
@@ -1330,19 +1312,17 @@ func TestMergeMethodCheckerAndPRMergeMethod(t *testing.T) {
 	rebaseLabel := "tide/rebase"
 
 	tideConfig := config.Tide{
-		TideGitHubConfig: config.TideGitHubConfig{
-			SquashLabel: squashLabel,
-			MergeLabel:  mergeLabel,
-			RebaseLabel: rebaseLabel,
+		SquashLabel: squashLabel,
+		MergeLabel:  mergeLabel,
+		RebaseLabel: rebaseLabel,
 
-			MergeType: map[string]config.TideOrgMergeType{
-				"o/configured-rebase":              {MergeType: types.MergeRebase}, // GH client allows merge, rebase
-				"o/configured-squash-allow-rebase": {MergeType: types.MergeSquash}, // GH client allows merge, squash, rebase
-				"o/configure-re-base":              {MergeType: types.MergeRebase}, // GH client allows merge
-			},
+		MergeType: map[string]config.TideOrgMergeType{
+			"o/configured-rebase":              {MergeType: types.MergeRebase}, // GH client allows merge, rebase
+			"o/configured-squash-allow-rebase": {MergeType: types.MergeSquash}, // GH client allows merge, squash, rebase
+			"o/configure-re-base":              {MergeType: types.MergeRebase}, // GH client allows merge
 		},
 	}
-	cfg := func() *config.Config { return &config.Config{ProwConfig: config.ProwConfig{Tide: tideConfig}} }
+	cfg := func() *config.Config { return &config.Config{Tide: tideConfig} }
 	mmc := newMergeChecker(cfg, &fgc{})
 
 	testcases := []struct {
@@ -1489,13 +1469,11 @@ func TestRebaseMergeMethodIsAllowed(t *testing.T) {
 	orgName := "fake-org"
 	repoName := "fake-repo"
 	tideConfig := config.Tide{
-		TideGitHubConfig: config.TideGitHubConfig{
-			MergeType: map[string]config.TideOrgMergeType{
-				fmt.Sprintf("%s/%s", orgName, repoName): {MergeType: types.MergeRebase},
-			},
+		MergeType: map[string]config.TideOrgMergeType{
+			fmt.Sprintf("%s/%s", orgName, repoName): {MergeType: types.MergeRebase},
 		},
 	}
-	cfg := func() *config.Config { return &config.Config{ProwConfig: config.ProwConfig{Tide: tideConfig}} }
+	cfg := func() *config.Config { return &config.Config{Tide: tideConfig} }
 	mmc := newMergeChecker(cfg, &fgc{})
 	mmc.cache = map[config.OrgRepo]map[types.PullRequestMergeType]bool{
 		{Org: orgName, Repo: repoName}: {
@@ -1681,14 +1659,12 @@ func TestIsAllowedToMerge_ReviewDecision(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			tideConfig := config.Tide{
-				TideGitHubConfig: config.TideGitHubConfig{
-					MergeType: map[string]config.TideOrgMergeType{
-						fmt.Sprintf("%s/%s", orgName, repoName): {MergeType: types.MergeMerge},
-					},
+				MergeType: map[string]config.TideOrgMergeType{
+					fmt.Sprintf("%s/%s", orgName, repoName): {MergeType: types.MergeMerge},
 				},
 				GitHubMergeBlocksPolicyMap: tc.policyConfig,
 			}
-			cfg := func() *config.Config { return &config.Config{ProwConfig: config.ProwConfig{Tide: tideConfig}} }
+			cfg := func() *config.Config { return &config.Config{Tide: tideConfig} }
 			mmc := newMergeChecker(cfg, &fgc{})
 			mmc.cache = map[config.OrgRepo]map[types.PullRequestMergeType]bool{
 				{Org: orgName, Repo: repoName}: {
@@ -1774,8 +1750,8 @@ func testTakeAction(clients localgit.Clients, t *testing.T) {
 			batchMerges:  []int{},
 			presubmits: map[int][]config.Presubmit{
 				100: {
-					{Reporter: config.Reporter{Context: "foo"}},
-					{Reporter: config.Reporter{Context: "if-changed"}},
+					{Context: "foo"},
+					{Context: "if-changed"},
 				},
 			},
 			merged:    0,
@@ -1792,8 +1768,8 @@ func testTakeAction(clients localgit.Clients, t *testing.T) {
 			batchMerges:  []int{},
 			presubmits: map[int][]config.Presubmit{
 				100: {
-					{Reporter: config.Reporter{Context: "foo"}},
-					{Reporter: config.Reporter{Context: "if-changed"}},
+					{Context: "foo"},
+					{Context: "if-changed"},
 				},
 			},
 			merged:    0,
@@ -1810,8 +1786,8 @@ func testTakeAction(clients localgit.Clients, t *testing.T) {
 			batchMerges:  []int{},
 			presubmits: map[int][]config.Presubmit{
 				100: {
-					{Reporter: config.Reporter{Context: "foo"}},
-					{Reporter: config.Reporter{Context: "if-changed"}},
+					{Context: "foo"},
+					{Context: "if-changed"},
 				},
 			},
 			merged:    0,
@@ -1828,8 +1804,8 @@ func testTakeAction(clients localgit.Clients, t *testing.T) {
 			batchMerges:  []int{},
 			presubmits: map[int][]config.Presubmit{
 				100: {
-					{Reporter: config.Reporter{Context: "foo"}},
-					{Reporter: config.Reporter{Context: "if-changed"}},
+					{Context: "foo"},
+					{Context: "if-changed"},
 				},
 			},
 			merged:    0,
@@ -1846,8 +1822,8 @@ func testTakeAction(clients localgit.Clients, t *testing.T) {
 			batchMerges:  []int{},
 			presubmits: map[int][]config.Presubmit{
 				100: {
-					{Reporter: config.Reporter{Context: "foo"}},
-					{Reporter: config.Reporter{Context: "if-changed"}},
+					{Context: "foo"},
+					{Context: "if-changed"},
 				},
 			},
 			merged:           0,
@@ -1865,8 +1841,8 @@ func testTakeAction(clients localgit.Clients, t *testing.T) {
 			batchMerges:  []int{},
 			presubmits: map[int][]config.Presubmit{
 				100: {
-					{Reporter: config.Reporter{Context: "foo"}},
-					{Reporter: config.Reporter{Context: "if-changed"}},
+					{Context: "foo"},
+					{Context: "if-changed"},
 				},
 			},
 			merged:    0,
@@ -1883,8 +1859,8 @@ func testTakeAction(clients localgit.Clients, t *testing.T) {
 			batchMerges:  []int{},
 			presubmits: map[int][]config.Presubmit{
 				100: {
-					{Reporter: config.Reporter{Context: "foo"}},
-					{Reporter: config.Reporter{Context: "if-changed"}},
+					{Context: "foo"},
+					{Context: "if-changed"},
 				},
 			},
 			merged:    1,
@@ -1901,8 +1877,8 @@ func testTakeAction(clients localgit.Clients, t *testing.T) {
 			batchMerges:  []int{6, 7, 8},
 			presubmits: map[int][]config.Presubmit{
 				100: {
-					{Reporter: config.Reporter{Context: "foo"}},
-					{Reporter: config.Reporter{Context: "if-changed"}},
+					{Context: "foo"},
+					{Context: "if-changed"},
 				},
 			},
 			merged:    3,
@@ -1919,8 +1895,8 @@ func testTakeAction(clients localgit.Clients, t *testing.T) {
 			batchMerges:  []int{},
 			presubmits: map[int][]config.Presubmit{
 				100: {
-					{Reporter: config.Reporter{Context: "foo"}},
-					{Reporter: config.Reporter{Context: "if-changed"}},
+					{Context: "foo"},
+					{Context: "if-changed"},
 				},
 			},
 			merged:    0,
@@ -1963,8 +1939,8 @@ func testTakeAction(clients localgit.Clients, t *testing.T) {
 			batchMerges:  []int{},
 			presubmits: map[int][]config.Presubmit{
 				100: {
-					{Reporter: config.Reporter{Context: "foo"}},
-					{Reporter: config.Reporter{Context: "if-changed"}},
+					{Context: "foo"},
+					{Context: "if-changed"},
 				},
 			},
 			merged:           0,
@@ -1982,12 +1958,12 @@ func testTakeAction(clients localgit.Clients, t *testing.T) {
 			batchMerges:  []int{},
 			presubmits: map[int][]config.Presubmit{
 				100: {
-					{Reporter: config.Reporter{Context: "foo"}},
-					{Reporter: config.Reporter{Context: "if-changed"}},
+					{Context: "foo"},
+					{Context: "if-changed"},
 				},
 			},
 			preExistingJobs: []runtime.Object{&prowapi.ProwJob{
-				ObjectMeta: metav1.ObjectMeta{Name: "my-job", Namespace: "pj-ns"},
+				Name: "my-job", Namespace: "pj-ns",
 				Spec: prowapi.ProwJobSpec{
 					Job:  "bar",
 					Type: prowapi.BatchJob,
@@ -2019,12 +1995,12 @@ func testTakeAction(clients localgit.Clients, t *testing.T) {
 			batchMerges:  []int{},
 			presubmits: map[int][]config.Presubmit{
 				100: {
-					{Reporter: config.Reporter{Context: "foo"}},
-					{Reporter: config.Reporter{Context: "if-changed"}},
+					{Context: "foo"},
+					{Context: "if-changed"},
 				},
 			},
 			preExistingJobs: []runtime.Object{&prowapi.ProwJob{
-				ObjectMeta: metav1.ObjectMeta{Name: "my-job", Namespace: "pj-ns"},
+				Name: "my-job", Namespace: "pj-ns",
 				Spec: prowapi.ProwJobSpec{
 					Job:  "bar",
 					Type: prowapi.BatchJob,
@@ -2060,12 +2036,12 @@ func testTakeAction(clients localgit.Clients, t *testing.T) {
 			batchMerges:  []int{},
 			presubmits: map[int][]config.Presubmit{
 				100: {
-					{Reporter: config.Reporter{Context: "foo"}},
-					{Reporter: config.Reporter{Context: "if-changed"}},
+					{Context: "foo"},
+					{Context: "if-changed"},
 				},
 			},
 			preExistingJobs: []runtime.Object{&prowapi.ProwJob{
-				ObjectMeta: metav1.ObjectMeta{Name: "my-job", Namespace: "pj-ns"},
+				Name: "my-job", Namespace: "pj-ns",
 				Spec: prowapi.ProwJobSpec{
 					Job:  "bar",
 					Type: prowapi.BatchJob,
@@ -2101,8 +2077,8 @@ func testTakeAction(clients localgit.Clients, t *testing.T) {
 			batchMerges:  []int{},
 			presubmits: map[int][]config.Presubmit{
 				100: {
-					{Reporter: config.Reporter{Context: "foo"}},
-					{Reporter: config.Reporter{Context: "if-changed"}},
+					{Context: "foo"},
+					{Context: "if-changed"},
 				},
 			},
 			merged:    0,
@@ -2169,8 +2145,8 @@ func testTakeAction(clients localgit.Clients, t *testing.T) {
 			batchMerges:  []int{},
 			presubmits: map[int][]config.Presubmit{
 				100: {
-					{Reporter: config.Reporter{Context: "foo"}},
-					{Reporter: config.Reporter{Context: "if-changed"}},
+					{Context: "foo"},
+					{Context: "if-changed"},
 				},
 			},
 			merged:           0,
@@ -2185,44 +2161,36 @@ func testTakeAction(clients localgit.Clients, t *testing.T) {
 			ca := &config.Agent{}
 			pjNamespace := "pj-ns"
 			cfg := &config.Config{
-				ProwConfig: config.ProwConfig{
-					ProwJobNamespace: pjNamespace,
-					Scheduler:        config.Scheduler{Enabled: tc.enableScheduling},
-				},
+				ProwJobNamespace: pjNamespace,
+				Scheduler:        config.Scheduler{Enabled: tc.enableScheduling},
 			}
 			if err := cfg.SetPresubmits(
 				map[string][]config.Presubmit{
 					"o/r": {
 						{
-							Reporter:     config.Reporter{Context: "foo"},
+							Context:      "foo",
 							Trigger:      "/test all",
 							RerunCommand: "/test all",
 							AlwaysRun:    true,
 						},
 						{
-							JobBase: config.JobBase{
-								Name: "bar",
-							},
-							Reporter:     config.Reporter{Context: "bar"},
+							Name:         "bar",
+							Context:      "bar",
 							Trigger:      "/test bar",
 							RerunCommand: "/test bar",
 							AlwaysRun:    true,
 						},
 						{
-							Reporter:     config.Reporter{Context: "if-changed"},
+							Context:      "if-changed",
 							Trigger:      "/test if-changed",
 							RerunCommand: "/test if-changed",
-							RegexpChangeMatcher: config.RegexpChangeMatcher{
-								RunIfChanged: "CHANGED",
-							},
+							RunIfChanged: "CHANGED",
 						},
 						{
-							Reporter:     config.Reporter{Context: "if-changed"},
-							Trigger:      "/test if-changed",
-							RerunCommand: "/test if-changed",
-							RegexpChangeMatcher: config.RegexpChangeMatcher{
-								SkipIfOnlyChanged: "CHANGED1",
-							},
+							Context:           "if-changed",
+							Trigger:           "/test if-changed",
+							RerunCommand:      "/test if-changed",
+							SkipIfOnlyChanged: "CHANGED1",
 						},
 					},
 				},
@@ -2232,7 +2200,7 @@ func testTakeAction(clients localgit.Clients, t *testing.T) {
 			ca.Set(cfg)
 			if len(tc.presubmits) > 0 {
 				for i := 0; i <= 8; i++ {
-					tc.presubmits[i] = []config.Presubmit{{Reporter: config.Reporter{Context: "foo"}}}
+					tc.presubmits[i] = []config.Presubmit{{Context: "foo"}}
 				}
 			}
 			lg, gc, err := clients()
@@ -2606,14 +2574,12 @@ func TestSync(t *testing.T) {
 			},
 			tideConfig: &config.Tide{
 				MaxGoroutines: 4,
-				TideGitHubConfig: config.TideGitHubConfig{
-					Queries: []config.TideQuery{{
-						Orgs:  []string{string(mergeableA.Repository.Owner.Login), string(faultyOrg.Repository.Owner.Login)},
-						Repos: []string{string(mergeableA.Repository.Name), string(faultyOrg.Repository.Name)},
-					}},
-					StatusUpdatePeriod: &metav1.Duration{Duration: time.Second * 0},
-					BlockerLabel:       "merge-blocker",
-				},
+				Queries: []config.TideQuery{{
+					Orgs:  []string{string(mergeableA.Repository.Owner.Login), string(faultyOrg.Repository.Owner.Login)},
+					Repos: []string{string(mergeableA.Repository.Name), string(faultyOrg.Repository.Name)},
+				}},
+				StatusUpdatePeriod: &metav1.Duration{Duration: time.Second * 0},
+				BlockerLabel:       "merge-blocker",
 			},
 			usesGitHubAppsAuth: true,
 			expectedPools: []Pool{{
@@ -2644,19 +2610,17 @@ func TestSync(t *testing.T) {
 			}
 
 			tideConfig := config.Tide{
-				MaxGoroutines: 4,
-				TideGitHubConfig: config.TideGitHubConfig{
-					Queries:            []config.TideQuery{{}},
-					StatusUpdatePeriod: &metav1.Duration{Duration: time.Second * 0},
-					BlockerLabel:       "merge-blocker",
-				},
+				MaxGoroutines:      4,
+				Queries:            []config.TideQuery{{}},
+				StatusUpdatePeriod: &metav1.Duration{Duration: time.Second * 0},
+				BlockerLabel:       "merge-blocker",
 			}
 			if tc.tideConfig != nil {
 				tideConfig = *tc.tideConfig
 			}
 
 			ca := &config.Agent{}
-			ca.Set(&config.Config{ProwConfig: config.ProwConfig{Tide: tideConfig}})
+			ca.Set(&config.Config{Tide: tideConfig})
 			hist, err := history.New(100, nil, "")
 			if err != nil {
 				t.Fatalf("Failed to create history client: %v", err)
@@ -2722,8 +2686,8 @@ func TestSync(t *testing.T) {
 
 func TestFilterSubpool(t *testing.T) {
 	presubmits := map[int][]config.Presubmit{
-		1: {{Reporter: config.Reporter{Context: "pj-a"}}},
-		2: {{Reporter: config.Reporter{Context: "pj-a"}}, {Reporter: config.Reporter{Context: "pj-b"}}},
+		1: {{Context: "pj-a"}},
+		2: {{Context: "pj-a"}, {Context: "pj-b"}},
 	}
 
 	trueVar := true
@@ -3352,13 +3316,11 @@ func TestPresubmitsByPull(t *testing.T) {
 			name: "no matching presubmits",
 			presubmits: []config.Presubmit{
 				{
-					Reporter: config.Reporter{Context: "always"},
-					RegexpChangeMatcher: config.RegexpChangeMatcher{
-						RunIfChanged: "foo",
-					},
+					Context:      "always",
+					RunIfChanged: "foo",
 				},
 				{
-					Reporter: config.Reporter{Context: "never"},
+					Context: "never",
 				},
 			},
 			expectedChangeCache: map[changeCacheKey][]string{{number: 100, sha: "sha"}: {"CHANGED"}},
@@ -3373,7 +3335,7 @@ func TestPresubmitsByPull(t *testing.T) {
 			name: "no matching presubmits (check cache eviction)",
 			presubmits: []config.Presubmit{
 				{
-					Reporter: config.Reporter{Context: "never"},
+					Context: "never",
 				},
 			},
 			initialChangeCache: map[changeCacheKey][]string{{number: 100, sha: "sha"}: {"FILE"}},
@@ -3383,13 +3345,11 @@ func TestPresubmitsByPull(t *testing.T) {
 			name: "no matching presubmits (check cache retention)",
 			presubmits: []config.Presubmit{
 				{
-					Reporter: config.Reporter{Context: "always"},
-					RegexpChangeMatcher: config.RegexpChangeMatcher{
-						RunIfChanged: "foo",
-					},
+					Context:      "always",
+					RunIfChanged: "foo",
 				},
 				{
-					Reporter: config.Reporter{Context: "never"},
+					Context: "never",
 				},
 			},
 			initialChangeCache:  map[changeCacheKey][]string{{number: 100, sha: "sha"}: {"FILE"}},
@@ -3400,15 +3360,15 @@ func TestPresubmitsByPull(t *testing.T) {
 			name: "always_run",
 			presubmits: []config.Presubmit{
 				{
-					Reporter:  config.Reporter{Context: "always"},
+					Context:   "always",
 					AlwaysRun: true,
 				},
 				{
-					Reporter: config.Reporter{Context: "never"},
+					Context: "never",
 				},
 			},
 			expectedPresubmits: map[int][]config.Presubmit{100: {{
-				Reporter:  config.Reporter{Context: "always"},
+				Context:   "always",
 				AlwaysRun: true,
 			}}},
 		},
@@ -3416,44 +3376,38 @@ func TestPresubmitsByPull(t *testing.T) {
 			name: "runs against branch",
 			presubmits: []config.Presubmit{
 				{
-					Reporter:  config.Reporter{Context: "presubmit"},
+					Context:   "presubmit",
 					AlwaysRun: true,
-					Brancher: config.Brancher{
-						Branches: []string{defaultBranch, "dev"},
-					},
+					Branches:  []string{defaultBranch, "dev"},
 				},
 				{
-					Reporter: config.Reporter{Context: "never"},
+					Context: "never",
 				},
 			},
 			expectedPresubmits: map[int][]config.Presubmit{100: {{
-				Reporter:  config.Reporter{Context: "presubmit"},
+				Context:   "presubmit",
 				AlwaysRun: true,
-				Brancher: config.Brancher{
-					Branches: []string{defaultBranch, "dev"},
-				},
+				Branches:  []string{defaultBranch, "dev"},
 			}}},
 		},
 		{
 			name: "doesn't run against branch",
 			presubmits: []config.Presubmit{
 				{
-					Reporter:  config.Reporter{Context: "presubmit"},
+					Context:   "presubmit",
 					AlwaysRun: true,
-					Brancher: config.Brancher{
-						Branches: []string{"release", "dev"},
-					},
+					Branches:  []string{"release", "dev"},
 				},
 				{
-					Reporter:  config.Reporter{Context: "always"},
+					Context:   "always",
 					AlwaysRun: true,
 				},
 				{
-					Reporter: config.Reporter{Context: "never"},
+					Context: "never",
 				},
 			},
 			expectedPresubmits: map[int][]config.Presubmit{100: {{
-				Reporter:  config.Reporter{Context: "always"},
+				Context:   "always",
 				AlwaysRun: true,
 			}}},
 		},
@@ -3461,14 +3415,12 @@ func TestPresubmitsByPull(t *testing.T) {
 			name: "no-always-run-no-trigger",
 			presubmits: []config.Presubmit{
 				{
-					Reporter:  config.Reporter{Context: "presubmit"},
+					Context:   "presubmit",
 					AlwaysRun: false,
-					Brancher: config.Brancher{
-						Branches: []string{defaultBranch, "dev"},
-					},
+					Branches:  []string{defaultBranch, "dev"},
 				},
 				{
-					Reporter: config.Reporter{Context: "never"},
+					Context: "never",
 				},
 			},
 			expectedPresubmits: map[int][]config.Presubmit{},
@@ -3477,56 +3429,46 @@ func TestPresubmitsByPull(t *testing.T) {
 			name: "no-always-run-no-trigger-tide-wants-it",
 			presubmits: []config.Presubmit{
 				{
-					Reporter:  config.Reporter{Context: "presubmit"},
-					AlwaysRun: false,
-					Brancher: config.Brancher{
-						Branches: []string{defaultBranch, "dev"},
-					},
+					Context:        "presubmit",
+					AlwaysRun:      false,
+					Branches:       []string{defaultBranch, "dev"},
 					RunBeforeMerge: true,
 				},
 				{
-					Reporter: config.Reporter{Context: "never"},
+					Context: "never",
 				},
 			},
 			expectedPresubmits: map[int][]config.Presubmit{100: {{
-				Reporter:       config.Reporter{Context: "presubmit"},
+				Context:        "presubmit",
 				AlwaysRun:      false,
 				RunBeforeMerge: true,
-				Brancher: config.Brancher{
-					Branches: []string{defaultBranch, "dev"},
-				},
+				Branches:       []string{defaultBranch, "dev"},
 			}}},
 		},
 		{
 			name: "runs manual triggered jobs (requireManuallyTriggeredJobs enabled)",
 			presubmits: []config.Presubmit{
 				{
-					Reporter:  config.Reporter{Context: "presubmit"},
+					Context:   "presubmit",
 					AlwaysRun: false,
-					Brancher: config.Brancher{
-						Branches: []string{defaultBranch, "dev"},
-					},
+					Branches:  []string{defaultBranch, "dev"},
 				},
 			},
 			requireManuallyTriggeredJobs: true,
 			fromBranchProtection:         true,
 			expectedPresubmits: map[int][]config.Presubmit{100: {{
-				Reporter:  config.Reporter{Context: "presubmit"},
+				Context:   "presubmit",
 				AlwaysRun: false,
-				Brancher: config.Brancher{
-					Branches: []string{defaultBranch, "dev"},
-				},
+				Branches:  []string{defaultBranch, "dev"},
 			}}},
 		},
 		{
 			name: "doesn't run manual triggered jobs (requireManuallyTriggeredJobs disabled)",
 			presubmits: []config.Presubmit{
 				{
-					Reporter:  config.Reporter{Context: "presubmit"},
+					Context:   "presubmit",
 					AlwaysRun: false,
-					Brancher: config.Brancher{
-						Branches: []string{defaultBranch, "dev"},
-					},
+					Branches:  []string{defaultBranch, "dev"},
 				},
 			},
 			fromBranchProtection: true,
@@ -3536,15 +3478,13 @@ func TestPresubmitsByPull(t *testing.T) {
 			name: "brancher-not-match-when-tide-wants-it",
 			presubmits: []config.Presubmit{
 				{
-					Reporter:  config.Reporter{Context: "presubmit"},
-					AlwaysRun: false,
-					Brancher: config.Brancher{
-						Branches: []string{"release", "dev"},
-					},
+					Context:        "presubmit",
+					AlwaysRun:      false,
+					Branches:       []string{"release", "dev"},
 					RunBeforeMerge: true,
 				},
 				{
-					Reporter: config.Reporter{Context: "never"},
+					Context: "never",
 				},
 			},
 			expectedPresubmits: map[int][]config.Presubmit{},
@@ -3553,26 +3493,22 @@ func TestPresubmitsByPull(t *testing.T) {
 			name: "run_if_changed (uncached)",
 			presubmits: []config.Presubmit{
 				{
-					Reporter: config.Reporter{Context: "presubmit"},
-					RegexpChangeMatcher: config.RegexpChangeMatcher{
-						RunIfChanged: "^CHANGE.$",
-					},
+					Context:      "presubmit",
+					RunIfChanged: "^CHANGE.$",
 				},
 				{
-					Reporter:  config.Reporter{Context: "always"},
+					Context:   "always",
 					AlwaysRun: true,
 				},
 				{
-					Reporter: config.Reporter{Context: "never"},
+					Context: "never",
 				},
 			},
 			expectedPresubmits: map[int][]config.Presubmit{100: {{
-				Reporter: config.Reporter{Context: "presubmit"},
-				RegexpChangeMatcher: config.RegexpChangeMatcher{
-					RunIfChanged: "^CHANGE.$",
-				},
+				Context:      "presubmit",
+				RunIfChanged: "^CHANGE.$",
 			}, {
-				Reporter:  config.Reporter{Context: "always"},
+				Context:   "always",
 				AlwaysRun: true,
 			}}},
 			expectedChangeCache: map[changeCacheKey][]string{{number: 100, sha: "sha"}: {"CHANGED"}},
@@ -3581,28 +3517,24 @@ func TestPresubmitsByPull(t *testing.T) {
 			name: "run_if_changed (cached)",
 			presubmits: []config.Presubmit{
 				{
-					Reporter: config.Reporter{Context: "presubmit"},
-					RegexpChangeMatcher: config.RegexpChangeMatcher{
-						RunIfChanged: "^FIL.$",
-					},
+					Context:      "presubmit",
+					RunIfChanged: "^FIL.$",
 				},
 				{
-					Reporter:  config.Reporter{Context: "always"},
+					Context:   "always",
 					AlwaysRun: true,
 				},
 				{
-					Reporter: config.Reporter{Context: "never"},
+					Context: "never",
 				},
 			},
 			initialChangeCache: map[changeCacheKey][]string{{number: 100, sha: "sha"}: {"FILE"}},
 			expectedPresubmits: map[int][]config.Presubmit{100: {{
-				Reporter: config.Reporter{Context: "presubmit"},
-				RegexpChangeMatcher: config.RegexpChangeMatcher{
-					RunIfChanged: "^FIL.$",
-				},
+				Context:      "presubmit",
+				RunIfChanged: "^FIL.$",
 			},
 				{
-					Reporter:  config.Reporter{Context: "always"},
+					Context:   "always",
 					AlwaysRun: true,
 				}}},
 			expectedChangeCache: map[changeCacheKey][]string{{number: 100, sha: "sha"}: {"FILE"}},
@@ -3611,22 +3543,20 @@ func TestPresubmitsByPull(t *testing.T) {
 			name: "run_if_changed (cached) (skippable)",
 			presubmits: []config.Presubmit{
 				{
-					Reporter: config.Reporter{Context: "presubmit"},
-					RegexpChangeMatcher: config.RegexpChangeMatcher{
-						RunIfChanged: "^CHANGE.$",
-					},
+					Context:      "presubmit",
+					RunIfChanged: "^CHANGE.$",
 				},
 				{
-					Reporter:  config.Reporter{Context: "always"},
+					Context:   "always",
 					AlwaysRun: true,
 				},
 				{
-					Reporter: config.Reporter{Context: "never"},
+					Context: "never",
 				},
 			},
 			initialChangeCache: map[changeCacheKey][]string{{number: 100, sha: "sha"}: {"FILE"}},
 			expectedPresubmits: map[int][]config.Presubmit{100: {{
-				Reporter:  config.Reporter{Context: "always"},
+				Context:   "always",
 				AlwaysRun: true,
 			}}},
 			expectedChangeCache: map[changeCacheKey][]string{{number: 100, sha: "sha"}: {"FILE"}},
@@ -3635,22 +3565,22 @@ func TestPresubmitsByPull(t *testing.T) {
 			name: "inrepoconfig presubmits get only added to the corresponding pull",
 			presubmits: []config.Presubmit{{
 				AlwaysRun: true,
-				Reporter:  config.Reporter{Context: "always"},
+				Context:   "always",
 			}},
 			prowYAMLGetter: prowYAMLGetterForHeadRefs([]string{"1"}, []config.Presubmit{{
 				AlwaysRun: true,
-				Reporter:  config.Reporter{Context: "inrepoconfig"},
+				Context:   "inrepoconfig",
 			}}),
 			prs: []CodeReviewCommon{
 				{Number: 1, HeadRefOID: "1"},
 			},
 			expectedPresubmits: map[int][]config.Presubmit{
 				1: {
-					{AlwaysRun: true, Reporter: config.Reporter{Context: "always"}},
-					{AlwaysRun: true, Reporter: config.Reporter{Context: "inrepoconfig"}},
+					{AlwaysRun: true, Context: "always"},
+					{AlwaysRun: true, Context: "inrepoconfig"},
 				},
 				100: {
-					{AlwaysRun: true, Reporter: config.Reporter{Context: "always"}},
+					{AlwaysRun: true, Context: "always"},
 				},
 			},
 		},
@@ -3658,7 +3588,7 @@ func TestPresubmitsByPull(t *testing.T) {
 			name: "broken inrepoconfig doesn't break the whole subpool",
 			presubmits: []config.Presubmit{{
 				AlwaysRun: true,
-				Reporter:  config.Reporter{Context: "always"},
+				Context:   "always",
 			}},
 			prowYAMLGetter: func(_ *config.Config, _ git.ClientFactory, _, _, _ string, headRefs ...string) (*config.ProwYAML, error) {
 				if len(headRefs) == 1 && headRefs[0] == "1" {
@@ -3671,7 +3601,7 @@ func TestPresubmitsByPull(t *testing.T) {
 			},
 			expectedPresubmits: map[int][]config.Presubmit{
 				100: {
-					{AlwaysRun: true, Reporter: config.Reporter{Context: "always"}},
+					{AlwaysRun: true, Context: "always"},
 				},
 			},
 		},
@@ -3679,14 +3609,12 @@ func TestPresubmitsByPull(t *testing.T) {
 			name: "changed files error excludes only the affected PR from the subpool",
 			presubmits: []config.Presubmit{
 				{
-					Reporter:  config.Reporter{Context: "always"},
+					Context:   "always",
 					AlwaysRun: true,
 				},
 				{
-					Reporter: config.Reporter{Context: "presubmit"},
-					RegexpChangeMatcher: config.RegexpChangeMatcher{
-						RunIfChanged: "^CHANGE.$",
-					},
+					Context:      "presubmit",
+					RunIfChanged: "^CHANGE.$",
 				},
 			},
 			ghc: &ghcInterceptor{
@@ -3706,14 +3634,12 @@ func TestPresubmitsByPull(t *testing.T) {
 			expectedPresubmits: map[int][]config.Presubmit{
 				100: {
 					{
-						Reporter:  config.Reporter{Context: "always"},
+						Context:   "always",
 						AlwaysRun: true,
 					},
 					{
-						Reporter: config.Reporter{Context: "presubmit"},
-						RegexpChangeMatcher: config.RegexpChangeMatcher{
-							RunIfChanged: "^CHANGE.$",
-						},
+						Context:      "presubmit",
+						RunIfChanged: "^CHANGE.$",
 					},
 				},
 			},
@@ -3732,18 +3658,16 @@ func TestPresubmitsByPull(t *testing.T) {
 			}
 
 			cfg := &config.Config{
-				ProwConfig: config.ProwConfig{
-					BranchProtection: config.BranchProtection{
-						Policy: config.Policy{
-							RequireManuallyTriggeredJobs: &tc.requireManuallyTriggeredJobs,
-						},
+				BranchProtection: config.BranchProtection{
+					Policy: config.Policy{
+						RequireManuallyTriggeredJobs: &tc.requireManuallyTriggeredJobs,
 					},
-					Tide: config.Tide{
-						TideGitHubConfig: config.TideGitHubConfig{
-							ContextOptions: config.TideContextPolicyOptions{
-								TideContextPolicy: config.TideContextPolicy{
-									FromBranchProtection: &tc.fromBranchProtection,
-								},
+				},
+				Tide: config.Tide{
+					TideGitHubConfig: config.TideGitHubConfig{
+						ContextOptions: config.TideContextPolicyOptions{
+							TideContextPolicy: config.TideContextPolicy{
+								FromBranchProtection: &tc.fromBranchProtection,
 							},
 						},
 					},
@@ -3752,7 +3676,7 @@ func TestPresubmitsByPull(t *testing.T) {
 
 			cfg.SetPresubmits(map[string][]config.Presubmit{
 				"/":       tc.presubmits,
-				"foo/bar": {{Reporter: config.Reporter{Context: "wrong-repo"}, AlwaysRun: true}},
+				"foo/bar": {{Context: "wrong-repo", AlwaysRun: true}},
 			})
 			if tc.prowYAMLGetter != nil {
 				cfg.InRepoConfig.Enabled = map[string]*bool{"*": new(true)}
@@ -3831,12 +3755,10 @@ func TestAccumulateReturnsCorrectMissingTests(t *testing.T) {
 				HeadRefOID: "sha",
 			}},
 			presubmits: map[int][]config.Presubmit{1: {{
-				Reporter: config.Reporter{
-					Context: "my-presubmit",
-				},
+				Context: "my-presubmit",
 			}}},
 			expectedPresubmits: map[int][]config.Presubmit{
-				1: {{Reporter: config.Reporter{Context: "my-presubmit"}}},
+				1: {{Context: "my-presubmit"}},
 			},
 		},
 		{
@@ -3859,7 +3781,7 @@ func TestAccumulateReturnsCorrectMissingTests(t *testing.T) {
 				Status: prowapi.ProwJobStatus{State: prowapi.SuccessState},
 			}},
 			presubmits: map[int][]config.Presubmit{
-				1: {{Reporter: config.Reporter{Context: "my-presubmit"}}},
+				1: {{Context: "my-presubmit"}},
 			},
 		},
 		{
@@ -3882,7 +3804,7 @@ func TestAccumulateReturnsCorrectMissingTests(t *testing.T) {
 				Status: prowapi.ProwJobStatus{State: prowapi.PendingState},
 			}},
 			presubmits: map[int][]config.Presubmit{
-				1: {{Reporter: config.Reporter{Context: "my-presubmit"}}}},
+				1: {{Context: "my-presubmit"}}},
 		},
 		{
 			name: "One successful, one pending, one missing, one failing, only missing and failing remain",
@@ -3933,15 +3855,15 @@ func TestAccumulateReturnsCorrectMissingTests(t *testing.T) {
 			},
 			presubmits: map[int][]config.Presubmit{
 				1: {
-					{Reporter: config.Reporter{Context: "my-successful-presubmit"}},
-					{Reporter: config.Reporter{Context: "my-pending-presubmit"}},
-					{Reporter: config.Reporter{Context: "my-failing-presubmit"}},
-					{Reporter: config.Reporter{Context: "my-missing-presubmit"}},
+					{Context: "my-successful-presubmit"},
+					{Context: "my-pending-presubmit"},
+					{Context: "my-failing-presubmit"},
+					{Context: "my-missing-presubmit"},
 				}},
 			expectedPresubmits: map[int][]config.Presubmit{
 				1: {
-					{Reporter: config.Reporter{Context: "my-failing-presubmit"}},
-					{Reporter: config.Reporter{Context: "my-missing-presubmit"}},
+					{Context: "my-failing-presubmit"},
+					{Context: "my-missing-presubmit"},
 				}},
 		},
 		{
@@ -4038,32 +3960,32 @@ func TestAccumulateReturnsCorrectMissingTests(t *testing.T) {
 			},
 			presubmits: map[int][]config.Presubmit{
 				1: {
-					{Reporter: config.Reporter{Context: "my-successful-presubmit"}},
-					{Reporter: config.Reporter{Context: "my-pending-presubmit"}},
-					{Reporter: config.Reporter{Context: "my-failing-presubmit"}},
-					{Reporter: config.Reporter{Context: "my-missing-presubmit"}},
+					{Context: "my-successful-presubmit"},
+					{Context: "my-pending-presubmit"},
+					{Context: "my-failing-presubmit"},
+					{Context: "my-missing-presubmit"},
 				},
 				2: {
-					{Reporter: config.Reporter{Context: "my-successful-presubmit"}},
-					{Reporter: config.Reporter{Context: "my-pending-presubmit"}},
-					{Reporter: config.Reporter{Context: "my-failing-presubmit"}},
-					{Reporter: config.Reporter{Context: "my-missing-presubmit"}},
+					{Context: "my-successful-presubmit"},
+					{Context: "my-pending-presubmit"},
+					{Context: "my-failing-presubmit"},
+					{Context: "my-missing-presubmit"},
 				},
 			},
 			expectedPresubmits: map[int][]config.Presubmit{
 				1: {
-					{Reporter: config.Reporter{Context: "my-failing-presubmit"}},
-					{Reporter: config.Reporter{Context: "my-missing-presubmit"}},
+					{Context: "my-failing-presubmit"},
+					{Context: "my-missing-presubmit"},
 				},
 				2: {
-					{Reporter: config.Reporter{Context: "my-failing-presubmit"}},
-					{Reporter: config.Reporter{Context: "my-missing-presubmit"}},
+					{Context: "my-failing-presubmit"},
+					{Context: "my-missing-presubmit"},
 				},
 			},
 		},
 		{
 			name:       "Result from successful context gets respected",
-			presubmits: map[int][]config.Presubmit{1: {{Reporter: config.Reporter{Context: "job-1"}}}},
+			presubmits: map[int][]config.Presubmit{1: {{Context: "job-1"}}},
 			prs: []PullRequest{{
 				Number:     1,
 				HeadRefOID: "headsha",
@@ -4078,7 +4000,7 @@ func TestAccumulateReturnsCorrectMissingTests(t *testing.T) {
 		},
 		{
 			name:       "Result from successful context gets respected with deprecated baseha delimiter",
-			presubmits: map[int][]config.Presubmit{1: {{Reporter: config.Reporter{Context: "job-1"}}}},
+			presubmits: map[int][]config.Presubmit{1: {{Context: "job-1"}}},
 			prs: []PullRequest{{
 				Number:     1,
 				HeadRefOID: "headsha",
@@ -4093,7 +4015,7 @@ func TestAccumulateReturnsCorrectMissingTests(t *testing.T) {
 		},
 		{
 			name:       "Result from failed context gets ignored",
-			presubmits: map[int][]config.Presubmit{1: {{Reporter: config.Reporter{Context: "job-1"}}}},
+			presubmits: map[int][]config.Presubmit{1: {{Context: "job-1"}}},
 			prs: []PullRequest{{
 				Number:     1,
 				HeadRefOID: "headsha",
@@ -4105,7 +4027,7 @@ func TestAccumulateReturnsCorrectMissingTests(t *testing.T) {
 						State:       githubql.StatusStateFailure,
 					}}},
 				}}}}}},
-			expectedPresubmits: map[int][]config.Presubmit{1: {{Reporter: config.Reporter{Context: "job-1"}}}},
+			expectedPresubmits: map[int][]config.Presubmit{1: {{Context: "job-1"}}},
 		},
 	}
 
@@ -4150,11 +4072,11 @@ func TestPresubmitsForBatch(t *testing.T) {
 			prs:  []CodeReviewCommon{*CodeReviewCommonFromPullRequest(getPR("org", "repo", 1))},
 			jobs: []config.Presubmit{{
 				AlwaysRun: true,
-				Reporter:  config.Reporter{Context: "foo"},
+				Context:   "foo",
 			}},
 			expected: []config.Presubmit{{
 				AlwaysRun: true,
-				Reporter:  config.Reporter{Context: "foo"},
+				Context:   "foo",
 			}},
 		},
 		{
@@ -4162,13 +4084,13 @@ func TestPresubmitsForBatch(t *testing.T) {
 			prs:  []CodeReviewCommon{*CodeReviewCommonFromPullRequest(getPR("org", "repo", 1))},
 			jobs: []config.Presubmit{{
 				AlwaysRun: true,
-				Reporter:  config.Reporter{Context: "foo"},
-				Brancher:  config.Brancher{Branches: []string{defaultBranch}},
+				Context:   "foo",
+				Branches:  []string{defaultBranch},
 			}},
 			expected: []config.Presubmit{{
 				AlwaysRun: true,
-				Reporter:  config.Reporter{Context: "foo"},
-				Brancher:  config.Brancher{Branches: []string{defaultBranch}},
+				Context:   "foo",
+				Branches:  []string{defaultBranch},
 			}},
 		},
 		{
@@ -4177,15 +4099,15 @@ func TestPresubmitsForBatch(t *testing.T) {
 			jobs: []config.Presubmit{
 				{
 					AlwaysRun: true,
-					Reporter:  config.Reporter{Context: "foo"},
+					Context:   "foo",
 				},
 				{
-					Reporter: config.Reporter{Context: "bar"},
+					Context: "bar",
 				},
 			},
 			expected: []config.Presubmit{{
 				AlwaysRun: true,
-				Reporter:  config.Reporter{Context: "foo"},
+				Context:   "foo",
 			}},
 		},
 		{
@@ -4196,19 +4118,19 @@ func TestPresubmitsForBatch(t *testing.T) {
 			jobs: []config.Presubmit{
 				{
 					AlwaysRun: true,
-					Reporter:  config.Reporter{Context: "foo"},
+					Context:   "foo",
 				},
 				{
-					Reporter: config.Reporter{Context: "bar"},
+					Context: "bar",
 				},
 			},
 			expected: []config.Presubmit{
 				{
 					AlwaysRun: true,
-					Reporter:  config.Reporter{Context: "foo"},
+					Context:   "foo",
 				},
 				{
-					Reporter: config.Reporter{Context: "bar"},
+					Context: "bar",
 				}},
 		},
 		{
@@ -4217,15 +4139,15 @@ func TestPresubmitsForBatch(t *testing.T) {
 			jobs: []config.Presubmit{
 				{
 					AlwaysRun: true,
-					Reporter:  config.Reporter{Context: "foo"},
+					Context:   "foo",
 				},
 				{
-					Reporter: config.Reporter{Context: "bar"},
+					Context: "bar",
 				},
 			},
 			expected: []config.Presubmit{{
 				AlwaysRun: true,
-				Reporter:  config.Reporter{Context: "foo"},
+				Context:   "foo",
 			}},
 		},
 		{
@@ -4237,10 +4159,8 @@ func TestPresubmitsForBatch(t *testing.T) {
 				})),
 			},
 			jobs: []config.Presubmit{{
-				RegexpChangeMatcher: config.RegexpChangeMatcher{
-					RunIfChanged: "/very-important",
-				},
-				Reporter: config.Reporter{Context: "foo"},
+				RunIfChanged: "/very-important",
+				Context:      "foo",
 			}},
 			changedFiles: &changedFilesAgent{
 				changeCache: map[changeCacheKey][]string{
@@ -4250,10 +4170,8 @@ func TestPresubmitsForBatch(t *testing.T) {
 				nextChangeCache: map[changeCacheKey][]string{},
 			},
 			expected: []config.Presubmit{{
-				RegexpChangeMatcher: config.RegexpChangeMatcher{
-					RunIfChanged: "/very-important",
-				},
-				Reporter: config.Reporter{Context: "foo"},
+				RunIfChanged: "/very-important",
+				Context:      "foo",
 			}},
 		},
 		{
@@ -4269,21 +4187,21 @@ func TestPresubmitsForBatch(t *testing.T) {
 			jobs: []config.Presubmit{
 				{
 					AlwaysRun: true,
-					Reporter:  config.Reporter{Context: "foo"},
+					Context:   "foo",
 				},
 			},
 			prowYAMLGetter: prowYAMLGetterForHeadRefs([]string{"sha1", "sha2"}, []config.Presubmit{{
 				AlwaysRun: true,
-				Reporter:  config.Reporter{Context: "bar"},
+				Context:   "bar",
 			}}),
 			expected: []config.Presubmit{
 				{
 					AlwaysRun: true,
-					Reporter:  config.Reporter{Context: "foo"},
+					Context:   "foo",
 				},
 				{
 					AlwaysRun: true,
-					Reporter:  config.Reporter{Context: "bar"},
+					Context:   "bar",
 				},
 			},
 		},
@@ -4300,17 +4218,17 @@ func TestPresubmitsForBatch(t *testing.T) {
 			jobs: []config.Presubmit{
 				{
 					AlwaysRun: true,
-					Reporter:  config.Reporter{Context: "foo"},
+					Context:   "foo",
 				},
 			},
 			prowYAMLGetter: prowYAMLGetterForHeadRefs([]string{"other-sha", "sha2"}, []config.Presubmit{{
 				AlwaysRun: true,
-				Reporter:  config.Reporter{Context: "bar"},
+				Context:   "bar",
 			}}),
 			expected: []config.Presubmit{
 				{
 					AlwaysRun: true,
-					Reporter:  config.Reporter{Context: "foo"},
+					Context:   "foo",
 				},
 			},
 		},
@@ -4344,29 +4262,25 @@ func TestPresubmitsForBatch(t *testing.T) {
 			}
 			cfg := func() *config.Config {
 				return &config.Config{
-					JobConfig: config.JobConfig{
-						PresubmitsStatic: map[string][]config.Presubmit{
-							"org/repo": tc.jobs,
-						},
-						ProwYAMLGetterWithDefaults: tc.prowYAMLGetter,
+					PresubmitsStatic: map[string][]config.Presubmit{
+						"org/repo": tc.jobs,
 					},
-					ProwConfig: config.ProwConfig{
-						InRepoConfig: inrepoconfig,
-						BranchProtection: config.BranchProtection{
-							Orgs: map[string]config.Org{
-								"org": {
-									Policy: config.Policy{
-										RequireManuallyTriggeredJobs: &tc.requireManuallyTriggeredJobs,
-									},
+					ProwYAMLGetterWithDefaults: tc.prowYAMLGetter,
+					InRepoConfig:               inrepoconfig,
+					BranchProtection: config.BranchProtection{
+						Orgs: map[string]config.Org{
+							"org": {
+								Policy: config.Policy{
+									RequireManuallyTriggeredJobs: &tc.requireManuallyTriggeredJobs,
 								},
 							},
 						},
-						Tide: config.Tide{
-							TideGitHubConfig: config.TideGitHubConfig{
-								ContextOptions: config.TideContextPolicyOptions{
-									TideContextPolicy: config.TideContextPolicy{
-										FromBranchProtection: &tc.fromBranchProtection,
-									},
+					},
+					Tide: config.Tide{
+						TideGitHubConfig: config.TideGitHubConfig{
+							ContextOptions: config.TideContextPolicyOptions{
+								TideContextPolicy: config.TideContextPolicy{
+									FromBranchProtection: &tc.fromBranchProtection,
 								},
 							},
 						},
@@ -4969,9 +4883,9 @@ func TestQueryShardsByOrgWhenAppsAuthIsEnabledOnly(t *testing.T) {
 			ghc := &fgc{prs: tc.prs}
 			provider := &GitHubProvider{
 				cfg: func() *config.Config {
-					return &config.Config{ProwConfig: config.ProwConfig{Tide: config.Tide{
+					return &config.Config{Tide: config.Tide{
 						MaxQueryConcurrency: tc.maxQueryConcurrency,
-						TideGitHubConfig:    config.TideGitHubConfig{Queries: []config.TideQuery{{Orgs: []string{"org", "other-org", "third-org"}}}}}}}
+						TideGitHubConfig:    config.TideGitHubConfig{Queries: []config.TideQuery{{Orgs: []string{"org", "other-org", "third-org"}}}}}}
 				},
 				ghc:                ghc,
 				usesGitHubAppsAuth: tc.usesGitHubAppsAuth,
@@ -5005,8 +4919,8 @@ func TestQueryIgnoresMergedPRs(t *testing.T) {
 	merged.Merged = true
 	provider := &GitHubProvider{
 		cfg: func() *config.Config {
-			return &config.Config{ProwConfig: config.ProwConfig{Tide: config.Tide{
-				TideGitHubConfig: config.TideGitHubConfig{Queries: []config.TideQuery{{Orgs: []string{"org"}}}}}}}
+			return &config.Config{Tide: config.Tide{
+				TideGitHubConfig: config.TideGitHubConfig{Queries: []config.TideQuery{{Orgs: []string{"org"}}}}}}
 		},
 		ghc:    &fgc{prs: map[string][]PullRequest{"": {*open, *merged}}},
 		logger: logrus.WithField("test", t.Name()),
@@ -5309,11 +5223,11 @@ func TestPickBatchPrefersBatchesWithPreexistingJobs(t *testing.T) {
 			}
 
 			cfg := func() *config.Config {
-				return &config.Config{ProwConfig: config.ProwConfig{
+				return &config.Config{
 					Tide: config.Tide{
 						BatchSizeLimitMap:            map[string]int{"*": tc.maxBatchSize},
 						PrioritizeExistingBatchesMap: tc.prioritizeExistingBatchesMap,
-					}},
+					},
 				}
 			}
 
@@ -5508,17 +5422,15 @@ func TestBatchPickingConsidersPRThatIsCurrentlyBeingSeriallyRetested(t *testing.
 	t.Parallel()
 	configGetter := func() *config.Config {
 		return &config.Config{
-			ProwConfig: config.ProwConfig{
-				Tide: config.Tide{
-					MaxGoroutines: 1,
-					TideGitHubConfig: config.TideGitHubConfig{
-						Queries: config.TideQueries{{}},
-					},
+			Tide: config.Tide{
+				MaxGoroutines: 1,
+				TideGitHubConfig: config.TideGitHubConfig{
+					Queries: config.TideQueries{{}},
 				},
 			},
-			JobConfig: config.JobConfig{PresubmitsStatic: map[string][]config.Presubmit{
-				"/": {{AlwaysRun: true, Reporter: config.Reporter{Context: "mandatory-job"}}},
-			}},
+			PresubmitsStatic: map[string][]config.Presubmit{
+				"/": {{AlwaysRun: true, Context: "mandatory-job"}},
+			},
 		}
 	}
 	ghc := &fgc{}
@@ -5732,7 +5644,7 @@ func TestIsBatchCandidateEligible(t *testing.T) {
 	}
 	newProwJob := func() *prowapi.ProwJob {
 		return &prowapi.ProwJob{
-			ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{
+			Labels: map[string]string{
 				"created-by-tide":      "true",
 				kube.ProwJobTypeLabel:  "presubmit",
 				kube.OrgLabel:          "",
@@ -5740,7 +5652,7 @@ func TestIsBatchCandidateEligible(t *testing.T) {
 				kube.BaseRefLabel:      "",
 				kube.PullLabel:         "0",
 				kube.ContextAnnotation: requiredContextName,
-			}},
+			},
 			Spec: prowapi.ProwJobSpec{Refs: &prowapi.Refs{Pulls: []prowapi.Pull{{}}}},
 		}
 	}
@@ -5791,17 +5703,15 @@ func TestSerialRetestingConsidersPRThatIsCurrentlyBeingSRetested(t *testing.T) {
 	t.Parallel()
 	configGetter := func() *config.Config {
 		return &config.Config{
-			ProwConfig: config.ProwConfig{
-				Tide: config.Tide{
-					MaxGoroutines: 1,
-					TideGitHubConfig: config.TideGitHubConfig{
-						Queries: config.TideQueries{{}},
-					},
+			Tide: config.Tide{
+				MaxGoroutines: 1,
+				TideGitHubConfig: config.TideGitHubConfig{
+					Queries: config.TideQueries{{}},
 				},
 			},
-			JobConfig: config.JobConfig{PresubmitsStatic: map[string][]config.Presubmit{
-				"/": {{AlwaysRun: true, Reporter: config.Reporter{Context: "mandatory-job"}}},
-			}},
+			PresubmitsStatic: map[string][]config.Presubmit{
+				"/": {{AlwaysRun: true, Context: "mandatory-job"}},
+			},
 		}
 	}
 	ghc := &fgc{}

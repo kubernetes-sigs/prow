@@ -69,15 +69,11 @@ type fca struct {
 func newFakeConfigAgent(s config.Sinker) *fca {
 	return &fca{
 		c: &config.Config{
-			ProwConfig: config.ProwConfig{
-				ProwJobNamespace: "ns",
-				PodNamespace:     "ns",
-				Sinker:           s,
-			},
-			JobConfig: config.JobConfig{
-				Periodics: []config.Periodic{
-					{JobBase: config.JobBase{Name: "retester"}},
-				},
+			ProwJobNamespace: "ns",
+			PodNamespace:     "ns",
+			Sinker:           s,
+			Periodics: []config.Periodic{
+				{Name: "retester"},
 			},
 		},
 	}
@@ -111,13 +107,11 @@ func TestClean(t *testing.T) {
 
 	pods := []runtime.Object{
 		&corev1api.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "job-running-pod-failed",
-				Namespace: "ns",
-				Labels: map[string]string{
-					kube.CreatedByProw:  "true",
-					kube.ProwJobIDLabel: "job-running",
-				},
+			Name:      "job-running-pod-failed",
+			Namespace: "ns",
+			Labels: map[string]string{
+				kube.CreatedByProw:  "true",
+				kube.ProwJobIDLabel: "job-running",
 			},
 			Status: corev1api.PodStatus{
 				Phase:     corev1api.PodFailed,
@@ -125,13 +119,11 @@ func TestClean(t *testing.T) {
 			},
 		},
 		&corev1api.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "job-running-pod-succeeded",
-				Namespace: "ns",
-				Labels: map[string]string{
-					kube.CreatedByProw:  "true",
-					kube.ProwJobIDLabel: "job-running",
-				},
+			Name:      "job-running-pod-succeeded",
+			Namespace: "ns",
+			Labels: map[string]string{
+				kube.CreatedByProw:  "true",
+				kube.ProwJobIDLabel: "job-running",
 			},
 			Status: corev1api.PodStatus{
 				Phase:     corev1api.PodSucceeded,
@@ -139,13 +131,11 @@ func TestClean(t *testing.T) {
 			},
 		},
 		&corev1api.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "job-complete-pod-failed",
-				Namespace: "ns",
-				Labels: map[string]string{
-					kube.CreatedByProw:  "true",
-					kube.ProwJobIDLabel: "job-complete",
-				},
+			Name:      "job-complete-pod-failed",
+			Namespace: "ns",
+			Labels: map[string]string{
+				kube.CreatedByProw:  "true",
+				kube.ProwJobIDLabel: "job-complete",
 			},
 			Status: corev1api.PodStatus{
 				Phase:     corev1api.PodFailed,
@@ -153,13 +143,11 @@ func TestClean(t *testing.T) {
 			},
 		},
 		&corev1api.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "job-complete-pod-succeeded",
-				Namespace: "ns",
-				Labels: map[string]string{
-					kube.CreatedByProw:  "true",
-					kube.ProwJobIDLabel: "job-complete",
-				},
+			Name:      "job-complete-pod-succeeded",
+			Namespace: "ns",
+			Labels: map[string]string{
+				kube.CreatedByProw:  "true",
+				kube.ProwJobIDLabel: "job-complete",
 			},
 			Status: corev1api.PodStatus{
 				Phase:     corev1api.PodSucceeded,
@@ -167,13 +155,11 @@ func TestClean(t *testing.T) {
 			},
 		},
 		&corev1api.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "job-complete-pod-pending",
-				Namespace: "ns",
-				Labels: map[string]string{
-					kube.CreatedByProw:  "true",
-					kube.ProwJobIDLabel: "job-complete",
-				},
+			Name:      "job-complete-pod-pending",
+			Namespace: "ns",
+			Labels: map[string]string{
+				kube.CreatedByProw:  "true",
+				kube.ProwJobIDLabel: "job-complete",
 			},
 			Status: corev1api.PodStatus{
 				Phase:     corev1api.PodPending,
@@ -181,13 +167,11 @@ func TestClean(t *testing.T) {
 			},
 		},
 		&corev1api.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "job-unknown-pod-pending",
-				Namespace: "ns",
-				Labels: map[string]string{
-					kube.CreatedByProw:  "true",
-					kube.ProwJobIDLabel: "job-unknown",
-				},
+			Name:      "job-unknown-pod-pending",
+			Namespace: "ns",
+			Labels: map[string]string{
+				kube.CreatedByProw:  "true",
+				kube.ProwJobIDLabel: "job-unknown",
 			},
 			Status: corev1api.PodStatus{
 				Phase:     corev1api.PodPending,
@@ -195,13 +179,11 @@ func TestClean(t *testing.T) {
 			},
 		},
 		&corev1api.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "job-unknown-pod-failed",
-				Namespace: "ns",
-				Labels: map[string]string{
-					kube.CreatedByProw:  "true",
-					kube.ProwJobIDLabel: "job-unknown",
-				},
+			Name:      "job-unknown-pod-failed",
+			Namespace: "ns",
+			Labels: map[string]string{
+				kube.CreatedByProw:  "true",
+				kube.ProwJobIDLabel: "job-unknown",
 			},
 			Status: corev1api.PodStatus{
 				Phase:     corev1api.PodFailed,
@@ -209,13 +191,11 @@ func TestClean(t *testing.T) {
 			},
 		},
 		&corev1api.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "job-unknown-pod-succeeded",
-				Namespace: "ns",
-				Labels: map[string]string{
-					kube.CreatedByProw:  "true",
-					kube.ProwJobIDLabel: "job-unknown",
-				},
+			Name:      "job-unknown-pod-succeeded",
+			Namespace: "ns",
+			Labels: map[string]string{
+				kube.CreatedByProw:  "true",
+				kube.ProwJobIDLabel: "job-unknown",
 			},
 			Status: corev1api.PodStatus{
 				Phase:     corev1api.PodSucceeded,
@@ -223,12 +203,10 @@ func TestClean(t *testing.T) {
 			},
 		},
 		&corev1api.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "old-failed",
-				Namespace: "ns",
-				Labels: map[string]string{
-					kube.CreatedByProw: "true",
-				},
+			Name:      "old-failed",
+			Namespace: "ns",
+			Labels: map[string]string{
+				kube.CreatedByProw: "true",
 			},
 			Status: corev1api.PodStatus{
 				Phase:     corev1api.PodFailed,
@@ -236,12 +214,10 @@ func TestClean(t *testing.T) {
 			},
 		},
 		&corev1api.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "old-succeeded",
-				Namespace: "ns",
-				Labels: map[string]string{
-					kube.CreatedByProw: "true",
-				},
+			Name:      "old-succeeded",
+			Namespace: "ns",
+			Labels: map[string]string{
+				kube.CreatedByProw: "true",
 			},
 			Status: corev1api.PodStatus{
 				Phase:     corev1api.PodSucceeded,
@@ -249,12 +225,10 @@ func TestClean(t *testing.T) {
 			},
 		},
 		&corev1api.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "old-just-complete",
-				Namespace: "ns",
-				Labels: map[string]string{
-					kube.CreatedByProw: "true",
-				},
+			Name:      "old-just-complete",
+			Namespace: "ns",
+			Labels: map[string]string{
+				kube.CreatedByProw: "true",
 			},
 			Status: corev1api.PodStatus{
 				Phase:     corev1api.PodSucceeded,
@@ -262,12 +236,10 @@ func TestClean(t *testing.T) {
 			},
 		},
 		&corev1api.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "old-pending",
-				Namespace: "ns",
-				Labels: map[string]string{
-					kube.CreatedByProw: "true",
-				},
+			Name:      "old-pending",
+			Namespace: "ns",
+			Labels: map[string]string{
+				kube.CreatedByProw: "true",
 			},
 			Status: corev1api.PodStatus{
 				Phase:     corev1api.PodPending,
@@ -275,12 +247,10 @@ func TestClean(t *testing.T) {
 			},
 		},
 		&corev1api.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "old-pending-abort",
-				Namespace: "ns",
-				Labels: map[string]string{
-					kube.CreatedByProw: "true",
-				},
+			Name:      "old-pending-abort",
+			Namespace: "ns",
+			Labels: map[string]string{
+				kube.CreatedByProw: "true",
 			},
 			Status: corev1api.PodStatus{
 				Phase:     corev1api.PodPending,
@@ -288,12 +258,10 @@ func TestClean(t *testing.T) {
 			},
 		},
 		&corev1api.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "new-failed",
-				Namespace: "ns",
-				Labels: map[string]string{
-					kube.CreatedByProw: "true",
-				},
+			Name:      "new-failed",
+			Namespace: "ns",
+			Labels: map[string]string{
+				kube.CreatedByProw: "true",
 			},
 			Status: corev1api.PodStatus{
 				Phase:     corev1api.PodFailed,
@@ -301,12 +269,10 @@ func TestClean(t *testing.T) {
 			},
 		},
 		&corev1api.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "new-running-no-pj",
-				Namespace: "ns",
-				Labels: map[string]string{
-					kube.CreatedByProw: "true",
-				},
+			Name:      "new-running-no-pj",
+			Namespace: "ns",
+			Labels: map[string]string{
+				kube.CreatedByProw: "true",
 			},
 			Status: corev1api.PodStatus{
 				Phase:     corev1api.PodRunning,
@@ -314,12 +280,10 @@ func TestClean(t *testing.T) {
 			},
 		},
 		&corev1api.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "old-running",
-				Namespace: "ns",
-				Labels: map[string]string{
-					kube.CreatedByProw: "true",
-				},
+			Name:      "old-running",
+			Namespace: "ns",
+			Labels: map[string]string{
+				kube.CreatedByProw: "true",
 			},
 			Status: corev1api.PodStatus{
 				Phase:     corev1api.PodRunning,
@@ -327,12 +291,10 @@ func TestClean(t *testing.T) {
 			},
 		},
 		&corev1api.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "unrelated-failed",
-				Namespace: "ns",
-				Labels: map[string]string{
-					kube.CreatedByProw: "not really",
-				},
+			Name:      "unrelated-failed",
+			Namespace: "ns",
+			Labels: map[string]string{
+				kube.CreatedByProw: "not really",
 			},
 			Status: corev1api.PodStatus{
 				Phase:     corev1api.PodFailed,
@@ -340,22 +302,18 @@ func TestClean(t *testing.T) {
 			},
 		},
 		&corev1api.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "unrelated-complete",
-				Namespace: "ns",
-			},
+			Name:      "unrelated-complete",
+			Namespace: "ns",
 			Status: corev1api.PodStatus{
 				Phase:     corev1api.PodSucceeded,
 				StartTime: startTime(time.Now().Add(-maxPodAge).Add(-time.Second)),
 			},
 		},
 		&corev1api.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "ttl-expired",
-				Namespace: "ns",
-				Labels: map[string]string{
-					kube.CreatedByProw: "true",
-				},
+			Name:      "ttl-expired",
+			Namespace: "ns",
+			Labels: map[string]string{
+				kube.CreatedByProw: "true",
 			},
 			Status: corev1api.PodStatus{
 				Phase:     corev1api.PodFailed,
@@ -372,12 +330,10 @@ func TestClean(t *testing.T) {
 			},
 		},
 		&corev1api.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "ttl-not-expired",
-				Namespace: "ns",
-				Labels: map[string]string{
-					kube.CreatedByProw: "true",
-				},
+			Name:      "ttl-not-expired",
+			Namespace: "ns",
+			Labels: map[string]string{
+				kube.CreatedByProw: "true",
 			},
 			Status: corev1api.PodStatus{
 				Phase:     corev1api.PodFailed,
@@ -401,12 +357,10 @@ func TestClean(t *testing.T) {
 			},
 		},
 		&corev1api.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "completed-prowjob-ttl-expired-while-pod-still-pending",
-				Namespace: "ns",
-				Labels: map[string]string{
-					kube.CreatedByProw: "true",
-				},
+			Name:      "completed-prowjob-ttl-expired-while-pod-still-pending",
+			Namespace: "ns",
+			Labels: map[string]string{
+				kube.CreatedByProw: "true",
 			},
 			Status: corev1api.PodStatus{
 				Phase:     corev1api.PodPending,
@@ -423,13 +377,11 @@ func TestClean(t *testing.T) {
 			},
 		},
 		&corev1api.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:       "completed-and-reported-prowjob-pod-still-has-kubernetes-finalizer",
-				Namespace:  "ns",
-				Finalizers: []string{"prow.x-k8s.io/gcsk8sreporter"},
-				Labels: map[string]string{
-					kube.CreatedByProw: "true",
-				},
+			Name:       "completed-and-reported-prowjob-pod-still-has-kubernetes-finalizer",
+			Namespace:  "ns",
+			Finalizers: []string{"prow.x-k8s.io/gcsk8sreporter"},
+			Labels: map[string]string{
+				kube.CreatedByProw: "true",
 			},
 			Status: corev1api.PodStatus{
 				Phase:     corev1api.PodPending,
@@ -437,13 +389,11 @@ func TestClean(t *testing.T) {
 			},
 		},
 		&corev1api.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:       "completed-pod-without-prowjob-that-still-has-finalizer",
-				Namespace:  "ns",
-				Finalizers: []string{"prow.x-k8s.io/gcsk8sreporter"},
-				Labels: map[string]string{
-					kube.CreatedByProw: "true",
-				},
+			Name:       "completed-pod-without-prowjob-that-still-has-finalizer",
+			Namespace:  "ns",
+			Finalizers: []string{"prow.x-k8s.io/gcsk8sreporter"},
+			Labels: map[string]string{
+				kube.CreatedByProw: "true",
 			},
 			Status: corev1api.PodStatus{
 				Phase:     corev1api.PodPending,
@@ -451,25 +401,21 @@ func TestClean(t *testing.T) {
 			},
 		},
 		&corev1api.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "very-young-orphaned-pod-is-kept-to-account-for-cache-staleness",
-				Namespace: "ns",
-				Labels: map[string]string{
-					kube.CreatedByProw: "true",
-				},
-				CreationTimestamp: metav1.Now(),
+			Name:      "very-young-orphaned-pod-is-kept-to-account-for-cache-staleness",
+			Namespace: "ns",
+			Labels: map[string]string{
+				kube.CreatedByProw: "true",
 			},
+			CreationTimestamp: metav1.Now(),
 		},
 		&corev1api.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				// The corresponding prowjob will only show up in a GET and not in a list requests. We do this to make
-				// sure that the orphan check does another get on the prowjob before declaring a pod orphaned rather
-				// than relying on the possibly outdated list created in the very beginning of the sync.
-				Name:      "get-only-prowjob",
-				Namespace: "ns",
-				Labels: map[string]string{
-					kube.CreatedByProw: "true",
-				},
+			// The corresponding prowjob will only show up in a GET and not in a list requests. We do this to make
+			// sure that the orphan check does another get on the prowjob before declaring a pod orphaned rather
+			// than relying on the possibly outdated list created in the very beginning of the sync.
+			Name:      "get-only-prowjob",
+			Namespace: "ns",
+			Labels: map[string]string{
+				kube.CreatedByProw: "true",
 			},
 		},
 	}
@@ -496,105 +442,83 @@ func TestClean(t *testing.T) {
 	}
 	prowJobs := []runtime.Object{
 		&prowv1.ProwJob{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "job-complete",
-				Namespace: "ns",
-			},
+			Name:      "job-complete",
+			Namespace: "ns",
 			Status: prowv1.ProwJobStatus{
 				StartTime:      metav1.NewTime(time.Now().Add(-maxProwJobAge).Add(-time.Second)),
 				CompletionTime: setComplete(-time.Second),
 			},
 		},
 		&prowv1.ProwJob{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "job-running",
-				Namespace: "ns",
-			},
+			Name:      "job-running",
+			Namespace: "ns",
 			Status: prowv1.ProwJobStatus{
 				StartTime: metav1.NewTime(time.Now().Add(-maxProwJobAge).Add(-time.Second)),
 			},
 		},
 		&prowv1.ProwJob{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "old-failed",
-				Namespace: "ns",
-			},
+			Name:      "old-failed",
+			Namespace: "ns",
 			Status: prowv1.ProwJobStatus{
 				StartTime:      metav1.NewTime(time.Now().Add(-maxProwJobAge).Add(-time.Second)),
 				CompletionTime: setComplete(-time.Second),
 			},
 		},
 		&prowv1.ProwJob{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "old-succeeded",
-				Namespace: "ns",
-			},
+			Name:      "old-succeeded",
+			Namespace: "ns",
 			Status: prowv1.ProwJobStatus{
 				StartTime:      metav1.NewTime(time.Now().Add(-maxProwJobAge).Add(-time.Second)),
 				CompletionTime: setComplete(-time.Second),
 			},
 		},
 		&prowv1.ProwJob{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "old-just-complete",
-				Namespace: "ns",
-			},
+			Name:      "old-just-complete",
+			Namespace: "ns",
 			Status: prowv1.ProwJobStatus{
 				StartTime: metav1.NewTime(time.Now().Add(-maxProwJobAge).Add(-time.Second)),
 			},
 		},
 		&prowv1.ProwJob{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "old-complete",
-				Namespace: "ns",
-			},
+			Name:      "old-complete",
+			Namespace: "ns",
 			Status: prowv1.ProwJobStatus{
 				StartTime:      metav1.NewTime(time.Now().Add(-maxProwJobAge).Add(-time.Second)),
 				CompletionTime: setComplete(-time.Second),
 			},
 		},
 		&prowv1.ProwJob{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "old-incomplete",
-				Namespace: "ns",
-			},
+			Name:      "old-incomplete",
+			Namespace: "ns",
 			Status: prowv1.ProwJobStatus{
 				StartTime: metav1.NewTime(time.Now().Add(-maxProwJobAge).Add(-time.Second)),
 			},
 		},
 		&prowv1.ProwJob{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "old-pending",
-				Namespace: "ns",
-			},
+			Name:      "old-pending",
+			Namespace: "ns",
 			Status: prowv1.ProwJobStatus{
 				StartTime: metav1.NewTime(time.Now().Add(-maxProwJobAge).Add(-time.Second)),
 			},
 		},
 		&prowv1.ProwJob{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "old-pending-abort",
-				Namespace: "ns",
-			},
+			Name:      "old-pending-abort",
+			Namespace: "ns",
 			Status: prowv1.ProwJobStatus{
 				StartTime:      metav1.NewTime(time.Now().Add(-maxProwJobAge).Add(-time.Second)),
 				CompletionTime: setComplete(-time.Second),
 			},
 		},
 		&prowv1.ProwJob{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "new",
-				Namespace: "ns",
-			},
+			Name:      "new",
+			Namespace: "ns",
 			Status: prowv1.ProwJobStatus{
 				StartTime: metav1.NewTime(time.Now().Add(-time.Second)),
 			},
 		},
 		&prowv1.ProwJob{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "newer-periodic",
-				Namespace: "ns",
-			},
+			Name:      "newer-periodic",
+			Namespace: "ns",
 			Spec: prowv1.ProwJobSpec{
 				Type: prowv1.PeriodicJob,
 				Job:  "retester",
@@ -605,19 +529,15 @@ func TestClean(t *testing.T) {
 			},
 		},
 		&prowv1.ProwJob{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "new-failed",
-				Namespace: "ns",
-			},
+			Name:      "new-failed",
+			Namespace: "ns",
 			Status: prowv1.ProwJobStatus{
 				StartTime: metav1.NewTime(time.Now().Add(-time.Minute)),
 			},
 		},
 		&prowv1.ProwJob{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "older-periodic",
-				Namespace: "ns",
-			},
+			Name:      "older-periodic",
+			Namespace: "ns",
 			Spec: prowv1.ProwJobSpec{
 				Type: prowv1.PeriodicJob,
 				Job:  "retester",
@@ -628,10 +548,8 @@ func TestClean(t *testing.T) {
 			},
 		},
 		&prowv1.ProwJob{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "oldest-periodic",
-				Namespace: "ns",
-			},
+			Name:      "oldest-periodic",
+			Namespace: "ns",
 			Spec: prowv1.ProwJobSpec{
 				Type: prowv1.PeriodicJob,
 				Job:  "retester",
@@ -642,49 +560,39 @@ func TestClean(t *testing.T) {
 			},
 		},
 		&prowv1.ProwJob{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "old-failed-trusted",
-				Namespace: "ns",
-			},
+			Name:      "old-failed-trusted",
+			Namespace: "ns",
 			Status: prowv1.ProwJobStatus{
 				StartTime:      metav1.NewTime(time.Now().Add(-maxProwJobAge).Add(-time.Second)),
 				CompletionTime: setComplete(-time.Second),
 			},
 		},
 		&prowv1.ProwJob{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "ttl-expired",
-				Namespace: "ns",
-			},
+			Name:      "ttl-expired",
+			Namespace: "ns",
 			Status: prowv1.ProwJobStatus{
 				StartTime:      metav1.NewTime(time.Now().Add(-terminatedPodTTL * 2)),
 				CompletionTime: setComplete(-terminatedPodTTL - time.Second),
 			},
 		},
 		&prowv1.ProwJob{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "ttl-not-expired",
-				Namespace: "ns",
-			},
+			Name:      "ttl-not-expired",
+			Namespace: "ns",
 			Status: prowv1.ProwJobStatus{
 				StartTime:      metav1.NewTime(time.Now().Add(-terminatedPodTTL * 2)),
 				CompletionTime: setComplete(-time.Second),
 			},
 		},
 		&prowv1.ProwJob{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "completed-prowjob-ttl-expired-while-pod-still-pending",
-				Namespace: "ns",
-			},
+			Name:      "completed-prowjob-ttl-expired-while-pod-still-pending",
+			Namespace: "ns",
 			Status: prowv1.ProwJobStatus{
 				StartTime:      metav1.NewTime(time.Now().Add(-terminatedPodTTL * 2)),
 				CompletionTime: setComplete(-terminatedPodTTL - time.Second),
 			},
 		},
 		&prowv1.ProwJob{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "completed-and-reported-prowjob-pod-still-has-kubernetes-finalizer",
-			},
+			Name: "completed-and-reported-prowjob-pod-still-has-kubernetes-finalizer",
 			Status: prowv1.ProwJobStatus{
 				StartTime:        metav1.NewTime(time.Now().Add(-terminatedPodTTL * 2)),
 				CompletionTime:   setComplete(-terminatedPodTTL - time.Second),
@@ -705,12 +613,10 @@ func TestClean(t *testing.T) {
 	)
 	podsTrusted := []runtime.Object{
 		&corev1api.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "old-failed-trusted",
-				Namespace: "ns",
-				Labels: map[string]string{
-					kube.CreatedByProw: "true",
-				},
+			Name:      "old-failed-trusted",
+			Namespace: "ns",
+			Labels: map[string]string{
+				kube.CreatedByProw: "true",
 			},
 			Status: corev1api.PodStatus{
 				Phase:     corev1api.PodFailed,
@@ -761,13 +667,11 @@ func TestNotClean(t *testing.T) {
 
 	pods := []runtime.Object{
 		&corev1api.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "job-complete-pod-succeeded",
-				Namespace: "ns",
-				Labels: map[string]string{
-					kube.CreatedByProw:  "true",
-					kube.ProwJobIDLabel: "job-complete",
-				},
+			Name:      "job-complete-pod-succeeded",
+			Namespace: "ns",
+			Labels: map[string]string{
+				kube.CreatedByProw:  "true",
+				kube.ProwJobIDLabel: "job-complete",
 			},
 			Status: corev1api.PodStatus{
 				Phase:     corev1api.PodSucceeded,
@@ -777,13 +681,11 @@ func TestNotClean(t *testing.T) {
 	}
 	podsExcluded := []runtime.Object{
 		&corev1api.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "job-complete-pod-succeeded-on-excluded-cluster",
-				Namespace: "ns",
-				Labels: map[string]string{
-					kube.CreatedByProw:  "true",
-					kube.ProwJobIDLabel: "job-complete",
-				},
+			Name:      "job-complete-pod-succeeded-on-excluded-cluster",
+			Namespace: "ns",
+			Labels: map[string]string{
+				kube.CreatedByProw:  "true",
+				kube.ProwJobIDLabel: "job-complete",
 			},
 			Status: corev1api.PodStatus{
 				Phase:     corev1api.PodSucceeded,
@@ -797,10 +699,8 @@ func TestNotClean(t *testing.T) {
 	}
 	prowJobs := []runtime.Object{
 		&prowv1.ProwJob{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "job-complete",
-				Namespace: "ns",
-			},
+			Name:      "job-complete",
+			Namespace: "ns",
 			Status: prowv1.ProwJobStatus{
 				StartTime:      metav1.NewTime(time.Now().Add(-maxProwJobAge).Add(-time.Second)),
 				CompletionTime: setComplete(-60 * time.Second),
@@ -955,13 +855,11 @@ func TestDeletePodToleratesNotFound(t *testing.T) {
 	c := &controller{config: newFakeConfigAgent(newDefaultFakeSinkerConfig()).Config}
 	l := logrus.NewEntry(logrus.New())
 	pod := &corev1api.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "existing",
-			Namespace: "ns",
-			Labels: map[string]string{
-				kube.CreatedByProw:  "true",
-				kube.ProwJobIDLabel: "job-running",
-			},
+		Name:      "existing",
+		Namespace: "ns",
+		Labels: map[string]string{
+			kube.CreatedByProw:  "true",
+			kube.ProwJobIDLabel: "job-running",
 		},
 	}
 	client := fakectrlruntimeclient.NewClientBuilder().WithRuntimeObjects(pod).Build()
@@ -1134,18 +1032,16 @@ func fullCachedPod() *corev1api.Pod {
 	created := metav1.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	started := metav1.Date(2024, 1, 1, 0, 1, 0, 0, time.UTC)
 	return &corev1api.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:              "some-pod",
-			Namespace:         "ns",
-			CreationTimestamp: created,
-			Labels: map[string]string{
-				kube.CreatedByProw:  "true",
-				kube.ProwJobIDLabel: "some-job",
-			},
-			Finalizers:      []string{kubernetesreporterapi.FinalizerName},
-			ManagedFields:   []metav1.ManagedFieldsEntry{{Manager: "plank"}},
-			OwnerReferences: []metav1.OwnerReference{{Name: "owner"}},
+		Name:              "some-pod",
+		Namespace:         "ns",
+		CreationTimestamp: created,
+		Labels: map[string]string{
+			kube.CreatedByProw:  "true",
+			kube.ProwJobIDLabel: "some-job",
 		},
+		Finalizers:      []string{kubernetesreporterapi.FinalizerName},
+		ManagedFields:   []metav1.ManagedFieldsEntry{{Manager: "plank"}},
+		OwnerReferences: []metav1.OwnerReference{{Name: "owner"}},
 		Spec: corev1api.PodSpec{
 			Containers: []corev1api.Container{{Name: "test", Image: "img"}},
 		},

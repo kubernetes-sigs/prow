@@ -57,10 +57,8 @@ func Test_resultForJob(t *testing.T) {
 				},
 				watchResults: []prowapi.ProwJob{
 					{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:      "winwin",
-							Namespace: "prowjobs",
-						},
+						Name:      "winwin",
+						Namespace: "prowjobs",
 						Spec: prowapi.ProwJobSpec{
 							Job: "test-job",
 						},
@@ -92,10 +90,8 @@ func Test_resultForJob(t *testing.T) {
 				},
 				watchResults: []prowapi.ProwJob{
 					{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:      "winwin",
-							Namespace: "prowjobs",
-						},
+						Name:      "winwin",
+						Namespace: "prowjobs",
 						Spec: prowapi.ProwJobSpec{
 							Job: "test-job",
 						},
@@ -104,10 +100,8 @@ func Test_resultForJob(t *testing.T) {
 						},
 					},
 					{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:      "winwin",
-							Namespace: "prowjobs",
-						},
+						Name:      "winwin",
+						Namespace: "prowjobs",
 						Spec: prowapi.ProwJobSpec{
 							Job: "test-job",
 						},
@@ -139,10 +133,8 @@ func Test_resultForJob(t *testing.T) {
 				},
 				watchResults: []prowapi.ProwJob{
 					{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:      "winwin",
-							Namespace: "prowjobs",
-						},
+						Name:      "winwin",
+						Namespace: "prowjobs",
 						Spec: prowapi.ProwJobSpec{
 							Job: "test-job",
 						},
