@@ -47,6 +47,7 @@ import (
 const (
 	defaultBlunderbussReviewerCount = 2
 	defaultRifleReviewerCount       = 2
+	defaultRationaleMinLength       = 20
 )
 
 // Configuration is the top-level serialization target for plugin Configuration.
@@ -100,6 +101,9 @@ type Configuration struct {
 	Override             Override                     `json:"override,omitempty"`
 	Help                 Help                         `json:"help,omitempty"`
 	InvalidCommitMsg     []InvalidCommitMsg           `json:"invalid_commit_msg,omitempty"`
+	// RequireRationale sets per-repository rationale policies for /retest,
+	// /retest-required, and /override.
+	RequireRationale RequireRationale `json:"require_rationale,omitempty"`
 }
 
 type Help struct {
@@ -150,6 +154,47 @@ func (i *InvalidCommitMsg) IsCheckDisabled(checkName string) bool {
 		}
 	}
 	return false
+}
+
+// RequireRationale maps org/repo to per-command rationale requirements.
+// Repos not listed retain existing behavior (no rationale required).
+type RequireRationale map[string]CommandRationalePolicy
+
+// CommandRationalePolicy maps command names to their rationale settings.
+type CommandRationalePolicy map[string]RationaleSettings
+
+// RationaleSettings defines rationale enforcement for a single command.
+type RationaleSettings struct {
+	// MinLength is the minimum non-whitespace Unicode code points required.
+	// Defaults to 20.
+	MinLength int `json:"min_length,omitempty"`
+}
+
+// EffectiveMinLength returns the configured minimum or its default.
+func (s RationaleSettings) EffectiveMinLength() int {
+	if s.MinLength == 0 {
+		return defaultRationaleMinLength
+	}
+	return s.MinLength
+}
+
+// RequireRationaleFor finds the per-command rationale settings for a repository.
+// Unlike other plugin settings, rationale requirements are intentionally scoped
+// to exact repositories and are not inherited from their organization.
+func (c *Configuration) RequireRationaleFor(org, repo, command string) (RationaleSettings, bool) {
+	if c == nil {
+		return RationaleSettings{}, false
+	}
+	commands, ok := c.RequireRationale[fmt.Sprintf("%s/%s", org, repo)]
+	if !ok {
+		return RationaleSettings{}, false
+	}
+	settings, ok := commands[command]
+	if !ok {
+		return RationaleSettings{}, false
+	}
+	settings.MinLength = settings.EffectiveMinLength()
+	return settings, true
 }
 
 // Golint holds configuration for the golint plugin
@@ -1278,6 +1323,12 @@ func (cu *ConfigUpdater) SetDefaults() {
 
 func (c *Configuration) setDefaults() {
 	c.Help.setDefaults()
+	for _, commandPolicies := range c.RequireRationale {
+		for command, settings := range commandPolicies {
+			settings.MinLength = settings.EffectiveMinLength()
+			commandPolicies[command] = settings
+		}
+	}
 
 	c.ConfigUpdater.SetDefaults()
 
@@ -1635,6 +1686,26 @@ func validateInvalidCommitMsg(cfgs []InvalidCommitMsg) error {
 
 var warnRepoMilestone time.Time
 
+func validateRequireRationale(requireRationale RequireRationale) error {
+	var errs []error
+	for orgRepo, commandPolicies := range requireRationale {
+		parts := strings.Split(orgRepo, "/")
+		if len(parts) != 2 || parts[0] == "" || parts[1] == "" || strings.ContainsAny(orgRepo, " \t\r\n") {
+			errs = append(errs, fmt.Errorf("require_rationale key %q must be in org/repo format", orgRepo))
+			continue
+		}
+		for command, settings := range commandPolicies {
+			if !isSupportedRationalePolicyCommand(command) {
+				errs = append(errs, fmt.Errorf("require_rationale.%s has unsupported command %q; supported commands are retest, retest-required, and override", orgRepo, command))
+			}
+			if settings.MinLength < 0 {
+				errs = append(errs, fmt.Errorf("require_rationale.%s.%s.min_length must not be negative", orgRepo, command))
+			}
+		}
+	}
+	return utilerrors.NewAggregate(errs)
+}
+
 func validateRepoMilestone(milestones map[string]Milestone) {
 	for _, milestone := range milestones {
 		if milestone.MaintainersID != 0 {
@@ -1740,6 +1811,9 @@ func (c *Configuration) Validate() error {
 		return err
 	}
 	if err := validateConfigUpdater(&c.ConfigUpdater); err != nil {
+		return err
+	}
+	if err := validateRequireRationale(c.RequireRationale); err != nil {
 		return err
 	}
 	if err := validateSizes(c.Size); err != nil {
@@ -2347,12 +2421,32 @@ type Override struct {
 	AllowedGitHubTeams map[string][]string `json:"allowed_github_teams,omitempty"`
 }
 
+func (r *RequireRationale) mergeFrom(other RequireRationale) error {
+	if len(other) == 0 {
+		return nil
+	}
+	if *r == nil {
+		*r = make(RequireRationale)
+	}
+
+	var errs []error
+	for orgRepo, policy := range other {
+		if _, exists := (*r)[orgRepo]; exists {
+			errs = append(errs, fmt.Errorf("found duplicate config for require_rationale.%s", orgRepo))
+			continue
+		}
+		(*r)[orgRepo] = policy
+	}
+	return utilerrors.NewAggregate(errs)
+}
+
 func (c *Configuration) mergeFrom(other *Configuration) error {
 	var errs []error
 
 	diff := cmp.Diff(other, &Configuration{Approve: other.Approve, Bugzilla: other.Bugzilla,
 		ExternalPlugins: other.ExternalPlugins, Label: Label{RestrictedLabels: other.Label.RestrictedLabels},
-		Lgtm: other.Lgtm, Plugins: other.Plugins, Triggers: other.Triggers, Welcome: other.Welcome,
+		RequireRationale: other.RequireRationale,
+		Lgtm:             other.Lgtm, Plugins: other.Plugins, Triggers: other.Triggers, Welcome: other.Welcome,
 		MilestoneApplier: other.MilestoneApplier},
 		config.DefaultDiffOpts...)
 
@@ -2365,6 +2459,9 @@ func (c *Configuration) mergeFrom(other *Configuration) error {
 	}
 	if err := c.Plugins.mergeFrom(&other.Plugins); err != nil {
 		errs = append(errs, fmt.Errorf("failed to merge .plugins from supplemental config: %w", err))
+	}
+	if err := c.RequireRationale.mergeFrom(other.RequireRationale); err != nil {
+		errs = append(errs, fmt.Errorf("failed to merge .require_rationale from supplemental config: %w", err))
 	}
 
 	if err := c.Bugzilla.mergeFrom(&other.Bugzilla); err != nil {

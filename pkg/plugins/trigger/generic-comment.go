@@ -18,6 +18,7 @@ package trigger
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -63,13 +64,24 @@ func handleGenericComment(c Client, cp commentPruner, trigger plugins.Trigger, g
 	refGetter := config.NewRefGetterForGitHubPullRequest(c.GitHubClient, org, repo, number)
 	presubmits := getPresubmits(c.Logger, c.GitClient, c.Config, org+"/"+repo, refGetter.BaseSHA, refGetter.HeadSHA)
 
+	// Same-line rationales are only accepted where a policy applies. Strip them
+	// so the existing command parsing below sees the bare command.
+	body := gc.Body
+	var protected []rationaleCommand
+	for _, command := range rationaleCommands {
+		if settings, required := c.PluginConfig.RequireRationaleFor(org, repo, strings.TrimPrefix(command.name, "/")); required {
+			body = plugins.StripSameLineRationale(body, command.name)
+			command.settings = settings
+			protected = append(protected, command)
+		}
+	}
+
 	// Skip comments not germane to this plugin
-	textToCheck := markdown.DropCodeBlock(gc.Body)
+	textToCheck := markdown.DropCodeBlock(body)
 	if !commentMatchesTrigger(textToCheck, presubmits) {
 		c.Logger.Debug("Comment doesn't match any triggering regex, skipping.")
 		return nil
 	}
-
 	// Skip untrusted users comments.
 	trustedResponse, err := TrustedUser(c.GitHubClient, trigger.OnlyOrgMembers, trigger.TrustedApps, trigger.TrustedOrg, commentAuthor, org, repo)
 	if err != nil {
@@ -93,6 +105,25 @@ func handleGenericComment(c Client, cp commentPruner, trigger plugins.Trigger, g
 			}
 			c.Logger.Infof("Commenting \"%s\".", resp)
 			return c.GitHubClient.CreateComment(org, repo, number, plugins.FormatResponseRaw(gc.Body, gc.HTMLURL, gc.User.Login, resp))
+		}
+	}
+
+	// FilterPresubmits receives the raw comment body, so check that same body
+	// to prevent a fenced command from bypassing rationale when another command
+	// causes this handler to proceed.
+	for _, command := range protected {
+		if !command.re.MatchString(body) {
+			continue
+		}
+		if err := plugins.ValidateRationale(gc.Body, command.name, command.settings); err != nil {
+			c.Logger.WithError(err).WithFields(logrus.Fields{
+				"actor":        commentAuthor,
+				"repo":         org + "/" + repo,
+				"pull_request": number,
+				"command":      command.name,
+			}).Warn("Blocking command because rationale validation failed")
+			response := plugins.RationaleErrorComment(command.name, "No CI job was queued.", command.settings, err)
+			return c.GitHubClient.CreateComment(org, repo, number, plugins.FormatResponseRaw(gc.Body, gc.HTMLURL, commentAuthor, response))
 		}
 	}
 
@@ -158,7 +189,7 @@ func handleGenericComment(c Client, cp commentPruner, trigger plugins.Trigger, g
 		}
 	}
 
-	toTest, err := FilterPresubmits(HonorOkToTest(trigger), c.GitHubClient, gc.Body, pr, presubmits, c.Logger)
+	toTest, err := FilterPresubmits(HonorOkToTest(trigger), c.GitHubClient, body, pr, presubmits, c.Logger)
 	if err != nil {
 		return err
 	}
@@ -211,6 +242,18 @@ func handleGenericComment(c Client, cp commentPruner, trigger plugins.Trigger, g
 	}
 
 	return RunRequestedWithLabels(c, pr, baseSHA, toTest, gc.GUID, additionalLabels)
+}
+
+// rationaleCommand is a trigger command that a require_rationale policy can protect.
+type rationaleCommand struct {
+	name     string
+	re       *regexp.Regexp
+	settings plugins.RationaleSettings
+}
+
+var rationaleCommands = []rationaleCommand{
+	{name: "/retest", re: pjutil.RetestRe},
+	{name: "/retest-required", re: pjutil.RetestRequiredRe},
 }
 
 func HonorOkToTest(trigger plugins.Trigger) bool {

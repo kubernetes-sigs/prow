@@ -74,6 +74,7 @@ type githubClient interface {
 	UpdateCheckRun(org, repo string, checkRunId int64, checkRun github.CheckRun) error
 	UsesAppAuth() bool
 	GetApp() (*github.App, error)
+	BotUserChecker() (func(candidate string) bool, error)
 }
 
 type prowJobClient interface {
@@ -129,6 +130,9 @@ func (c client) ListTeams(org string) ([]github.Team, error) {
 }
 func (c client) ListTeamMembersBySlug(org, teamSlug, role string) ([]github.TeamMember, error) {
 	return c.ghc.ListTeamMembersBySlug(org, teamSlug, role)
+}
+func (c client) BotUserChecker() (func(candidate string) bool, error) {
+	return c.ghc.BotUserChecker()
 }
 func (c client) ListCheckRuns(org, teamSlug, role string) (*github.CheckRunList, error) {
 	return c.ghc.ListCheckRuns(org, teamSlug, role)
@@ -310,17 +314,61 @@ func handleGenericComment(pc plugins.Agent, e github.GenericCommentEvent) error 
 		prowJobClient: pc.ProwJobClient,
 		ownersClient:  pc.OwnersClient,
 	}
+	return handleGenericCommentWithClient(c, pc.Logger, pc.PluginConfig, &e)
+}
 
-	options := pc.PluginConfig.Override
+func handleGenericCommentWithClient(oc overrideClient, logger *logrus.Entry, pluginConfig *plugins.Configuration, e *github.GenericCommentEvent) error {
+	if pluginConfig == nil {
+		pluginConfig = &plugins.Configuration{}
+	}
+	options := pluginConfig.Override
+	if e.Action == github.GenericCommentActionCreated && e.IsPR && e.IssueState == "open" {
+		org := e.Repo.Owner.Login
+		repo := e.Repo.Name
+		if settings, required := pluginConfig.RequireRationaleFor(org, repo, "override"); required && len(overrideRe.FindAllStringSubmatch(e.Body, -1)) > 0 {
+			isBot, err := oc.BotUserChecker()
+			if err != nil {
+				return fmt.Errorf("failed to get bot user checker: %w", err)
+			}
+			// Rationale is required from people, not from Prow itself.
+			if !isBot(e.User.Login) {
+				pr, err := oc.GetPullRequest(org, repo, e.Number)
+				if err != nil {
+					resp := fmt.Sprintf("Cannot get PR #%d in %s/%s", e.Number, org, repo)
+					logger.WithError(err).Warn(resp)
+					return oc.CreateComment(org, repo, e.Number, plugins.FormatResponseRaw(e.Body, e.HTMLURL, e.User.Login, resp))
+				}
+				// Leave unauthorized users to the handlers below so they get the
+				// existing unauthorized response.
+				if isAuthorized(oc, logger, org, repo, e.User.Login, options, pr) {
+					if err := plugins.ValidateRationale(e.Body, "/override", settings); err != nil {
+						logger.WithError(err).WithFields(logrus.Fields{
+							"actor":        e.User.Login,
+							"repo":         org + "/" + repo,
+							"pull_request": e.Number,
+							"command":      "/override",
+						}).Warn("Blocking command because rationale validation failed")
+						response := plugins.RationaleErrorComment("/override", "No status or check-run was updated.", settings, err)
+						return oc.CreateComment(org, repo, e.Number, plugins.FormatResponseRaw(e.Body, e.HTMLURL, e.User.Login, response))
+					}
+				}
+			}
+			// Same-line rationales are only accepted where a policy applies. Strip
+			// them so context parsing below never sees rationale text.
+			stripped := *e
+			stripped.Body = plugins.StripSameLineRationale(e.Body, "/override")
+			e = &stripped
+		}
+	}
 
 	// process all three handlers, we can have cancellations, overrides, and sticky overrides in the same comment
-	if err := handleOverrideCancel(c, pc.Logger, &e, options); err != nil {
+	if err := handleOverrideCancel(oc, logger, e, options); err != nil {
 		return err
 	}
-	if err := handle(c, pc.Logger, &e, options, true); err != nil {
+	if err := handle(oc, logger, e, options, true); err != nil {
 		return err
 	}
-	return handle(c, pc.Logger, &e, options, false)
+	return handle(oc, logger, e, options, false)
 }
 
 func isAuthorized(oc overrideClient, log *logrus.Entry, org, repo, user string, options plugins.Override, pr *github.PullRequest) bool {
