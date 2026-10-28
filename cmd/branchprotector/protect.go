@@ -533,6 +533,8 @@ func (p *protector) UpdateBranch(orgName, repo string, branchName string, branch
 		return fmt.Errorf("get current branch protection: %w", err)
 	}
 
+	preserveUnmanagedReviewSettings(orgName, repo, branchName, currentBP, req)
+
 	var sep *separateRequests
 	if bp.RequireSignedCommits != nil {
 		sep = &separateRequests{
@@ -553,6 +555,46 @@ func (p *protector) UpdateBranch(orgName, repo string, branchName string, branch
 		Separate: sep,
 	}
 	return nil
+}
+
+// preserveUnmanagedReviewSettings fills review settings that were introduced to
+// branchprotector after it was already in use with the current GitHub state when
+// they are not set in the config. Branch protections may have been configured
+// manually for these settings, and they would otherwise be silently reset.
+// TODO: remove this backstop once configs had time to set these fields explicitly,
+// so they behave consistently with all other fields.
+func preserveUnmanagedReviewSettings(org, repo, branch string, state *github.BranchProtection, request *github.BranchProtectionRequest) {
+	if request == nil || request.RequiredPullRequestReviews == nil {
+		return
+	}
+	reviews := request.RequiredPullRequestReviews
+	var stateReviews *github.RequiredPullRequestReviews
+	if state != nil {
+		stateReviews = state.RequiredPullRequestReviews
+	}
+	if reviews.RequireLastPushApproval == nil {
+		current := stateReviews != nil && stateReviews.RequireLastPushApproval
+		if current {
+			logrus.Warnf("%s/%s=%s: require_last_push_approval is not set in the config, preserving the current GitHub setting (%t). Set it explicitly, as a future release will manage it like all other fields.", org, repo, branch, current)
+		}
+		reviews.RequireLastPushApproval = &current
+	}
+	if reviews.BypassRestrictions.Apps == nil && stateReviews != nil && stateReviews.BypassRestrictions != nil && len(stateReviews.BypassRestrictions.Apps) > 0 {
+		apps := make([]string, 0, len(stateReviews.BypassRestrictions.Apps))
+		for _, app := range stateReviews.BypassRestrictions.Apps {
+			apps = append(apps, app.Slug)
+		}
+		logrus.Warnf("%s/%s=%s: bypass_pull_request_allowances.apps is not set in the config, preserving the current GitHub setting (%v). Set it explicitly, as a future release will manage it like all other fields.", org, repo, branch, apps)
+		reviews.BypassRestrictions.Apps = &apps
+		// An unset list is sent as omitted, which GitHub treats like an empty one.
+		// Make that explicit so the request compares equal to the reported state.
+		if reviews.BypassRestrictions.Users == nil {
+			reviews.BypassRestrictions.Users = &[]string{}
+		}
+		if reviews.BypassRestrictions.Teams == nil {
+			reviews.BypassRestrictions.Teams = &[]string{}
+		}
+	}
 }
 
 func equalBranchProtections(state *github.BranchProtection, request *github.BranchProtectionRequest) bool {
@@ -655,6 +697,7 @@ func equalRequiredPullRequestReviews(state *github.RequiredPullRequestReviews, r
 		return state.DismissStaleReviews == request.DismissStaleReviews &&
 			state.RequireCodeOwnerReviews == request.RequireCodeOwnerReviews &&
 			state.RequiredApprovingReviewCount == request.RequiredApprovingReviewCount &&
+			(request.RequireLastPushApproval == nil || state.RequireLastPushApproval == *request.RequireLastPushApproval) &&
 			equalDismissalRestrictions(state.DismissalRestrictions, &request.DismissalRestrictions) &&
 			equalBypassRestrictions(state.BypassRestrictions, &request.BypassRestrictions)
 	default:
@@ -684,13 +727,13 @@ func equalBypassRestrictions(state *github.BypassRestrictions, request *github.B
 	case state == nil && request == nil:
 		return true
 	case state == nil && request != nil:
-		// when there are no restrictions on users or teams, GitHub will
+		// when there are no restrictions on apps, users or teams, GitHub will
 		// omit the fields from the response we get when asking for the
 		// current state. If we _are_ making a request but it has no real
 		// effect, this is identical to making no request for restriction.
-		return request.Users == nil && request.Teams == nil
+		return request.Apps == nil && request.Users == nil && request.Teams == nil
 	case state != nil && request != nil:
-		return equalTeams(state.Teams, request.Teams) && equalUsers(state.Users, request.Users)
+		return equalApps(state.Apps, request.Apps) && equalTeams(state.Teams, request.Teams) && equalUsers(state.Users, request.Users)
 	default:
 		return false
 	}
