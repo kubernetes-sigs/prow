@@ -73,6 +73,25 @@ func TestRepoRequestDefinedWithVisibility(t *testing.T) {
 	}
 }
 
+func TestRepoRequestDefinedWithSquashCommitSettings(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		request RepoRequest
+	}{
+		{name: "title", request: RepoRequest{SquashMergeCommitTitle: new("PR_TITLE")}},
+		{name: "message", request: RepoRequest{SquashMergeCommitMessage: new("COMMIT_MESSAGES")}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if !tc.request.Defined() {
+				t.Error("request with only a squash commit setting must be defined")
+			}
+			if !(RepoUpdateRequest{RepoRequest: tc.request}).Defined() {
+				t.Error("update with only a squash commit setting must be defined")
+			}
+		})
+	}
+}
+
 func TestIssueCapsLogin(t *testing.T) {
 	// some valid logins that should all normalize to match the first
 	validLoginVariants := []string{

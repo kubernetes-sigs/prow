@@ -27,6 +27,153 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
+func TestRepoWithDefaults(t *testing.T) {
+	defaults := &RepoSettings{
+		AllowSquashMerge: new(true), AllowMergeCommit: new(true), AllowRebaseMerge: new(true),
+		DeleteBranchOnMerge: new(true), HasIssues: new(true), HasProjects: new(true), HasWiki: new(true),
+		SquashMergeCommitTitle: new("PR_TITLE"), SquashMergeCommitMessage: new("COMMIT_MESSAGES"),
+	}
+	enabled := Repo{RepoSettings: *defaults}
+	disabledSettings := RepoSettings{
+		AllowSquashMerge: new(false), AllowMergeCommit: new(false), AllowRebaseMerge: new(false),
+		DeleteBranchOnMerge: new(false), HasIssues: new(false), HasProjects: new(false), HasWiki: new(false),
+		SquashMergeCommitTitle: new("COMMIT_OR_PR_TITLE"), SquashMergeCommitMessage: new("PR_BODY"),
+	}
+	disabled := Repo{RepoSettings: disabledSettings}
+	metadata := Repo{
+		Description: new("description"), HomePage: new("https://example.com"),
+		Visibility: new(github.RepoVisibilityPrivate), Archived: new(true), DefaultBranch: new("main"),
+		Previously: []string{"old-name"}, Collaborators: map[string]github.RepoPermissionLevel{"user": github.Read},
+		OnCreate: &RepoCreateOptions{AutoInit: new(true)},
+	}
+	metadataWithDefaults := enabled
+	metadataWithDefaults.Description = metadata.Description
+	metadataWithDefaults.HomePage = metadata.HomePage
+	metadataWithDefaults.Visibility = metadata.Visibility
+	metadataWithDefaults.Archived = metadata.Archived
+	metadataWithDefaults.DefaultBranch = metadata.DefaultBranch
+	metadataWithDefaults.Previously = metadata.Previously
+	metadataWithDefaults.Collaborators = metadata.Collaborators
+	metadataWithDefaults.OnCreate = metadata.OnCreate
+
+	for _, tc := range []struct {
+		name     string
+		repo     Repo
+		defaults *RepoSettings
+		want     Repo
+	}{
+		{name: "no defaults", repo: metadata, want: metadata},
+		{name: "empty defaults", defaults: &RepoSettings{}, want: Repo{}},
+		{name: "inherit all supported fields", defaults: defaults, want: enabled},
+		{name: "false overrides true", repo: disabled, defaults: defaults, want: disabled},
+		{name: "true overrides false", repo: enabled, defaults: &disabledSettings, want: enabled},
+		{name: "partial defaults leave other fields unset", defaults: &RepoSettings{HasWiki: new(false)}, want: Repo{RepoSettings: RepoSettings{HasWiki: new(false)}}},
+		{name: "explicit empty strings override defaults", repo: Repo{RepoSettings: RepoSettings{
+			SquashMergeCommitTitle: new(""), SquashMergeCommitMessage: new(""),
+		}}, defaults: &RepoSettings{SquashMergeCommitTitle: new("PR_TITLE"), SquashMergeCommitMessage: new("COMMIT_MESSAGES")},
+			want: Repo{RepoSettings: RepoSettings{SquashMergeCommitTitle: new(""), SquashMergeCommitMessage: new("")}}},
+		{name: "preserve repository metadata", repo: metadata, defaults: defaults, want: metadataWithDefaults},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			beforeRepo, err := json.Marshal(tc.repo)
+			if err != nil {
+				t.Fatal(err)
+			}
+			beforeDefaults, err := json.Marshal(tc.defaults)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := tc.repo.WithDefaults(tc.defaults); !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("unexpected effective repo: %s", diff.Diff(tc.want, got))
+			}
+			afterRepo, _ := json.Marshal(tc.repo)
+			afterDefaults, _ := json.Marshal(tc.defaults)
+			if string(beforeRepo) != string(afterRepo) || string(beforeDefaults) != string(afterDefaults) {
+				t.Fatal("resolving defaults modified the source configuration")
+			}
+		})
+	}
+}
+
+func TestRepoDefaultsConfig(t *testing.T) {
+	var cfg FullConfig
+	if err := yaml.Unmarshal([]byte(`orgs:
+  example:
+    repo_defaults:
+      allow_merge_commit: false
+      delete_branch_on_merge: true
+      squash_merge_commit_title: PR_TITLE
+      squash_merge_commit_message: COMMIT_MESSAGES
+    repos:
+      inherited: {}
+      overridden:
+        delete_branch_on_merge: false
+        squash_merge_commit_title: COMMIT_OR_PR_TITLE
+        squash_merge_commit_message: PR_BODY
+      null-value:
+        delete_branch_on_merge: null
+`), &cfg); err != nil {
+		t.Fatal(err)
+	}
+	org := cfg.Orgs["example"]
+	wantDefaults := &RepoSettings{
+		AllowMergeCommit: new(false), DeleteBranchOnMerge: new(true),
+		SquashMergeCommitTitle: new("PR_TITLE"), SquashMergeCommitMessage: new("COMMIT_MESSAGES"),
+	}
+	if !reflect.DeepEqual(org.RepoDefaults, wantDefaults) {
+		t.Fatalf("unexpected defaults: %s", diff.Diff(wantDefaults, org.RepoDefaults))
+	}
+	for name, repo := range org.Repos {
+		got := repo.WithDefaults(org.RepoDefaults)
+		want := name != "overridden"
+		if got.DeleteBranchOnMerge == nil || *got.DeleteBranchOnMerge != want || got.AllowMergeCommit == nil || *got.AllowMergeCommit {
+			t.Errorf("repo %s did not resolve defaults and overrides correctly: %+v", name, got)
+		}
+		wantTitle, wantMessage := "PR_TITLE", "COMMIT_MESSAGES"
+		if name == "overridden" {
+			wantTitle, wantMessage = "COMMIT_OR_PR_TITLE", "PR_BODY"
+		}
+		if got.SquashMergeCommitTitle == nil || *got.SquashMergeCommitTitle != wantTitle || got.SquashMergeCommitMessage == nil || *got.SquashMergeCommitMessage != wantMessage {
+			t.Errorf("repo %s did not resolve squash commit settings correctly: %+v", name, got)
+		}
+	}
+	if org.Repos["inherited"].DeleteBranchOnMerge != nil {
+		t.Fatal("resolving defaults changed the source repo")
+	}
+
+	for _, marshal := range []struct {
+		name string
+		fn   func(any) ([]byte, error)
+	}{
+		{name: "json", fn: json.Marshal},
+		{name: "yaml", fn: yaml.Marshal},
+	} {
+		t.Run(marshal.name, func(t *testing.T) {
+			data, err := marshal.fn(Config{Repos: map[string]Repo{"example": {}}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(string(data), "repo_defaults") {
+				t.Fatalf("absent defaults should not appear in dumps: %s", data)
+			}
+			data, err = marshal.fn(cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(string(data), "RepoSettings") || strings.Contains(string(data), "repo_settings") {
+				t.Fatalf("embedded settings must remain flat: %s", data)
+			}
+			var roundTrip FullConfig
+			if err := yaml.UnmarshalStrict(data, &roundTrip); err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(cfg, roundTrip) {
+				t.Errorf("config changed during round trip: %s", diff.Diff(cfg, roundTrip))
+			}
+		})
+	}
+}
+
 func TestPrivacy(t *testing.T) {
 	get := func(v Privacy) *Privacy {
 		return &v
@@ -81,49 +228,35 @@ func TestPruneRepoDefaults(t *testing.T) {
 		{
 			description: "default values are pruned",
 			repo: Repo{
-				Description:         &empty,
-				HomePage:            &empty,
-				Visibility:          new(github.RepoVisibilityPublic),
-				HasIssues:           &yes,
-				HasProjects:         &yes,
-				HasWiki:             &yes,
-				AllowSquashMerge:    &yes,
-				AllowMergeCommit:    &yes,
-				AllowRebaseMerge:    &yes,
-				DefaultBranch:       &master,
-				Archived:            &no,
-				DeleteBranchOnMerge: &no,
+				RepoSettings: RepoSettings{
+					HasIssues: &yes, HasProjects: &yes, HasWiki: &yes,
+					AllowSquashMerge: &yes, AllowMergeCommit: &yes, AllowRebaseMerge: &yes,
+					DeleteBranchOnMerge: &no,
+				},
+				Description: &empty, HomePage: &empty, Visibility: new(github.RepoVisibilityPublic),
+				DefaultBranch: &master, Archived: &no,
 			},
-			expected: Repo{HasProjects: &yes},
+			expected: Repo{RepoSettings: RepoSettings{HasProjects: &yes}},
 		},
 		{
 			description: "non-default values are not pruned",
 			repo: Repo{
-				Description:         &nonEmpty,
-				HomePage:            &nonEmpty,
-				Visibility:          new(github.RepoVisibilityPrivate),
-				HasIssues:           &no,
-				HasProjects:         &no,
-				HasWiki:             &no,
-				AllowSquashMerge:    &no,
-				AllowMergeCommit:    &no,
-				AllowRebaseMerge:    &no,
-				DefaultBranch:       &notMaster,
-				Archived:            &yes,
-				DeleteBranchOnMerge: &yes,
+				RepoSettings: RepoSettings{
+					HasIssues: &no, HasProjects: &no, HasWiki: &no,
+					AllowSquashMerge: &no, AllowMergeCommit: &no, AllowRebaseMerge: &no,
+					DeleteBranchOnMerge: &yes,
+				},
+				Description: &nonEmpty, HomePage: &nonEmpty, Visibility: new(github.RepoVisibilityPrivate),
+				DefaultBranch: &notMaster, Archived: &yes,
 			},
-			expected: Repo{Description: &nonEmpty,
-				HomePage:            &nonEmpty,
-				Visibility:          new(github.RepoVisibilityPrivate),
-				HasIssues:           &no,
-				HasProjects:         &no,
-				HasWiki:             &no,
-				AllowSquashMerge:    &no,
-				AllowMergeCommit:    &no,
-				AllowRebaseMerge:    &no,
-				DefaultBranch:       &notMaster,
-				Archived:            &yes,
-				DeleteBranchOnMerge: &yes,
+			expected: Repo{
+				RepoSettings: RepoSettings{
+					HasIssues: &no, HasProjects: &no, HasWiki: &no,
+					AllowSquashMerge: &no, AllowMergeCommit: &no, AllowRebaseMerge: &no,
+					DeleteBranchOnMerge: &yes,
+				},
+				Description: &nonEmpty, HomePage: &nonEmpty, Visibility: new(github.RepoVisibilityPrivate),
+				DefaultBranch: &notMaster, Archived: &yes,
 			},
 		},
 	}
@@ -145,6 +278,21 @@ func TestRepoUnmarshalJSON(t *testing.T) {
 		expected    Repo
 		expectError bool
 	}{
+		{
+			name: "flat settings coexist with legacy private field",
+			json: `{"private": true, "description": "test", "allow_squash_merge": true,
+				"allow_merge_commit": false, "allow_rebase_merge": false, "delete_branch_on_merge": true,
+				"has_issues": true, "has_projects": false, "has_wiki": false,
+				"squash_merge_commit_title": "PR_TITLE", "squash_merge_commit_message": "COMMIT_MESSAGES"}`,
+			expected: Repo{
+				RepoSettings: RepoSettings{
+					AllowSquashMerge: new(true), AllowMergeCommit: new(false), AllowRebaseMerge: new(false),
+					DeleteBranchOnMerge: new(true), HasIssues: new(true), HasProjects: new(false), HasWiki: new(false),
+					SquashMergeCommitTitle: new("PR_TITLE"), SquashMergeCommitMessage: new("COMMIT_MESSAGES"),
+				},
+				Visibility: new(github.RepoVisibilityPrivate), Description: new("test"),
+			},
+		},
 		{
 			name:     "private true translates to visibility private",
 			json:     `{"private": true}`,

@@ -463,18 +463,20 @@ func dumpOrgConfig(client dumpClient, orgName string, ignoreSecretTeams bool, ig
 			visibility = &full.Visibility
 		}
 		repoConfig := org.PruneRepoDefaults(org.Repo{
-			Description:         &full.Description,
-			HomePage:            &full.Homepage,
-			Visibility:          visibility,
-			HasIssues:           &full.HasIssues,
-			HasProjects:         &full.HasProjects,
-			HasWiki:             &full.HasWiki,
-			AllowMergeCommit:    &full.AllowMergeCommit,
-			AllowSquashMerge:    &full.AllowSquashMerge,
-			AllowRebaseMerge:    &full.AllowRebaseMerge,
-			DeleteBranchOnMerge: &full.DeleteBranchOnMerge,
-			Archived:            &full.Archived,
-			DefaultBranch:       &full.DefaultBranch,
+			RepoSettings: org.RepoSettings{
+				HasIssues:           &full.HasIssues,
+				HasProjects:         &full.HasProjects,
+				HasWiki:             &full.HasWiki,
+				AllowMergeCommit:    &full.AllowMergeCommit,
+				AllowSquashMerge:    &full.AllowSquashMerge,
+				AllowRebaseMerge:    &full.AllowRebaseMerge,
+				DeleteBranchOnMerge: &full.DeleteBranchOnMerge,
+			},
+			Description:   &full.Description,
+			HomePage:      &full.Homepage,
+			Visibility:    visibility,
+			Archived:      &full.Archived,
+			DefaultBranch: &full.DefaultBranch,
 			// Collaborators will be set conditionally below
 		})
 
@@ -1378,7 +1380,11 @@ func sanitizeRepoDelta(opt options, delta *github.RepoUpdateRequest) []error {
 }
 
 func configureRepos(opt options, client repoClient, orgName string, orgConfig org.Config) error {
-	if err := validateRepos(orgConfig.Repos); err != nil {
+	repos := make(map[string]org.Repo, len(orgConfig.Repos))
+	for name, repo := range orgConfig.Repos {
+		repos[name] = repo.WithDefaults(orgConfig.RepoDefaults)
+	}
+	if err := validateRepos(repos); err != nil {
 		return err
 	}
 
@@ -1394,7 +1400,7 @@ func configureRepos(opt options, client repoClient, orgName string, orgConfig or
 
 	var allErrors []error
 
-	for wantName, wantRepo := range orgConfig.Repos {
+	for wantName, wantRepo := range repos {
 		repoLogger := logrus.WithField("repo", wantName)
 		pastErrors := len(allErrors)
 		var existing *github.FullRepo = nil
