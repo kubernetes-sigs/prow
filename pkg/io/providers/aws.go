@@ -22,7 +22,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
@@ -44,7 +46,11 @@ func getS3Bucket(ctx context.Context, creds []byte, bucketName string) (*blob.Bu
 	if err != nil {
 		return nil, fmt.Errorf("error creating s3 client: %w", err)
 	}
-	bkt, err := s3blob.OpenBucketV2(ctx, client, bucketName, nil)
+	// The transfer manager's checksum setting overrides the client's.
+	// Pass it through so when_required applies to uploads.
+	bkt, err := s3blob.OpenBucketV2(ctx, client, bucketName, &s3blob.Options{
+		RequestChecksumCalculation: client.Options().RequestChecksumCalculation,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("error opening S3 bucket: %w", err)
 	}
@@ -70,6 +76,20 @@ func newS3Client(ctx context.Context, creds *S3Credentials) (*s3.Client, error) 
 	cfg, err := config.LoadDefaultConfig(ctx, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("error loading AWS SDK config: %w", err)
+	}
+
+	// Some stores (OCI, Swift) reject aws-chunked uploads with 501.
+	// Set when_required to disable them. Empty keeps the SDK default.
+	switch strings.ToLower(creds.RequestChecksumCalculation) {
+	case "when_required":
+		cfg.RequestChecksumCalculation = aws.RequestChecksumCalculationWhenRequired
+	case "when_supported":
+		cfg.RequestChecksumCalculation = aws.RequestChecksumCalculationWhenSupported
+	case "":
+		// leave the SDK default / env var in place
+	default:
+		return nil, fmt.Errorf("invalid request_checksum_calculation %q: must be %q or %q",
+			creds.RequestChecksumCalculation, "when_supported", "when_required")
 	}
 
 	s3Opts := []func(o *s3.Options){
