@@ -49,6 +49,11 @@ const (
 	// job names can be arbitrarily long, this is added as
 	// an annotation instead of a label.
 	ContextAnnotation = "prow.k8s.io/context"
+	// RevivedBuildIDAnnotation is set on a ProwJob by plank and carries
+	// the BuildID of the last pod whose unexpected stop was counted in
+	// Status.PodRevivalCount. It ensures that a single pod is only counted
+	// once, even if it is observed multiple times before it disappears.
+	RevivedBuildIDAnnotation = "prow.k8s.io/revived-build-id"
 	// PlankVersionLabel is added in resources created by prow and
 	// carries the version of prow that decorated this job.
 	PlankVersionLabel = "prow.k8s.io/plank-version"
