@@ -1217,10 +1217,7 @@ func TestSyncPendingJob(t *testing.T) {
 			ExpectedURL:      "boop-42/error",
 		},
 		{
-			// TODO: this test case tests the current behavior, but the behavior
-			// is non-ideal: the pod execution did not fail, instead the node on which
-			// the pod was running terminated
-			Name: "a terminated pod is handled as-if it failed",
+			Name: "a terminated pod without a kubelet disruption condition is handled as-if it failed",
 			PJ: prowapi.ProwJob{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "boop-42",
@@ -1250,6 +1247,44 @@ func TestSyncPendingJob(t *testing.T) {
 			ExpectedState:    prowapi.FailureState,
 			ExpectedNumPods:  1,
 			ExpectedURL:      "boop-42/error",
+		},
+		{
+			Name: "delete pod terminated by kubelet",
+			PJ: prowapi.ProwJob{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "boop-42",
+					Namespace: "prowjobs",
+				},
+				Spec: prowapi.ProwJobSpec{
+					PodSpec: &v1.PodSpec{Containers: []v1.Container{{Name: "test-name", Env: []v1.EnvVar{}}}},
+				},
+				Status: prowapi.ProwJobStatus{
+					State:   prowapi.PendingState,
+					PodName: "boop-42",
+				},
+			},
+			Pods: []v1.Pod{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "boop-42",
+						Namespace: "pods",
+					},
+					Status: v1.PodStatus{
+						Phase:  v1.PodFailed,
+						Reason: Terminated,
+						Conditions: []v1.PodCondition{
+							{
+								Type:   v1.DisruptionTarget,
+								Status: v1.ConditionTrue,
+								Reason: v1.PodReasonTerminationByKubelet,
+							},
+						},
+					},
+				},
+			},
+			ExpectedState:    prowapi.PendingState,
+			ExpectedComplete: false,
+			ExpectedNumPods:  0,
 		},
 		{
 			Name: "running pod",
