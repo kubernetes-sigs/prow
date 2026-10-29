@@ -1749,6 +1749,28 @@ func refGetterFactory(ref string) config.RefGetter {
 	}
 }
 
+// headContextNames returns the contexts present on the current heads of the
+// supplied PRs. Presence activates required manual-only jobs for retesting;
+// context state and result freshness are checked separately.
+func (c *syncController) headContextNames(prs []CodeReviewCommon) (sets.Set[string], error) {
+	names := sets.New[string]()
+	for _, pr := range prs {
+		contexts, err := c.provider.headContexts(&pr)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get head contexts for PR #%d: %w", pr.Number, err)
+		}
+		for _, context := range contexts {
+			// An explicit override that skips retesting does not activate a
+			// manual job, including when forming a batch.
+			if context.State == githubql.StatusStateSuccess && config.IsSkipRetest(string(context.Description)) {
+				continue
+			}
+			names.Insert(string(context.Context))
+		}
+	}
+	return names, nil
+}
+
 // presubmitsByPull creates a map pr -> requiredPresubmits and will filter out all PRs
 // where we failed to find out the required presubmits (can happen if inrepoconfig is enabled
 // or if the changed files of the PR cannot be retrieved).
@@ -1768,7 +1790,8 @@ func (c *syncController) presubmitsByPull(sp *subpool) (map[int][]config.Presubm
 		}
 		log.WithField("num_possible_presubmit", len(presubmitsForPull)).Debug("Found possible presubmits")
 
-		var changedFilesErr error
+		var selectionErr error
+		var headContexts sets.Set[string]
 		for _, ps := range presubmitsForPull {
 			if !c.provider.jobIsRequiredByTide(&ps, &pr) {
 				continue
@@ -1780,9 +1803,21 @@ func (c *syncController) presubmitsByPull(sp *subpool) (map[int][]config.Presubm
 			// - RunBeforeMerge
 			// - Files changed
 			forceRun := (requireManuallyTriggeredJobs && ps.ContextRequired() && ps.NeedsExplicitTrigger()) || ps.RunBeforeMerge
+			// A required manual-only job becomes blocking once its context is
+			// present. Keep selecting it even after Tide makes that context pending.
+			if !forceRun && ps.ContextRequired() && ps.NeedsExplicitTrigger() && ps.CouldRun(sp.branch) {
+				if headContexts == nil {
+					headContexts, err = c.headContextNames([]CodeReviewCommon{pr})
+					if err != nil {
+						selectionErr = err
+						break
+					}
+				}
+				forceRun = headContexts.Has(ps.Context)
+			}
 			shouldRun, err := ps.ShouldRun(sp.branch, c.changedFiles.prChanges(&pr), forceRun, false)
 			if err != nil {
-				changedFilesErr = err
+				selectionErr = err
 				break
 			}
 			if !shouldRun {
@@ -1791,8 +1826,8 @@ func (c *syncController) presubmitsByPull(sp *subpool) (map[int][]config.Presubm
 
 			presubmits[pr.Number] = append(presubmits[pr.Number], ps)
 		}
-		if changedFilesErr != nil {
-			log.WithError(changedFilesErr).Warn("Failed to determine required presubmits for PR, excluding from subpool")
+		if selectionErr != nil {
+			log.WithError(selectionErr).Warn("Failed to determine required presubmits for PR, excluding from subpool")
 			delete(presubmits, pr.Number)
 			continue
 		}
@@ -1808,7 +1843,8 @@ func (c *syncController) presubmitsByPull(sp *subpool) (map[int][]config.Presubm
 // pool.
 //
 // Aside from jobs that should run based on triggers, jobs that are configured
-// as `run_before_merge` are also returned.
+// as `run_before_merge` and required manual-only jobs with a context on any
+// constituent PR head are also returned.
 func (c *syncController) presubmitsForBatch(prs []CodeReviewCommon, org, repo, baseSHA, baseBranch string) ([]config.Presubmit, error) {
 	log := c.logger.WithFields(logrus.Fields{"repo": repo, "org": org, "base-sha": baseSHA, "base-branch": baseBranch})
 
@@ -1831,6 +1867,7 @@ func (c *syncController) presubmitsForBatch(prs []CodeReviewCommon, org, repo, b
 	requireManuallyTriggeredJobs := requireManuallyTriggeredJobs(c.config(), org, repo, baseBranch)
 
 	var result []config.Presubmit
+	var headContexts sets.Set[string]
 	for _, ps := range presubmits {
 		// PR is required only by Gerrit, the required "label" will be extracted
 		// from a PR. Assuming the submission requirement for a given label is
@@ -1841,6 +1878,17 @@ func (c *syncController) presubmitsForBatch(prs []CodeReviewCommon, org, repo, b
 		}
 
 		forceRun := (requireManuallyTriggeredJobs && ps.ContextRequired() && ps.NeedsExplicitTrigger()) || ps.RunBeforeMerge
+		// Individual results, even against the current base, do not validate
+		// the combined changes. Activation on any batch member requires a batch run.
+		if !forceRun && ps.ContextRequired() && ps.NeedsExplicitTrigger() && ps.CouldRun(baseBranch) {
+			if headContexts == nil {
+				headContexts, err = c.headContextNames(prs)
+				if err != nil {
+					return nil, err
+				}
+			}
+			forceRun = headContexts.Has(ps.Context)
+		}
 		shouldRun, err := ps.ShouldRun(baseBranch, c.changedFiles.batchChanges(prs), forceRun, false)
 		if err != nil {
 			return nil, err
