@@ -592,11 +592,172 @@ func TestHandleWithoutExcludeApproversMixed(t *testing.T) {
 	}
 }
 
+func TestHandleWithExistingRequestedReviewers(t *testing.T) {
+	froc := &fakeRepoownersClient{
+		foc: &fakeOwnersClient{
+			owners: map[string]string{
+				"a.go": "1",
+				"r.go": "2",
+			},
+			reviewers: map[string]layeredsets.String{
+				"a.go": layeredsets.NewString("bob", "christoph", "david"),
+				"r.go": layeredsets.NewString("bob", "christoph", "david"),
+			},
+			leafReviewers: map[string]sets.Set[string]{
+				"a.go": sets.New[string]("bob", "christoph", "david"),
+				"r.go": sets.New[string]("bob", "christoph", "david"),
+			},
+			approvers: map[string]layeredsets.String{
+				"a.go": layeredsets.NewString("adam"),
+				"r.go": layeredsets.NewString("adam"),
+			},
+			leafApprovers: map[string]sets.Set[string]{
+				"a.go": sets.New[string]("adam"),
+				"r.go": sets.New[string]("adam"),
+			},
+			requiredReviewers: map[string]sets.Set[string]{
+				"r.go": sets.New[string]("rachel"),
+			},
+		},
+	}
+
+	testcases := []struct {
+		name               string
+		filesChanged       []string
+		requestedReviewers []string
+		reviewerCount      int
+		maxReviewerCount   int
+		excludeApprovers   bool
+		expectedCount      int
+		allowedRequested   []string
+		mustRequest        []string
+		mustNotRequest     []string
+	}{
+		{
+			name:               "eligible existing reviewer counts toward the quota",
+			filesChanged:       []string{"a.go"},
+			requestedReviewers: []string{"christoph"},
+			reviewerCount:      2,
+			excludeApprovers:   true,
+			expectedCount:      1,
+			allowedRequested:   []string{"bob", "david"},
+			mustNotRequest:     []string{"christoph"},
+		},
+		{
+			name:               "quota fully satisfied by existing eligible reviewers",
+			filesChanged:       []string{"a.go"},
+			requestedReviewers: []string{"christoph", "bob"},
+			reviewerCount:      2,
+			excludeApprovers:   true,
+			expectedCount:      0,
+		},
+		{
+			name:               "quota satisfied but required reviewers still requested",
+			filesChanged:       []string{"r.go"},
+			requestedReviewers: []string{"christoph", "bob"},
+			reviewerCount:      2,
+			excludeApprovers:   true,
+			expectedCount:      1,
+			allowedRequested:   []string{"rachel"},
+			mustRequest:        []string{"rachel"},
+		},
+		{
+			name:               "ineligible existing reviewer does not count",
+			filesChanged:       []string{"a.go"},
+			requestedReviewers: []string{"stranger"},
+			reviewerCount:      2,
+			excludeApprovers:   true,
+			expectedCount:      2,
+			allowedRequested:   []string{"bob", "christoph", "david"},
+		},
+		{
+			name:               "requested login case differs from OWNERS entry",
+			filesChanged:       []string{"a.go"},
+			requestedReviewers: []string{"Christoph"},
+			reviewerCount:      2,
+			excludeApprovers:   true,
+			expectedCount:      1,
+			allowedRequested:   []string{"bob", "david"},
+			mustNotRequest:     []string{"christoph", "Christoph"},
+		},
+		{
+			name:               "approver-only existing reviewer counts when approvers are not excluded",
+			filesChanged:       []string{"a.go"},
+			requestedReviewers: []string{"adam"},
+			reviewerCount:      1,
+			excludeApprovers:   false,
+			expectedCount:      0,
+		},
+		{
+			name:               "approver-only existing reviewer does not count when approvers are excluded",
+			filesChanged:       []string{"a.go"},
+			requestedReviewers: []string{"adam"},
+			reviewerCount:      1,
+			excludeApprovers:   true,
+			expectedCount:      1,
+			allowedRequested:   []string{"bob", "christoph", "david"},
+		},
+		{
+			name:               "maxReviewerCount accounts for existing eligible reviewers",
+			filesChanged:       []string{"a.go"},
+			requestedReviewers: []string{"christoph"},
+			reviewerCount:      3,
+			maxReviewerCount:   2,
+			excludeApprovers:   true,
+			expectedCount:      1,
+			allowedRequested:   []string{"bob", "david"},
+			mustNotRequest:     []string{"christoph"},
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			pr := github.PullRequest{Number: 5, User: github.User{Login: "alice"}}
+			for _, login := range tc.requestedReviewers {
+				pr.RequestedReviewers = append(pr.RequestedReviewers, github.User{Login: login})
+			}
+			repo := github.Repo{Owner: github.User{Login: "org"}, Name: "repo"}
+			fghc := newFakeGitHubClient(&pr, tc.filesChanged)
+
+			if err := handle(
+				fghc, froc, logrus.WithField("plugin", PluginName),
+				&tc.reviewerCount, tc.maxReviewerCount, tc.excludeApprovers, false, &repo, &pr,
+			); err != nil {
+				t.Fatalf("unexpected error from handle: %v", err)
+			}
+
+			if len(fghc.requested) != tc.expectedCount {
+				t.Fatalf("expected %d newly requested reviewers, got %d: %v", tc.expectedCount, len(fghc.requested), fghc.requested)
+			}
+			allowed := sets.New[string](tc.allowedRequested...)
+			for _, login := range fghc.requested {
+				if !allowed.Has(login) {
+					t.Errorf("requested reviewer %q is not in the allowed set %v", login, sets.List(allowed))
+				}
+			}
+			requested := sets.New[string](fghc.requested...)
+			for _, login := range tc.mustRequest {
+				if !requested.Has(login) {
+					t.Errorf("expected reviewer %q to be requested, got %v", login, fghc.requested)
+				}
+			}
+			for _, login := range tc.mustNotRequest {
+				if requested.Has(login) {
+					t.Errorf("reviewer %q must not be requested again, got %v", login, fghc.requested)
+				}
+			}
+		})
+	}
+}
+
 func TestHandlePullRequest(t *testing.T) {
 	froc := &fakeRepoownersClient{
 		foc: &fakeOwnersClient{
 			owners: map[string]string{
 				"a.go": "1",
+			},
+			reviewers: map[string]layeredsets.String{
+				"a.go": layeredsets.NewString("al"),
 			},
 			leafReviewers: map[string]sets.Set[string]{
 				"a.go": sets.New[string]("al"),
@@ -605,16 +766,17 @@ func TestHandlePullRequest(t *testing.T) {
 	}
 
 	var testcases = []struct {
-		name              string
-		action            github.PullRequestEventAction
-		body              string
-		filesChanged      []string
-		reviewerCount     int
-		expectedRequested []string
-		draft             bool
-		ignoreDrafts      bool
-		ignoreAuthors     []string
-		waitForStatus     *plugins.ContextMatch
+		name               string
+		action             github.PullRequestEventAction
+		body               string
+		filesChanged       []string
+		reviewerCount      int
+		requestedReviewers []string
+		expectedRequested  []string
+		draft              bool
+		ignoreDrafts       bool
+		ignoreAuthors      []string
+		waitForStatus      *plugins.ContextMatch
 	}{
 		{
 			name:              "PR opened",
@@ -670,6 +832,13 @@ func TestHandlePullRequest(t *testing.T) {
 			expectedRequested: []string{"al"},
 		},
 		{
+			name:               "draft is ready for review with eligible reviewer already requested, request no more",
+			action:             github.PullRequestActionReadyForReview,
+			filesChanged:       []string{"a.go"},
+			reviewerCount:      1,
+			requestedReviewers: []string{"al"},
+		},
+		{
 			name:          "PR opened by ignored author, do not assign review to PR",
 			action:        github.PullRequestActionOpened,
 			filesChanged:  []string{"a.go"},
@@ -679,6 +848,9 @@ func TestHandlePullRequest(t *testing.T) {
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
 			pr := github.PullRequest{Number: 5, User: github.User{Login: "author"}, Body: tc.body, Draft: tc.draft}
+			for _, login := range tc.requestedReviewers {
+				pr.RequestedReviewers = append(pr.RequestedReviewers, github.User{Login: login})
+			}
 			repo := github.Repo{Owner: github.User{Login: "org"}, Name: "repo"}
 			fghc := newFakeGitHubClient(&pr, tc.filesChanged)
 			c := plugins.Blunderbuss{
