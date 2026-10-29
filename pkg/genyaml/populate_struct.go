@@ -127,6 +127,10 @@ func PopulateStruct(in any) any {
 			if strings.Contains(typeOf.Elem().Field(i).Tag.Get("json"), ",omitempty") {
 				valueOf.Elem().Field(i).SetBool(true)
 			}
+		case reflect.Int:
+			if strings.Contains(typeOf.Elem().Field(i).Tag.Get("json"), ",omitempty") {
+				valueOf.Elem().Field(i).SetInt(1)
+			}
 		}
 
 	}

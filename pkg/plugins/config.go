@@ -183,21 +183,21 @@ type ExternalPlugin struct {
 }
 
 type ContextMatch struct {
-	// Context name of the context to match on, defaults to "tide"
+	// Context name of the context to match on. Defaults to "tide".
 	Context string `json:"context,omitempty"`
-	// Description regular expression to match the context description, defaults to
+	// Description regular expression to match the context description. Defaults to
 	// "Not mergeable. (PullRequest is missing sufficient approving GitHub review\(s\)|Needs (lgtm|approved) label)"
 	Description string `json:"description,omitempty"`
 	// Compiled description
 	DescriptionRe *regexp.Regexp `json:"-"`
-	// State is the state we want the context to be in before requesting reviews, e.g. "pending"
+	// State is the state we want the context to be in before requesting reviews. Defaults to "pending".
 	State string `json:"state,omitempty"`
 }
 
-// Blunderbuss defines configuration for the blunderbuss plugin.
-type Blunderbuss struct {
+// BlunderbussConfig defines configuration options for the blunderbuss plugin.
+type BlunderbussConfig struct {
 	// ReviewerCount is the minimum number of reviewers to request
-	// reviews from. Defaults to requesting reviews from 2 reviewers
+	// reviews from. Defaults to requesting reviews from 2 reviewers.
 	ReviewerCount *int `json:"request_count,omitempty"`
 	// MaxReviewerCount is the maximum number of reviewers to request
 	// reviews from. Defaults to 0 meaning no limit.
@@ -213,15 +213,32 @@ type Blunderbuss struct {
 	// how many busy reviewers it had to pass over).
 	UseStatusAvailability bool `json:"use_status_availability,omitempty"`
 	// IgnoreDrafts instructs the plugin to ignore assigning reviewers
-	// to the PR that is in Draft state. Default it's false.
+	// to the PR that is in Draft state. Defaults to false.
 	IgnoreDrafts bool `json:"ignore_drafts,omitempty"`
 	// IgnoreAuthors skips requesting reviewers for specified users.
 	// This is useful when a bot user or admin opens a PR that will be
 	// merged regardless of approvals.
 	IgnoreAuthors []string `json:"ignore_authors,omitempty"`
-	// WaitForStatus specifies whether to request reviews if the tide status indicates that
-	// the tests have passed but there are insufficient pull request reviews.
+	// WaitForStatus specifies whether to wait to request reviews until a status
+	// check matches the given criteria.
 	WaitForStatus *ContextMatch `json:"wait_for_status,omitempty"`
+}
+
+// BlunderbussOrgConfig defines organization-specific configuration for the blunderbuss plugin.
+type BlunderbussOrgConfig struct {
+	*BlunderbussConfig `json:",inline,omitempty"`
+	// Repos allows sharding for repository-specific Blunderbuss settings, provided under keys using
+	// the format organization/repository.
+	Repos map[string]BlunderbussConfig `json:"repos,omitempty"`
+}
+
+// Blunderbuss defines overall configuration for the blunderbuss plugin.
+type Blunderbuss struct {
+	*BlunderbussConfig `json:",inline,omitempty"`
+	// Orgs allows sharding for organization-specific Blunderbuss settings, provided under keys with
+	// the name of the organization. For repository-specific settings, provide
+	// organization/repository keys under orgs[].repos.
+	Orgs map[string]BlunderbussOrgConfig `json:"orgs,omitempty"`
 }
 
 // Rifle holds configuration for the rifle plugin, which uses git blame data
@@ -1091,6 +1108,32 @@ func (c *Configuration) ApproveFor(org, repo string) *Approve {
 	return a
 }
 
+// BlunderbussFor finds the BlunderbussConfig for an org or repo, if one exists.
+// Blunderbuss configuration can be listed for a repository or an organization.
+func (c *Configuration) BlunderbussFor(org, repo string) BlunderbussConfig {
+	fullName := fmt.Sprintf("%s/%s", org, repo)
+
+	if orgConfig, ok := c.Blunderbuss.Orgs[org]; ok {
+		if repoConfig, ok := orgConfig.Repos[fullName]; ok {
+			// Return repo configuration
+			return repoConfig
+		}
+
+		// Return org configuration if defined
+		if orgConfig.BlunderbussConfig != nil {
+			return *orgConfig.BlunderbussConfig
+		}
+	}
+
+	// Return base config
+	if c.Blunderbuss.BlunderbussConfig != nil {
+		return *c.Blunderbuss.BlunderbussConfig
+	}
+
+	// Fallback to empty config (Blunderbuss.SetDefaults() also handles this case)
+	return BlunderbussConfig{}
+}
+
 // LgtmFor finds the Lgtm for a repo, if one exists
 // a trigger can be listed for the repo itself or for the
 // owning organization
@@ -1289,10 +1332,7 @@ func (c *Configuration) setDefaults() {
 			c.ExternalPlugins[repo][i].Endpoint = fmt.Sprintf("http://%s", p.Name)
 		}
 	}
-	if c.Blunderbuss.ReviewerCount == nil {
-		c.Blunderbuss.ReviewerCount = new(int)
-		*c.Blunderbuss.ReviewerCount = defaultBlunderbussReviewerCount
-	}
+	c.Blunderbuss.SetDefaults()
 	if c.Rifle.ReviewerCount == nil {
 		c.Rifle.ReviewerCount = new(int)
 		*c.Rifle.ReviewerCount = defaultRifleReviewerCount
@@ -1306,17 +1346,6 @@ func (c *Configuration) setDefaults() {
 		}
 		if c.Rifle.WaitForStatus.Description == "" {
 			c.Rifle.WaitForStatus.Description = "Not mergeable. (PullRequest is missing sufficient approving GitHub review\\(s\\)|Needs (lgtm|approved|approved, lgtm) labels?)\\.?"
-		}
-	}
-	if c.Blunderbuss.WaitForStatus != nil {
-		if c.Blunderbuss.WaitForStatus.Context == "" {
-			c.Blunderbuss.WaitForStatus.Context = "tide"
-		}
-		if c.Blunderbuss.WaitForStatus.State == "" {
-			c.Blunderbuss.WaitForStatus.State = "pending"
-		}
-		if c.Blunderbuss.WaitForStatus.Description == "" {
-			c.Blunderbuss.WaitForStatus.Description = "Not mergeable. (PullRequest is missing sufficient approving GitHub review\\(s\\)|Needs (lgtm|approved|approved, lgtm) labels?)\\.?"
 		}
 	}
 	for i := range c.Triggers {
@@ -1441,11 +1470,87 @@ func validateExternalPlugins(pluginMap map[string][]ExternalPlugin) error {
 	return nil
 }
 
-func validateBlunderbuss(b *Blunderbuss) error {
-	if b.ReviewerCount != nil && *b.ReviewerCount < 1 {
-		return fmt.Errorf("invalid request_count: %v (needs to be positive)", *b.ReviewerCount)
+func (b *Blunderbuss) SetDefaults() {
+	// Instantiate a global Blunderbuss config if it wasn't set in the config
+	if b.BlunderbussConfig == nil {
+		b.BlunderbussConfig = &BlunderbussConfig{}
 	}
-	return nil
+
+	// Set field defaults for all configs
+	_ = b.descendShards(func(b *BlunderbussConfig) error {
+		// Set default reviewer count if it's unset
+		if b.ReviewerCount == nil {
+			reviewerCount := defaultBlunderbussReviewerCount
+			b.ReviewerCount = &reviewerCount
+		}
+		// Set default "wait for status" fields if they're unset
+		if b.WaitForStatus != nil {
+			if b.WaitForStatus.Context == "" {
+				b.WaitForStatus.Context = "tide"
+			}
+			if b.WaitForStatus.State == "" {
+				b.WaitForStatus.State = "pending"
+			}
+			if b.WaitForStatus.Description == "" {
+				b.WaitForStatus.Description = "Not mergeable. (PullRequest is missing sufficient approving GitHub review\\(s\\)|Needs (lgtm|approved|approved, lgtm) labels?)\\.?"
+			}
+		}
+
+		return nil
+	})
+}
+
+// descendShards recurses the Blunderbuss config into the global config, org
+// configs, and repo configs, calling the provided function for each config.
+func (b *Blunderbuss) descendShards(f func(*BlunderbussConfig) error) error {
+	var errs []error
+	// Global config
+	if b.BlunderbussConfig != nil {
+		if err := f(b.BlunderbussConfig); err != nil {
+			errs = append(errs, fmt.Errorf("error in global blunderbuss configuration: %w", err))
+		}
+	}
+	// Org configs
+	for org, orgConfig := range b.Orgs {
+		if orgConfig.BlunderbussConfig != nil {
+			if err := f(orgConfig.BlunderbussConfig); err != nil {
+				errs = append(errs, fmt.Errorf("error in blunderbuss configuration for org %s: %w", org, err))
+			}
+		}
+		// Repo configs
+		for repo, repoConfig := range orgConfig.Repos {
+			if err := f(&repoConfig); err != nil {
+				errs = append(errs, fmt.Errorf("error in blunderbuss configuration for repo %s/%s: %w", org, repo, err))
+			}
+			orgConfig.Repos[repo] = repoConfig
+		}
+	}
+
+	return utilerrors.NewAggregate(errs)
+}
+
+func (b Blunderbuss) validateBlunderbuss() error {
+	return b.descendShards(
+		func(b *BlunderbussConfig) error {
+			if b == nil {
+				return nil
+			}
+			if b.ReviewerCount != nil && *b.ReviewerCount < 1 {
+				return fmt.Errorf("invalid request_count: %d (must be at least 1)", b.ReviewerCount)
+			}
+			if b.MaxReviewerCount < 0 {
+				return fmt.Errorf("invalid max_request_count: %d (must be positive)", b.MaxReviewerCount)
+			}
+			reviewerCount := 2
+			if b.ReviewerCount != nil {
+				reviewerCount = *b.ReviewerCount
+			}
+			if b.MaxReviewerCount > 0 && b.MaxReviewerCount < reviewerCount {
+				return fmt.Errorf("invalid reviewer configuration: max_request_count %d must be at least request_count %d", b.MaxReviewerCount, b.ReviewerCount)
+			}
+
+			return nil
+		})
 }
 
 func validateRifle(r *Rifle) error {
@@ -1643,6 +1748,23 @@ func validateRepoMilestone(milestones map[string]Milestone) {
 	}
 }
 
+func (b *Blunderbuss) compileRegexpsAndDurations() error {
+	return b.descendShards(
+		func(b *BlunderbussConfig) error {
+			if b == nil {
+				return nil
+			}
+			var err error
+			if b.WaitForStatus != nil {
+				b.WaitForStatus.DescriptionRe, err = regexp.Compile(b.WaitForStatus.Description)
+				if err != nil {
+					return fmt.Errorf("failed to compile blunderbuss wait for context description regular expression: %q, error: %w", b.WaitForStatus.Description, err)
+				}
+			}
+			return nil
+		})
+}
+
 func compileRegexpsAndDurations(pc *Configuration) error {
 	cRe, err := regexp.Compile(pc.SigMention.Regexp)
 	if err != nil {
@@ -1697,12 +1819,11 @@ func compileRegexpsAndDurations(pc *Configuration) error {
 		rs[i].GracePeriodDuration = dur
 	}
 
-	if pc.Blunderbuss.WaitForStatus != nil {
-		pc.Blunderbuss.WaitForStatus.DescriptionRe, err = regexp.Compile(pc.Blunderbuss.WaitForStatus.Description)
-		if err != nil {
-			return fmt.Errorf("failed to compile blunderbuss wait for context description regular expression: %q, error: %w", pc.Blunderbuss.WaitForStatus.Description, err)
-		}
+	err = pc.Blunderbuss.compileRegexpsAndDurations()
+	if err != nil {
+		return fmt.Errorf("failed to compile blunderbuss regular expressions: %w", err)
 	}
+
 	if pc.Rifle.WaitForStatus != nil {
 		pc.Rifle.WaitForStatus.DescriptionRe, err = regexp.Compile(pc.Rifle.WaitForStatus.Description)
 		if err != nil {
@@ -1730,7 +1851,7 @@ func (c *Configuration) Validate() error {
 	if err := validateExternalPlugins(c.ExternalPlugins); err != nil {
 		return err
 	}
-	if err := validateBlunderbuss(&c.Blunderbuss); err != nil {
+	if err := c.Blunderbuss.validateBlunderbuss(); err != nil {
 		return err
 	}
 	if err := validateRifle(&c.Rifle); err != nil {
@@ -2353,7 +2474,7 @@ func (c *Configuration) mergeFrom(other *Configuration) error {
 	diff := cmp.Diff(other, &Configuration{Approve: other.Approve, Bugzilla: other.Bugzilla,
 		ExternalPlugins: other.ExternalPlugins, Label: Label{RestrictedLabels: other.Label.RestrictedLabels},
 		Lgtm: other.Lgtm, Plugins: other.Plugins, Triggers: other.Triggers, Welcome: other.Welcome,
-		MilestoneApplier: other.MilestoneApplier},
+		MilestoneApplier: other.MilestoneApplier, Blunderbuss: other.Blunderbuss},
 		config.DefaultDiffOpts...)
 
 	if diff != "" {
@@ -2375,6 +2496,10 @@ func (c *Configuration) mergeFrom(other *Configuration) error {
 	c.Lgtm = append(c.Lgtm, other.Lgtm...)
 	c.Triggers = append(c.Triggers, other.Triggers...)
 	c.Welcome = append(c.Welcome, other.Welcome...)
+
+	if err := c.Blunderbuss.mergeFrom(&other.Blunderbuss); err != nil {
+		errs = append(errs, fmt.Errorf("failed to merge .blunderbuss from supplemental config: %w", err))
+	}
 
 	if err := c.mergeExternalPluginsFrom(other.ExternalPlugins); err != nil {
 		errs = append(errs, fmt.Errorf("failed to merge .external-plugins from supplemental config: %w", err))
@@ -2513,6 +2638,69 @@ func (l *Label) mergeFrom(other *Label) error {
 	return utilerrors.NewAggregate(errs)
 }
 
+// Merge two Blunderbuss configurations, returning an aggregated error for conflicts
+func (b *Blunderbuss) mergeFrom(other *Blunderbuss) error {
+	// No config actually specified, so no action required
+	if other == nil {
+		return nil
+	}
+
+	var errs []error
+
+	// Handle global configs
+	if other.BlunderbussConfig != nil {
+		if b.BlunderbussConfig == nil {
+			b.BlunderbussConfig = other.BlunderbussConfig
+		} else if !reflect.DeepEqual(*b.BlunderbussConfig, *other.BlunderbussConfig) {
+			// Add error when both configs declare different global defaults
+			errs = append(errs, fmt.Errorf("global configurations for blunderbuss do not match"))
+		}
+	}
+
+	// Initialize the Orgs map if it's empty to accept incoming Orgs configs
+	if other.Orgs != nil && b.Orgs == nil {
+		b.Orgs = map[string]BlunderbussOrgConfig{}
+	}
+
+	// Merge Orgs configs, skipping conflicts and adding a message to the aggregated error message
+	for org, otherOrgConfig := range other.Orgs {
+		if orgConfig, ok := b.Orgs[org]; ok {
+			// Use incoming org if current org config is empty, otherwise verify they're the same
+			if otherOrgConfig.BlunderbussConfig != nil {
+				if orgConfig.BlunderbussConfig == nil {
+					orgConfig.BlunderbussConfig = otherOrgConfig.BlunderbussConfig
+					b.Orgs[org] = orgConfig
+				} else if !reflect.DeepEqual(*orgConfig.BlunderbussConfig, *otherOrgConfig.BlunderbussConfig) {
+					errs = append(errs, fmt.Errorf("found conflicting config for blunderbuss.orgs[\"%s\"]", org))
+					continue
+				}
+			}
+			// Initialize Repos map if it's empty to accept incoming Repos configs
+			if otherOrgConfig.Repos != nil && orgConfig.Repos == nil {
+				orgConfig.Repos = map[string]BlunderbussConfig{}
+				b.Orgs[org] = orgConfig
+			}
+			// Merge Repos configs, skipping conflicts and adding a message to the aggregated error message
+			for repo, otherRepoConfig := range otherOrgConfig.Repos {
+				if repoConfig, ok := orgConfig.Repos[repo]; ok {
+					// Verify the repo configurations are the same
+					if !reflect.DeepEqual(repoConfig, otherRepoConfig) {
+						errs = append(errs, fmt.Errorf(
+							"found conflicting config for blunderbuss.orgs[\"%s\"].repos[\"%s\"]", org, repo))
+						continue
+					}
+				} else {
+					b.Orgs[org].Repos[repo] = otherRepoConfig
+				}
+			}
+		} else {
+			b.Orgs[org] = otherOrgConfig
+		}
+	}
+
+	return utilerrors.NewAggregate(errs)
+}
+
 func getLabelConfigFromRestrictedLabelsSlice(s []RestrictedLabel, label string) int {
 	for idx, item := range s {
 		if item.Label == label {
@@ -2525,12 +2713,12 @@ func getLabelConfigFromRestrictedLabelsSlice(s []RestrictedLabel, label string) 
 
 func (c *Configuration) HasConfigFor() (global bool, orgs sets.Set[string], repos sets.Set[string]) {
 	equals := reflect.DeepEqual(c,
-		&Configuration{Approve: c.Approve, Bugzilla: c.Bugzilla, ExternalPlugins: c.ExternalPlugins,
-			Label: Label{RestrictedLabels: c.Label.RestrictedLabels}, Lgtm: c.Lgtm,
-			MilestoneApplier: c.MilestoneApplier, Plugins: c.Plugins,
+		&Configuration{Approve: c.Approve, Blunderbuss: c.Blunderbuss, Bugzilla: c.Bugzilla,
+			ExternalPlugins: c.ExternalPlugins, Label: Label{RestrictedLabels: c.Label.RestrictedLabels},
+			Lgtm: c.Lgtm, MilestoneApplier: c.MilestoneApplier, Plugins: c.Plugins,
 			Triggers: c.Triggers, Welcome: c.Welcome})
 
-	if !equals || c.Bugzilla.Default != nil {
+	if !equals || c.Bugzilla.Default != nil || c.Blunderbuss.BlunderbussConfig != nil {
 		global = true
 	}
 	orgs = sets.Set[string]{}
@@ -2540,6 +2728,15 @@ func (c *Configuration) HasConfigFor() (global bool, orgs sets.Set[string], repo
 			repos.Insert(orgOrRepo)
 		} else {
 			orgs.Insert(orgOrRepo)
+		}
+	}
+
+	for org, orgConfig := range c.Blunderbuss.Orgs {
+		if orgConfig.BlunderbussConfig != nil {
+			orgs.Insert(org)
+		}
+		for repo := range orgConfig.Repos {
+			repos.Insert(repo)
 		}
 	}
 
