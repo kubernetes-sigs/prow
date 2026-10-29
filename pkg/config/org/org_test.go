@@ -126,6 +126,16 @@ func TestPruneRepoDefaults(t *testing.T) {
 				DeleteBranchOnMerge: &yes,
 			},
 		},
+		{
+			description: "fork block survives pruning of default metadata",
+			repo: Repo{
+				Description: &empty, // default -> pruned to nil
+				Fork:        &ForkConfig{From: "octocat/Hello-World", DefaultBranchOnly: true},
+			},
+			expected: Repo{
+				Fork: &ForkConfig{From: "octocat/Hello-World", DefaultBranchOnly: true},
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -184,6 +194,19 @@ func TestRepoUnmarshalJSON(t *testing.T) {
 			name:     "private null with visibility set does not conflict",
 			json:     `{"private": null, "visibility": "internal"}`,
 			expected: Repo{Visibility: new(github.RepoVisibilityInternal)},
+		},
+		{
+			name: "fork block is preserved through the custom unmarshal",
+			json: `{"description": "d", "fork": {"from": "octocat/Hello-World", "default_branch_only": true}}`,
+			expected: Repo{
+				Description: new("d"),
+				Fork:        &ForkConfig{From: "octocat/Hello-World", DefaultBranchOnly: true},
+			},
+		},
+		{
+			name:     "fork with only from defaults default_branch_only to false",
+			json:     `{"fork": {"from": "octocat/Hello-World"}}`,
+			expected: Repo{Fork: &ForkConfig{From: "octocat/Hello-World"}},
 		},
 	}
 
@@ -494,5 +517,42 @@ orgs:
 	}
 	if got, want := *repo.Visibility, github.RepoVisibilityPrivate; got != want {
 		t.Errorf("visibility = %q, want %q", got, want)
+	}
+}
+
+func TestForkConfigUpstream(t *testing.T) {
+	testCases := []struct {
+		name      string
+		from      string
+		wantOwner string
+		wantRepo  string
+		wantErr   bool
+	}{
+		{name: "valid owner/repo", from: "octocat/Hello-World", wantOwner: "octocat", wantRepo: "Hello-World"},
+		{name: "empty", from: "", wantErr: true},
+		{name: "no slash", from: "no-slash", wantErr: true},
+		{name: "too many segments", from: "owner/repo/extra", wantErr: true},
+		{name: "empty owner", from: "/repo", wantErr: true},
+		{name: "empty repo", from: "owner/", wantErr: true},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			owner, repo, err := ForkConfig{From: tc.from}.Upstream()
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("expected error for From=%q, got none", tc.from)
+				}
+				if !strings.Contains(err.Error(), "invalid fork from format") {
+					t.Errorf("error %q does not mention the expected format", err.Error())
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if owner != tc.wantOwner || repo != tc.wantRepo {
+				t.Errorf("Upstream() = (%q, %q), want (%q, %q)", owner, repo, tc.wantOwner, tc.wantRepo)
+			}
+		})
 	}
 }
