@@ -1110,3 +1110,60 @@ func TestCloneCommandString(t *testing.T) {
 		})
 	}
 }
+
+func TestShouldFallBackToFullFetch(t *testing.T) {
+	sparseRefs := prowapi.Refs{SparseCheckoutFiles: []string{"inside"}}
+	mergeFailure := Command{
+		Command: "PWD=/repo git merge --no-ff pull-sha",
+		Output:  "Merge made by the 'ort' strategy.\nfatal: remote error: upload-pack: not our ref deadbeef",
+		Error:   "signal: segmentation fault (core dumped)",
+	}
+	testCases := []struct {
+		name   string
+		refs   prowapi.Refs
+		record Record
+		want   bool
+	}{
+		{
+			name:   "post-merge crash",
+			refs:   sparseRefs,
+			record: Record{Failed: true, Commands: []Command{mergeFailure}},
+			want:   true,
+		},
+		{
+			name: "merge conflict",
+			refs: sparseRefs,
+			record: Record{Failed: true, Commands: []Command{
+				{Command: mergeFailure.Command, Output: "CONFLICT (content): Merge conflict in outside.txt", Error: "exit status 1"},
+			}},
+			want: false,
+		},
+		{
+			name: "failed fetch",
+			refs: sparseRefs,
+			record: Record{Failed: true, Commands: []Command{
+				{Command: "PWD=/repo git fetch origin pull-sha", Error: "exit status 128"},
+			}},
+			want: false,
+		},
+		{
+			name:   "non-sparse merge",
+			refs:   prowapi.Refs{},
+			record: Record{Failed: true, Commands: []Command{mergeFailure}},
+			want:   false,
+		},
+		{
+			name:   "successful sparse merge",
+			refs:   sparseRefs,
+			record: Record{Commands: []Command{mergeFailure}},
+			want:   false,
+		},
+	}
+
+	for _, testCase := range testCases {
+		got := shouldFallBackToFullFetch(testCase.refs, testCase.record)
+		if got != testCase.want {
+			t.Errorf("%s: expected fallback %t, got %t", testCase.name, testCase.want, got)
+		}
+	}
+}

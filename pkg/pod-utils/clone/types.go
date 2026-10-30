@@ -37,6 +37,10 @@ type Record struct {
 
 	// Duration is the total runtime for the clone.
 	Duration time.Duration `json:"duration,omitempty"`
+
+	// FellBackToFullFetch is true when a failed sparse merge was retried in a
+	// fresh repository with all objects fetched.
+	FellBackToFullFetch bool `json:"fell_back_to_full_fetch,omitempty"`
 }
 
 // Command is a trace of a command executed

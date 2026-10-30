@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"fmt"
 	"net/url"
+	"os"
 	"os/exec"
 	"path"
 	"strconv"
@@ -70,6 +71,48 @@ func Run(refs prowapi.Refs, dir, gitUserName, gitUserEmail, cookiePath string, e
 			return sets.New[string](token)
 		}))
 	}
+
+	record = runClone(refs, dir, gitUserName, gitUserEmail, cookiePath, env, user, token, false)
+	if shouldFallBackToFullFetch(refs, record) {
+		logrus.WithFields(logrus.Fields{"refs": refs}).Warn("Sparse checkout merge failed, retrying with a full object fetch")
+		failedCommands := record.Commands
+		if err := os.RemoveAll(PathForRefs(dir, refs)); err != nil {
+			logrus.WithError(err).Error("Cannot remove failed clone directory")
+			record.Commands = append(record.Commands, Command{Command: "remove failed clone directory", Error: err.Error()})
+			record.Duration = time.Since(startTime)
+			return record
+		}
+		record = runClone(refs, dir, gitUserName, gitUserEmail, cookiePath, env, user, token, true)
+		record.Commands = append(failedCommands, record.Commands...)
+		record.FellBackToFullFetch = true
+	}
+
+	record.Duration = time.Since(startTime)
+
+	return record
+}
+
+// shouldFallBackToFullFetch reports whether a sparse merge failed for a reason
+// that fetching all objects in a fresh repository might resolve.
+func shouldFallBackToFullFetch(refs prowapi.Refs, record Record) bool {
+	if !record.Failed || !isSparseCheckoutSet(refs) || len(record.Commands) == 0 {
+		return false
+	}
+	failedCommand := record.Commands[len(record.Commands)-1]
+	if !strings.Contains(failedCommand.Command, " git merge --no-ff ") {
+		return false
+	}
+	return !mergeConflictDetected(failedCommand)
+}
+
+func mergeConflictDetected(command Command) bool {
+	return strings.Contains(command.Output, "CONFLICT") || strings.Contains(command.Output, "Automatic merge failed")
+}
+
+// runClone runs the git commands needed to achieve the desired state for refs.
+func runClone(refs prowapi.Refs, dir, gitUserName, gitUserEmail, cookiePath string, env []string, user, token string, fullFetch bool) Record {
+	record := Record{Refs: refs}
+
 	logrus.WithFields(logrus.Fields{"refs": refs}).Info("Cloning refs")
 
 	// This function runs the provided commands in order, logging them as they run,
@@ -102,6 +145,7 @@ func Run(refs prowapi.Refs, dir, gitUserName, gitUserEmail, cookiePath string, e
 	}
 
 	g := gitCtxForRefs(refs, dir, env, user, token)
+	g.fullFetch = fullFetch
 	if err := runCommands(g.commandsForBaseRef(refs, gitUserName, gitUserEmail, cookiePath)); err != nil {
 		return record
 	}
@@ -120,8 +164,6 @@ func Run(refs prowapi.Refs, dir, gitUserName, gitUserEmail, cookiePath string, e
 	} else {
 		record.FinalSHA = finalSHA
 	}
-
-	record.Duration = time.Since(startTime)
 
 	return record
 }
@@ -155,6 +197,7 @@ type gitCtx struct {
 	cloneDir      string
 	env           []string
 	repositoryURI string
+	fullFetch     bool
 }
 
 // gitCtxForRefs creates a gitCtx based on the provide refs and baseDir.
@@ -250,7 +293,7 @@ func (g *gitCtx) commandsForBaseRef(refs prowapi.Refs, gitUserName, gitUserEmail
 		depthArgs = append(depthArgs, "--depth", strconv.Itoa(cloneDepth))
 	}
 	var filterArgs []string
-	if (refs.BloblessFetch != nil && *refs.BloblessFetch) || sparseCheckoutSet {
+	if !g.fullFetch && ((refs.BloblessFetch != nil && *refs.BloblessFetch) || sparseCheckoutSet) {
 		filterArgs = append(filterArgs, "--filter=blob:none")
 	}
 
@@ -356,7 +399,7 @@ func (g *gitCtx) commandsForPullRefs(refs prowapi.Refs, fakeTimestamp int) []run
 	var commands []runnable
 	for _, prRef := range refs.Pulls {
 		var fetchArgs []string
-		if (refs.BloblessFetch != nil && *refs.BloblessFetch) || isSparseCheckoutSet(refs) {
+		if !g.fullFetch && ((refs.BloblessFetch != nil && *refs.BloblessFetch) || isSparseCheckoutSet(refs)) {
 			fetchArgs = append(fetchArgs, "--filter=blob:none")
 		}
 		ref := fmt.Sprintf("pull/%d/head", prRef.Number)
