@@ -28,6 +28,9 @@ func FormatRecord(record Record) string {
 	if record.Failed {
 		fmt.Fprintln(&output, "# FAILED")
 	}
+	if record.FellBackToFullFetch {
+		fmt.Fprintln(&output, "# Sparse checkout merge failed, retried with a full object fetch")
+	}
 	if record.Refs.Repo == "" {
 		fmt.Fprintf(&output, "Environment setup")
 	} else {

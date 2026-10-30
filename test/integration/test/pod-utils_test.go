@@ -19,11 +19,16 @@ package integration
 import (
 	"context"
 	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	prowjobv1 "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/pkg/pod-utils/clone"
 	"sigs.k8s.io/prow/test/integration/internal/fakegitserver"
 
 	coreapi "k8s.io/api/core/v1"
@@ -621,4 +626,128 @@ ls-tree (submodule):
 			}
 		})
 	}
+}
+
+func TestClonerefsRecoversFromPostMergeFailure(t *testing.T) {
+	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
+	sourceDir := t.TempDir()
+	runFixtureGit(t, sourceDir, "init", "-b", "main")
+	runFixtureGit(t, sourceDir, "config", "user.name", "Test")
+	runFixtureGit(t, sourceDir, "config", "user.email", "test@example.com")
+	if err := os.Mkdir(filepath.Join(sourceDir, "inside"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(sourceDir, "inside", "Dockerfile"), []byte("FROM scratch\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	outsidePath := filepath.Join(sourceDir, "outside.txt")
+	if err := os.WriteFile(outsidePath, []byte("a\nb\nc\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	runFixtureGit(t, sourceDir, "add", ".")
+	runFixtureGit(t, sourceDir, "commit", "-m", "base")
+	runFixtureGit(t, sourceDir, "switch", "-c", "pr")
+	if err := os.WriteFile(outsidePath, []byte("a\nb\nC\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	runFixtureGit(t, sourceDir, "commit", "-am", "pr")
+	prSHA := strings.TrimSpace(runFixtureGit(t, sourceDir, "rev-parse", "HEAD"))
+	runFixtureGit(t, sourceDir, "switch", "main")
+	if err := os.WriteFile(outsidePath, []byte("A\nb\nc\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	runFixtureGit(t, sourceDir, "commit", "-am", "main")
+	baseSHA := strings.TrimSpace(runFixtureGit(t, sourceDir, "rev-parse", "HEAD"))
+
+	gitPath, err := exec.LookPath("git")
+	if err != nil {
+		t.Fatal(err)
+	}
+	shimDir := t.TempDir()
+	markerPath := filepath.Join(shimDir, "failed-once")
+	shim := fmt.Sprintf(`#!/bin/sh
+if [ "$1" = merge ] && [ ! -f %q ]; then
+  %q "$@"
+  status=$?
+  if [ "$status" -ne 0 ]; then exit "$status"; fi
+  blob=$(%q rev-parse HEAD:outside.txt)
+  object=".git/objects/$(echo "$blob" | cut -c1-2)/$(echo "$blob" | cut -c3-)"
+  if [ ! -f "$object" ]; then
+    echo "expected a loose merge-result blob at $object" >&2
+    exit 1
+  fi
+  rm "$object" || exit 1
+  touch %q
+  echo "fatal: remote error: upload-pack: not our ref $blob" >&2
+  exit 139
+fi
+exec %q "$@"
+`, markerPath, gitPath, gitPath, markerPath, gitPath)
+	if err := os.WriteFile(filepath.Join(shimDir, "git"), []byte(shim), 0755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", shimDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	refs := prowjobv1.Refs{
+		Org:                 "org",
+		Repo:                "repo",
+		BaseRef:             "main",
+		BaseSHA:             baseSHA,
+		CloneURI:            sourceDir,
+		SparseCheckoutFiles: []string{"inside"},
+		BloblessFetch:       new(true),
+		SkipSubmodules:      true,
+		Pulls: []prowjobv1.Pull{
+			{SHA: prSHA},
+		},
+	}
+	srcRoot := t.TempDir()
+	gitEnv := []string{
+		"GIT_CONFIG_GLOBAL=" + os.DevNull,
+		"PATH=" + os.Getenv("PATH"),
+	}
+	record := clone.Run(refs, srcRoot, "Test", "test@example.com", "", gitEnv, nil, nil)
+	if record.Failed || !record.FellBackToFullFetch {
+		t.Fatalf("expected a successful full-fetch fallback, got %#v", record)
+	}
+	if diff := cmp.Diff(refs, record.Refs); diff != "" {
+		t.Errorf("refs changed during fallback (-want +got):\n%s", diff)
+	}
+	mergeAttempts := 0
+	fullFetchSeen := false
+	missingBlobInjected := false
+	for _, command := range record.Commands {
+		if strings.Contains(command.Command, " git merge --no-ff ") {
+			mergeAttempts++
+		}
+		if strings.Contains(command.Output, "fatal: remote error: upload-pack: not our ref ") {
+			missingBlobInjected = true
+		}
+		if strings.Contains(command.Command, " git fetch --no-tags ") && !strings.Contains(command.Command, "--filter=blob:none") {
+			fullFetchSeen = true
+		}
+	}
+	if mergeAttempts != 2 || !fullFetchSeen || !missingBlobInjected {
+		t.Errorf("expected a failed merge with a missing blob and a full-fetch merge; got %d merges, full fetch %t, missing blob %t", mergeAttempts, fullFetchSeen, missingBlobInjected)
+	}
+	cloneDir := clone.PathForRefs(srcRoot, refs)
+	mergedFile := runFixtureGit(t, cloneDir, "show", "HEAD:outside.txt")
+	if mergedFile != "A\nb\nC\n" {
+		t.Errorf("unexpected merged content: %q", mergedFile)
+	}
+	sparsePaths := runFixtureGit(t, cloneDir, "sparse-checkout", "list")
+	if sparsePaths != "inside\n" {
+		t.Errorf("expected sparse checkout to retain the requested path, got %q", sparsePaths)
+	}
+}
+
+func runFixtureGit(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %v failed: %v\n%s", args, err, output)
+	}
+	return string(output)
 }

@@ -92,6 +92,13 @@ func TestFormatRecord(t *testing.T) {
 			require: []string{"rm /something", "barf", "# Error: command failed"},
 		},
 		{
+			name: "note a fallback to a full object fetch",
+			r: Record{
+				FellBackToFullFetch: true,
+			},
+			require: []string{"# Sparse checkout merge failed, retried with a full object fetch"},
+		},
+		{
 			name: "skip pulls when missing",
 			deny: []string{"Checking out pulls"},
 		},
