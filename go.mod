@@ -6,7 +6,7 @@ require (
 	cloud.google.com/go/auth v0.24.1
 	cloud.google.com/go/cloudbuild v1.36.0
 	cloud.google.com/go/pubsub/v2 v2.7.0
-	cloud.google.com/go/secretmanager v1.22.0
+	cloud.google.com/go/secretmanager v1.23.0
 	cloud.google.com/go/storage v1.70.0
 	github.com/GoogleCloudPlatform/testgrid v0.0.176
 	github.com/NYTimes/gziphandler v1.1.1
