@@ -2037,7 +2037,7 @@ func TestValidateJobBase(t *testing.T) {
 	}
 	cfg := Config{
 		ProwConfig: ProwConfig{
-			Plank:        Plank{JobQueueCapacities: map[string]int{"queue": 0}},
+			Plank:        Plank{JobQueueCapacities: JobQueueCapacities{"queue": 0}},
 			PodNamespace: "target-namespace",
 		},
 	}
@@ -9101,6 +9101,48 @@ slack_reporter_configs:
 	}
 }
 
+func TestJobQueueCapacitiesMergeFrom(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		name       string
+		jqc        JobQueueCapacities
+		additional JobQueueCapacities
+		want       JobQueueCapacities
+		wantErr    string
+	}{
+		{
+			name:       "additional queues are merged in",
+			jqc:        JobQueueCapacities{"aws-account": 1},
+			additional: JobQueueCapacities{"gcp-project": 2},
+			want:       JobQueueCapacities{"aws-account": 1, "gcp-project": 2},
+		},
+		{
+			name:       "duplicate queue name",
+			jqc:        JobQueueCapacities{"aws-account": 1},
+			additional: JobQueueCapacities{"aws-account": 2},
+			wantErr:    "job queue aws-account passed more than once",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := tc.jqc.mergeFrom(&tc.additional)
+			if tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("expected error containing %q, got %v", tc.wantErr, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if diff := cmp.Diff(tc.want, tc.jqc); diff != "" {
+				t.Errorf("JobQueueCapacities differ: %s", diff)
+			}
+		})
+	}
+}
+
 func TestContextDescriptionWithBaseShaRoundTripping(t *testing.T) {
 	t.Parallel()
 	testCases := []struct {
@@ -9444,6 +9486,12 @@ func TestProwConfigMergingProperties(t *testing.T) {
 			name: "SlackReporter configurations",
 			makeMergeable: func(pc *ProwConfig) {
 				*pc = ProwConfig{SlackReporterConfigs: pc.SlackReporterConfigs}
+			},
+		},
+		{
+			name: "Plank job queue capacities",
+			makeMergeable: func(pc *ProwConfig) {
+				*pc = ProwConfig{Plank: Plank{JobQueueCapacities: pc.Plank.JobQueueCapacities}}
 			},
 		},
 	}
