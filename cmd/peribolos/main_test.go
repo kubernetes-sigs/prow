@@ -4919,6 +4919,51 @@ func TestNewRepoUpdateRequest(t *testing.T) {
 			},
 		},
 		{
+			description: "message-only change includes unchanged configured title",
+			current: github.FullRepo{
+				Repo:                     github.Repo{Name: repoName},
+				SquashMergeCommitTitle:   squashMergeCommitTitle,
+				SquashMergeCommitMessage: "PR_BODY",
+			},
+			name: repoName,
+			newState: org.Repo{RepoSettings: org.RepoSettings{
+				SquashMergeCommitTitle:   &squashMergeCommitTitle,
+				SquashMergeCommitMessage: &squashMergeCommitMessage,
+			}},
+			expected: github.RepoUpdateRequest{RepoRequest: github.RepoRequest{
+				SquashMergeCommitTitle:   &squashMergeCommitTitle,
+				SquashMergeCommitMessage: &squashMergeCommitMessage,
+			}},
+		},
+		{
+			description: "message-only change falls back to current title",
+			current: github.FullRepo{
+				Repo:                     github.Repo{Name: repoName},
+				SquashMergeCommitTitle:   "COMMIT_OR_PR_TITLE",
+				SquashMergeCommitMessage: "PR_BODY",
+			},
+			name: repoName,
+			newState: org.Repo{RepoSettings: org.RepoSettings{
+				SquashMergeCommitMessage: &squashMergeCommitMessage,
+			}},
+			expected: github.RepoUpdateRequest{RepoRequest: github.RepoRequest{
+				SquashMergeCommitTitle:   new("COMMIT_OR_PR_TITLE"),
+				SquashMergeCommitMessage: &squashMergeCommitMessage,
+			}},
+		},
+		{
+			description: "unchanged squash message produces no delta",
+			current: github.FullRepo{
+				Repo:                     github.Repo{Name: repoName},
+				SquashMergeCommitTitle:   squashMergeCommitTitle,
+				SquashMergeCommitMessage: squashMergeCommitMessage,
+			},
+			name: repoName,
+			newState: org.Repo{RepoSettings: org.RepoSettings{
+				SquashMergeCommitMessage: &squashMergeCommitMessage,
+			}},
+		},
+		{
 			description: "enabling delete branch on merge produces a delta",
 			current: github.FullRepo{
 				Repo: github.Repo{Name: repoName},

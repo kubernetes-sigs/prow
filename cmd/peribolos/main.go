@@ -1357,6 +1357,11 @@ func newRepoUpdateRequest(current github.FullRepo, name string, repo org.Repo) g
 		Archived:      setIfChanged(current.Archived, repo.Archived),
 	}
 
+	// GitHub requires a squash commit title when updating the message.
+	if repoUpdate.SquashMergeCommitMessage != nil && repoUpdate.SquashMergeCommitTitle == nil {
+		repoUpdate.SquashMergeCommitTitle = &current.SquashMergeCommitTitle
+	}
+
 	return repoUpdate
 
 }
