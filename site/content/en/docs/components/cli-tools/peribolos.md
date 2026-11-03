@@ -118,7 +118,7 @@ orgs:
 * Supported defaults are `allow_squash_merge`, `allow_merge_commit`, `allow_rebase_merge`, `squash_merge_commit_title`, `squash_merge_commit_message`, `delete_branch_on_merge`, `has_issues`, `has_projects` and `has_wiki`. Other fields, including visibility, archival and collaborators, remain per-repository only.
 * Dumps continue to report individual repository settings; they do not infer `repo_defaults` from GitHub state.
 
-Deploy a Peribolos version that supports `repo_defaults` before moving settings into this block. Older versions may ignore it. Use a dry run to review the effective changes before applying defaults across repositories.
+Deploy a Peribolos version that supports `repo_defaults` before moving settings into this block. Older versions may ignore it. Use a dry run with `--fix-repos` to list the repositories that would change.
 
 ### Organization roles
 
