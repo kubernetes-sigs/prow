@@ -28,12 +28,12 @@ import (
 )
 
 func TestRepoWithDefaults(t *testing.T) {
-	defaults := &RepoSettings{
+	defaults := &RepoDefaults{
 		AllowSquashMerge: new(true), AllowMergeCommit: new(true), AllowRebaseMerge: new(true),
 		DeleteBranchOnMerge: new(true), HasIssues: new(true), HasProjects: new(true), HasWiki: new(true),
 		SquashMergeCommitTitle: new("PR_TITLE"), SquashMergeCommitMessage: new("COMMIT_MESSAGES"),
 	}
-	enabled := Repo{RepoSettings: *defaults}
+	enabled := Repo{RepoSettings: RepoSettings(*defaults)}
 	disabledSettings := RepoSettings{
 		AllowSquashMerge: new(false), AllowMergeCommit: new(false), AllowRebaseMerge: new(false),
 		DeleteBranchOnMerge: new(false), HasIssues: new(false), HasProjects: new(false), HasWiki: new(false),
@@ -59,18 +59,18 @@ func TestRepoWithDefaults(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
 		repo     Repo
-		defaults *RepoSettings
+		defaults *RepoDefaults
 		want     Repo
 	}{
 		{name: "no defaults", repo: metadata, want: metadata},
-		{name: "empty defaults", defaults: &RepoSettings{}, want: Repo{}},
+		{name: "empty defaults", defaults: &RepoDefaults{}, want: Repo{}},
 		{name: "inherit all supported fields", defaults: defaults, want: enabled},
 		{name: "false overrides true", repo: disabled, defaults: defaults, want: disabled},
-		{name: "true overrides false", repo: enabled, defaults: &disabledSettings, want: enabled},
-		{name: "partial defaults leave other fields unset", defaults: &RepoSettings{HasWiki: new(false)}, want: Repo{RepoSettings: RepoSettings{HasWiki: new(false)}}},
+		{name: "true overrides false", repo: enabled, defaults: (*RepoDefaults)(&disabledSettings), want: enabled},
+		{name: "partial defaults leave other fields unset", defaults: &RepoDefaults{HasWiki: new(false)}, want: Repo{RepoSettings: RepoSettings{HasWiki: new(false)}}},
 		{name: "explicit empty strings override defaults", repo: Repo{RepoSettings: RepoSettings{
 			SquashMergeCommitTitle: new(""), SquashMergeCommitMessage: new(""),
-		}}, defaults: &RepoSettings{SquashMergeCommitTitle: new("PR_TITLE"), SquashMergeCommitMessage: new("COMMIT_MESSAGES")},
+		}}, defaults: &RepoDefaults{SquashMergeCommitTitle: new("PR_TITLE"), SquashMergeCommitMessage: new("COMMIT_MESSAGES")},
 			want: Repo{RepoSettings: RepoSettings{SquashMergeCommitTitle: new(""), SquashMergeCommitMessage: new("")}}},
 		{name: "preserve repository metadata", repo: metadata, defaults: defaults, want: metadataWithDefaults},
 	} {
@@ -116,7 +116,7 @@ func TestRepoDefaultsConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 	org := cfg.Orgs["example"]
-	wantDefaults := &RepoSettings{
+	wantDefaults := &RepoDefaults{
 		AllowMergeCommit: new(false), DeleteBranchOnMerge: new(true),
 		SquashMergeCommitTitle: new("PR_TITLE"), SquashMergeCommitMessage: new("COMMIT_MESSAGES"),
 	}
@@ -171,6 +171,54 @@ func TestRepoDefaultsConfig(t *testing.T) {
 				t.Errorf("config changed during round trip: %s", diff.Diff(cfg, roundTrip))
 			}
 		})
+	}
+}
+
+func TestRepoDefaultsParsing(t *testing.T) {
+	for _, parser := range []struct {
+		name string
+		fn   func([]byte, any) error
+	}{
+		{name: "json", fn: json.Unmarshal},
+		{name: "yaml", fn: func(data []byte, out any) error {
+			data, err := yaml.JSONToYAML(data)
+			if err != nil {
+				return err
+			}
+			return yaml.Unmarshal(data, out)
+		}},
+	} {
+		for _, tc := range []struct {
+			name    string
+			input   string
+			wantErr string
+		}{
+			{name: "absent", input: `{}`},
+			{name: "null", input: `{"repo_defaults":null}`},
+			{name: "empty", input: `{"repo_defaults":{}}`},
+			{name: "supported", input: `{"repo_defaults":{"allow_merge_commit":false,"has_wiki":null}}`},
+			{name: "visibility", input: `{"repo_defaults":{"visibility":"private"}}`, wantErr: `unknown field "visibility"`},
+			{name: "legacy private", input: `{"repo_defaults":{"private":true}}`, wantErr: `unknown field "private"`},
+			{name: "archival", input: `{"repo_defaults":{"archived":true}}`, wantErr: `unknown field "archived"`},
+			{name: "typo", input: `{"repo_defaults":{"allow_merge_comit":false}}`, wantErr: `unknown field "allow_merge_comit"`},
+			{name: "unknown null", input: `{"repo_defaults":{"visibility":null}}`, wantErr: `unknown field "visibility"`},
+			{name: "wrong type", input: `{"repo_defaults":{"has_wiki":"invalid"}}`, wantErr: "cannot unmarshal"},
+			{name: "repo parsing remains permissive", input: `{"repos":{"example":{"private":true,"description":"example","unknown":true}}}`},
+		} {
+			t.Run(parser.name+"/"+tc.name, func(t *testing.T) {
+				var cfg Config
+				err := parser.fn([]byte(tc.input), &cfg)
+				if tc.wantErr == "" {
+					if err != nil {
+						t.Fatal(err)
+					}
+					return
+				}
+				if err == nil || !strings.Contains(err.Error(), "repo_defaults:") || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("expected repo_defaults error containing %q, got %v", tc.wantErr, err)
+				}
+			})
+		}
 	}
 }
 

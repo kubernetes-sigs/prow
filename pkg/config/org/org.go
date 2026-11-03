@@ -17,6 +17,7 @@ limitations under the License.
 package org
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -124,9 +125,25 @@ type RepoSettings struct {
 	HasWiki             *bool `json:"has_wiki,omitempty"`
 }
 
+// RepoDefaults declares the settings supported by org-level repository defaults.
+// It is separate from RepoSettings so strict decoding does not affect Repo parsing.
+type RepoDefaults RepoSettings
+
+// UnmarshalJSON rejects unsupported settings rather than silently ignoring them.
+func (r *RepoDefaults) UnmarshalJSON(data []byte) error {
+	var settings RepoSettings
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&settings); err != nil {
+		return fmt.Errorf("repo_defaults: %w", err)
+	}
+	*r = RepoDefaults(settings)
+	return nil
+}
+
 // WithDefaults returns a copy of the repo with unset settings filled from defaults.
 // Explicit repository values, including false, take precedence. Neither input is modified.
-func (r Repo) WithDefaults(defaults *RepoSettings) Repo {
+func (r Repo) WithDefaults(defaults *RepoDefaults) Repo {
 	if defaults == nil {
 		return r
 	}
@@ -163,7 +180,7 @@ func (r Repo) WithDefaults(defaults *RepoSettings) Repo {
 // Config declares org metadata as well as its people and teams.
 type Config struct {
 	Metadata
-	RepoDefaults *RepoSettings   `json:"repo_defaults,omitempty"`
+	RepoDefaults *RepoDefaults   `json:"repo_defaults,omitempty"`
 	Teams        map[string]Team `json:"teams,omitempty"`
 	Members      []string        `json:"members,omitempty"`
 	Admins       []string        `json:"admins,omitempty"`

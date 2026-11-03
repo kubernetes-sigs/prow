@@ -4685,7 +4685,7 @@ func TestConfigureRepos(t *testing.T) {
 }
 
 func TestConfigureReposWithDefaults(t *testing.T) {
-	defaults := &org.RepoSettings{
+	defaults := &org.RepoDefaults{
 		AllowSquashMerge: new(true), AllowMergeCommit: new(true), AllowRebaseMerge: new(true),
 		DeleteBranchOnMerge: new(true), HasIssues: new(true), HasProjects: new(true), HasWiki: new(true),
 		SquashMergeCommitTitle: new("PR_TITLE"), SquashMergeCommitMessage: new("COMMIT_MESSAGES"),
@@ -4706,7 +4706,7 @@ func TestConfigureReposWithDefaults(t *testing.T) {
 	overridden.SquashMergeCommitMessage = "PR_BODY"
 	for _, tc := range []struct {
 		name     string
-		defaults *org.RepoSettings
+		defaults *org.RepoDefaults
 		repo     org.Repo
 		existing []github.FullRepo
 		want     github.FullRepo
@@ -4717,19 +4717,19 @@ func TestConfigureReposWithDefaults(t *testing.T) {
 		{name: "create with squash commit overrides", defaults: defaults, repo: squashOverrides, want: overridden},
 		{name: "update with squash commit overrides", defaults: defaults, repo: squashOverrides,
 			existing: []github.FullRepo{enabled}, want: overridden},
-		{name: "create with false override", defaults: &org.RepoSettings{DeleteBranchOnMerge: new(true)},
+		{name: "create with false override", defaults: &org.RepoDefaults{DeleteBranchOnMerge: new(true)},
 			repo: org.Repo{RepoSettings: org.RepoSettings{DeleteBranchOnMerge: new(false)}}, want: disabled},
-		{name: "update with false override", defaults: &org.RepoSettings{DeleteBranchOnMerge: new(true)},
+		{name: "update with false override", defaults: &org.RepoDefaults{DeleteBranchOnMerge: new(true)},
 			repo:     org.Repo{RepoSettings: org.RepoSettings{DeleteBranchOnMerge: new(false)}},
 			existing: []github.FullRepo{deleteBranches}, want: disabled},
-		{name: "create with true override", defaults: &org.RepoSettings{DeleteBranchOnMerge: new(false)},
+		{name: "create with true override", defaults: &org.RepoDefaults{DeleteBranchOnMerge: new(false)},
 			repo: org.Repo{RepoSettings: org.RepoSettings{DeleteBranchOnMerge: new(true)}}, want: deleteBranches},
-		{name: "update with true override", defaults: &org.RepoSettings{DeleteBranchOnMerge: new(false)},
+		{name: "update with true override", defaults: &org.RepoDefaults{DeleteBranchOnMerge: new(false)},
 			repo: org.Repo{RepoSettings: org.RepoSettings{DeleteBranchOnMerge: new(true)}}, existing: []github.FullRepo{disabled}, want: deleteBranches},
-		{name: "inherited false updates existing repo", defaults: &org.RepoSettings{DeleteBranchOnMerge: new(false)},
+		{name: "inherited false updates existing repo", defaults: &org.RepoDefaults{DeleteBranchOnMerge: new(false)},
 			existing: []github.FullRepo{deleteBranches}, want: disabled},
 		{name: "absent defaults leave unspecified settings alone", existing: []github.FullRepo{enabled}, want: enabled},
-		{name: "empty defaults leave unspecified settings alone", defaults: &org.RepoSettings{}, existing: []github.FullRepo{enabled}, want: enabled},
+		{name: "empty defaults leave unspecified settings alone", defaults: &org.RepoDefaults{}, existing: []github.FullRepo{enabled}, want: enabled},
 		{name: "archived repo remains untouched", defaults: defaults, repo: org.Repo{Archived: new(true)},
 			existing: []github.FullRepo{archived}, want: archived},
 		{name: "archived repo with unspecified archival remains untouched", defaults: defaults,
