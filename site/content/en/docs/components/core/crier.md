@@ -73,8 +73,11 @@ The prior manifest is read back on reconciliation, retaining observations across
 process restarts. A changed observer identifier explicitly marks a restart. Run
 only one active Crier observer per job destination; concurrent writers are not
 coordinated and can overwrite observations. Failed storage reads do not overwrite
-history. Failed uploads leave the prior manifest;
-later observations may record an interval gap. If storage stays unavailable, a
+history. Prior manifests with unsupported versions, different run start times, out-of-bound
+collections, or non-allowlisted coverage/decision strings are rejected rather than
+republished. This validation does not repair already stored objects.
+Failed uploads leave the prior manifest; later observations may record an interval
+gap. If storage stays unavailable, a
 final manifest cannot be guaranteed: a missing or nonfinal artifact is incomplete
 coverage. Optional failures produce a fixed warning without raw API errors.
 Baseline pod information is uploaded and its finalizer released before optional
@@ -84,11 +87,13 @@ scheduling gates, job deadlines, rescheduling, or retries.
 
 ### Operator opt-in permissions
 
-In addition to the existing build-cluster pod/event reads and pod-finalizer patch
-permissions, the Crier build-cluster identity needs a ClusterRole allowing only
-`list` on core `nodes` and `pods`, bound to that identity. Pod reads across
-namespaces are necessary for cross-namespace occupancy. Event lists remain scoped
-to the parent namespace and UID. RBAC cannot restrict returned fields: the collector
+The existing Kubernetes reporter uses core `pods` `get` and `patch` (finalizer)
+and core `events` `list` in the parent namespace, plus core `nodes` `get` for baseline
+pod information. In addition, the Crier build-cluster identity needs a ClusterRole
+allowing only `list` on core `nodes` and `pods`, bound to that identity. All-namespace
+pod lists are necessary for cross-namespace occupancy. Event lists remain scoped
+to the parent namespace and UID. No new `watch` permission is needed. RBAC cannot
+restrict returned fields: the collector
 enforces the public projection in code. Review the broader read visibility before
 opting in. No secrets, exec, host, cloud, or `pods/log` access is required.
 

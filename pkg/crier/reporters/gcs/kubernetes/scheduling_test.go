@@ -1,3 +1,19 @@
+/*
+Copyright The Kubernetes Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package kubernetes
 
 import (
@@ -8,6 +24,7 @@ import (
 	"net/http/httptest"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -231,6 +248,23 @@ func TestProjectDecisions(t *testing.T) {
 	}
 }
 
+func TestProjectDecisionsIdentityAndEventTime(t *testing.T) {
+	_, resources, _, _, now := evidenceFixture()
+	event := corev1.Event{InvolvedObject: corev1.ObjectReference{UID: resources.pod.UID, Kind: "Pod"}, ReportingController: "cluster-autoscaler", Reason: "FailedToScaleUp", EventTime: metav1.NewMicroTime(now)}
+	if diff := cmp.Diff(map[string]int{"scale_up_failed": 1}, projectDecisions([]corev1.Event{event}, resources.pod, now)); diff != "" {
+		t.Fatal(diff)
+	}
+	event.InvolvedObject.Kind = "Node"
+	if len(projectDecisions([]corev1.Event{event}, resources.pod, now)) != 0 {
+		t.Fatal("accepted another object kind")
+	}
+	event.InvolvedObject.Kind = "Pod"
+	event.InvolvedObject.UID, resources.pod.UID = "", ""
+	if len(projectDecisions([]corev1.Event{event}, resources.pod, now)) != 0 {
+		t.Fatal("accepted events without a parent UID")
+	}
+}
+
 func TestSchedulingOptionalFailure(t *testing.T) {
 	for _, test := range []struct {
 		name                       string
@@ -292,6 +326,96 @@ func TestSchedulingAllow(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			if got := collector.allow("job", now.Add(test.offset)); got != test.want {
 				t.Fatalf("got %v want %v", got, test.want)
+			}
+		})
+	}
+}
+
+func TestSchedulingAllowConcurrent(t *testing.T) {
+	collector := &schedulingCollector{attempts: make(map[string]time.Time)}
+	now := time.Now()
+	for interval := range 2 {
+		results := make(chan bool, 64)
+		var workers sync.WaitGroup
+		for range cap(results) {
+			workers.Go(func() {
+				results <- collector.allow("job", now.Add(time.Duration(interval)*time.Minute))
+			})
+		}
+		workers.Wait()
+		close(results)
+		admitted := 0
+		for allowed := range results {
+			if allowed {
+				admitted++
+			}
+		}
+		if admitted != 1 {
+			t.Fatalf("admitted %d attempts in one interval, want 1", admitted)
+		}
+	}
+}
+
+func TestSchedulingAllowCapacity(t *testing.T) {
+	collector := &schedulingCollector{attempts: make(map[string]time.Time)}
+	now := time.Now()
+	for index := range 1024 {
+		if !collector.allow(strconv.Itoa(index), now) {
+			t.Fatal("capacity reached too early")
+		}
+	}
+	if collector.allow("overflow", now) || len(collector.attempts) != 1024 {
+		t.Fatal("throttle exceeded capacity")
+	}
+	if !collector.allow("0", now.Add(time.Minute)) {
+		t.Fatal("capacity blocked an existing job")
+	}
+	if !collector.allow("overflow", now.Add(2*time.Hour)) || len(collector.attempts) != 1 {
+		t.Fatal("idle attempts did not expire")
+	}
+}
+
+func TestSchedulingRejectsUnsafeHistory(t *testing.T) {
+	for _, field := range []string{"gap", "nodes", "pods", "events", "decision", "decision count", "occupancy count", "other run", "version", "sample bound", "worker bound"} {
+		t.Run(field, func(t *testing.T) {
+			reporter, _, opener, pj, now := evidenceFixture()
+			if _, err := reporter.schedulingEvidence(context.Background(), pj, now); err != nil {
+				t.Fatal(err)
+			}
+			history := readEvidence(t, opener)
+			switch field {
+			case "gap":
+				history.Gaps = append(history.Gaps, "private-error")
+			case "nodes":
+				history.Samples[0].NodesStatus = "private-node"
+			case "pods":
+				history.Samples[0].PodsStatus = "private-pod"
+			case "events":
+				history.Samples[0].EventsStatus = "private-message"
+			case "decision":
+				history.Samples[0].Decisions = map[string]int{"private-message": 1}
+			case "decision count":
+				history.Samples[0].Decisions = map[string]int{"scheduler_rejected": maxSchedulingEvents + 1}
+			case "occupancy count":
+				history.Samples[0].Workers = []workerOccupancy{{Unmeasured: -1}}
+			case "other run":
+				history.Start = now.Add(-time.Hour)
+			case "version":
+				history.Version++
+			case "sample bound":
+				history.Samples = make([]schedulingSample, maxSchedulingSamples+1)
+			case "worker bound":
+				history.Samples[0].Workers = make([]workerOccupancy, maxWorkers+1)
+			}
+			for _, buffer := range opener.Buffer {
+				buffer.Reset()
+				if err := json.NewEncoder(buffer).Encode(history); err != nil {
+					t.Fatal(err)
+				}
+			}
+			opener.WriteError = errors.New("unexpected rewrite")
+			if _, err := reporter.schedulingEvidence(context.Background(), pj, now.Add(time.Minute)); err == nil || err.Error() != "invalid scheduling evidence history" {
+				t.Fatalf("unsafe history not rejected before upload: %v", err)
 			}
 		})
 	}
@@ -365,10 +489,15 @@ type orderedEvidenceOpener struct {
 	*fakeopener.FakeOpener
 	calls              *[]string
 	failOptionalUpload bool
+	cancelOptional     context.CancelFunc
 }
 
 func (opener *orderedEvidenceOpener) Reader(ctx context.Context, destination string) (prowio.ReadCloser, error) {
 	*opener.calls = append(*opener.calls, "optional read")
+	if opener.cancelOptional != nil {
+		opener.cancelOptional()
+		return nil, ctx.Err()
+	}
 	return opener.FakeOpener.Reader(ctx, destination)
 }
 
@@ -384,7 +513,7 @@ func (opener *orderedEvidenceOpener) Writer(ctx context.Context, destination str
 }
 
 func TestSchedulingFinalizerOrdering(t *testing.T) {
-	for _, failure := range []string{"optional read", "optional API", "optional upload", "baseline upload", "finalizer patch"} {
+	for _, failure := range []string{"optional read", "optional API", "optional upload", "optional cancellation", "baseline upload", "finalizer patch"} {
 		t.Run(failure, func(t *testing.T) {
 			reporter, resources, opener, pj, _ := evidenceFixture()
 			pj.Status.State = prowv1.ErrorState
@@ -393,18 +522,23 @@ func TestSchedulingFinalizerOrdering(t *testing.T) {
 			resources.patchData = `{"metadata":{"finalizers":null}}`
 			calls := []string{}
 			reporter.rg = &orderedEvidenceResources{evidenceResources: resources, calls: &calls}
-			reporter.opener = &orderedEvidenceOpener{FakeOpener: opener, calls: &calls, failOptionalUpload: failure == "optional upload"}
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			storage := &orderedEvidenceOpener{FakeOpener: opener, calls: &calls, failOptionalUpload: failure == "optional upload"}
+			reporter.opener = storage
 			switch failure {
 			case "optional read":
 				opener.ReadError = errors.New("optional storage failure")
 			case "optional API":
 				resources.sourceErr = errors.New("optional API failure")
+			case "optional cancellation":
+				storage.cancelOptional = cancel
 			case "baseline upload":
 				opener.WriteError = errors.New("baseline storage failure")
 			case "finalizer patch":
 				resources.patchErr = errors.New("patch failure")
 			}
-			result, err := reporter.report(context.Background(), logrus.NewEntry(logrus.New()), pj)
+			result, err := reporter.report(ctx, logrus.NewEntry(logrus.New()), pj)
 			wantError := failure == "baseline upload" || failure == "finalizer patch"
 			if (err != nil) != wantError || result != nil {
 				t.Fatalf("result=%v err=%v, wantError=%v", result, err, wantError)

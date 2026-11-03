@@ -323,6 +323,23 @@ type patchTrackingClient struct {
 	patches int
 }
 
+func TestPendingRequeueDoesNotRecordReportedState(t *testing.T) {
+	job := &prowv1.ProwJob{ObjectMeta: v1.ObjectMeta{Name: "pending-job"}, Spec: prowv1.ProwJobSpec{Job: "pending-job", Report: true}, Status: prowv1.ProwJobStatus{State: prowv1.PendingState}}
+	client := &patchTrackingClient{Client: fakectrlruntimeclient.NewClientBuilder().WithRuntimeObjects(job).Build()}
+	reporter := &fakeReporter{shouldReportFunc: func(*prowv1.ProwJob) bool { return true }, res: &reconcile.Result{RequeueAfter: time.Minute}}
+	controller := &reconciler{pjclientset: client, reporter: reporter}
+	request := ctrlruntime.Request{NamespacedName: types.NamespacedName{Name: job.Name}}
+	for range 3 {
+		result, err := controller.Reconcile(context.Background(), request)
+		if err != nil || result.RequeueAfter != time.Minute {
+			t.Fatalf("pending reconciliation: result=%v err=%v", result, err)
+		}
+	}
+	if len(reporter.reported) != 3 || client.patches != 0 {
+		t.Fatalf("repeated pending reporting stopped: reports=%d patches=%d", len(reporter.reported), client.patches)
+	}
+}
+
 func (c *patchTrackingClient) Patch(ctx context.Context, obj ctrlruntimeclient.Object, patch ctrlruntimeclient.Patch, opts ...ctrlruntimeclient.PatchOption) error {
 	c.patches++
 	return c.Client.Patch(ctx, obj, patch, opts...)

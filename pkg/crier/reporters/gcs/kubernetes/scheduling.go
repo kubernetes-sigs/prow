@@ -1,3 +1,19 @@
+/*
+Copyright The Kubernetes Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package kubernetes
 
 import (
@@ -8,6 +24,7 @@ import (
 	"errors"
 	"io"
 	"path"
+	"slices"
 	"sort"
 	"sync"
 	"time"
@@ -133,6 +150,41 @@ func addGap(manifest *schedulingManifest, gap string) {
 	manifest.Gaps = append(manifest.Gaps, gap)
 }
 
+func validSchedulingHistory(manifest *schedulingManifest, start time.Time) bool {
+	if manifest.Version != 1 || !manifest.Start.Equal(start) || len(manifest.Samples) > maxSchedulingSamples {
+		return false
+	}
+	for _, gap := range manifest.Gaps {
+		switch gap {
+		case "history_before_first_observation_unavailable", "observer_restart", "observation_gap", "sample_limit_reached", "sampling_stopped_after_assignment", "parent_forbidden", "parent_cancelled", "parent_error":
+		default:
+			return false
+		}
+	}
+	statuses := []string{"available", "forbidden", "cancelled", "error", "unavailable", "truncated", "outside_run_window_or_assigned"}
+	for _, sample := range manifest.Samples {
+		if len(sample.Workers) > maxWorkers || !slices.Contains(statuses, sample.NodesStatus) || !slices.Contains(statuses, sample.PodsStatus) || !slices.Contains(statuses, sample.EventsStatus) {
+			return false
+		}
+		for decision, count := range sample.Decisions {
+			switch decision {
+			case "scheduler_rejected", "scheduler_assigned", "scale_up_triggered", "scale_up_not_triggered", "scale_up_failed":
+			default:
+				return false
+			}
+			if count < 0 || count > maxSchedulingEvents {
+				return false
+			}
+		}
+		for _, worker := range sample.Workers {
+			if worker.Measured < 0 || worker.Measured > maxOccupants || worker.Unmeasured < 0 || worker.Unmeasured > maxOccupants || worker.Unlabelled < 0 || worker.Unlabelled > maxOccupants {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 func (collector *schedulingCollector) allow(key string, now time.Time) bool {
 	collector.mu.Lock()
 	defer collector.mu.Unlock()
@@ -188,8 +240,8 @@ func (gr *gcsK8sReporter) schedulingEvidence(ctx context.Context, pj *prowv1.Pro
 		if closeErr != nil {
 			return true, closeErr
 		}
-		if len(manifest.Samples) > maxSchedulingSamples {
-			return true, errors.New("evidence exceeds sample bound")
+		if !validSchedulingHistory(&manifest, pj.CreationTimestamp.Time) {
+			return true, errors.New("invalid scheduling evidence history")
 		}
 		if manifest.Observer != gr.evidence.epoch {
 			addGap(&manifest, "observer_restart")
