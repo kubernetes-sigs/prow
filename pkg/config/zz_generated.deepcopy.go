@@ -207,6 +207,13 @@ func (in *Preset) DeepCopyInto(out *Preset) {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
+	if in.IncludePresets != nil {
+		in, out := &in.IncludePresets, &out.IncludePresets
+		*out = make(map[string]string, len(*in))
+		for key, val := range *in {
+			(*out)[key] = val
+		}
+	}
 	return
 }
 
