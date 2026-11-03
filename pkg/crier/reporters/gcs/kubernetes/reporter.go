@@ -51,6 +51,7 @@ type gcsK8sReporter struct {
 	opener         io.Opener
 	rg             resourceGetter
 	reportFraction float32
+	evidence       *schedulingCollector
 }
 
 type PodReport struct {
@@ -129,6 +130,9 @@ func (gr *gcsK8sReporter) report(ctx context.Context, log *logrus.Entry, pj *pro
 		if err := gr.addFinalizer(ctx, pj); err != nil {
 			return nil, fmt.Errorf("failed to add finalizer to pod: %w", err)
 		}
+		if gr.evidence != nil && pj.Status.State == prowv1.PendingState && gr.collectScheduling(ctx, log, pj) {
+			return &reconcile.Result{RequeueAfter: schedulingInterval}, nil
+		}
 		return nil, nil
 	}
 
@@ -138,7 +142,11 @@ func (gr *gcsK8sReporter) report(ctx context.Context, log *logrus.Entry, pj *pro
 		return &reconcile.Result{RequeueAfter: 10 * time.Second}, nil
 	}
 
-	return nil, gr.reportPodInfo(ctx, log, pj)
+	err = gr.reportPodInfo(ctx, log, pj)
+	if gr.evidence != nil {
+		gr.collectScheduling(ctx, log, pj)
+	}
+	return nil, err
 }
 
 func (gr *gcsK8sReporter) addFinalizer(ctx context.Context, pj *prowv1.ProwJob) error {

@@ -75,7 +75,8 @@ type options struct {
 
 	instrumentationOptions prowflagutil.InstrumentationOptions
 
-	k8sReportFraction float64
+	k8sReportFraction  float64
+	schedulingEvidence bool
 
 	dryrun      bool
 	reportAgent string
@@ -84,6 +85,9 @@ type options struct {
 }
 
 func (o *options) validate() error {
+	if o.schedulingEvidence && o.k8sBlobStorageWorkers <= 0 {
+		return errors.New("--kubernetes-scheduling-evidence requires Kubernetes blob storage workers")
+	}
 	if o.gerritWorkers+o.pubsubWorkers+o.githubWorkers+o.slackWorkers+o.blobStorageWorkers+o.k8sBlobStorageWorkers+o.resultStoreWorkers <= 0 {
 		return errors.New("crier need to have at least one report worker to start")
 	}
@@ -132,6 +136,7 @@ func (o *options) parseArgs(fs *flag.FlagSet, args []string) error {
 	fs.IntVar(&o.blobStorageWorkers, "blob-storage-workers", 0, "Number of blob storage report workers (0 means disabled)")
 	fs.IntVar(&o.k8sBlobStorageWorkers, "kubernetes-blob-storage-workers", 0, "Number of Kubernetes-specific blob storage report workers (0 means disabled)")
 	fs.Float64Var(&o.k8sReportFraction, "kubernetes-report-fraction", 1.0, "Approximate portion of jobs to report pod information for, if kubernetes-blob-storage-workers are enabled (0 - > none, 1.0 -> all)")
+	fs.BoolVar(&o.schedulingEvidence, "kubernetes-scheduling-evidence", false, "Collect bounded public scheduling evidence outside unscheduled job pods (requires additional read-only RBAC)")
 	fs.StringVar(&o.slackTokenFile, "slack-token-file", "", "Path to a Slack token file")
 	fs.StringVar(&o.reportAgent, "report-agent", "", "Only report specified agent - empty means report to all agents (effective for github and Slack only)")
 	fs.IntVar(&o.resultStoreWorkers, "resultstore-workers", 0, "Number of ResultStore report workers (0 means disabled)")
@@ -296,6 +301,11 @@ func main() {
 			}
 
 			k8sGcsReporter := k8sgcsreporter.New(cfg, opener, k8sgcsreporter.NewK8sResourceGetter(coreClients), float32(o.k8sReportFraction), o.dryrun)
+			if o.schedulingEvidence {
+				if err := k8sGcsReporter.EnableSchedulingEvidence(); err != nil {
+					logrus.Fatal("Could not initialize scheduling evidence")
+				}
+			}
 			if err := crier.New(mgr, k8sGcsReporter, o.k8sBlobStorageWorkers, o.githubEnablement.EnablementChecker()); err != nil {
 				logrus.WithError(err).Fatal("failed to construct k8sgcsreporter controller")
 			}

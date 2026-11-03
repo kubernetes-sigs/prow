@@ -7,6 +7,96 @@ description: >
 
 Crier reports your prowjobs on their status changes.
 
+## Optional scheduling evidence
+
+`--kubernetes-scheduling-evidence` is disabled by default and requires positive
+`--kubernetes-blob-storage-workers`. It enables an independent collector in Crier,
+not in the job's containers. A parent pod need not have started any container.
+It writes `scheduling-evidence.json` beside `podinfo.json`, using the same job
+destination, storage client, and visibility. It respects Kubernetes report sampling
+and dry-run. No deployment permissions are changed automatically.
+
+While the parent is unassigned, the reporter requests another reconciliation after
+one minute. Additional job events cannot cause more than one attempt per minute
+per job in an observer process. The throttle holds at most 1024 jobs, expires idle
+entries after an hour, and skips optional collection at capacity. There are at most
+32 observations per job, plus a terminal event refresh replacing the last observation
+when necessary. Sampling stops after assignment or the sample limit. Each optional
+attempt has a five-second deadline within the existing reporter deadline. It makes
+at most one bounded list each for workers (200), all-namespace occupants (2000), and
+parent-UID events (1000), without following continuation tokens. Partial pages are
+explicitly marked `truncated`, never interpreted as a complete inventory.
+
+### Public data contract
+
+The projection contains timestamps, coverage states, and sorted anonymous worker
+occupancy rows: Ready condition, the inverse of `spec.unschedulable`, and counts
+of nonterminal assigned pods whose `pod-scaler.openshift.io/measured` label is
+`true`, `false`, or neither. Rows relate occupancy categories to individual workers
+within an observation, but deliberately cannot correlate worker identities across
+observations. These are occupancy observations, not an eligibility simulation:
+taints, tolerations, resource fit, and arbitrary affinity are not evaluated.
+
+No node, pod, namespace, or customer identities, addresses, provider IDs, images,
+environment, annotations, arbitrary labels, raw event messages, or API error text
+are copied into this new artifact. Its random observer identifier is unrelated to
+cluster identities. Existing `podinfo.json` behavior and its data policy are unchanged.
+
+Only `Pod` events matching the parent's nonempty UID and creation-to-observation
+(or completion) time window are counted. Recognized scheduler events are
+`FailedScheduling` and `Scheduled` from `default-scheduler`. Recognized autoscaler
+events are `TriggeredScaleUp`, `NotTriggerScaleUp`, and `FailedToScaleUp` from
+`cluster-autoscaler`. Output uses fixed reason categories, not messages or raw
+producer strings. Counts describe matching event objects, not cumulative event
+occurrences; repeated snapshots are not additive. Aggregated events use the last
+observation timestamp and do not establish when every occurrence happened.
+
+**Events do not provide full autoscaler controller reasoning.** The manifest always
+sets `controller_logs` to `unavailable_not_collected`. Restricted controller-log
+capture is unimplemented. Implementing it would require a separate privacy and
+retention design, a restricted destination, and namespace-scoped log permissions;
+operators must not upload raw controller logs to the public job destination.
+
+### Coverage and failures
+
+The artifact is updated after each observation and finalized on job completion.
+After assignment or completion, event decisions can be refreshed but current
+occupancy is not reported as historical run-window evidence.
+It is also visible for jobs that eventually succeed. It records that history before
+the first observation is unavailable, observer restarts, gaps exceeding two minutes,
+assignment and sample-limit stops, parent access failures, and per-source
+`available`, `forbidden`, `cancelled`, `error`, or `truncated` states. Snapshots are
+not atomic across sources. Event retention and observation intervals can hide
+decisions; empty results are not proof that no scaling action occurred.
+
+The prior manifest is read back on reconciliation, retaining observations across
+process restarts. A changed observer identifier explicitly marks a restart. Run
+only one active Crier observer per job destination; concurrent writers are not
+coordinated and can overwrite observations. Failed storage reads do not overwrite
+history. Failed uploads leave the prior manifest;
+later observations may record an interval gap. If storage stays unavailable, a
+final manifest cannot be guaranteed: a missing or nonfinal artifact is incomplete
+coverage. Optional failures produce a fixed warning without raw API errors.
+Baseline pod information is uploaded and its finalizer released before optional
+terminal capture. Optional failure cannot block that baseline operation or retry
+completed jobs indefinitely. The collector does not alter affinity, placement,
+scheduling gates, job deadlines, rescheduling, or retries.
+
+### Operator opt-in permissions
+
+In addition to the existing build-cluster pod/event reads and pod-finalizer patch
+permissions, the Crier build-cluster identity needs a ClusterRole allowing only
+`list` on core `nodes` and `pods`, bound to that identity. Pod reads across
+namespaces are necessary for cross-namespace occupancy. Event lists remain scoped
+to the parent namespace and UID. RBAC cannot restrict returned fields: the collector
+enforces the public projection in code. Review the broader read visibility before
+opting in. No secrets, exec, host, cloud, or `pods/log` access is required.
+
+Roll out the Crier image containing this feature first, review the read-only RBAC,
+then enable the flag on a small deployment with existing worker limits. Check
+coverage states and API/storage load before widening rollout. Disable the flag to
+restore baseline behavior. This change supplies no cluster manifest or live rollout.
+
 ## Usage / How to enable existing available reporters
 
 For any reporter you want to use, you need to mount your prow configs and specify `--config-path` and `job-config-path`

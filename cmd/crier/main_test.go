@@ -230,6 +230,29 @@ func TestOptions(t *testing.T) {
 	}
 }
 
+func TestSchedulingEvidenceOptions(t *testing.T) {
+	for _, test := range []struct {
+		name             string
+		args             []string
+		enabled, invalid bool
+	}{
+		{name: "disabled by default", args: []string{"--kubernetes-blob-storage-workers=1", "--config-path=foo"}},
+		{name: "explicit opt in", args: []string{"--kubernetes-blob-storage-workers=1", "--config-path=foo", "--kubernetes-scheduling-evidence"}, enabled: true},
+		{name: "requires Kubernetes reporter", args: []string{"--blob-storage-workers=1", "--config-path=foo", "--kubernetes-scheduling-evidence"}, invalid: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var options options
+			err := options.parseArgs(flag.NewFlagSet(test.name, flag.ContinueOnError), test.args)
+			if (err != nil) != test.invalid {
+				t.Fatalf("unexpected validation result: %v", err)
+			}
+			if err == nil && options.schedulingEvidence != test.enabled {
+				t.Fatal("unexpected evidence enablement")
+			}
+		})
+	}
+}
+
 /*
 The GitHubOptions object has several private fields and objects
 This unit testing covers only the public portions
