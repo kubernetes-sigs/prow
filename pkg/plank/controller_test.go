@@ -104,7 +104,7 @@ func newFakeConfigAgent(t *testing.T, maxConcurrency int, queueCapacities map[st
 						MaxConcurrency: maxConcurrency,
 						MaxGoroutines:  20,
 					},
-					JobQueueCapacities:    queueCapacities,
+					JobQueueCapacities:    config.JobQueueCapacities(queueCapacities),
 					PodPendingTimeout:     &metav1.Duration{Duration: podPendingTimeout},
 					PodRunningTimeout:     &metav1.Duration{Duration: podRunningTimeout},
 					PodUnscheduledTimeout: &metav1.Duration{Duration: podUnscheduledTimeout},

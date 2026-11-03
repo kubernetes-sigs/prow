@@ -414,7 +414,7 @@ func TestMaxConcurrencyConsidersCacheStaleness(t *testing.T) {
 					Controller: config.Controller{
 						JobURLTemplate: &template.Template{},
 					},
-					JobQueueCapacities: map[string]int{"queue-1": 1},
+					JobQueueCapacities: config.JobQueueCapacities{"queue-1": 1},
 				}}}
 			}
 
