@@ -191,7 +191,14 @@ See `go run ./cmd/peribolos --help` for the full and current list of settings th
 
 * `--report-path=` - if set, peribolos writes a machine-readable JSON report of every change it decided on during the run to this file. The flag is opt-in: when it is unset no report is produced, and nothing is ever written to stdout or the log stream for the report, so the existing per-change log lines are unchanged. The file is created before reconciliation begins, so a bad path fails the run immediately rather than after changes have been applied. `--report-path` cannot be combined with `--dump`.
 
-The report lists the same changes in dry-run and in `--confirm` mode, because `--confirm` only gates the mutating API call, not the decision to make it. A change is recorded only after its mutating call succeeds: in dry-run every call is a no-op that succeeds, so the report lists all planned changes; with `--confirm` a call that fails is not recorded, so the report lists exactly the changes that were applied.
+A change is recorded only after its mutating call succeeds, and `--confirm` only gates that mutating call, not the decision to make it. Under `--confirm` the report therefore lists exactly the changes that were applied: a call that fails records nothing.
+
+In dry-run every mutating call is a no-op that succeeds, so the report is a best-effort *plan* rather than a guaranteed account of what `--confirm` would do. For existing objects the plan matches what `--confirm` would apply, but for objects the run would create it can diverge, because dry-run still reads current state from GitHub while the skipped mutations return synthesized results:
+
+* A new team's members and child teams are omitted, because listing the members of a team that does not exist yet fails and that team is skipped.
+* A run that also reconciles a new team's repos (`--fix-team-repos`) or a new repo's collaborators (`--fix-collaborators`) stops at that object, because the same listing fails.
+* A new repo with a `default_branch` set is reported with an extra `update` that `--confirm` applies only if the branch differs from the one GitHub assigns on creation.
+* A newly invited user who is also given an org role is reported with an `org_role_user` add that `--confirm` skips while the invitation is pending.
 
 Example:
 
