@@ -142,10 +142,8 @@ func (rg k8sResourceGetter) SchedulingEvents(ctx context.Context, cluster string
 }
 
 func addGap(manifest *schedulingManifest, gap string) {
-	for _, existing := range manifest.Gaps {
-		if existing == gap {
-			return
-		}
+	if slices.Contains(manifest.Gaps, gap) {
+		return
 	}
 	manifest.Gaps = append(manifest.Gaps, gap)
 }

@@ -248,6 +248,88 @@ func TestProjectDecisions(t *testing.T) {
 	}
 }
 
+func TestSchedulingOccupancyCategories(t *testing.T) {
+	reporter, resources, _, pj, now := evidenceFixture()
+	resources.nodes.Items = []corev1.Node{
+		{ObjectMeta: metav1.ObjectMeta{Name: "private-ready-worker"}, Status: corev1.NodeStatus{Conditions: []corev1.NodeCondition{{Type: corev1.NodeReady, Status: corev1.ConditionTrue}}}},
+		{ObjectMeta: metav1.ObjectMeta{Name: "private-cordoned-worker"}, Spec: corev1.NodeSpec{Unschedulable: true}},
+	}
+	for _, occupant := range []struct {
+		worker, measured string
+		phase            corev1.PodPhase
+	}{
+		{worker: "private-ready-worker", measured: "true"},
+		{worker: "private-ready-worker", measured: "false"},
+		{worker: "private-ready-worker"},
+		{worker: "private-cordoned-worker", measured: "false"},
+		{worker: "private-ready-worker", measured: "false", phase: corev1.PodSucceeded},
+		{worker: "private-ready-worker", measured: "false", phase: corev1.PodFailed},
+		{measured: "false"},
+		{worker: "private-other-worker", measured: "false"},
+	} {
+		resources.pods.Items = append(resources.pods.Items, corev1.Pod{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"pod-scaler.openshift.io/measured": occupant.measured}}, Spec: corev1.PodSpec{NodeName: occupant.worker}, Status: corev1.PodStatus{Phase: occupant.phase}})
+	}
+	sample := reporter.observeScheduling(context.Background(), pj, resources.pod, now, now)
+	want := []workerOccupancy{{Unmeasured: 1}, {Ready: true, Schedulable: true, Measured: 1, Unmeasured: 1, Unlabelled: 1}}
+	if diff := cmp.Diff(want, sample.Workers); diff != "" {
+		t.Fatalf("occupancy categories lost worker correlation (-want +got): %s", diff)
+	}
+	data, err := json.Marshal(sample)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "private") {
+		t.Fatalf("worker identity leaked: %s", data)
+	}
+}
+
+func TestSchedulingProjectionLimits(t *testing.T) {
+	reporter, resources, _, pj, now := evidenceFixture()
+	for index := range maxWorkers + 1 {
+		resources.nodes.Items = append(resources.nodes.Items, corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "worker-" + strconv.Itoa(index)}})
+	}
+	for range maxOccupants + 1 {
+		resources.pods.Items = append(resources.pods.Items, corev1.Pod{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"pod-scaler.openshift.io/measured": "false"}}, Spec: corev1.PodSpec{NodeName: "worker-0"}})
+	}
+	for range maxSchedulingEvents + 1 {
+		resources.eventList.Items = append(resources.eventList.Items, corev1.Event{InvolvedObject: corev1.ObjectReference{UID: resources.pod.UID, Kind: "Pod"}, Source: corev1.EventSource{Component: "default-scheduler"}, Reason: "FailedScheduling", LastTimestamp: metav1.NewTime(now)})
+	}
+	sample := reporter.observeScheduling(context.Background(), pj, resources.pod, now, now)
+	if sample.NodesStatus != "truncated" || sample.PodsStatus != "truncated" || sample.EventsStatus != "truncated" {
+		t.Fatalf("oversized lists not marked partial: %+v", sample)
+	}
+	occupants := 0
+	for _, worker := range sample.Workers {
+		occupants += worker.Unmeasured
+	}
+	if len(sample.Workers) != maxWorkers || occupants != maxOccupants || sample.Decisions["scheduler_rejected"] != maxSchedulingEvents {
+		t.Fatalf("projection exceeded bounds: workers=%d occupants=%d decisions=%v", len(sample.Workers), occupants, sample.Decisions)
+	}
+}
+
+func TestSchedulingTerminalSampleLimit(t *testing.T) {
+	reporter, _, opener, pj, now := evidenceFixture()
+	for index := range maxSchedulingSamples {
+		if _, err := reporter.schedulingEvidence(context.Background(), pj, now.Add(time.Duration(index)*time.Minute)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	before := readEvidence(t, opener)
+	pj.Status.State = prowv1.ErrorState
+	completed := metav1.NewTime(now.Add(maxSchedulingSamples * time.Minute))
+	pj.Status.CompletionTime = &completed
+	if _, err := reporter.schedulingEvidence(context.Background(), pj, completed.Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	after := readEvidence(t, opener)
+	if !after.Final || len(after.Samples) != maxSchedulingSamples || !strings.Contains(strings.Join(after.Gaps, ","), "sample_limit_reached") {
+		t.Fatalf("terminal refresh did not preserve the sample bound: %+v", after)
+	}
+	if diff := cmp.Diff(before.Samples[:maxSchedulingSamples-1], after.Samples[:maxSchedulingSamples-1]); diff != "" {
+		t.Fatalf("terminal refresh changed earlier observations: %s", diff)
+	}
+}
+
 func TestProjectDecisionsIdentityAndEventTime(t *testing.T) {
 	_, resources, _, _, now := evidenceFixture()
 	event := corev1.Event{InvolvedObject: corev1.ObjectReference{UID: resources.pod.UID, Kind: "Pod"}, ReportingController: "cluster-autoscaler", Reason: "FailedToScaleUp", EventTime: metav1.NewMicroTime(now)}
@@ -352,6 +434,24 @@ func TestSchedulingAllowConcurrent(t *testing.T) {
 		}
 		if admitted != 1 {
 			t.Fatalf("admitted %d attempts in one interval, want 1", admitted)
+		}
+	}
+}
+
+func TestSchedulingPendingSamplingThrottle(t *testing.T) {
+	reporter, _, opener, pj, _ := evidenceFixture()
+	for attempt, wantSamples := range []int{1, 1, 2} {
+		if attempt == 2 {
+			reporter.evidence.mu.Lock()
+			reporter.evidence.attempts[pj.Name] = time.Now().Add(-schedulingInterval)
+			reporter.evidence.mu.Unlock()
+		}
+		result, err := reporter.report(context.Background(), logrus.NewEntry(logrus.New()), pj)
+		if err != nil || result == nil || result.RequeueAfter != schedulingInterval {
+			t.Fatalf("pending report %d: result=%v err=%v", attempt, result, err)
+		}
+		if got := len(readEvidence(t, opener).Samples); got != wantSamples {
+			t.Fatalf("pending report %d retained %d samples, want %d", attempt, got, wantSamples)
 		}
 	}
 }
@@ -579,7 +679,7 @@ func TestSchedulingProductionLists(t *testing.T) {
 					t.Errorf("unexpected list request: %s %s", request.Method, request.URL)
 				}
 				writer.Header().Set("Content-Type", "application/json")
-				if err := json.NewEncoder(writer).Encode(map[string]interface{}{"apiVersion": "v1", "kind": test.kind, "metadata": map[string]string{"continue": "next-page"}, "items": []interface{}{}}); err != nil {
+				if err := json.NewEncoder(writer).Encode(map[string]any{"apiVersion": "v1", "kind": test.kind, "metadata": map[string]string{"continue": "next-page"}, "items": []any{}}); err != nil {
 					t.Error(err)
 				}
 			}))
