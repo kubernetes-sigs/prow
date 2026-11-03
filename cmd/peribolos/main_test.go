@@ -4732,6 +4732,8 @@ func TestConfigureReposWithDefaults(t *testing.T) {
 		{name: "empty defaults leave unspecified settings alone", defaults: &org.RepoSettings{}, existing: []github.FullRepo{enabled}, want: enabled},
 		{name: "archived repo remains untouched", defaults: defaults, repo: org.Repo{Archived: new(true)},
 			existing: []github.FullRepo{archived}, want: archived},
+		{name: "archived repo with unspecified archival remains untouched", defaults: defaults,
+			existing: []github.FullRepo{archived}, want: archived},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// An unlisted repository must not inherit defaults.

@@ -1442,11 +1442,9 @@ func configureRepos(opt options, client repoClient, orgName string, orgConfig or
 		}
 
 		if existing != nil {
-			if existing.Archived {
-				if wantRepo.Archived != nil && *wantRepo.Archived {
-					repoLogger.Infof("repo %q is archived, skipping changes", wantName)
-					continue
-				}
+			if existing.Archived && (wantRepo.Archived == nil || *wantRepo.Archived) {
+				repoLogger.Infof("repo %q is archived, skipping changes", wantName)
+				continue
 			}
 			repoLogger.Info("repo exists, considering an update")
 			delta := newRepoUpdateRequest(*existing, wantName, wantRepo)
