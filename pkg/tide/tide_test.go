@@ -3333,6 +3333,7 @@ func TestPresubmitsByPull(t *testing.T) {
 		Number:     githubql.Int(100),
 		HeadRefOID: githubql.String("sha"),
 	}
+	samplePR.Commits.Nodes = []struct{ Commit Commit }{{Commit: Commit{OID: samplePR.HeadRefOID}}}
 	testcases := []struct {
 		name string
 
@@ -4319,6 +4320,9 @@ func TestPresubmitsForBatch(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 
+			for _, pr := range tc.prs {
+				pr.GitHub.Commits.Nodes = []struct{ Commit Commit }{{Commit: Commit{OID: githubql.String(pr.HeadRefOID)}}}
+			}
 			if tc.changedFiles == nil {
 				tc.changedFiles = &changedFilesAgent{
 					changeCache: map[changeCacheKey][]string{},
@@ -4390,6 +4394,150 @@ func TestPresubmitsForBatch(t *testing.T) {
 				t.Errorf("returned presubmits do not match expected, diff: %v\n", diff.Diff(tc.expected, presubmits))
 			}
 		})
+	}
+}
+
+func TestRetestManuallyTriggeredPresubmit(t *testing.T) {
+	const baseSHA = "8d287a3aeae90fd0aef4a70009c715712ff302cd"
+	const oldBaseSHA = "c22a32add1a36daf3b16af3762b3922e70c9626a"
+	manual := config.Presubmit{JobBase: config.JobBase{Name: "manual"}, Reporter: config.Reporter{Context: "manual"}}
+	makePR := func(number int, contexts ...Context) CodeReviewCommon {
+		return *CodeReviewCommonFromPullRequest(getPR("org", "repo", number, func(pr *PullRequest) {
+			pr.HeadRefOID = githubql.String(fmt.Sprintf("head-%d", number))
+			pr.BaseRef.Name = githubql.String(defaultBranch)
+			pr.Commits.Nodes = []struct{ Commit Commit }{{Commit: Commit{
+				OID: pr.HeadRefOID, Status: CommitStatus{Contexts: contexts},
+			}}}
+		}))
+	}
+	contextFor := func(state githubql.StatusState, base string) Context {
+		return Context{Context: "manual", State: state, Description: githubql.String(config.ContextDescriptionWithBaseSha("Job result.", base))}
+	}
+	tests := []struct {
+		name     string
+		job      config.Presubmit
+		contexts []Context
+		state    prowapi.ProwJobState
+		selected bool
+		serial   simpleState
+	}{
+		{name: "never triggered", serial: successState},
+		{name: "stale success", contexts: []Context{contextFor(githubql.StatusStateSuccess, oldBaseSHA)}, selected: true, serial: failureState},
+		{name: "current success after prowjob collection", contexts: []Context{contextFor(githubql.StatusStateSuccess, baseSHA)}, selected: true, serial: successState},
+		{name: "pending retest", contexts: []Context{contextFor(githubql.StatusStatePending, baseSHA)}, state: prowapi.PendingState, selected: true, serial: pendingState},
+		{name: "failed retest", contexts: []Context{contextFor(githubql.StatusStateFailure, baseSHA)}, state: prowapi.FailureState, selected: true, serial: failureState},
+		{name: "success without base metadata", contexts: []Context{contextFor(githubql.StatusStateSuccess, "")}, selected: true, serial: failureState},
+		{name: "unrelated context", contexts: []Context{{Context: "other", State: githubql.StatusStateSuccess}}, serial: successState},
+		{name: "optional", job: config.Presubmit{Optional: true, Reporter: manual.Reporter}, contexts: []Context{contextFor(githubql.StatusStateSuccess, oldBaseSHA)}, serial: successState},
+		{name: "non reporting", job: config.Presubmit{Reporter: config.Reporter{Context: "manual", SkipReport: true}}, contexts: []Context{contextFor(githubql.StatusStateSuccess, oldBaseSHA)}, serial: successState},
+		{name: "excluded branch", job: config.Presubmit{Reporter: manual.Reporter, Brancher: config.Brancher{Branches: []string{"other"}}}, contexts: []Context{contextFor(githubql.StatusStateSuccess, oldBaseSHA)}, serial: successState},
+		{name: "previous head context", contexts: nil, serial: successState},
+		{name: "skip retest", contexts: []Context{{Context: "manual", State: githubql.StatusStateSuccess, Description: githubql.String(config.SkipRetestSentinel)}}, serial: successState},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			job := tc.job
+			if reflect.DeepEqual(job, config.Presubmit{}) {
+				job = manual
+			}
+			cfg := &config.Config{}
+			cfg.SetPresubmits(map[string][]config.Presubmit{"org/repo": {job}})
+			cfgAgent := &config.Agent{}
+			cfgAgent.Set(cfg)
+			log := logrus.WithField("test", tc.name)
+			provider := newGitHubProvider(log, nil, nil, cfgAgent.Config, nil, false)
+			c := &syncController{config: cfgAgent.Config, provider: provider, logger: log,
+				changedFiles: &changedFilesAgent{provider: provider}}
+			pr := makePR(1, tc.contexts...)
+			if tc.name == "previous head context" {
+				pr.GitHub.Commits.Nodes = append(pr.GitHub.Commits.Nodes, struct{ Commit Commit }{Commit: Commit{
+					OID: "previous-head", Status: CommitStatus{Contexts: []Context{contextFor(githubql.StatusStateSuccess, oldBaseSHA)}},
+				}})
+			}
+			sp := subpool{org: "org", repo: "repo", branch: defaultBranch, sha: baseSHA, prs: []CodeReviewCommon{pr}, log: log}
+			presubmits, err := c.presubmitsByPull(&sp)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := len(presubmits[1]) > 0; got != tc.selected {
+				t.Fatalf("serial selection = %v, want %v", got, tc.selected)
+			}
+			var pjs []prowapi.ProwJob
+			if tc.state != "" {
+				pjs = []prowapi.ProwJob{{Spec: prowapi.ProwJobSpec{Type: prowapi.PresubmitJob, Context: "manual", Refs: &prowapi.Refs{
+					BaseSHA: baseSHA, Pulls: []prowapi.Pull{{Number: 1, SHA: pr.HeadRefOID}},
+				}}, Status: prowapi.ProwJobStatus{State: tc.state}}}
+			}
+			successes, pendings, missings, missingTests := c.accumulate(presubmits, sp.prs, pjs, baseSHA)
+			switch tc.serial {
+			case successState:
+				if len(successes) != 1 || len(missingTests) != 0 {
+					t.Fatalf("expected serial success, got successes=%v missing=%v", successes, missingTests)
+				}
+			case pendingState:
+				if len(pendings) != 1 || len(successes) != 0 {
+					t.Fatalf("expected serial pending, got pending=%v successes=%v", pendings, successes)
+				}
+			case failureState:
+				if len(missings) != 1 || len(missingTests[1]) != 1 {
+					t.Fatalf("expected missing manual retest, got missing=%v tests=%v", missings, missingTests)
+				}
+			}
+			// Only the second constituent has activated the manual job. Its result
+			// must select the job once, even if it passed against the current base.
+			prs := []CodeReviewCommon{makePR(2), pr}
+			batchJobs, err := c.presubmitsForBatch(prs, "org", "repo", baseSHA, defaultBranch)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := len(batchJobs) > 0; got != tc.selected || len(batchJobs) > 1 {
+				t.Fatalf("batch jobs = %v, selected = %v", batchJobs, tc.selected)
+			}
+			if !tc.selected {
+				return
+			}
+			sp.prs = prs
+			refs := &prowapi.Refs{BaseSHA: baseSHA, Pulls: []prowapi.Pull{{Number: 2, SHA: prs[0].HeadRefOID}, {Number: 1, SHA: pr.HeadRefOID}}}
+			for _, state := range []prowapi.ProwJobState{"", prowapi.PendingState, prowapi.FailureState, prowapi.SuccessState} {
+				// Another passing batch job supplies the batch refs. It cannot
+				// satisfy the missing manual test.
+				sp.pjs = []prowapi.ProwJob{{Spec: prowapi.ProwJobSpec{Type: prowapi.BatchJob, Context: "other", Refs: refs}, Status: prowapi.ProwJobStatus{State: prowapi.SuccessState}}}
+				if state != "" {
+					sp.pjs = append(sp.pjs, prowapi.ProwJob{Spec: prowapi.ProwJobSpec{Type: prowapi.BatchJob, Context: "manual", Refs: refs}, Status: prowapi.ProwJobStatus{State: state}})
+				}
+				success, pending := c.accumulateBatch(sp)
+				if (len(success) == 2) != (state == prowapi.SuccessState) || (len(pending) == 2) != (state == prowapi.PendingState) {
+					t.Fatalf("batch state %q: success=%v pending=%v", state, success, pending)
+				}
+			}
+		})
+	}
+}
+
+func TestManualPresubmitContextLookupFailure(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.SetPresubmits(map[string][]config.Presubmit{"org/repo": {{Reporter: config.Reporter{Context: "manual"}}}})
+	ca := &config.Agent{}
+	ca.Set(cfg)
+	log := logrus.WithField("test", t.Name())
+	ghc := &ghcInterceptor{c: &fgc{}, interceptors: githubClientFuncs{
+		GetCombinedStatus: func(githubClient, string, string, string) (*github.CombinedStatus, error) {
+			return nil, errors.New("context lookup failed")
+		},
+	}}
+	provider := newGitHubProvider(log, ghc, nil, ca.Config, nil, false)
+	c := &syncController{config: ca.Config, provider: provider, logger: log, changedFiles: &changedFilesAgent{provider: provider}}
+	pr := *CodeReviewCommonFromPullRequest(getPR("org", "repo", 1))
+	sp := &subpool{org: "org", repo: "repo", branch: defaultBranch, prs: []CodeReviewCommon{pr}}
+	presubmits, err := c.presubmitsByPull(sp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sp.prs) != 0 || len(presubmits) != 0 {
+		t.Fatalf("PR with unknown manual-job requirements retained: prs=%v jobs=%v", sp.prs, presubmits)
+	}
+	if _, err := c.presubmitsForBatch([]CodeReviewCommon{pr}, "org", "repo", "base", defaultBranch); err == nil {
+		t.Fatal("batch selection succeeded despite context lookup failure")
 	}
 }
 
