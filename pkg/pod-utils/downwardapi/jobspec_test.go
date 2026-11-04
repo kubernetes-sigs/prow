@@ -25,7 +25,7 @@ import (
 )
 
 func TestEnvironmentForSpec(t *testing.T) {
-	var tests = []struct {
+	tests := []struct {
 		name     string
 		spec     JobSpec
 		expected map[string]string
@@ -160,6 +160,102 @@ func TestEnvironmentForSpec(t *testing.T) {
 			},
 		},
 		{
+			name: "presubmit job triggered by a comment",
+			spec: JobSpec{
+				Type:      prowapi.PresubmitJob,
+				Job:       "job-name",
+				BuildID:   "0",
+				ProwJobID: "prowjob",
+				Refs: &prowapi.Refs{
+					Org:     "org-name",
+					Repo:    "repo-name",
+					BaseRef: "base-ref",
+					BaseSHA: "base-sha",
+					Pulls: []prowapi.Pull{{
+						Number:  1,
+						Author:  "author-name",
+						SHA:     "pull-sha",
+						HeadRef: "branch-name",
+						Title:   "pull-title",
+					}},
+				},
+				TriggerComment: &prowapi.TriggerComment{
+					ID:      987654321,
+					HTMLURL: "https://github.com/org-name/repo-name/pull/1#issuecomment-987654321",
+				},
+			},
+			expected: map[string]string{
+				"CI":                  "true",
+				"JOB_NAME":            "job-name",
+				"BUILD_ID":            "0",
+				"PROW_JOB_ID":         "prowjob",
+				"JOB_TYPE":            "presubmit",
+				"JOB_SPEC":            `{"type":"presubmit","job":"job-name","buildid":"0","prowjobid":"prowjob","refs":{"org":"org-name","repo":"repo-name","base_ref":"base-ref","base_sha":"base-sha","pulls":[{"number":1,"author":"author-name","sha":"pull-sha","title":"pull-title","head_ref":"branch-name"}]},"trigger_comment":{"id":987654321,"html_url":"https://github.com/org-name/repo-name/pull/1#issuecomment-987654321"}}`,
+				"REPO_OWNER":          "org-name",
+				"REPO_NAME":           "repo-name",
+				"SRC_BASE":            "org-name/repo-name",
+				"SRC_HOST":            "github.com",
+				"PULL_BASE_REF":       "base-ref",
+				"PULL_BASE_SHA":       "base-sha",
+				"PULL_REFS":           "base-ref:base-sha,1:pull-sha",
+				"PULL_HEAD_REF":       "branch-name",
+				"PULL_NUMBER":         "1",
+				"PULL_PULL_SHA":       "pull-sha",
+				"PULL_TITLE":          "pull-title",
+				"TRIGGER_COMMENT_ID":  "987654321",
+				"TRIGGER_COMMENT_URL": "https://github.com/org-name/repo-name/pull/1#issuecomment-987654321",
+			},
+		},
+		{
+			// Review-body and PR-body events have a URL but no comment ID (ID==0).
+			// Only TRIGGER_COMMENT_URL should be emitted; TRIGGER_COMMENT_ID must be absent.
+			name: "presubmit job triggered by a review (url-only, no comment id)",
+			spec: JobSpec{
+				Type:      prowapi.PresubmitJob,
+				Job:       "job-name",
+				BuildID:   "0",
+				ProwJobID: "prowjob",
+				Refs: &prowapi.Refs{
+					Org:     "org-name",
+					Repo:    "repo-name",
+					BaseRef: "base-ref",
+					BaseSHA: "base-sha",
+					Pulls: []prowapi.Pull{{
+						Number:  1,
+						Author:  "author-name",
+						SHA:     "pull-sha",
+						HeadRef: "branch-name",
+						Title:   "pull-title",
+					}},
+				},
+				TriggerComment: &prowapi.TriggerComment{
+					// ID intentionally zero — mirrors a PR review event
+					HTMLURL: "https://github.com/org-name/repo-name/pull/1#pullrequestreview-111",
+				},
+			},
+			expected: map[string]string{
+				"CI":                  "true",
+				"JOB_NAME":            "job-name",
+				"BUILD_ID":            "0",
+				"PROW_JOB_ID":         "prowjob",
+				"JOB_TYPE":            "presubmit",
+				"JOB_SPEC":            `{"type":"presubmit","job":"job-name","buildid":"0","prowjobid":"prowjob","refs":{"org":"org-name","repo":"repo-name","base_ref":"base-ref","base_sha":"base-sha","pulls":[{"number":1,"author":"author-name","sha":"pull-sha","title":"pull-title","head_ref":"branch-name"}]},"trigger_comment":{"html_url":"https://github.com/org-name/repo-name/pull/1#pullrequestreview-111"}}`,
+				"REPO_OWNER":          "org-name",
+				"REPO_NAME":           "repo-name",
+				"SRC_BASE":            "org-name/repo-name",
+				"SRC_HOST":            "github.com",
+				"PULL_BASE_REF":       "base-ref",
+				"PULL_BASE_SHA":       "base-sha",
+				"PULL_REFS":           "base-ref:base-sha,1:pull-sha",
+				"PULL_HEAD_REF":       "branch-name",
+				"PULL_NUMBER":         "1",
+				"PULL_PULL_SHA":       "pull-sha",
+				"PULL_TITLE":          "pull-title",
+				"TRIGGER_COMMENT_URL": "https://github.com/org-name/repo-name/pull/1#pullrequestreview-111",
+				// TRIGGER_COMMENT_ID must NOT be present when ID is zero
+			},
+		},
+		{
 			name: "postsubmit job with path alias",
 			spec: JobSpec{
 				Type:      prowapi.PostsubmitJob,
@@ -272,7 +368,7 @@ func TestEnvironmentForSpec(t *testing.T) {
 }
 
 func TestGetRevisionFromSpec(t *testing.T) {
-	var tests = []struct {
+	tests := []struct {
 		name     string
 		spec     JobSpec
 		expected string
