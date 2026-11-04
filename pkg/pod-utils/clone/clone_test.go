@@ -20,11 +20,14 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
 	prowapi "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
+	"sigs.k8s.io/prow/pkg/git/localgit"
 
 	"github.com/google/go-cmp/cmp"
 )
@@ -602,6 +605,7 @@ func TestCommandsForRefs(t *testing.T) {
 					cloneCommand{dir: "/go/src/github.com/org/repo", command: "git", args: []string{"fetch", "--filter=blob:none", "https://github.com/org/repo.git", "pull-me"}},
 					fetchRetries,
 				},
+				bestEffortCommand{cloneCommand{dir: "/go/src/github.com/org/repo", command: "git", args: []string{"merge-tree", "--write-tree", "HEAD", "FETCH_HEAD"}}},
 				cloneCommand{dir: "/go/src/github.com/org/repo", command: "git", args: []string{"merge", "--no-ff", "FETCH_HEAD"}, env: gitTimestampEnvs(fakeTimestamp + 1)},
 				cloneCommand{dir: "/go/src/github.com/org/repo", command: "git", args: []string{"submodule", "update", "--init", "--recursive"}},
 			},
@@ -689,6 +693,7 @@ func TestCommandsForRefs(t *testing.T) {
 					cloneCommand{dir: "/go/src/github.com/org/repo", command: "git", args: []string{"fetch", "--filter=blob:none", "https://github.com/org/repo.git", "pull-sha"}},
 					fetchRetries,
 				},
+				bestEffortCommand{cloneCommand{dir: "/go/src/github.com/org/repo", command: "git", args: []string{"merge-tree", "--write-tree", "HEAD", "pull-sha"}}},
 				cloneCommand{dir: "/go/src/github.com/org/repo", command: "git", args: []string{"merge", "--no-ff", "pull-sha"}, env: gitTimestampEnvs(fakeTimestamp + 1)},
 				cloneCommand{dir: "/go/src/github.com/org/repo", command: "git", args: []string{"submodule", "update", "--init", "--recursive"}},
 			},
@@ -853,7 +858,7 @@ func TestCommandsForRefs(t *testing.T) {
 		},
 	}
 
-	allow := cmp.AllowUnexported(retryCommand{}, cloneCommand{})
+	allow := cmp.AllowUnexported(retryCommand{}, bestEffortCommand{}, cloneCommand{})
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			g := gitCtxForRefs(testCase.refs, testCase.dir, testCase.env, testCase.authUser, testCase.authToken)
@@ -865,6 +870,139 @@ func TestCommandsForRefs(t *testing.T) {
 			actualPull := g.commandsForPullRefs(testCase.refs, fakeTimestamp)
 			if diff := cmp.Diff(actualPull, testCase.expectedPull, allow); diff != "" {
 				t.Errorf("commandsForPullRefs() got unexpected diff (-got, +want):\n%s", diff)
+			}
+		})
+	}
+}
+
+// TestRunMergesInPartialClone runs real git against a local server. Git 2.54 and
+// later fail the merge by asking the server for the merged blob when two things
+// hold: the merged blob shares its first OID byte with a blob the merge looked up
+// earlier, which is what seed 9 achieves, and the same lazy fetch needs a blob
+// that really is missing, which is what added.txt is for. Older git merges these
+// either way, so the merge cases can only catch the bug on git 2.54 or later.
+func TestRunMergesInPartialClone(t *testing.T) {
+	const (
+		org  = "org"
+		repo = "repo"
+		file = "outdir/file.txt"
+	)
+	content := func(first, last string) []byte {
+		return fmt.Appendf(nil, "%s\nseed 9\nmiddle\nmiddle\n%s\n", first, last)
+	}
+	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	t.Setenv("GIT_DEFAULT_HASH", "sha1")
+
+	testCases := []struct {
+		name         string
+		refs         prowapi.Refs
+		pullByRef    bool
+		prFirstLine  string
+		wantConflict bool
+	}{
+		{
+			name:        "blobless",
+			refs:        prowapi.Refs{BloblessFetch: new(true)},
+			prFirstLine: "first",
+		},
+		{
+			name:        "blobless, pull by ref",
+			refs:        prowapi.Refs{BloblessFetch: new(true)},
+			pullByRef:   true,
+			prFirstLine: "first",
+		},
+		{
+			name:        "sparse checkout",
+			refs:        prowapi.Refs{SparseCheckoutFiles: []string{"inside"}},
+			prFirstLine: "first",
+		},
+		{
+			name:         "conflict is reported by git merge",
+			refs:         prowapi.Refs{BloblessFetch: new(true)},
+			prFirstLine:  "conflicting",
+			wantConflict: true,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			lg, c, err := localgit.NewV2()
+			if err != nil {
+				t.Fatalf("Making local git repo: %v", err)
+			}
+			defer func() {
+				if err := lg.Clean(); err != nil {
+					t.Errorf("Error cleaning LocalGit: %v", err)
+				}
+				if err := c.Clean(); err != nil {
+					t.Errorf("Error cleaning Client: %v", err)
+				}
+			}()
+			lg.InitialBranch = "main"
+			check := func(err error) {
+				t.Helper()
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			git := func(dir string, args ...string) string {
+				t.Helper()
+				cmd := exec.Command("git", args...)
+				cmd.Dir = dir
+				out, err := cmd.Output()
+				check(err)
+				return strings.TrimSpace(string(out))
+			}
+
+			check(lg.MakeFakeRepo(org, repo))
+			server := filepath.Join(lg.Dir, org, repo)
+			git(server, "config", "uploadpack.allowFilter", "true")
+			git(server, "config", "uploadpack.allowAnySHA1InWant", "true")
+			check(lg.AddCommit(org, repo, map[string][]byte{
+				"inside/Dockerfile": []byte("FROM scratch\n"),
+				file:                content("first", "last"),
+			}))
+			mergeBase := git(server, "rev-parse", "HEAD")
+			check(lg.CheckoutNewBranch(org, repo, "pr"))
+			check(lg.AddCommit(org, repo, map[string][]byte{
+				"outdir/added.txt": []byte("added\n"),
+				file:               content(testCase.prFirstLine, "theirs"),
+			}))
+			pull := prowapi.Pull{Number: 1, SHA: git(server, "rev-parse", "HEAD")}
+			if testCase.pullByRef {
+				pull = prowapi.Pull{Number: 1, Ref: "pr"}
+			}
+			check(lg.Checkout(org, repo, "main"))
+			check(lg.AddCommit(org, repo, map[string][]byte{file: content("ours", "last")}))
+
+			refs := testCase.refs
+			refs.Org, refs.Repo = org, repo
+			refs.BaseRef, refs.BaseSHA = "main", git(server, "rev-parse", "HEAD")
+			refs.CloneURI = "file://" + server
+			refs.SkipSubmodules = true
+			refs.Pulls = []prowapi.Pull{pull}
+			srcRoot := t.TempDir()
+			record := Run(refs, srcRoot, "test", "test@test.test", "", nil, nil, nil)
+
+			if testCase.wantConflict {
+				last := record.Commands[len(record.Commands)-1]
+				if !record.Failed || !strings.Contains(last.Command, "merge --no-ff") || !strings.Contains(last.Output, "CONFLICT") {
+					t.Fatalf("expected git merge to report the conflict:\n%s", FormatRecord(record))
+				}
+				return
+			}
+			if record.Failed {
+				t.Fatalf("clone failed:\n%s", FormatRecord(record))
+			}
+			clone := PathForRefs(srcRoot, refs)
+			got := git(clone, "show", "HEAD:"+file) + "\n"
+			if diff := cmp.Diff(got, string(content("ours", "theirs"))); diff != "" {
+				t.Errorf("unexpected merge result (-got, +want):\n%s", diff)
+			}
+			merged, baseBlob := git(clone, "rev-parse", "HEAD:"+file), git(server, "rev-parse", mergeBase+":"+file)
+			if merged[:2] != baseBlob[:2] {
+				t.Errorf("fixture no longer triggers the bug: merged blob %s and merge-base blob %s have different first OID bytes", merged, baseBlob)
 			}
 		})
 	}
