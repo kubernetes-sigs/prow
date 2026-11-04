@@ -354,9 +354,10 @@ func (g *gitCtx) gitRevParse() (string, error) {
 // set of base and pull refs are used.
 func (g *gitCtx) commandsForPullRefs(refs prowapi.Refs, fakeTimestamp int) []runnable {
 	var commands []runnable
+	partialClone := (refs.BloblessFetch != nil && *refs.BloblessFetch) || isSparseCheckoutSet(refs)
 	for _, prRef := range refs.Pulls {
 		var fetchArgs []string
-		if (refs.BloblessFetch != nil && *refs.BloblessFetch) || isSparseCheckoutSet(refs) {
+		if partialClone {
 			fetchArgs = append(fetchArgs, "--filter=blob:none")
 		}
 		ref := fmt.Sprintf("pull/%d/head", prRef.Number)
@@ -373,6 +374,15 @@ func (g *gitCtx) commandsForPullRefs(refs prowapi.Refs, fakeTimestamp int) []run
 			prCheckout = prRef.SHA
 		} else {
 			prCheckout = "FETCH_HEAD"
+		}
+		if partialClone {
+			// Works around a regression in git 2.54 and later: git merge can ask
+			// the server for a blob it just wrote, which fails the merge. Writing
+			// those blobs first in a separate process avoids that. git merge
+			// reports any real problem, so this step's result is ignored. Remove
+			// this once clonerefs ships a fixed git.
+			// https://lore.kernel.org/git/yrjh1p92qc7w.fsf@pohly-mobl1.fritz.box/
+			commands = append(commands, bestEffortCommand{g.gitCommand("merge-tree", "--write-tree", "HEAD", prCheckout)})
 		}
 		fakeTimestamp++
 		gitMergeCommand := g.gitCommand("merge", "--no-ff", prCheckout)
@@ -409,6 +419,23 @@ func (rc retryCommand) run() (string, string, error) {
 		}
 	}
 	return cmd, out, err
+}
+
+// bestEffortCommand runs a command whose failure must not fail the clone. Its
+// output stays out of the clone record, and is only logged if it fails.
+type bestEffortCommand struct {
+	runnable
+}
+
+func (c bestEffortCommand) run() (string, string, error) {
+	cmd, out, err := c.runnable.run()
+	if err != nil {
+		logrus.WithError(err).WithFields(logrus.Fields{
+			"command": cmd,
+			"output":  out,
+		}).Info("Ignoring failure of best-effort command")
+	}
+	return cmd, "", nil
 }
 
 type cloneCommand struct {
