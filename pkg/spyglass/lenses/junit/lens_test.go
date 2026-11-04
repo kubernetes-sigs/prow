@@ -1236,6 +1236,26 @@ func TestTemplate(t *testing.T) {
 				`group-layout`,
 				`fake_class: informing_fail`,
 				`hidden-tests`,
+				`<button type="button" class="icon-button material-icons copy-test-name noselect" data-test-name="informing_fail"`,
+				`<button type="button" class="icon-button material-icons copy-test-name noselect" data-test-name="informing_pass"`,
+				`aria-label="Copy test name"`,
+			},
+		},
+		{
+			name: "Copy name escapes special characters and excludes skipped reason",
+			input: JVD{NumTests: 1, Skipped: []TestResult{{
+				Junit: []JunitResult{{
+					Result: junit.Result{
+						Name:      `test "quoted" <value> & more`,
+						ClassName: "class_name",
+						Skipped:   &junit.Skipped{Message: "skip reason"},
+					},
+				}},
+			}}},
+			expectedSubstrings: []string{
+				`class_name: test &#34;quoted&#34; &lt;value&gt; &amp; more`,
+				`data-test-name="test &#34;quoted&#34; &lt;value&gt; &amp; more"`,
+				`<b>Reason:</b> skip reason`,
 			},
 		},
 		{
