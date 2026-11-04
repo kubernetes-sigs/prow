@@ -52,19 +52,20 @@ func formatWithPRInfo(labels ...string) []string {
 
 func TestHandleComment(t *testing.T) {
 	type testCase struct {
-		name                  string
-		body                  string
-		commenter             string
-		extraLabels           []string
-		restrictedLabels      map[string][]plugins.RestrictedLabel
-		expectedNewLabels     []string
-		expectedRemovedLabels []string
-		expectedBotComment    bool
-		repoLabels            []string
-		issueLabels           []string
-		expectedCommentText   string
-		action                github.GenericCommentEventAction
-		teams                 map[string]map[string]fakegithub.TeamWithMembers
+		name                   string
+		body                   string
+		commenter              string
+		extraLabels            []string
+		restrictedLabels       map[string][]plugins.RestrictedLabel
+		exclusiveLabelPrefixes []string
+		expectedNewLabels      []string
+		expectedRemovedLabels  []string
+		expectedBotComment     bool
+		repoLabels             []string
+		issueLabels            []string
+		expectedCommentText    string
+		action                 github.GenericCommentEventAction
+		teams                  map[string]map[string]fakegithub.TeamWithMembers
 	}
 	testcases := []testCase{
 		{
@@ -116,6 +117,17 @@ func TestHandleComment(t *testing.T) {
 			expectedRemovedLabels: []string{},
 			commenter:             orgMember,
 			action:                github.GenericCommentActionCreated,
+		},
+		{
+			name:                   "Exclusive label prefixes remove conflicting labels",
+			body:                   "/priority critical",
+			repoLabels:             []string{"area/infra", "priority/critical", "priority/urgent"},
+			issueLabels:            []string{"priority/urgent"},
+			expectedNewLabels:      formatWithPRInfo("priority/critical"),
+			expectedRemovedLabels:  formatWithPRInfo("priority/urgent"),
+			commenter:              orgMember,
+			action:                 github.GenericCommentActionCreated,
+			exclusiveLabelPrefixes: []string{"priority/"},
 		},
 		{
 			name:                  "Add Single Kind Label",
@@ -806,7 +818,7 @@ func TestHandleComment(t *testing.T) {
 				Repo:   github.Repo{Owner: github.User{Login: "org"}, Name: "repo"},
 				User:   github.User{Login: tc.commenter},
 			}
-			err := handleComment(fakeClient, logrus.WithField("plugin", PluginName), plugins.Label{AdditionalLabels: tc.extraLabels, RestrictedLabels: tc.restrictedLabels}, e)
+			err := handleComment(fakeClient, logrus.WithField("plugin", PluginName), plugins.Label{AdditionalLabels: tc.extraLabels, RestrictedLabels: tc.restrictedLabels, ExclusiveLabelPrefixes: tc.exclusiveLabelPrefixes}, e)
 			if err != nil {
 				t.Fatalf("didn't expect error from handle comment test: %v", err)
 			}
