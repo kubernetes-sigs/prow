@@ -3649,6 +3649,7 @@ func (pc *ProwConfig) hasGlobalConfig() bool {
 		BranchProtection:     pc.BranchProtection,
 		Tide:                 Tide{TideGitHubConfig: TideGitHubConfig{MergeType: pc.Tide.MergeType, Queries: pc.Tide.Queries}},
 		SlackReporterConfigs: pc.SlackReporterConfigs,
+		Plank:                Plank{JobQueueCapacities: pc.Plank.JobQueueCapacities},
 	}
 	// Context policies have already been classified above and by HasConfigFor.
 	// Exclude their runtime-only compiled regexes from the structural comparison.

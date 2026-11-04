@@ -2086,6 +2086,11 @@ slack_reporter_configs:
     job_states_to_report:
       - failure
     report_template: Job {{.Spec.Job}} needs my-repo maintainers attention.`
+	const validRepoConfigWithJobQueueCapacities = validRepoConfig + `
+plank:
+  job_queue_capacities:
+    aws-account: 1
+`
 	const validGlobalPluginsConfig = `
 blunderbuss:
   max_request_count: 2
@@ -2294,6 +2299,13 @@ tide:
 				root + "/my-org/my-repo/cfg.yaml": strings.Replace(repoContextPolicy, "my-org:\n", "my-org:\n        skip-unknown-contexts: false\n", 1),
 			}),
 			expectedErrorMessage: "config root/my-org/my-repo/cfg.yaml is invalid: Must only contain config for repo my-org/my-repo, but contains config for org my-org",
+		},
+		{
+			name: "Repo config with job queue capacities",
+			fs: testfs(map[string]string{
+				root + "/my-org/my-repo/cfg.yaml":     validRepoConfigWithJobQueueCapacities,
+				root + "/my-org/my-repo/plugins.yaml": validRepoPluginsConfig,
+			}),
 		},
 	}
 

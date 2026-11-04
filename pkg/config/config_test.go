@@ -9294,6 +9294,7 @@ func TestHasConfigFor(t *testing.T) {
 				fuzzedConfig.Tide.MergeType = nil
 				fuzzedConfig.Tide.Queries = nil
 				fuzzedConfig.Tide.ContextOptions = TideContextPolicyOptions{}
+				fuzzedConfig.Plank.JobQueueCapacities = nil
 				return fuzzedConfig, true, nil, nil
 			},
 		},
@@ -9352,6 +9353,12 @@ func TestHasConfigFor(t *testing.T) {
 				}
 
 				return result, false, expectOrgs, expectRepos
+			},
+		},
+		{
+			name: "Job queue capacities alone are not considered global",
+			resultGenerator: func(fuzzedConfig *ProwConfig) (toCheck *ProwConfig, exceptGlobal bool, expectOrgs, expectRepos sets.Set[string]) {
+				return &ProwConfig{Plank: Plank{JobQueueCapacities: fuzzedConfig.Plank.JobQueueCapacities}}, false, nil, nil
 			},
 		},
 	}
