@@ -515,20 +515,8 @@ func TestConfigureRepos(t *testing.T) {
 			description: "dup between two previous names is detected",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
-					"wants-projects": {
-						Previously: []string{oldName},
-						RepoSettings: org.RepoSettings{
-							HasProjects: &yes,
-							HasWiki:     &no,
-						},
-					},
-					"wants-wiki": {
-						Previously: []string{oldName},
-						RepoSettings: org.RepoSettings{
-							HasProjects: &no,
-							HasWiki:     &yes,
-						},
-					},
+					"wants-projects": {Previously: []string{oldName}, HasProjects: &yes, HasWiki: &no},
+					"wants-wiki":     {Previously: []string{oldName}, HasProjects: &no, HasWiki: &yes},
 				},
 			},
 			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Description: "this repo shall not be touched"}}},
@@ -687,9 +675,7 @@ func TestConfigureReposWithDefaults(t *testing.T) {
 				DeleteBranchOnMerge: new(true),
 			},
 			repo: org.Repo{
-				RepoSettings: org.RepoSettings{
-					DeleteBranchOnMerge: new(false),
-				},
+				DeleteBranchOnMerge: new(false),
 			},
 			existing: []github.FullRepo{deleteBranches},
 			want:     disabled,
@@ -1210,11 +1196,9 @@ func TestNewRepoUpdateRequest(t *testing.T) {
 			},
 			name: newRepoName,
 			newState: org.Repo{
-				Description: &description,
-				RepoSettings: org.RepoSettings{
-					SquashMergeCommitTitle:   &squashMergeCommitTitle,
-					SquashMergeCommitMessage: &squashMergeCommitMessage,
-				},
+				Description:              &description,
+				SquashMergeCommitTitle:   &squashMergeCommitTitle,
+				SquashMergeCommitMessage: &squashMergeCommitMessage,
 			},
 			expected: github.RepoUpdateRequest{
 				RepoRequest: github.RepoRequest{
@@ -1234,10 +1218,8 @@ func TestNewRepoUpdateRequest(t *testing.T) {
 			},
 			name: repoName,
 			newState: org.Repo{
-				RepoSettings: org.RepoSettings{
-					SquashMergeCommitTitle:   &squashMergeCommitTitle,
-					SquashMergeCommitMessage: &squashMergeCommitMessage,
-				},
+				SquashMergeCommitTitle:   &squashMergeCommitTitle,
+				SquashMergeCommitMessage: &squashMergeCommitMessage,
 			},
 			expected: github.RepoUpdateRequest{
 				RepoRequest: github.RepoRequest{
@@ -1255,9 +1237,7 @@ func TestNewRepoUpdateRequest(t *testing.T) {
 			},
 			name: repoName,
 			newState: org.Repo{
-				RepoSettings: org.RepoSettings{
-					SquashMergeCommitMessage: &squashMergeCommitMessage,
-				},
+				SquashMergeCommitMessage: &squashMergeCommitMessage,
 			},
 			expected: github.RepoUpdateRequest{
 				RepoRequest: github.RepoRequest{
@@ -1274,9 +1254,7 @@ func TestNewRepoUpdateRequest(t *testing.T) {
 			},
 			name: repoName,
 			newState: org.Repo{
-				RepoSettings: org.RepoSettings{
-					SquashMergeCommitMessage: &squashMergeCommitMessage,
-				},
+				SquashMergeCommitMessage: &squashMergeCommitMessage,
 			},
 		},
 		{
@@ -1286,9 +1264,7 @@ func TestNewRepoUpdateRequest(t *testing.T) {
 			},
 			name: repoName,
 			newState: org.Repo{
-				RepoSettings: org.RepoSettings{
-					DeleteBranchOnMerge: new(true),
-				},
+				DeleteBranchOnMerge: new(true),
 			},
 			expected: github.RepoUpdateRequest{
 				RepoRequest: github.RepoRequest{
@@ -1304,9 +1280,7 @@ func TestNewRepoUpdateRequest(t *testing.T) {
 			},
 			name: repoName,
 			newState: org.Repo{
-				RepoSettings: org.RepoSettings{
-					DeleteBranchOnMerge: new(true),
-				},
+				DeleteBranchOnMerge: new(true),
 			},
 		},
 		{
