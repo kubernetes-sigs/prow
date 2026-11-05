@@ -95,7 +95,7 @@ func TestConfigureReposWithDefaults(t *testing.T) {
 				DeleteBranchOnMerge: new(true),
 			},
 			repo: org.Repo{
-				DeleteBranchOnMerge: new(false),
+				RepoSettings: org.RepoSettings{DeleteBranchOnMerge: new(false)},
 			},
 			existing: []github.FullRepo{deleteBranches},
 			want:     disabled,
@@ -551,9 +551,11 @@ func TestNewRepoUpdateRequestSquashSettings(t *testing.T) {
 			},
 			repoName: "renamed-repo",
 			repo: org.Repo{
-				Description:              new("updated"),
-				SquashMergeCommitTitle:   &title,
-				SquashMergeCommitMessage: &message,
+				Description: new("updated"),
+				RepoSettings: org.RepoSettings{
+					SquashMergeCommitTitle:   &title,
+					SquashMergeCommitMessage: &message,
+				},
 			},
 			want: github.RepoUpdateRequest{
 				RepoRequest: github.RepoRequest{
@@ -573,8 +575,10 @@ func TestNewRepoUpdateRequestSquashSettings(t *testing.T) {
 			},
 			repoName: "repo",
 			repo: org.Repo{
-				SquashMergeCommitTitle:   &title,
-				SquashMergeCommitMessage: &message,
+				RepoSettings: org.RepoSettings{
+					SquashMergeCommitTitle:   &title,
+					SquashMergeCommitMessage: &message,
+				},
 			},
 			want: github.RepoUpdateRequest{
 				RepoRequest: github.RepoRequest{SquashMergeCommitMessage: &message},
@@ -589,7 +593,7 @@ func TestNewRepoUpdateRequestSquashSettings(t *testing.T) {
 				SquashMergeCommitMessage: "BLANK",
 			},
 			repoName: "repo",
-			repo:     org.Repo{SquashMergeCommitMessage: &message},
+			repo:     org.Repo{RepoSettings: org.RepoSettings{SquashMergeCommitMessage: &message}},
 			want: github.RepoUpdateRequest{
 				RepoRequest: github.RepoRequest{SquashMergeCommitMessage: &message},
 			},
@@ -603,7 +607,7 @@ func TestNewRepoUpdateRequestSquashSettings(t *testing.T) {
 				SquashMergeCommitMessage: message,
 			},
 			repoName: "repo",
-			repo:     org.Repo{SquashMergeCommitMessage: &message},
+			repo:     org.Repo{RepoSettings: org.RepoSettings{SquashMergeCommitMessage: &message}},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

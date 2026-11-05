@@ -24,7 +24,6 @@ linters:
     modernize:
       disable:
         - omitzero # omitempty on struct fields is intentional in this codebase
-        - embedlit # Keep explicit embedded structs rather than rewriting existing literals for Go 1.27.
   exclusions:
     paths:
       - .git

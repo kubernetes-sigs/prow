@@ -2277,33 +2277,39 @@ func TestDumpOrgConfig(t *testing.T) {
 				Admins:  []string{"admin", "james", "giant", "peach"},
 				Repos: map[string]org.Repo{
 					"project": {
-						Description:         &repoDescription,
-						HomePage:            &repoHomepage,
-						HasProjects:         &yes,
-						AllowMergeCommit:    &no,
-						AllowRebaseMerge:    &no,
-						AllowSquashMerge:    &no,
-						Archived:            &yes,
-						DefaultBranch:       &master,
-						DeleteBranchOnMerge: &yes,
+						RepoSettings: org.RepoSettings{
+							HasProjects:         &yes,
+							AllowMergeCommit:    &no,
+							AllowRebaseMerge:    &no,
+							AllowSquashMerge:    &no,
+							DeleteBranchOnMerge: &yes,
+						},
+						Description:   &repoDescription,
+						HomePage:      &repoHomepage,
+						Archived:      &yes,
+						DefaultBranch: &master,
 					},
 					// Non-public visibilities survive PruneRepoDefaults, so they
 					// must round-trip into the dumped config.
 					"internal-project": {
-						Visibility:       new(github.RepoVisibilityInternal),
-						HasProjects:      &no,
-						AllowMergeCommit: &no,
-						AllowRebaseMerge: &no,
-						AllowSquashMerge: &no,
-						DefaultBranch:    &master,
+						RepoSettings: org.RepoSettings{
+							HasProjects:      &no,
+							AllowMergeCommit: &no,
+							AllowRebaseMerge: &no,
+							AllowSquashMerge: &no,
+						},
+						Visibility:    new(github.RepoVisibilityInternal),
+						DefaultBranch: &master,
 					},
 					"private-project": {
-						Visibility:       new(github.RepoVisibilityPrivate),
-						HasProjects:      &no,
-						AllowMergeCommit: &no,
-						AllowRebaseMerge: &no,
-						AllowSquashMerge: &no,
-						DefaultBranch:    &master,
+						RepoSettings: org.RepoSettings{
+							HasProjects:      &no,
+							AllowMergeCommit: &no,
+							AllowRebaseMerge: &no,
+							AllowSquashMerge: &no,
+						},
+						Visibility:    new(github.RepoVisibilityPrivate),
+						DefaultBranch: &master,
 					},
 				},
 			},
@@ -4600,8 +4606,8 @@ func TestConfigureRepos(t *testing.T) {
 			description: "dup between two previous names is detected",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
-					"wants-projects": {Previously: []string{oldName}, HasProjects: &yes, HasWiki: &no},
-					"wants-wiki":     {Previously: []string{oldName}, HasProjects: &no, HasWiki: &yes},
+					"wants-projects": {Previously: []string{oldName}, RepoSettings: org.RepoSettings{HasProjects: &yes, HasWiki: &no}},
+					"wants-wiki":     {Previously: []string{oldName}, RepoSettings: org.RepoSettings{HasProjects: &no, HasWiki: &yes}},
 				},
 			},
 			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Description: "this repo shall not be touched"}}},
@@ -4831,9 +4837,11 @@ func TestNewRepoUpdateRequest(t *testing.T) {
 			},
 			name: newRepoName,
 			newState: org.Repo{
-				Description:              &description,
-				SquashMergeCommitTitle:   &squashMergeCommitTitle,
-				SquashMergeCommitMessage: &squashMergeCommitMessage,
+				Description: &description,
+				RepoSettings: org.RepoSettings{
+					SquashMergeCommitTitle:   &squashMergeCommitTitle,
+					SquashMergeCommitMessage: &squashMergeCommitMessage,
+				},
 			},
 			expected: github.RepoUpdateRequest{
 				RepoRequest: github.RepoRequest{
@@ -4851,7 +4859,7 @@ func TestNewRepoUpdateRequest(t *testing.T) {
 			},
 			name: repoName,
 			newState: org.Repo{
-				DeleteBranchOnMerge: new(true),
+				RepoSettings: org.RepoSettings{DeleteBranchOnMerge: new(true)},
 			},
 			expected: github.RepoUpdateRequest{
 				RepoRequest: github.RepoRequest{
@@ -4867,7 +4875,7 @@ func TestNewRepoUpdateRequest(t *testing.T) {
 			},
 			name: repoName,
 			newState: org.Repo{
-				DeleteBranchOnMerge: new(true),
+				RepoSettings: org.RepoSettings{DeleteBranchOnMerge: new(true)},
 			},
 		},
 		{
