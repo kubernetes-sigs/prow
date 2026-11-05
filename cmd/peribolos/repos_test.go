@@ -18,9 +18,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
-	"reflect"
-	"sort"
 	"strings"
 	"testing"
 
@@ -28,583 +25,6 @@ import (
 	"sigs.k8s.io/prow/pkg/config/org"
 	"sigs.k8s.io/prow/pkg/github"
 )
-
-type fakeRepoClient struct {
-	t     *testing.T
-	repos map[string]github.FullRepo
-}
-
-func (f fakeRepoClient) GetRepo(owner, name string) (github.FullRepo, error) {
-	repo, ok := f.repos[name]
-	if !ok {
-		return repo, fmt.Errorf("repo not found")
-	}
-	return repo, nil
-}
-
-func (f fakeRepoClient) GetRepos(orgName string, isUser bool) ([]github.Repo, error) {
-	if orgName == "fail" {
-		return nil, fmt.Errorf("injected GetRepos failure")
-	}
-
-	repos := make([]github.Repo, 0, len(f.repos))
-	for _, repo := range f.repos {
-		repos = append(repos, repo.Repo)
-	}
-
-	// sort for deterministic output
-	sort.Slice(repos, func(i, j int) bool {
-		return repos[i].Name < repos[j].Name
-	})
-
-	return repos, nil
-}
-
-func (f fakeRepoClient) CreateRepo(owner string, isUser bool, repoReq github.RepoCreateRequest) (*github.FullRepo, error) {
-	if *repoReq.Name == "fail" {
-		return nil, fmt.Errorf("injected CreateRepo failure")
-	}
-
-	if _, hasRepo := f.repos[*repoReq.Name]; hasRepo {
-		f.t.Errorf("CreateRepo() called on repo that already exists")
-		return nil, fmt.Errorf("CreateRepo() called on repo that already exists")
-	}
-
-	repo := repoReq.ToRepo()
-	f.repos[*repoReq.Name] = *repo
-
-	return repo, nil
-}
-
-// updateIfSet copies *want into *have when want is non-nil.
-func updateIfSet[T any](have, want *T) {
-	if want != nil {
-		*have = *want
-	}
-}
-
-func (f fakeRepoClient) UpdateRepo(owner, name string, want github.RepoUpdateRequest) (*github.FullRepo, error) {
-	if name == "fail" {
-		return nil, fmt.Errorf("injected UpdateRepo failure")
-	}
-	if want.Archived != nil && !*want.Archived {
-		f.t.Errorf("UpdateRepo() called to unarchive a repo (not supported by API)")
-		return nil, fmt.Errorf("UpdateRepo() called to unarchive a repo (not supported by API)")
-	}
-
-	have, exists := f.repos[name]
-	if !exists {
-		f.t.Errorf("UpdateRepo() called on repo that does not exists")
-		return nil, fmt.Errorf("UpdateRepo() called on repo that does not exist")
-	}
-
-	if have.Archived {
-		return nil, fmt.Errorf("Repository was archived so is read-only.")
-	}
-
-	updateIfSet(&have.Name, want.Name)
-	updateIfSet(&have.DefaultBranch, want.DefaultBranch)
-	updateIfSet(&have.Homepage, want.Homepage)
-	updateIfSet(&have.Description, want.Description)
-	updateIfSet(&have.Archived, want.Archived)
-	updateIfSet(&have.Visibility, want.Visibility)
-	updateIfSet(&have.HasIssues, want.HasIssues)
-	updateIfSet(&have.HasProjects, want.HasProjects)
-	updateIfSet(&have.HasWiki, want.HasWiki)
-	updateIfSet(&have.AllowSquashMerge, want.AllowSquashMerge)
-	updateIfSet(&have.AllowMergeCommit, want.AllowMergeCommit)
-	updateIfSet(&have.AllowRebaseMerge, want.AllowRebaseMerge)
-	updateIfSet(&have.SquashMergeCommitTitle, want.SquashMergeCommitTitle)
-	updateIfSet(&have.SquashMergeCommitMessage, want.SquashMergeCommitMessage)
-	updateIfSet(&have.DeleteBranchOnMerge, want.DeleteBranchOnMerge)
-
-	f.repos[name] = have
-	return &have, nil
-}
-
-func makeFakeRepoClient(t *testing.T, repos ...github.FullRepo) fakeRepoClient {
-	fc := fakeRepoClient{
-		repos: make(map[string]github.FullRepo, len(repos)),
-		t:     t,
-	}
-	for _, repo := range repos {
-		fc.repos[repo.Name] = repo
-	}
-
-	return fc
-}
-
-func TestConfigureRepos(t *testing.T) {
-	orgName := "test-org"
-	isOrg := false
-	no := false
-	yes := true
-	updated := "UPDATED"
-
-	oldName := "old"
-	oldRepo := github.Repo{
-		Name:        oldName,
-		FullName:    fmt.Sprintf("%s/%s", orgName, oldName),
-		Description: "An old existing repository",
-	}
-
-	newName := "new"
-	newDescription := "A new repository."
-	newConfigRepo := org.Repo{
-		Description: &newDescription,
-	}
-	newRepo := github.Repo{
-		Name:        newName,
-		Description: newDescription,
-	}
-
-	fail := "fail"
-	failRepo := github.Repo{
-		Name: fail,
-	}
-
-	testCases := []struct {
-		description     string
-		opts            options
-		orgConfig       org.Config
-		orgNameOverride string
-		repos           []github.FullRepo
-
-		expectError   bool
-		expectedRepos []github.Repo
-	}{
-		{
-			description:   "survives empty config",
-			expectedRepos: []github.Repo{},
-		},
-		{
-			description: "survives nil repos config",
-			orgConfig: org.Config{
-				Repos: nil,
-			},
-			expectedRepos: []github.Repo{},
-		},
-		{
-			description: "survives empty repos config",
-			orgConfig: org.Config{
-				Repos: map[string]org.Repo{},
-			},
-			expectedRepos: []github.Repo{},
-		},
-		{
-			description: "nonexistent repo is created",
-			orgConfig: org.Config{
-				Repos: map[string]org.Repo{
-					newName: newConfigRepo,
-				},
-			},
-			repos: []github.FullRepo{{Repo: oldRepo}},
-
-			expectedRepos: []github.Repo{newRepo, oldRepo},
-		},
-		{
-			description:     "GetRepos failure is propagated",
-			orgNameOverride: "fail",
-			orgConfig: org.Config{
-				Repos: map[string]org.Repo{
-					newName: newConfigRepo,
-				},
-			},
-			repos: []github.FullRepo{{Repo: oldRepo}},
-
-			expectError:   true,
-			expectedRepos: []github.Repo{oldRepo},
-		},
-		{
-			description: "CreateRepo failure is propagated",
-			orgConfig: org.Config{
-				Repos: map[string]org.Repo{
-					fail: newConfigRepo,
-				},
-			},
-			repos: []github.FullRepo{{Repo: oldRepo}},
-
-			expectError:   true,
-			expectedRepos: []github.Repo{oldRepo},
-		},
-		{
-			description: "duplicate repo names different only by case are detected",
-			orgConfig: org.Config{
-				Repos: map[string]org.Repo{
-					"repo": newConfigRepo,
-					"REPO": newConfigRepo,
-				},
-			},
-			repos: []github.FullRepo{{Repo: oldRepo}},
-
-			expectError:   true,
-			expectedRepos: []github.Repo{oldRepo},
-		},
-		{
-			description: "existing repo is updated",
-			orgConfig: org.Config{
-				Repos: map[string]org.Repo{
-					oldName: newConfigRepo,
-				},
-			},
-			repos: []github.FullRepo{{Repo: oldRepo}},
-			expectedRepos: []github.Repo{
-				{
-					Name:        oldName,
-					Description: newDescription,
-					FullName:    fmt.Sprintf("%s/%s", orgName, oldName),
-				},
-			},
-		},
-		{
-			description: "UpdateRepo failure is propagated",
-			orgConfig: org.Config{
-				Repos: map[string]org.Repo{
-					"fail": newConfigRepo,
-				},
-			},
-			repos:         []github.FullRepo{{Repo: failRepo}},
-			expectError:   true,
-			expectedRepos: []github.Repo{failRepo},
-		},
-		{
-			// https://developer.github.com/v3/repos/#edit
-			// "Note: You cannot unarchive repositories through the API."
-			// Archived repositories are read-only, and updates fail with 403:
-			// "Repository was archived so is read-only."
-			description: "request to unarchive a repo fails, repo is read-only",
-			orgConfig: org.Config{
-				Repos: map[string]org.Repo{
-					oldName: {Archived: &no, Description: &updated},
-				},
-			},
-			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Archived: true, Description: "OLD"}}},
-			expectError:   true,
-			expectedRepos: []github.Repo{{Name: oldName, Archived: true, Description: "OLD"}},
-		},
-		{
-			// https://developer.github.com/v3/repos/#edit
-			// "Note: You cannot unarchive repositories through the API."
-			// Archived repositories are read-only, and updates fail with 403:
-			// "Repository was archived so is read-only."
-			description: "no field changes on archived repo",
-			orgConfig: org.Config{
-				Repos: map[string]org.Repo{
-					oldName: {Archived: &yes, Description: &updated},
-				},
-			},
-			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Archived: true, Description: "OLD"}}},
-			expectError:   false,
-			expectedRepos: []github.Repo{{Name: oldName, Archived: true, Description: "OLD"}},
-		},
-		{
-			description: "explicit description change on archived repo with unset archived fails",
-			orgConfig: org.Config{
-				Repos: map[string]org.Repo{
-					oldName: {Description: &updated},
-				},
-			},
-			repos: []github.FullRepo{
-				{
-					Repo: github.Repo{
-						Name:        oldName,
-						Archived:    true,
-						Description: "OLD",
-					},
-				},
-			},
-			expectError: true,
-			expectedRepos: []github.Repo{
-				{
-					Name:        oldName,
-					Archived:    true,
-					Description: "OLD",
-				},
-			},
-		},
-		{
-			description: "explicit description change on archived repo with defaults fails",
-			orgConfig: org.Config{
-				RepoDefaults: &org.RepoDefaults{
-					DeleteBranchOnMerge: &yes,
-				},
-				Repos: map[string]org.Repo{
-					oldName: {Description: &updated},
-				},
-			},
-			repos: []github.FullRepo{
-				{
-					Repo: github.Repo{
-						Name:        oldName,
-						Archived:    true,
-						Description: "OLD",
-					},
-				},
-			},
-			expectError: true,
-			expectedRepos: []github.Repo{
-				{
-					Name:        oldName,
-					Archived:    true,
-					Description: "OLD",
-				},
-			},
-		},
-		{
-			description: "explicit rename on archived repo with unset archived fails",
-			orgConfig: org.Config{
-				Repos: map[string]org.Repo{
-					newName: {Previously: []string{oldName}},
-				},
-			},
-			repos: []github.FullRepo{
-				{
-					Repo: github.Repo{
-						Name:     oldName,
-						Archived: true,
-					},
-				},
-			},
-			expectError: true,
-			expectedRepos: []github.Repo{
-				{
-					Name:     oldName,
-					Archived: true,
-				},
-			},
-		},
-		{
-			description: "matching explicit settings on archived repo ignore differing defaults",
-			orgConfig: org.Config{
-				RepoDefaults: &org.RepoDefaults{
-					DeleteBranchOnMerge: &yes,
-				},
-				Repos: map[string]org.Repo{
-					oldName: {Description: &updated},
-				},
-			},
-			repos: []github.FullRepo{
-				{
-					Repo: github.Repo{
-						Name:        oldName,
-						Archived:    true,
-						Description: updated,
-					},
-				},
-			},
-			expectedRepos: []github.Repo{
-				{
-					Name:        oldName,
-					Archived:    true,
-					Description: updated,
-				},
-			},
-		},
-		{
-			description: "request to archive repo fails when not allowed, but updates other fields",
-			orgConfig: org.Config{
-				Repos: map[string]org.Repo{
-					oldName: {Archived: &yes, Description: &updated},
-				},
-			},
-			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Archived: false, Description: "OLD"}}},
-			expectError:   true,
-			expectedRepos: []github.Repo{{Name: oldName, Archived: false, Description: updated}},
-		},
-		{
-			description: "request to archive repo succeeds when allowed",
-			opts: options{
-				allowRepoArchival: true,
-			},
-			orgConfig: org.Config{
-				Repos: map[string]org.Repo{
-					oldName: {Archived: &yes},
-				},
-			},
-			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Archived: false}}},
-			expectedRepos: []github.Repo{{Name: oldName, Archived: true}},
-		},
-		{
-			description: "request to make a private repo public fails when not allowed, but updates other fields",
-			orgConfig: org.Config{
-				Repos: map[string]org.Repo{
-					oldName: {Visibility: new(github.RepoVisibilityPublic), Description: &updated},
-				},
-			},
-			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Visibility: github.RepoVisibilityPrivate, Description: "OLD"}}},
-			expectError:   true,
-			expectedRepos: []github.Repo{{Name: oldName, Visibility: github.RepoVisibilityPrivate, Description: updated}},
-		},
-		{
-			description: "request to make a private repo public succeeds when allowed",
-			opts: options{
-				allowRepoPublish: true,
-			},
-			orgConfig: org.Config{
-				Repos: map[string]org.Repo{
-					oldName: {Visibility: new(github.RepoVisibilityPublic)},
-				},
-			},
-			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Visibility: github.RepoVisibilityPrivate}}},
-			expectedRepos: []github.Repo{{Name: oldName, Visibility: github.RepoVisibilityPublic}},
-		},
-		{
-			description: "request to make an internal repo public fails when not allowed",
-			orgConfig: org.Config{
-				Repos: map[string]org.Repo{
-					oldName: {Visibility: new(github.RepoVisibilityPublic)},
-				},
-			},
-			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Visibility: github.RepoVisibilityInternal}}},
-			expectError:   true,
-			expectedRepos: []github.Repo{{Name: oldName, Visibility: github.RepoVisibilityInternal}},
-		},
-		{
-			description: "transitioning private to internal is allowed without flag",
-			orgConfig: org.Config{
-				Repos: map[string]org.Repo{
-					oldName: {Visibility: new(github.RepoVisibilityInternal)},
-				},
-			},
-			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Visibility: github.RepoVisibilityPrivate}}},
-			expectedRepos: []github.Repo{{Name: oldName, Visibility: github.RepoVisibilityInternal}},
-		},
-		{
-			description: "transitioning internal to private is allowed without flag",
-			orgConfig: org.Config{
-				Repos: map[string]org.Repo{
-					oldName: {Visibility: new(github.RepoVisibilityPrivate)},
-				},
-			},
-			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Visibility: github.RepoVisibilityInternal}}},
-			expectedRepos: []github.Repo{{Name: oldName, Visibility: github.RepoVisibilityPrivate}},
-		},
-		{
-			description: "renaming a repo is successful",
-			orgConfig: org.Config{
-				Repos: map[string]org.Repo{
-					newName: {Previously: []string{oldName}},
-				},
-			},
-			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Description: "renamed repo"}}},
-			expectedRepos: []github.Repo{{Name: newName, Description: "renamed repo"}},
-		},
-		{
-			description: "renaming a repo by just changing case is successful",
-			orgConfig: org.Config{
-				Repos: map[string]org.Repo{
-					"repo": {Previously: []string{"REPO"}},
-				},
-			},
-			repos:         []github.FullRepo{{Repo: github.Repo{Name: "REPO", Description: "renamed repo"}}},
-			expectedRepos: []github.Repo{{Name: "repo", Description: "renamed repo"}},
-		},
-		{
-			description: "dup between a repo name and a previous name is detected",
-			orgConfig: org.Config{
-				Repos: map[string]org.Repo{
-					newName: {Previously: []string{oldName}},
-					oldName: {Description: &newDescription},
-				},
-			},
-			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Description: "this repo shall not be touched"}}},
-			expectError:   true,
-			expectedRepos: []github.Repo{{Name: oldName, Description: "this repo shall not be touched"}},
-		},
-		{
-			description: "dup between two previous names is detected",
-			orgConfig: org.Config{
-				Repos: map[string]org.Repo{
-					"wants-projects": {Previously: []string{oldName}, HasProjects: &yes, HasWiki: &no},
-					"wants-wiki":     {Previously: []string{oldName}, HasProjects: &no, HasWiki: &yes},
-				},
-			},
-			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Description: "this repo shall not be touched"}}},
-			expectError:   true,
-			expectedRepos: []github.Repo{{Name: oldName, Description: "this repo shall not be touched"}},
-		},
-		{
-			description: "error detected when both a repo and a repo of its previous name exist",
-			orgConfig: org.Config{
-				Repos: map[string]org.Repo{
-					newName: {Previously: []string{oldName}, Description: &newDescription},
-				},
-			},
-			repos: []github.FullRepo{
-				{Repo: github.Repo{Name: oldName, Description: "this repo shall not be touched"}},
-				{Repo: github.Repo{Name: newName, Description: "this repo shall not be touched too"}},
-			},
-			expectError: true,
-			expectedRepos: []github.Repo{
-				{Name: newName, Description: "this repo shall not be touched too"},
-				{Name: oldName, Description: "this repo shall not be touched"},
-			},
-		},
-		{
-			description: "error detected when multiple previous repos exist",
-			orgConfig: org.Config{
-				Repos: map[string]org.Repo{
-					newName: {Previously: []string{oldName, "even-older"}, Description: &newDescription},
-				},
-			},
-			repos: []github.FullRepo{
-				{Repo: github.Repo{Name: oldName, Description: "this repo shall not be touched"}},
-				{Repo: github.Repo{Name: "even-older", Description: "this repo shall not be touched too"}},
-			},
-			expectError: true,
-			expectedRepos: []github.Repo{
-				{Name: "even-older", Description: "this repo shall not be touched too"},
-				{Name: oldName, Description: "this repo shall not be touched"},
-			},
-		},
-		{
-			description: "repos are renamed to defined case even without explicit `previously` field",
-			orgConfig: org.Config{
-				Repos: map[string]org.Repo{
-					"CamelCase": {Description: &newDescription},
-				},
-			},
-			repos:         []github.FullRepo{{Repo: github.Repo{Name: "CAMELCASE", Description: newDescription}}},
-			expectedRepos: []github.Repo{{Name: "CamelCase", Description: newDescription}},
-		},
-		{
-			description: "avoid creating archived repo",
-			orgConfig: org.Config{
-				Repos: map[string]org.Repo{
-					oldName: {Archived: &yes},
-				},
-			},
-			repos:         []github.FullRepo{},
-			expectError:   true,
-			expectedRepos: []github.Repo{},
-		},
-	}
-	for _, tc := range testCases {
-		t.Run(tc.description, func(t *testing.T) {
-			fc := makeFakeRepoClient(t, tc.repos...)
-			var err error
-			if len(tc.orgNameOverride) > 0 {
-				err = configureRepos(tc.opts, fc, tc.orgNameOverride, tc.orgConfig)
-			} else {
-				err = configureRepos(tc.opts, fc, orgName, tc.orgConfig)
-			}
-			if err != nil && !tc.expectError {
-				t.Errorf("%s: unexpected error: %v", tc.description, err)
-			}
-			if err == nil && tc.expectError {
-				t.Errorf("%s: expected error, got none", tc.description)
-			}
-
-			reposAfter, err := fc.GetRepos(orgName, isOrg)
-			if err != nil {
-				t.Fatalf("%s: unexpected GetRepos error: %v", tc.description, err)
-			}
-			if !reflect.DeepEqual(reposAfter, tc.expectedRepos) {
-				t.Errorf("%s: unexpected repos after configureRepos():\n%s", tc.description, cmp.Diff(reposAfter, tc.expectedRepos))
-			}
-		})
-	}
-}
 
 func TestConfigureReposWithDefaults(t *testing.T) {
 	defaults := &org.RepoDefaults{
@@ -1058,280 +478,138 @@ func TestRepoRequestsOmitDisabledSquashSettings(t *testing.T) {
 	})
 }
 
-func TestValidateRepos(t *testing.T) {
-	description := "cool repo"
-	testCases := []struct {
-		description string
-		config      map[string]org.Repo
-		expectError bool
+func TestConfigureArchivedReposWithUnsetArchival(t *testing.T) {
+	current := github.FullRepo{
+		Repo: github.Repo{Name: "repo", Archived: true, Description: "original"},
+	}
+	for _, tc := range []struct {
+		name     string
+		repoName string
+		repo     org.Repo
+		defaults *org.RepoDefaults
+		wantErr  bool
 	}{
 		{
-			description: "handles nil map",
+			name:     "explicit description change on archived repo with unset archived fails",
+			repoName: "repo",
+			repo:     org.Repo{Description: new("updated")},
+			wantErr:  true,
 		},
 		{
-			description: "handles empty map",
-			config:      map[string]org.Repo{},
+			name:     "explicit description change on archived repo with defaults fails",
+			repoName: "repo",
+			repo:     org.Repo{Description: new("updated")},
+			defaults: &org.RepoDefaults{DeleteBranchOnMerge: new(true)},
+			wantErr:  true,
 		},
 		{
-			description: "handles valid config",
-			config: map[string]org.Repo{
-				"repo": {Description: &description},
-			},
+			name:     "explicit rename on archived repo with unset archived fails",
+			repoName: "renamed-repo",
+			repo:     org.Repo{Previously: []string{"repo"}},
+			wantErr:  true,
 		},
 		{
-			description: "finds repo names duplicate when normalized",
-			config: map[string]org.Repo{
-				"repo": {Description: &description},
-				"Repo": {Description: &description},
-			},
-			expectError: true,
+			name:     "matching explicit settings on archived repo ignore differing defaults",
+			repoName: "repo",
+			repo:     org.Repo{Description: new("original")},
+			defaults: &org.RepoDefaults{DeleteBranchOnMerge: new(true)},
 		},
-		{
-			description: "finds name conflict between previous and current names",
-			config: map[string]org.Repo{
-				"repo":     {Previously: []string{"conflict"}},
-				"conflict": {Description: &description},
-			},
-			expectError: true,
-		},
-		{
-			description: "finds name conflict between two previous names",
-			config: map[string]org.Repo{
-				"repo":         {Previously: []string{"conflict"}},
-				"another-repo": {Previously: []string{"conflict"}},
-			},
-			expectError: true,
-		},
-		{
-			description: "allows case-duplicate name between former and current name",
-			config: map[string]org.Repo{
-				"repo": {Previously: []string{"REPO"}},
-			},
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.description, func(t *testing.T) {
-			err := validateRepos(tc.config)
-			if err == nil && tc.expectError {
-				t.Errorf("%s: expected error, got none", tc.description)
-			} else if err != nil && !tc.expectError {
-				t.Errorf("%s: unexpected error: %v", tc.description, err)
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fc := makeFakeRepoClient(t, current)
+			cfg := org.Config{
+				RepoDefaults: tc.defaults,
+				Repos:        map[string]org.Repo{tc.repoName: tc.repo},
+			}
+			if err := configureRepos(options{}, fc, "example", cfg); (err != nil) != tc.wantErr {
+				t.Fatalf("unexpected configureRepos result: %v", err)
+			}
+			if diff := cmp.Diff(map[string]github.FullRepo{"repo": current}, fc.repos); diff != "" {
+				t.Errorf("archived repository was modified (-want +got): %s", diff)
 			}
 		})
 	}
 }
 
-func TestNewRepoUpdateRequest(t *testing.T) {
-	repoName := "repo-name"
-	newRepoName := "renamed-repo"
-	description := "description of repo-name"
-	homepage := "https://somewhe.re"
-	master := "master"
-	branch := "branch"
-	squashMergeCommitTitle := "PR_TITLE"
-	squashMergeCommitMessage := "COMMIT_MESSAGES"
-
-	testCases := []struct {
-		description string
-		current     github.FullRepo
-		name        string
-		newState    org.Repo
-
-		expected github.RepoUpdateRequest
+func TestNewRepoUpdateRequestSquashSettings(t *testing.T) {
+	title := "PR_TITLE"
+	message := "COMMIT_MESSAGES"
+	for _, tc := range []struct {
+		name     string
+		current  github.FullRepo
+		repoName string
+		repo     org.Repo
+		want     github.RepoUpdateRequest
 	}{
 		{
-			description: "update is just a delta from current state",
+			name: "request to update squash title works",
 			current: github.FullRepo{
-				Repo: github.Repo{
-					Name:          repoName,
-					Description:   description,
-					Homepage:      homepage,
-					DefaultBranch: master,
-				},
-			},
-			name: repoName,
-			newState: org.Repo{
-				Description:   &description,
-				DefaultBranch: &branch,
-			},
-			expected: github.RepoUpdateRequest{
-				DefaultBranch: &branch,
-			},
-		},
-		{
-			description: "empty delta is returned when no update is needed",
-			current: github.FullRepo{Repo: github.Repo{
-				Name:        repoName,
-				Description: description,
-			}},
-			name: repoName,
-			newState: org.Repo{
-				Description: &description,
-			},
-		},
-		{
-			description: "request to rename a repo works",
-			current: github.FullRepo{Repo: github.Repo{
-				Name: repoName,
-			}},
-			name: newRepoName,
-			newState: org.Repo{
-				Description: &description,
-			},
-			expected: github.RepoUpdateRequest{
-				RepoRequest: github.RepoRequest{
-					Name:        &newRepoName,
-					Description: &description,
-				},
-			},
-		},
-		{
-			description: "request to update squash title works",
-			current: github.FullRepo{
-				Repo:                     github.Repo{Name: repoName},
+				Repo:                     github.Repo{Name: "repo"},
 				AllowSquashMerge:         true,
 				SquashMergeCommitTitle:   "COMMIT_OR_PR_TITLE",
-				SquashMergeCommitMessage: squashMergeCommitMessage,
+				SquashMergeCommitMessage: message,
 			},
-			name: newRepoName,
-			newState: org.Repo{
-				Description:              &description,
-				SquashMergeCommitTitle:   &squashMergeCommitTitle,
-				SquashMergeCommitMessage: &squashMergeCommitMessage,
+			repoName: "renamed-repo",
+			repo: org.Repo{
+				Description:              new("updated"),
+				SquashMergeCommitTitle:   &title,
+				SquashMergeCommitMessage: &message,
 			},
-			expected: github.RepoUpdateRequest{
+			want: github.RepoUpdateRequest{
 				RepoRequest: github.RepoRequest{
-					Name:                   &newRepoName,
-					Description:            &description,
-					SquashMergeCommitTitle: &squashMergeCommitTitle,
+					Name:                   new("renamed-repo"),
+					Description:            new("updated"),
+					SquashMergeCommitTitle: &title,
 				},
 			},
 		},
 		{
-			description: "message-only change omits unchanged configured title",
+			name: "message-only change omits unchanged configured title",
 			current: github.FullRepo{
-				Repo:                     github.Repo{Name: repoName},
+				Repo:                     github.Repo{Name: "repo"},
 				AllowSquashMerge:         true,
-				SquashMergeCommitTitle:   squashMergeCommitTitle,
+				SquashMergeCommitTitle:   title,
 				SquashMergeCommitMessage: "PR_BODY",
 			},
-			name: repoName,
-			newState: org.Repo{
-				SquashMergeCommitTitle:   &squashMergeCommitTitle,
-				SquashMergeCommitMessage: &squashMergeCommitMessage,
+			repoName: "repo",
+			repo: org.Repo{
+				SquashMergeCommitTitle:   &title,
+				SquashMergeCommitMessage: &message,
 			},
-			expected: github.RepoUpdateRequest{
-				RepoRequest: github.RepoRequest{
-					SquashMergeCommitMessage: &squashMergeCommitMessage,
-				},
+			want: github.RepoUpdateRequest{
+				RepoRequest: github.RepoRequest{SquashMergeCommitMessage: &message},
 			},
 		},
 		{
-			description: "message-only change does not backfill current title",
+			name: "message-only change does not backfill current title",
 			current: github.FullRepo{
-				Repo:                     github.Repo{Name: repoName},
+				Repo:                     github.Repo{Name: "repo"},
 				AllowSquashMerge:         true,
-				SquashMergeCommitTitle:   "PR_TITLE",
+				SquashMergeCommitTitle:   title,
 				SquashMergeCommitMessage: "BLANK",
 			},
-			name: repoName,
-			newState: org.Repo{
-				SquashMergeCommitMessage: &squashMergeCommitMessage,
-			},
-			expected: github.RepoUpdateRequest{
-				RepoRequest: github.RepoRequest{
-					SquashMergeCommitMessage: &squashMergeCommitMessage,
-				},
+			repoName: "repo",
+			repo:     org.Repo{SquashMergeCommitMessage: &message},
+			want: github.RepoUpdateRequest{
+				RepoRequest: github.RepoRequest{SquashMergeCommitMessage: &message},
 			},
 		},
 		{
-			description: "unchanged squash message produces no delta",
+			name: "unchanged squash message produces no delta",
 			current: github.FullRepo{
-				Repo:                     github.Repo{Name: repoName},
-				SquashMergeCommitTitle:   squashMergeCommitTitle,
-				SquashMergeCommitMessage: squashMergeCommitMessage,
+				Repo:                     github.Repo{Name: "repo"},
+				AllowSquashMerge:         true,
+				SquashMergeCommitTitle:   title,
+				SquashMergeCommitMessage: message,
 			},
-			name: repoName,
-			newState: org.Repo{
-				SquashMergeCommitMessage: &squashMergeCommitMessage,
-			},
+			repoName: "repo",
+			repo:     org.Repo{SquashMergeCommitMessage: &message},
 		},
-		{
-			description: "enabling delete branch on merge produces a delta",
-			current: github.FullRepo{
-				Repo: github.Repo{Name: repoName},
-			},
-			name: repoName,
-			newState: org.Repo{
-				DeleteBranchOnMerge: new(true),
-			},
-			expected: github.RepoUpdateRequest{
-				RepoRequest: github.RepoRequest{
-					DeleteBranchOnMerge: new(true),
-				},
-			},
-		},
-		{
-			description: "unchanged delete branch on merge produces no delta",
-			current: github.FullRepo{
-				Repo:                github.Repo{Name: repoName},
-				DeleteBranchOnMerge: true,
-			},
-			name: repoName,
-			newState: org.Repo{
-				DeleteBranchOnMerge: new(true),
-			},
-		},
-		{
-			description: "visibility change produces a delta",
-			current: github.FullRepo{
-				Repo: github.Repo{
-					Name:       repoName,
-					Visibility: github.RepoVisibilityPublic,
-				},
-			},
-			name: repoName,
-			newState: org.Repo{
-				Visibility: new(github.RepoVisibilityPrivate),
-			},
-			expected: github.RepoUpdateRequest{
-				RepoRequest: github.RepoRequest{
-					Visibility: new(github.RepoVisibilityPrivate),
-				},
-			},
-		},
-		{
-			description: "same visibility produces no delta",
-			current: github.FullRepo{
-				Repo: github.Repo{
-					Name:       repoName,
-					Visibility: github.RepoVisibilityPublic,
-				},
-			},
-			name: repoName,
-			newState: org.Repo{
-				Visibility: new(github.RepoVisibilityPublic),
-			},
-		},
-		{
-			description: "nil visibility produces no delta",
-			current: github.FullRepo{
-				Repo: github.Repo{
-					Name:       repoName,
-					Visibility: github.RepoVisibilityPublic,
-				},
-			},
-			name:     repoName,
-			newState: org.Repo{},
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.description, func(t *testing.T) {
-			update := newRepoUpdateRequest(tc.current, tc.name, tc.newState)
-			if !reflect.DeepEqual(tc.expected, update) {
-				t.Errorf("%s: update request differs from expected:%s", tc.description, cmp.Diff(tc.expected, update))
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := newRepoUpdateRequest(tc.current, tc.repoName, tc.repo)
+			if diff := cmp.Diff(tc.want, got); diff != "" {
+				t.Errorf("unexpected update request (-want +got): %s", diff)
 			}
 		})
 	}
