@@ -4479,6 +4479,51 @@ func TestConfigureRepos(t *testing.T) {
 			expectedRepos: []github.Repo{{Name: oldName, Archived: true, Description: "OLD"}},
 		},
 		{
+			description: "explicit description change on archived repo with unset archived fails",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					oldName: {Description: &updated},
+				},
+			},
+			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Archived: true, Description: "OLD"}}},
+			expectError:   true,
+			expectedRepos: []github.Repo{{Name: oldName, Archived: true, Description: "OLD"}},
+		},
+		{
+			description: "explicit description change on archived repo with defaults fails",
+			orgConfig: org.Config{
+				RepoDefaults: &org.RepoDefaults{DeleteBranchOnMerge: &yes},
+				Repos: map[string]org.Repo{
+					oldName: {Description: &updated},
+				},
+			},
+			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Archived: true, Description: "OLD"}}},
+			expectError:   true,
+			expectedRepos: []github.Repo{{Name: oldName, Archived: true, Description: "OLD"}},
+		},
+		{
+			description: "explicit rename on archived repo with unset archived fails",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					newName: {Previously: []string{oldName}},
+				},
+			},
+			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Archived: true}}},
+			expectError:   true,
+			expectedRepos: []github.Repo{{Name: oldName, Archived: true}},
+		},
+		{
+			description: "matching explicit settings on archived repo ignore differing defaults",
+			orgConfig: org.Config{
+				RepoDefaults: &org.RepoDefaults{DeleteBranchOnMerge: &yes},
+				Repos: map[string]org.Repo{
+					oldName: {Description: &updated},
+				},
+			},
+			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Archived: true, Description: updated}}},
+			expectedRepos: []github.Repo{{Name: oldName, Archived: true, Description: updated}},
+		},
+		{
 			description: "request to archive repo fails when not allowed, but updates other fields",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
@@ -4686,24 +4731,42 @@ func TestConfigureRepos(t *testing.T) {
 
 func TestConfigureReposWithDefaults(t *testing.T) {
 	defaults := &org.RepoDefaults{
-		AllowSquashMerge: new(true), AllowMergeCommit: new(true), AllowRebaseMerge: new(true),
-		DeleteBranchOnMerge: new(true), HasIssues: new(true), HasProjects: new(true), HasWiki: new(true),
-		SquashMergeCommitTitle: new("PR_TITLE"), SquashMergeCommitMessage: new("COMMIT_MESSAGES"),
+		AllowSquashMerge:         new(true),
+		AllowMergeCommit:         new(true),
+		AllowRebaseMerge:         new(true),
+		DeleteBranchOnMerge:      new(true),
+		HasIssues:                new(true),
+		HasProjects:              new(true),
+		HasWiki:                  new(true),
+		SquashMergeCommitTitle:   new("PR_TITLE"),
+		SquashMergeCommitMessage: new("COMMIT_MESSAGES"),
 	}
 	enabled := github.FullRepo{
-		Repo:             github.Repo{Name: "repo", HasIssues: true, HasProjects: true, HasWiki: true},
-		AllowSquashMerge: true, AllowMergeCommit: true, AllowRebaseMerge: true, DeleteBranchOnMerge: true,
-		SquashMergeCommitTitle: "PR_TITLE", SquashMergeCommitMessage: "COMMIT_MESSAGES",
+		Repo: github.Repo{
+			Name:        "repo",
+			HasIssues:   true,
+			HasProjects: true,
+			HasWiki:     true,
+		},
+		AllowSquashMerge:         true,
+		AllowMergeCommit:         true,
+		AllowRebaseMerge:         true,
+		DeleteBranchOnMerge:      true,
+		SquashMergeCommitTitle:   "PR_TITLE",
+		SquashMergeCommitMessage: "COMMIT_MESSAGES",
 	}
 	disabled := github.FullRepo{Repo: github.Repo{Name: "repo"}}
 	deleteBranches := github.FullRepo{Repo: github.Repo{Name: "repo"}, DeleteBranchOnMerge: true}
 	archived := github.FullRepo{Repo: github.Repo{Name: "repo", Archived: true}}
-	squashOverrides := org.Repo{RepoSettings: org.RepoSettings{
-		SquashMergeCommitTitle: new("COMMIT_OR_PR_TITLE"), SquashMergeCommitMessage: new("PR_BODY"),
-	}}
+	squashOverrides := org.Repo{
+		RepoSettings: org.RepoSettings{
+			SquashMergeCommitTitle:   new("COMMIT_OR_PR_TITLE"),
+			SquashMergeCommitMessage: new("COMMIT_MESSAGES"),
+		},
+	}
 	overridden := enabled
 	overridden.SquashMergeCommitTitle = "COMMIT_OR_PR_TITLE"
-	overridden.SquashMergeCommitMessage = "PR_BODY"
+	overridden.SquashMergeCommitMessage = "COMMIT_MESSAGES"
 	for _, tc := range []struct {
 		name     string
 		defaults *org.RepoDefaults
@@ -4711,29 +4774,120 @@ func TestConfigureReposWithDefaults(t *testing.T) {
 		existing []github.FullRepo
 		want     github.FullRepo
 	}{
-		{name: "create with inherited defaults", defaults: defaults, want: enabled},
-		{name: "update with inherited defaults", defaults: defaults, existing: []github.FullRepo{disabled}, want: enabled},
-		{name: "already matches defaults", defaults: defaults, existing: []github.FullRepo{enabled}, want: enabled},
-		{name: "create with squash commit overrides", defaults: defaults, repo: squashOverrides, want: overridden},
-		{name: "update with squash commit overrides", defaults: defaults, repo: squashOverrides,
-			existing: []github.FullRepo{enabled}, want: overridden},
-		{name: "create with false override", defaults: &org.RepoDefaults{DeleteBranchOnMerge: new(true)},
-			repo: org.Repo{RepoSettings: org.RepoSettings{DeleteBranchOnMerge: new(false)}}, want: disabled},
-		{name: "update with false override", defaults: &org.RepoDefaults{DeleteBranchOnMerge: new(true)},
-			repo:     org.Repo{RepoSettings: org.RepoSettings{DeleteBranchOnMerge: new(false)}},
-			existing: []github.FullRepo{deleteBranches}, want: disabled},
-		{name: "create with true override", defaults: &org.RepoDefaults{DeleteBranchOnMerge: new(false)},
-			repo: org.Repo{RepoSettings: org.RepoSettings{DeleteBranchOnMerge: new(true)}}, want: deleteBranches},
-		{name: "update with true override", defaults: &org.RepoDefaults{DeleteBranchOnMerge: new(false)},
-			repo: org.Repo{RepoSettings: org.RepoSettings{DeleteBranchOnMerge: new(true)}}, existing: []github.FullRepo{disabled}, want: deleteBranches},
-		{name: "inherited false updates existing repo", defaults: &org.RepoDefaults{DeleteBranchOnMerge: new(false)},
-			existing: []github.FullRepo{deleteBranches}, want: disabled},
-		{name: "absent defaults leave unspecified settings alone", existing: []github.FullRepo{enabled}, want: enabled},
-		{name: "empty defaults leave unspecified settings alone", defaults: &org.RepoDefaults{}, existing: []github.FullRepo{enabled}, want: enabled},
-		{name: "archived repo remains untouched", defaults: defaults, repo: org.Repo{Archived: new(true)},
-			existing: []github.FullRepo{archived}, want: archived},
-		{name: "archived repo with unspecified archival remains untouched", defaults: defaults,
-			existing: []github.FullRepo{archived}, want: archived},
+		{
+			name:     "create with inherited defaults",
+			defaults: defaults,
+			want:     enabled,
+		},
+		{
+			name:     "update with inherited defaults",
+			defaults: defaults,
+			existing: []github.FullRepo{disabled},
+			want:     enabled,
+		},
+		{
+			name:     "already matches defaults",
+			defaults: defaults,
+			existing: []github.FullRepo{enabled},
+			want:     enabled,
+		},
+		{
+			name:     "create with squash commit overrides",
+			defaults: defaults,
+			repo:     squashOverrides,
+			want:     overridden,
+		},
+		{
+			name:     "update with squash commit overrides",
+			defaults: defaults,
+			repo:     squashOverrides,
+			existing: []github.FullRepo{enabled},
+			want:     overridden,
+		},
+		{
+			name: "create with false override",
+			defaults: &org.RepoDefaults{
+				DeleteBranchOnMerge: new(true),
+			},
+			repo: org.Repo{
+				RepoSettings: org.RepoSettings{
+					DeleteBranchOnMerge: new(false),
+				},
+			},
+			want: disabled,
+		},
+		{
+			name: "update with false override",
+			defaults: &org.RepoDefaults{
+				DeleteBranchOnMerge: new(true),
+			},
+			repo: org.Repo{
+				RepoSettings: org.RepoSettings{
+					DeleteBranchOnMerge: new(false),
+				},
+			},
+			existing: []github.FullRepo{deleteBranches},
+			want:     disabled,
+		},
+		{
+			name: "create with true override",
+			defaults: &org.RepoDefaults{
+				DeleteBranchOnMerge: new(false),
+			},
+			repo: org.Repo{
+				RepoSettings: org.RepoSettings{
+					DeleteBranchOnMerge: new(true),
+				},
+			},
+			want: deleteBranches,
+		},
+		{
+			name: "update with true override",
+			defaults: &org.RepoDefaults{
+				DeleteBranchOnMerge: new(false),
+			},
+			repo: org.Repo{
+				RepoSettings: org.RepoSettings{
+					DeleteBranchOnMerge: new(true),
+				},
+			},
+			existing: []github.FullRepo{disabled},
+			want:     deleteBranches,
+		},
+		{
+			name: "inherited false updates existing repo",
+			defaults: &org.RepoDefaults{
+				DeleteBranchOnMerge: new(false),
+			},
+			existing: []github.FullRepo{deleteBranches},
+			want:     disabled,
+		},
+		{
+			name:     "absent defaults leave unspecified settings alone",
+			existing: []github.FullRepo{enabled},
+			want:     enabled,
+		},
+		{
+			name:     "empty defaults leave unspecified settings alone",
+			defaults: &org.RepoDefaults{},
+			existing: []github.FullRepo{enabled},
+			want:     enabled,
+		},
+		{
+			name:     "archived repo remains untouched",
+			defaults: defaults,
+			repo: org.Repo{
+				Archived: new(true),
+			},
+			existing: []github.FullRepo{archived},
+			want:     archived,
+		},
+		{
+			name:     "archived repo with unspecified archival remains untouched",
+			defaults: defaults,
+			existing: []github.FullRepo{archived},
+			want:     archived,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// An unlisted repository must not inherit defaults.
@@ -4753,6 +4907,29 @@ func TestConfigureReposWithDefaults(t *testing.T) {
 		})
 	}
 
+	t.Run("ignoring defaults on archived repo is logged", func(t *testing.T) {
+		hook := logrustest.NewGlobal()
+		defer hook.Reset()
+		oldLevel := logrus.GetLevel()
+		logrus.SetLevel(logrus.InfoLevel)
+		defer logrus.SetLevel(oldLevel)
+
+		fc := makeFakeRepoClient(t, archived)
+		cfg := org.Config{
+			RepoDefaults: defaults,
+			Repos:        map[string]org.Repo{"repo": {}},
+		}
+		if err := configureRepos(options{}, fc, "example", cfg); err != nil {
+			t.Fatal(err)
+		}
+		for _, entry := range hook.AllEntries() {
+			if entry.Message == `repo "repo" is archived, ignoring repository defaults` && entry.Data["repo"] == "repo" {
+				return
+			}
+		}
+		t.Fatal("missing log explaining ignored repository defaults")
+	})
+
 	t.Run("defaults alone do not manage repositories", func(t *testing.T) {
 		repo := disabled
 		fc := makeFakeRepoClient(t, repo)
@@ -4761,6 +4938,288 @@ func TestConfigureReposWithDefaults(t *testing.T) {
 		}
 		if diff := cmp.Diff(repo, fc.repos["repo"]); diff != "" {
 			t.Errorf("unlisted repo was modified: %s", diff)
+		}
+	})
+}
+
+func TestConfigureReposSquashSettings(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		existing     bool
+		currentTitle string
+		currentAllow *bool
+		defaults     *org.RepoDefaults
+		settings     org.RepoSettings
+		wantErr      bool
+	}{
+		{
+			name: "create with PR_TITLE and PR_BODY",
+			settings: org.RepoSettings{
+				SquashMergeCommitTitle:   new("PR_TITLE"),
+				SquashMergeCommitMessage: new("PR_BODY"),
+			},
+		},
+		{
+			name: "create with PR_TITLE and BLANK",
+			settings: org.RepoSettings{
+				SquashMergeCommitTitle:   new("PR_TITLE"),
+				SquashMergeCommitMessage: new("BLANK"),
+			},
+		},
+		{
+			name: "create with PR_TITLE and COMMIT_MESSAGES",
+			settings: org.RepoSettings{
+				SquashMergeCommitTitle:   new("PR_TITLE"),
+				SquashMergeCommitMessage: new("COMMIT_MESSAGES"),
+			},
+		},
+		{
+			name: "create with COMMIT_OR_PR_TITLE and COMMIT_MESSAGES",
+			settings: org.RepoSettings{
+				SquashMergeCommitTitle:   new("COMMIT_OR_PR_TITLE"),
+				SquashMergeCommitMessage: new("COMMIT_MESSAGES"),
+			},
+		},
+		{
+			name: "create with message only uses default title",
+			settings: org.RepoSettings{
+				SquashMergeCommitMessage: new("PR_BODY"),
+			},
+			wantErr: true,
+		},
+		{
+			name:         "valid message-only update uses current title",
+			existing:     true,
+			currentTitle: "PR_TITLE",
+			settings: org.RepoSettings{
+				SquashMergeCommitMessage: new("PR_BODY"),
+			},
+		},
+		{
+			name:     "invalid message-only update uses current title",
+			existing: true,
+			settings: org.RepoSettings{
+				SquashMergeCommitMessage: new("PR_BODY"),
+			},
+			wantErr: true,
+		},
+		{
+			name: "inherited message and overridden title form invalid pair",
+			defaults: &org.RepoDefaults{
+				SquashMergeCommitTitle:   new("PR_TITLE"),
+				SquashMergeCommitMessage: new("PR_BODY"),
+			},
+			settings: org.RepoSettings{
+				SquashMergeCommitTitle: new("COMMIT_OR_PR_TITLE"),
+			},
+			wantErr: true,
+		},
+		{
+			name:     "inherited invalid pair is rejected on update",
+			existing: true,
+			defaults: &org.RepoDefaults{
+				SquashMergeCommitTitle:   new("PR_TITLE"),
+				SquashMergeCommitMessage: new("PR_BODY"),
+			},
+			settings: org.RepoSettings{
+				SquashMergeCommitTitle: new("COMMIT_OR_PR_TITLE"),
+			},
+			wantErr: true,
+		},
+		{
+			name: "COMMIT_OR_PR_TITLE with BLANK is rejected",
+			settings: org.RepoSettings{
+				SquashMergeCommitMessage: new("BLANK"),
+			},
+			wantErr: true,
+		},
+		{
+			name:         "enabling squash applies squash settings",
+			existing:     true,
+			currentAllow: new(false),
+			settings: org.RepoSettings{
+				AllowSquashMerge:         new(true),
+				SquashMergeCommitTitle:   new("PR_TITLE"),
+				SquashMergeCommitMessage: new("PR_BODY"),
+			},
+		},
+		{
+			name: "empty title is rejected",
+			settings: org.RepoSettings{
+				SquashMergeCommitTitle: new(""),
+			},
+			wantErr: true,
+		},
+		{
+			name: "invalid title is rejected",
+			settings: org.RepoSettings{
+				SquashMergeCommitTitle: new("INVALID"),
+			},
+			wantErr: true,
+		},
+		{
+			name: "empty message is rejected",
+			settings: org.RepoSettings{
+				SquashMergeCommitMessage: new(""),
+			},
+			wantErr: true,
+		},
+		{
+			name: "invalid message is rejected",
+			settings: org.RepoSettings{
+				SquashMergeCommitMessage: new("INVALID"),
+			},
+			wantErr: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fc := makeFakeRepoClient(t)
+			current := github.FullRepo{
+				Repo:                     github.Repo{Name: "repo", Description: "original"},
+				AllowSquashMerge:         true,
+				SquashMergeCommitTitle:   "COMMIT_OR_PR_TITLE",
+				SquashMergeCommitMessage: "COMMIT_MESSAGES",
+			}
+			if tc.currentTitle != "" {
+				current.SquashMergeCommitTitle = tc.currentTitle
+			}
+			if tc.currentAllow != nil {
+				current.AllowSquashMerge = *tc.currentAllow
+			}
+			if tc.existing {
+				fc.repos["repo"] = current
+			}
+			cfg := org.Config{
+				RepoDefaults: tc.defaults,
+				Repos: map[string]org.Repo{
+					"repo": {
+						Description:  new("updated"),
+						RepoSettings: tc.settings,
+					},
+				},
+			}
+			err := configureRepos(options{}, fc, "example", cfg)
+			if tc.wantErr {
+				if err == nil || !strings.Contains(err.Error(), "repo repo: invalid squash merge settings") {
+					t.Fatalf("expected clear squash settings error, got %v", err)
+				}
+				if tc.existing {
+					if diff := cmp.Diff(current, fc.repos["repo"]); diff != "" {
+						t.Fatalf("invalid request modified repo (-want +got): %s", diff)
+					}
+				} else if len(fc.repos) != 0 {
+					t.Fatal("invalid request created repo")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := fc.repos["repo"]
+			if got.Description != "updated" {
+				t.Fatal("valid request did not apply other changes")
+			}
+			if tc.settings.SquashMergeCommitTitle != nil && got.SquashMergeCommitTitle != *tc.settings.SquashMergeCommitTitle {
+				t.Fatal("valid request did not apply squash title")
+			}
+			if tc.settings.SquashMergeCommitMessage != nil && got.SquashMergeCommitMessage != *tc.settings.SquashMergeCommitMessage {
+				t.Fatal("valid request did not apply squash message")
+			}
+			if tc.settings.AllowSquashMerge != nil && got.AllowSquashMerge != *tc.settings.AllowSquashMerge {
+				t.Fatal("valid request did not apply squash merge enablement")
+			}
+		})
+	}
+}
+
+func TestRepoRequestsOmitDisabledSquashSettings(t *testing.T) {
+	settings := org.RepoSettings{
+		SquashMergeCommitTitle:   new("PR_TITLE"),
+		SquashMergeCommitMessage: new("PR_BODY"),
+	}
+	for _, tc := range []struct {
+		name         string
+		currentAllow bool
+		wantAllow    *bool
+	}{
+		{name: "already disabled"},
+		{name: "explicitly disabled", wantAllow: new(false)},
+		{name: "disabled in this request", currentAllow: true, wantAllow: new(false)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := org.Repo{
+				Description:  new("updated"),
+				RepoSettings: settings,
+			}
+			repo.AllowSquashMerge = tc.wantAllow
+			current := github.FullRepo{
+				Repo:                     github.Repo{Name: "repo"},
+				AllowSquashMerge:         tc.currentAllow,
+				SquashMergeCommitTitle:   "COMMIT_OR_PR_TITLE",
+				SquashMergeCommitMessage: "COMMIT_MESSAGES",
+			}
+			request := newRepoUpdateRequest(current, "repo", repo)
+			if request.SquashMergeCommitTitle != nil || request.SquashMergeCommitMessage != nil {
+				t.Fatal("disabled squash settings included in update request")
+			}
+			if request.Description == nil || *request.Description != "updated" {
+				t.Fatal("other changes missing from request")
+			}
+
+			// Inherited squash values must not interfere with other updates either.
+			fc := makeFakeRepoClient(t, current)
+			cfg := org.Config{
+				RepoDefaults: (*org.RepoDefaults)(&settings),
+				Repos: map[string]org.Repo{
+					"repo": {
+						Description: new("updated"),
+						RepoSettings: org.RepoSettings{
+							AllowSquashMerge: tc.wantAllow,
+						},
+					},
+				},
+			}
+			if err := configureRepos(options{}, fc, "example", cfg); err != nil {
+				t.Fatal(err)
+			}
+			want := current
+			want.Description = "updated"
+			want.AllowSquashMerge = false
+			if diff := cmp.Diff(want, fc.repos["repo"]); diff != "" {
+				t.Fatalf("unexpected repo with squash disabled (-want +got): %s", diff)
+			}
+		})
+	}
+
+	t.Run("create with squash disabled", func(t *testing.T) {
+		repo := org.Repo{Description: new("updated"), RepoSettings: settings}
+		repo.AllowSquashMerge = new(false)
+		request := newRepoCreateRequest("repo", repo)
+		if request.SquashMergeCommitTitle != nil || request.SquashMergeCommitMessage != nil {
+			t.Fatal("disabled squash settings included in create request")
+		}
+		if request.Description == nil || *request.Description != "updated" {
+			t.Fatal("other changes missing from request")
+		}
+
+		fc := makeFakeRepoClient(t)
+		cfg := org.Config{
+			RepoDefaults: (*org.RepoDefaults)(&settings),
+			Repos: map[string]org.Repo{
+				"repo": {
+					Description: new("updated"),
+					RepoSettings: org.RepoSettings{
+						AllowSquashMerge: new(false),
+					},
+				},
+			},
+		}
+		if err := configureRepos(options{}, fc, "example", cfg); err != nil {
+			t.Fatal(err)
+		}
+		want := github.FullRepo{Repo: github.Repo{Name: "repo", Description: "updated"}}
+		if diff := cmp.Diff(want, fc.repos["repo"]); diff != "" {
+			t.Fatalf("unexpected created repo with squash disabled (-want +got): %s", diff)
 		}
 	})
 }
@@ -4894,34 +5353,34 @@ func TestNewRepoUpdateRequest(t *testing.T) {
 			},
 		},
 		{
-			description: "request to update commit messages works",
+			description: "request to update squash title works",
 			current: github.FullRepo{
-				Repo: github.Repo{
-					Name: repoName,
-				},
-				SquashMergeCommitTitle:   "COMMIT_MESSAGES",
-				SquashMergeCommitMessage: "COMMIT_OR_PR_TITLE",
+				Repo:                     github.Repo{Name: repoName},
+				AllowSquashMerge:         true,
+				SquashMergeCommitTitle:   "COMMIT_OR_PR_TITLE",
+				SquashMergeCommitMessage: squashMergeCommitMessage,
 			},
 			name: newRepoName,
 			newState: org.Repo{
 				Description: &description,
 				RepoSettings: org.RepoSettings{
-					SquashMergeCommitTitle: &squashMergeCommitTitle, SquashMergeCommitMessage: &squashMergeCommitMessage,
-				},
-			},
-			expected: github.RepoUpdateRequest{
-				RepoRequest: github.RepoRequest{
-					Name:                     &newRepoName,
-					Description:              &description,
 					SquashMergeCommitTitle:   &squashMergeCommitTitle,
 					SquashMergeCommitMessage: &squashMergeCommitMessage,
 				},
 			},
+			expected: github.RepoUpdateRequest{
+				RepoRequest: github.RepoRequest{
+					Name:                   &newRepoName,
+					Description:            &description,
+					SquashMergeCommitTitle: &squashMergeCommitTitle,
+				},
+			},
 		},
 		{
-			description: "message-only change includes unchanged configured title",
+			description: "message-only change omits unchanged configured title",
 			current: github.FullRepo{
 				Repo:                     github.Repo{Name: repoName},
+				AllowSquashMerge:         true,
 				SquashMergeCommitTitle:   squashMergeCommitTitle,
 				SquashMergeCommitMessage: "PR_BODY",
 			},
@@ -4931,23 +5390,22 @@ func TestNewRepoUpdateRequest(t *testing.T) {
 				SquashMergeCommitMessage: &squashMergeCommitMessage,
 			}},
 			expected: github.RepoUpdateRequest{RepoRequest: github.RepoRequest{
-				SquashMergeCommitTitle:   &squashMergeCommitTitle,
 				SquashMergeCommitMessage: &squashMergeCommitMessage,
 			}},
 		},
 		{
-			description: "message-only change falls back to current title",
+			description: "message-only change does not backfill current title",
 			current: github.FullRepo{
 				Repo:                     github.Repo{Name: repoName},
-				SquashMergeCommitTitle:   "COMMIT_OR_PR_TITLE",
-				SquashMergeCommitMessage: "PR_BODY",
+				AllowSquashMerge:         true,
+				SquashMergeCommitTitle:   "PR_TITLE",
+				SquashMergeCommitMessage: "BLANK",
 			},
 			name: repoName,
 			newState: org.Repo{RepoSettings: org.RepoSettings{
 				SquashMergeCommitMessage: &squashMergeCommitMessage,
 			}},
 			expected: github.RepoUpdateRequest{RepoRequest: github.RepoRequest{
-				SquashMergeCommitTitle:   new("COMMIT_OR_PR_TITLE"),
 				SquashMergeCommitMessage: &squashMergeCommitMessage,
 			}},
 		},

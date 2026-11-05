@@ -114,8 +114,11 @@ orgs:
 
 * Defaults apply only to repositories listed in `repos`, both on creation and during updates with `--fix-repos`.
 * Explicit repository values take precedence, including `false`. Omitted or `null` values inherit the default; there is no per-repository opt-out that leaves an inherited setting unmanaged.
-* Settings omitted from both the repository and its defaults remain unmanaged. Configs without `repo_defaults` behave as before.
+* Settings omitted from both the repository and its defaults remain unmanaged.
+* Repositories archived on GitHub do not inherit defaults unless the config sets `archived: false`, which is reported as an unsupported unarchive. When `archived` is omitted or `null`, explicit repository settings are still managed and changes fail with GitHub's read-only error. Setting `archived: true` skips all changes.
 * Supported defaults are `allow_squash_merge`, `allow_merge_commit`, `allow_rebase_merge`, `squash_merge_commit_title`, `squash_merge_commit_message`, `delete_branch_on_merge`, `has_issues`, `has_projects` and `has_wiki`. Other fields, including visibility, archival and collaborators, remain per-repository only. Unsupported keys in `repo_defaults` are rejected as configuration errors.
+* When squash merging will be enabled, squash commit settings are validated as a pair after applying defaults and overrides, using the current GitHub values for settings left unspecified. `PR_TITLE` supports `PR_BODY`, `BLANK` or `COMMIT_MESSAGES`; `COMMIT_OR_PR_TITLE` supports only `COMMIT_MESSAGES`. Empty or invalid values are rejected before creating or updating the repository. New repositories default to `COMMIT_OR_PR_TITLE` and `COMMIT_MESSAGES`.
+* Squash commit title and message settings are not sent when squash merging will be disabled, whether the settings are inherited or explicitly configured. Other repository settings are still managed.
 * Dumps do not infer `repo_defaults`, and they omit settings that match GitHub's defaults as well as squash commit settings. Repositories that need to keep such a value under a different default must set it explicitly.
 
 Deploy a Peribolos version that supports `repo_defaults` before moving settings into this block. Older versions may ignore it. Use a dry run with `--fix-repos` to list the repositories that would change.

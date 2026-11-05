@@ -1291,6 +1291,11 @@ func newRepoCreateRequest(name string, definition org.Repo) github.RepoCreateReq
 		},
 	}
 
+	if definition.AllowSquashMerge != nil && !*definition.AllowSquashMerge {
+		repoCreate.SquashMergeCommitTitle = nil
+		repoCreate.SquashMergeCommitMessage = nil
+	}
+
 	if definition.OnCreate != nil {
 		repoCreate.AutoInit = definition.OnCreate.AutoInit
 		repoCreate.GitignoreTemplate = definition.OnCreate.GitignoreTemplate
@@ -1326,6 +1331,28 @@ func validateRepos(repos map[string]org.Repo) error {
 	return nil
 }
 
+// validateSquashMergeSettings checks the effective pair, including settings left
+// unchanged by the request. GitHub rejects invalid pairs even on message-only updates.
+func validateSquashMergeSettings(current github.FullRepo, request github.RepoRequest) error {
+	if request.SquashMergeCommitTitle == nil && request.SquashMergeCommitMessage == nil {
+		return nil
+	}
+	title, message := current.SquashMergeCommitTitle, current.SquashMergeCommitMessage
+	if request.SquashMergeCommitTitle != nil {
+		title = *request.SquashMergeCommitTitle
+	}
+	if request.SquashMergeCommitMessage != nil {
+		message = *request.SquashMergeCommitMessage
+	}
+	if title == "PR_TITLE" && (message == "PR_BODY" || message == "BLANK" || message == "COMMIT_MESSAGES") {
+		return nil
+	}
+	if title == "COMMIT_OR_PR_TITLE" && message == "COMMIT_MESSAGES" {
+		return nil
+	}
+	return fmt.Errorf("invalid squash merge settings: squash_merge_commit_title=%q, squash_merge_commit_message=%q; PR_TITLE requires PR_BODY, BLANK or COMMIT_MESSAGES; COMMIT_OR_PR_TITLE requires COMMIT_MESSAGES", title, message)
+}
+
 // setIfChanged returns want when it is set and differs from current, else nil.
 func setIfChanged[T comparable](current T, want *T) *T {
 	if want != nil && *want != current {
@@ -1357,9 +1384,13 @@ func newRepoUpdateRequest(current github.FullRepo, name string, repo org.Repo) g
 		Archived:      setIfChanged(current.Archived, repo.Archived),
 	}
 
-	// GitHub requires a squash commit title when updating the message.
-	if repoUpdate.SquashMergeCommitMessage != nil && repoUpdate.SquashMergeCommitTitle == nil {
-		repoUpdate.SquashMergeCommitTitle = &current.SquashMergeCommitTitle
+	allowSquashMerge := current.AllowSquashMerge
+	if repo.AllowSquashMerge != nil {
+		allowSquashMerge = *repo.AllowSquashMerge
+	}
+	if !allowSquashMerge {
+		repoUpdate.SquashMergeCommitTitle = nil
+		repoUpdate.SquashMergeCommitMessage = nil
 	}
 
 	return repoUpdate
@@ -1436,8 +1467,19 @@ func configureRepos(opt options, client repoClient, orgName string, orgConfig or
 				allErrors = append(allErrors, fmt.Errorf("nonexistent repo configured as archived: %s", wantName))
 				continue
 			}
+			request := newRepoCreateRequest(wantName, wantRepo)
+			// New repositories use GitHub's default squash title/message pair.
+			initial := github.FullRepo{
+				SquashMergeCommitTitle:   "COMMIT_OR_PR_TITLE",
+				SquashMergeCommitMessage: "COMMIT_MESSAGES",
+			}
+			if err := validateSquashMergeSettings(initial, request.RepoRequest); err != nil {
+				repoLogger.WithError(err).Error("invalid repository settings")
+				allErrors = append(allErrors, fmt.Errorf("repo %s: %w", wantName, err))
+				continue
+			}
 			repoLogger.Info("repo does not exist, creating")
-			created, err := client.CreateRepo(orgName, false, newRepoCreateRequest(wantName, wantRepo))
+			created, err := client.CreateRepo(orgName, false, request)
 			if err != nil {
 				repoLogger.WithError(err).Error("failed to create repository")
 				allErrors = append(allErrors, err)
@@ -1447,12 +1489,25 @@ func configureRepos(opt options, client repoClient, orgName string, orgConfig or
 		}
 
 		if existing != nil {
-			if existing.Archived && (wantRepo.Archived == nil || *wantRepo.Archived) {
-				repoLogger.Infof("repo %q is archived, skipping changes", wantName)
-				continue
+			if existing.Archived {
+				if wantRepo.Archived != nil && *wantRepo.Archived {
+					repoLogger.Infof("repo %q is archived, skipping changes", wantName)
+					continue
+				}
+				if wantRepo.Archived == nil {
+					wantRepo = orgConfig.Repos[wantName]
+					if orgConfig.RepoDefaults != nil {
+						repoLogger.Infof("repo %q is archived, ignoring repository defaults", wantName)
+					}
+				}
 			}
 			repoLogger.Info("repo exists, considering an update")
 			delta := newRepoUpdateRequest(*existing, wantName, wantRepo)
+			if err := validateSquashMergeSettings(*existing, delta.RepoRequest); err != nil {
+				repoLogger.WithError(err).Error("invalid repository settings")
+				allErrors = append(allErrors, fmt.Errorf("repo %s: %w", wantName, err))
+				continue
+			}
 			if deltaErrors := sanitizeRepoDelta(opt, &delta); len(deltaErrors) > 0 {
 				for _, err := range deltaErrors {
 					repoLogger.WithError(err).Error("requested repo change is not allowed, removing from delta")

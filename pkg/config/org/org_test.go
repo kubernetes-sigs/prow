@@ -68,10 +68,6 @@ func TestRepoWithDefaults(t *testing.T) {
 		{name: "false overrides true", repo: disabled, defaults: defaults, want: disabled},
 		{name: "true overrides false", repo: enabled, defaults: (*RepoDefaults)(&disabledSettings), want: enabled},
 		{name: "partial defaults leave other fields unset", defaults: &RepoDefaults{HasWiki: new(false)}, want: Repo{RepoSettings: RepoSettings{HasWiki: new(false)}}},
-		{name: "explicit empty strings override defaults", repo: Repo{RepoSettings: RepoSettings{
-			SquashMergeCommitTitle: new(""), SquashMergeCommitMessage: new(""),
-		}}, defaults: &RepoDefaults{SquashMergeCommitTitle: new("PR_TITLE"), SquashMergeCommitMessage: new("COMMIT_MESSAGES")},
-			want: Repo{RepoSettings: RepoSettings{SquashMergeCommitTitle: new(""), SquashMergeCommitMessage: new("")}}},
 		{name: "preserve repository metadata", repo: metadata, defaults: defaults, want: metadataWithDefaults},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
