@@ -738,7 +738,7 @@ type JiraError struct {
 	OriginalError error
 }
 
-func (e JiraError) Error() string {
+func (e *JiraError) Error() string {
 	return fmt.Sprintf("%s: %s", e.OriginalError, e.Body)
 }
 
