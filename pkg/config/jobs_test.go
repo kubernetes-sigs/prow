@@ -21,8 +21,10 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	pipelinev1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
 	coreapi "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	prowapi "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 )
 
@@ -726,6 +728,125 @@ func TestMergePreset(t *testing.T) {
 				if len(c.Env) != tc.numEnv {
 					t.Errorf("wrong number of env vars for podspec. Got %d, expected %d.", len(c.Env), tc.numEnv)
 				}
+			}
+		})
+	}
+}
+
+func TestMergePresetAffinity(t *testing.T) {
+	requiredArch := func(arch string) *coreapi.NodeSelector {
+		return &coreapi.NodeSelector{NodeSelectorTerms: []coreapi.NodeSelectorTerm{{
+			MatchExpressions: []coreapi.NodeSelectorRequirement{{Key: "kubernetes.io/arch", Operator: coreapi.NodeSelectorOpIn, Values: []string{arch}}},
+		}}}
+	}
+	preferredZone := func(zone string) coreapi.PreferredSchedulingTerm {
+		return coreapi.PreferredSchedulingTerm{Weight: 1, Preference: coreapi.NodeSelectorTerm{
+			MatchExpressions: []coreapi.NodeSelectorRequirement{{Key: "topology.kubernetes.io/zone", Operator: coreapi.NodeSelectorOpIn, Values: []string{zone}}},
+		}}
+	}
+	antiTerm := func(app string) coreapi.PodAffinityTerm {
+		return coreapi.PodAffinityTerm{
+			LabelSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": app}},
+			TopologyKey:   "kubernetes.io/hostname",
+		}
+	}
+
+	tcs := []struct {
+		name        string
+		pod         *coreapi.PodSpec
+		presets     []Preset
+		expected    *coreapi.Affinity
+		shouldError bool
+	}{
+		{
+			name: "preset affinity is set on pod without affinity",
+			pod:  &coreapi.PodSpec{},
+			presets: []Preset{{
+				Affinity: &coreapi.Affinity{NodeAffinity: &coreapi.NodeAffinity{RequiredDuringSchedulingIgnoredDuringExecution: requiredArch("arm64")}},
+			}},
+			expected: &coreapi.Affinity{NodeAffinity: &coreapi.NodeAffinity{RequiredDuringSchedulingIgnoredDuringExecution: requiredArch("arm64")}},
+		},
+		{
+			name: "preset without affinity leaves pod affinity untouched",
+			pod:  &coreapi.PodSpec{Affinity: &coreapi.Affinity{NodeAffinity: &coreapi.NodeAffinity{RequiredDuringSchedulingIgnoredDuringExecution: requiredArch("amd64")}}},
+			presets: []Preset{{
+				Volumes: []coreapi.Volume{{Name: "foo"}},
+			}},
+			expected: &coreapi.Affinity{NodeAffinity: &coreapi.NodeAffinity{RequiredDuringSchedulingIgnoredDuringExecution: requiredArch("amd64")}},
+		},
+		{
+			name: "preferred terms and required pod anti-affinity terms are appended",
+			pod: &coreapi.PodSpec{Affinity: &coreapi.Affinity{
+				NodeAffinity: &coreapi.NodeAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution:  requiredArch("amd64"),
+					PreferredDuringSchedulingIgnoredDuringExecution: []coreapi.PreferredSchedulingTerm{preferredZone("a")},
+				},
+				PodAntiAffinity: &coreapi.PodAntiAffinity{RequiredDuringSchedulingIgnoredDuringExecution: []coreapi.PodAffinityTerm{antiTerm("a")}},
+			}},
+			presets: []Preset{{
+				Affinity: &coreapi.Affinity{
+					NodeAffinity:    &coreapi.NodeAffinity{PreferredDuringSchedulingIgnoredDuringExecution: []coreapi.PreferredSchedulingTerm{preferredZone("b")}},
+					PodAntiAffinity: &coreapi.PodAntiAffinity{RequiredDuringSchedulingIgnoredDuringExecution: []coreapi.PodAffinityTerm{antiTerm("b")}},
+					PodAffinity:     &coreapi.PodAffinity{RequiredDuringSchedulingIgnoredDuringExecution: []coreapi.PodAffinityTerm{antiTerm("c")}},
+				},
+			}},
+			expected: &coreapi.Affinity{
+				NodeAffinity: &coreapi.NodeAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution:  requiredArch("amd64"),
+					PreferredDuringSchedulingIgnoredDuringExecution: []coreapi.PreferredSchedulingTerm{preferredZone("a"), preferredZone("b")},
+				},
+				PodAffinity:     &coreapi.PodAffinity{RequiredDuringSchedulingIgnoredDuringExecution: []coreapi.PodAffinityTerm{antiTerm("c")}},
+				PodAntiAffinity: &coreapi.PodAntiAffinity{RequiredDuringSchedulingIgnoredDuringExecution: []coreapi.PodAffinityTerm{antiTerm("a"), antiTerm("b")}},
+			},
+		},
+		{
+			name: "affinity from included preset is merged",
+			pod:  &coreapi.PodSpec{},
+			presets: []Preset{
+				{
+					Affinity:       &coreapi.Affinity{NodeAffinity: &coreapi.NodeAffinity{PreferredDuringSchedulingIgnoredDuringExecution: []coreapi.PreferredSchedulingTerm{preferredZone("a")}}},
+					IncludePresets: map[string]string{"base": "true"},
+				},
+				{
+					Labels:   map[string]string{"base": "true"},
+					Affinity: &coreapi.Affinity{NodeAffinity: &coreapi.NodeAffinity{RequiredDuringSchedulingIgnoredDuringExecution: requiredArch("arm64")}},
+				},
+			},
+			expected: &coreapi.Affinity{NodeAffinity: &coreapi.NodeAffinity{
+				RequiredDuringSchedulingIgnoredDuringExecution:  requiredArch("arm64"),
+				PreferredDuringSchedulingIgnoredDuringExecution: []coreapi.PreferredSchedulingTerm{preferredZone("a")},
+			}},
+		},
+		{
+			name: "duplicate required node affinity",
+			pod:  &coreapi.PodSpec{Affinity: &coreapi.Affinity{NodeAffinity: &coreapi.NodeAffinity{RequiredDuringSchedulingIgnoredDuringExecution: requiredArch("amd64")}}},
+			presets: []Preset{{
+				Affinity: &coreapi.Affinity{NodeAffinity: &coreapi.NodeAffinity{RequiredDuringSchedulingIgnoredDuringExecution: requiredArch("arm64")}},
+			}},
+			shouldError: true,
+		},
+	}
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			original := make([]Preset, len(tc.presets))
+			for i := range tc.presets {
+				tc.presets[i].DeepCopyInto(&original[i])
+			}
+			err := resolvePresets("foo", nil, tc.pod, tc.presets)
+			if tc.shouldError {
+				if err == nil {
+					t.Fatal("expected error but got none")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("expected no error but got %v", err)
+			}
+			if diff := cmp.Diff(tc.expected, tc.pod.Affinity); diff != "" {
+				t.Errorf("unexpected affinity (-want +got):\n%s", diff)
+			}
+			if diff := cmp.Diff(original, tc.presets); diff != "" {
+				t.Errorf("presets were mutated (-want +got):\n%s", diff)
 			}
 		})
 	}

@@ -48,12 +48,16 @@ type Preset struct {
 	Volumes      []v1.Volume       `json:"volumes"`
 	VolumeMounts []v1.VolumeMount  `json:"volumeMounts"`
 	Tolerations  []v1.Toleration   `json:"tolerations,omitempty"`
-	// IncludePresets pulls the env, volumes, volumeMounts and tolerations of
+	// IncludePresets pulls the env, volumes, volumeMounts, tolerations and affinity of
 	// other presets into this one. Each entry is a label pair (label: value)
 	// that identifies the included preset by one of its labels. The labels of
 	// included presets are not used for matching jobs. Included presets may
 	// themselves include other presets.
 	IncludePresets map[string]string `json:"includePresets,omitempty"`
+	// Affinity is merged into the pod spec affinity. Preferred terms and pod
+	// (anti-)affinity required terms are appended; required node affinity may
+	// only be set once.
+	Affinity *v1.Affinity `json:"affinity,omitempty"`
 }
 
 // presetMatches returns whether all labels of the preset are set on the job.
@@ -107,6 +111,66 @@ func applyPreset(preset Preset, podSpec *v1.PodSpec) error {
 			}
 		}
 		*tolerations = append(*tolerations, t1)
+	}
+
+	if preset.Affinity != nil {
+		if err := mergeAffinity(preset.Affinity, podSpec); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// mergeAffinity merges a copy of affinity into the podSpec's affinity.
+func mergeAffinity(affinity *v1.Affinity, podSpec *v1.PodSpec) error {
+	src := affinity.DeepCopy()
+	if podSpec.Affinity == nil {
+		podSpec.Affinity = src
+		return nil
+	}
+	dst := podSpec.Affinity
+
+	if src.NodeAffinity != nil {
+		if dst.NodeAffinity == nil {
+			dst.NodeAffinity = src.NodeAffinity
+		} else {
+			// Node selector terms are ORed, so combining them would loosen the constraint.
+			if src.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution != nil {
+				if dst.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution != nil {
+					return errors.New("required node affinity duplicated in pod spec")
+				}
+				dst.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution = src.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution
+			}
+			dst.NodeAffinity.PreferredDuringSchedulingIgnoredDuringExecution = append(
+				dst.NodeAffinity.PreferredDuringSchedulingIgnoredDuringExecution,
+				src.NodeAffinity.PreferredDuringSchedulingIgnoredDuringExecution...)
+		}
+	}
+
+	if src.PodAffinity != nil {
+		if dst.PodAffinity == nil {
+			dst.PodAffinity = src.PodAffinity
+		} else {
+			dst.PodAffinity.RequiredDuringSchedulingIgnoredDuringExecution = append(
+				dst.PodAffinity.RequiredDuringSchedulingIgnoredDuringExecution,
+				src.PodAffinity.RequiredDuringSchedulingIgnoredDuringExecution...)
+			dst.PodAffinity.PreferredDuringSchedulingIgnoredDuringExecution = append(
+				dst.PodAffinity.PreferredDuringSchedulingIgnoredDuringExecution,
+				src.PodAffinity.PreferredDuringSchedulingIgnoredDuringExecution...)
+		}
+	}
+
+	if src.PodAntiAffinity != nil {
+		if dst.PodAntiAffinity == nil {
+			dst.PodAntiAffinity = src.PodAntiAffinity
+		} else {
+			dst.PodAntiAffinity.RequiredDuringSchedulingIgnoredDuringExecution = append(
+				dst.PodAntiAffinity.RequiredDuringSchedulingIgnoredDuringExecution,
+				src.PodAntiAffinity.RequiredDuringSchedulingIgnoredDuringExecution...)
+			dst.PodAntiAffinity.PreferredDuringSchedulingIgnoredDuringExecution = append(
+				dst.PodAntiAffinity.PreferredDuringSchedulingIgnoredDuringExecution,
+				src.PodAntiAffinity.PreferredDuringSchedulingIgnoredDuringExecution...)
+		}
 	}
 	return nil
 }
