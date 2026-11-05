@@ -1838,10 +1838,15 @@ func (r *jobConfigReader) readFile(path string) {
 		r.errs = append(r.errs, err)
 		return
 	}
-	jc, err := mergeJobConfigs(r.jc, subConfig)
-	if err != nil {
-		r.errs = append(r.errs, err)
-		return
+	// Merging into an empty config would discard file-level settings.
+	jc := subConfig
+	if r.count > 0 {
+		var err error
+		jc, err = mergeJobConfigs(r.jc, subConfig)
+		if err != nil {
+			r.errs = append(r.errs, err)
+			return
+		}
 	}
 	r.jc = jc
 	logrus.WithField("jobConfig", path).WithField("duration", time.Since(fileStart)).Traceln("config loaded")
