@@ -29,22 +29,38 @@ import (
 
 func TestRepoWithDefaults(t *testing.T) {
 	defaults := &RepoDefaults{
-		AllowSquashMerge: new(true), AllowMergeCommit: new(true), AllowRebaseMerge: new(true),
-		DeleteBranchOnMerge: new(true), HasIssues: new(true), HasProjects: new(true), HasWiki: new(true),
-		SquashMergeCommitTitle: new("PR_TITLE"), SquashMergeCommitMessage: new("COMMIT_MESSAGES"),
+		AllowSquashMerge:         new(true),
+		AllowMergeCommit:         new(true),
+		AllowRebaseMerge:         new(true),
+		DeleteBranchOnMerge:      new(true),
+		HasIssues:                new(true),
+		HasProjects:              new(true),
+		HasWiki:                  new(true),
+		SquashMergeCommitTitle:   new("PR_TITLE"),
+		SquashMergeCommitMessage: new("COMMIT_MESSAGES"),
 	}
 	enabled := Repo{RepoSettings: RepoSettings(*defaults)}
 	disabledSettings := RepoSettings{
-		AllowSquashMerge: new(false), AllowMergeCommit: new(false), AllowRebaseMerge: new(false),
-		DeleteBranchOnMerge: new(false), HasIssues: new(false), HasProjects: new(false), HasWiki: new(false),
-		SquashMergeCommitTitle: new("COMMIT_OR_PR_TITLE"), SquashMergeCommitMessage: new("PR_BODY"),
+		AllowSquashMerge:         new(false),
+		AllowMergeCommit:         new(false),
+		AllowRebaseMerge:         new(false),
+		DeleteBranchOnMerge:      new(false),
+		HasIssues:                new(false),
+		HasProjects:              new(false),
+		HasWiki:                  new(false),
+		SquashMergeCommitTitle:   new("COMMIT_OR_PR_TITLE"),
+		SquashMergeCommitMessage: new("PR_BODY"),
 	}
 	disabled := Repo{RepoSettings: disabledSettings}
 	metadata := Repo{
-		Description: new("description"), HomePage: new("https://example.com"),
-		Visibility: new(github.RepoVisibilityPrivate), Archived: new(true), DefaultBranch: new("main"),
-		Previously: []string{"old-name"}, Collaborators: map[string]github.RepoPermissionLevel{"user": github.Read},
-		OnCreate: &RepoCreateOptions{AutoInit: new(true)},
+		Description:   new("description"),
+		HomePage:      new("https://example.com"),
+		Visibility:    new(github.RepoVisibilityPrivate),
+		Archived:      new(true),
+		DefaultBranch: new("main"),
+		Previously:    []string{"old-name"},
+		Collaborators: map[string]github.RepoPermissionLevel{"user": github.Read},
+		OnCreate:      &RepoCreateOptions{AutoInit: new(true)},
 	}
 	metadataWithDefaults := enabled
 	metadataWithDefaults.Description = metadata.Description
@@ -62,13 +78,50 @@ func TestRepoWithDefaults(t *testing.T) {
 		defaults *RepoDefaults
 		want     Repo
 	}{
-		{name: "no defaults", repo: metadata, want: metadata},
-		{name: "empty defaults", defaults: &RepoDefaults{}, want: Repo{}},
-		{name: "inherit all supported fields", defaults: defaults, want: enabled},
-		{name: "false overrides true", repo: disabled, defaults: defaults, want: disabled},
-		{name: "true overrides false", repo: enabled, defaults: (*RepoDefaults)(&disabledSettings), want: enabled},
-		{name: "partial defaults leave other fields unset", defaults: &RepoDefaults{HasWiki: new(false)}, want: Repo{RepoSettings: RepoSettings{HasWiki: new(false)}}},
-		{name: "preserve repository metadata", repo: metadata, defaults: defaults, want: metadataWithDefaults},
+		{
+			name: "no defaults",
+			repo: metadata,
+			want: metadata,
+		},
+		{
+			name:     "empty defaults",
+			defaults: &RepoDefaults{},
+			want:     Repo{},
+		},
+		{
+			name:     "inherit all supported fields",
+			defaults: defaults,
+			want:     enabled,
+		},
+		{
+			name:     "false overrides true",
+			repo:     disabled,
+			defaults: defaults,
+			want:     disabled,
+		},
+		{
+			name:     "true overrides false",
+			repo:     enabled,
+			defaults: (*RepoDefaults)(&disabledSettings),
+			want:     enabled,
+		},
+		{
+			name: "partial defaults leave other fields unset",
+			defaults: &RepoDefaults{
+				HasWiki: new(false),
+			},
+			want: Repo{
+				RepoSettings: RepoSettings{
+					HasWiki: new(false),
+				},
+			},
+		},
+		{
+			name:     "preserve repository metadata",
+			repo:     metadata,
+			defaults: defaults,
+			want:     metadataWithDefaults,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			beforeRepo, err := json.Marshal(tc.repo)
@@ -113,8 +166,10 @@ func TestRepoDefaultsConfig(t *testing.T) {
 	}
 	org := cfg.Orgs["example"]
 	wantDefaults := &RepoDefaults{
-		AllowMergeCommit: new(false), DeleteBranchOnMerge: new(true),
-		SquashMergeCommitTitle: new("PR_TITLE"), SquashMergeCommitMessage: new("COMMIT_MESSAGES"),
+		AllowMergeCommit:         new(false),
+		DeleteBranchOnMerge:      new(true),
+		SquashMergeCommitTitle:   new("PR_TITLE"),
+		SquashMergeCommitMessage: new("COMMIT_MESSAGES"),
 	}
 	if !reflect.DeepEqual(org.RepoDefaults, wantDefaults) {
 		t.Fatalf("unexpected defaults: %s", diff.Diff(wantDefaults, org.RepoDefaults))
@@ -141,8 +196,14 @@ func TestRepoDefaultsConfig(t *testing.T) {
 		name string
 		fn   func(any) ([]byte, error)
 	}{
-		{name: "json", fn: json.Marshal},
-		{name: "yaml", fn: yaml.Marshal},
+		{
+			name: "json",
+			fn:   json.Marshal,
+		},
+		{
+			name: "yaml",
+			fn:   yaml.Marshal,
+		},
 	} {
 		t.Run(marshal.name, func(t *testing.T) {
 			data, err := marshal.fn(Config{Repos: map[string]Repo{"example": {}}})
@@ -175,31 +236,76 @@ func TestRepoDefaultsParsing(t *testing.T) {
 		name string
 		fn   func([]byte, any) error
 	}{
-		{name: "json", fn: json.Unmarshal},
-		{name: "yaml", fn: func(data []byte, out any) error {
-			data, err := yaml.JSONToYAML(data)
-			if err != nil {
-				return err
-			}
-			return yaml.Unmarshal(data, out)
-		}},
+		{
+			name: "json",
+			fn:   json.Unmarshal,
+		},
+		{
+			name: "yaml",
+			fn: func(data []byte, out any) error {
+				data, err := yaml.JSONToYAML(data)
+				if err != nil {
+					return err
+				}
+				return yaml.Unmarshal(data, out)
+			},
+		},
 	} {
 		for _, tc := range []struct {
 			name    string
 			input   string
 			wantErr string
 		}{
-			{name: "absent", input: `{}`},
-			{name: "null", input: `{"repo_defaults":null}`},
-			{name: "empty", input: `{"repo_defaults":{}}`},
-			{name: "supported", input: `{"repo_defaults":{"allow_merge_commit":false,"has_wiki":null}}`},
-			{name: "visibility", input: `{"repo_defaults":{"visibility":"private"}}`, wantErr: `unknown field "visibility"`},
-			{name: "legacy private", input: `{"repo_defaults":{"private":true}}`, wantErr: `unknown field "private"`},
-			{name: "archival", input: `{"repo_defaults":{"archived":true}}`, wantErr: `unknown field "archived"`},
-			{name: "typo", input: `{"repo_defaults":{"allow_merge_comit":false}}`, wantErr: `unknown field "allow_merge_comit"`},
-			{name: "unknown null", input: `{"repo_defaults":{"visibility":null}}`, wantErr: `unknown field "visibility"`},
-			{name: "wrong type", input: `{"repo_defaults":{"has_wiki":"invalid"}}`, wantErr: "cannot unmarshal"},
-			{name: "repo parsing remains permissive", input: `{"repos":{"example":{"private":true,"description":"example","unknown":true}}}`},
+			{
+				name:  "absent",
+				input: `{}`,
+			},
+			{
+				name:  "null",
+				input: `{"repo_defaults":null}`,
+			},
+			{
+				name:  "empty",
+				input: `{"repo_defaults":{}}`,
+			},
+			{
+				name:  "supported",
+				input: `{"repo_defaults":{"allow_merge_commit":false,"has_wiki":null}}`,
+			},
+			{
+				name:    "visibility",
+				input:   `{"repo_defaults":{"visibility":"private"}}`,
+				wantErr: `unknown field "visibility"`,
+			},
+			{
+				name:    "legacy private",
+				input:   `{"repo_defaults":{"private":true}}`,
+				wantErr: `unknown field "private"`,
+			},
+			{
+				name:    "archival",
+				input:   `{"repo_defaults":{"archived":true}}`,
+				wantErr: `unknown field "archived"`,
+			},
+			{
+				name:    "typo",
+				input:   `{"repo_defaults":{"allow_merge_comit":false}}`,
+				wantErr: `unknown field "allow_merge_comit"`,
+			},
+			{
+				name:    "unknown null",
+				input:   `{"repo_defaults":{"visibility":null}}`,
+				wantErr: `unknown field "visibility"`,
+			},
+			{
+				name:    "wrong type",
+				input:   `{"repo_defaults":{"has_wiki":"invalid"}}`,
+				wantErr: "cannot unmarshal",
+			},
+			{
+				name:  "repo parsing remains permissive",
+				input: `{"repos":{"example":{"private":true,"description":"example","unknown":true}}}`,
+			},
 		} {
 			t.Run(parser.name+"/"+tc.name, func(t *testing.T) {
 				var cfg Config
@@ -273,34 +379,59 @@ func TestPruneRepoDefaults(t *testing.T) {
 			description: "default values are pruned",
 			repo: Repo{
 				RepoSettings: RepoSettings{
-					HasIssues: &yes, HasProjects: &yes, HasWiki: &yes,
-					AllowSquashMerge: &yes, AllowMergeCommit: &yes, AllowRebaseMerge: &yes,
+					HasIssues:           &yes,
+					HasProjects:         &yes,
+					HasWiki:             &yes,
+					AllowSquashMerge:    &yes,
+					AllowMergeCommit:    &yes,
+					AllowRebaseMerge:    &yes,
 					DeleteBranchOnMerge: &no,
 				},
-				Description: &empty, HomePage: &empty, Visibility: new(github.RepoVisibilityPublic),
-				DefaultBranch: &master, Archived: &no,
+				Description:   &empty,
+				HomePage:      &empty,
+				Visibility:    new(github.RepoVisibilityPublic),
+				DefaultBranch: &master,
+				Archived:      &no,
 			},
-			expected: Repo{RepoSettings: RepoSettings{HasProjects: &yes}},
+			expected: Repo{
+				RepoSettings: RepoSettings{
+					HasProjects: &yes,
+				},
+			},
 		},
 		{
 			description: "non-default values are not pruned",
 			repo: Repo{
 				RepoSettings: RepoSettings{
-					HasIssues: &no, HasProjects: &no, HasWiki: &no,
-					AllowSquashMerge: &no, AllowMergeCommit: &no, AllowRebaseMerge: &no,
+					HasIssues:           &no,
+					HasProjects:         &no,
+					HasWiki:             &no,
+					AllowSquashMerge:    &no,
+					AllowMergeCommit:    &no,
+					AllowRebaseMerge:    &no,
 					DeleteBranchOnMerge: &yes,
 				},
-				Description: &nonEmpty, HomePage: &nonEmpty, Visibility: new(github.RepoVisibilityPrivate),
-				DefaultBranch: &notMaster, Archived: &yes,
+				Description:   &nonEmpty,
+				HomePage:      &nonEmpty,
+				Visibility:    new(github.RepoVisibilityPrivate),
+				DefaultBranch: &notMaster,
+				Archived:      &yes,
 			},
 			expected: Repo{
 				RepoSettings: RepoSettings{
-					HasIssues: &no, HasProjects: &no, HasWiki: &no,
-					AllowSquashMerge: &no, AllowMergeCommit: &no, AllowRebaseMerge: &no,
+					HasIssues:           &no,
+					HasProjects:         &no,
+					HasWiki:             &no,
+					AllowSquashMerge:    &no,
+					AllowMergeCommit:    &no,
+					AllowRebaseMerge:    &no,
 					DeleteBranchOnMerge: &yes,
 				},
-				Description: &nonEmpty, HomePage: &nonEmpty, Visibility: new(github.RepoVisibilityPrivate),
-				DefaultBranch: &notMaster, Archived: &yes,
+				Description:   &nonEmpty,
+				HomePage:      &nonEmpty,
+				Visibility:    new(github.RepoVisibilityPrivate),
+				DefaultBranch: &notMaster,
+				Archived:      &yes,
 			},
 		},
 	}
@@ -324,17 +455,33 @@ func TestRepoUnmarshalJSON(t *testing.T) {
 	}{
 		{
 			name: "flat settings coexist with legacy private field",
-			json: `{"private": true, "description": "test", "allow_squash_merge": true,
-				"allow_merge_commit": false, "allow_rebase_merge": false, "delete_branch_on_merge": true,
-				"has_issues": true, "has_projects": false, "has_wiki": false,
-				"squash_merge_commit_title": "PR_TITLE", "squash_merge_commit_message": "COMMIT_MESSAGES"}`,
+			json: `{
+				"private": true,
+				"description": "test",
+				"allow_squash_merge": true,
+				"allow_merge_commit": false,
+				"allow_rebase_merge": false,
+				"delete_branch_on_merge": true,
+				"has_issues": true,
+				"has_projects": false,
+				"has_wiki": false,
+				"squash_merge_commit_title": "PR_TITLE",
+				"squash_merge_commit_message": "COMMIT_MESSAGES"
+			}`,
 			expected: Repo{
 				RepoSettings: RepoSettings{
-					AllowSquashMerge: new(true), AllowMergeCommit: new(false), AllowRebaseMerge: new(false),
-					DeleteBranchOnMerge: new(true), HasIssues: new(true), HasProjects: new(false), HasWiki: new(false),
-					SquashMergeCommitTitle: new("PR_TITLE"), SquashMergeCommitMessage: new("COMMIT_MESSAGES"),
+					AllowSquashMerge:         new(true),
+					AllowMergeCommit:         new(false),
+					AllowRebaseMerge:         new(false),
+					DeleteBranchOnMerge:      new(true),
+					HasIssues:                new(true),
+					HasProjects:              new(false),
+					HasWiki:                  new(false),
+					SquashMergeCommitTitle:   new("PR_TITLE"),
+					SquashMergeCommitMessage: new("COMMIT_MESSAGES"),
 				},
-				Visibility: new(github.RepoVisibilityPrivate), Description: new("test"),
+				Visibility:  new(github.RepoVisibilityPrivate),
+				Description: new("test"),
 			},
 		},
 		{

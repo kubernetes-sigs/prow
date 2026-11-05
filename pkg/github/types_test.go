@@ -78,8 +78,18 @@ func TestRepoRequestDefinedWithSquashCommitSettings(t *testing.T) {
 		name    string
 		request RepoRequest
 	}{
-		{name: "title", request: RepoRequest{SquashMergeCommitTitle: new("PR_TITLE")}},
-		{name: "message", request: RepoRequest{SquashMergeCommitMessage: new("COMMIT_MESSAGES")}},
+		{
+			name: "title",
+			request: RepoRequest{
+				SquashMergeCommitTitle: new("PR_TITLE"),
+			},
+		},
+		{
+			name: "message",
+			request: RepoRequest{
+				SquashMergeCommitMessage: new("COMMIT_MESSAGES"),
+			},
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if !tc.request.Defined() {
