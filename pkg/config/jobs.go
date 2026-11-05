@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/sirupsen/logrus"
 	pipelinev1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
 
 	v1 "k8s.io/api/core/v1"
@@ -71,58 +72,75 @@ func presetMatches(preset Preset, labels map[string]string) bool {
 }
 
 // applyPreset adds the contents of the preset to the podSpec without checking labels.
-func applyPreset(preset Preset, podSpec *v1.PodSpec) error {
+// Values set on the job itself (job is the spec before any preset was applied) take
+// precedence over the preset with a warning; conflicts between presets are errors.
+func applyPreset(preset Preset, podSpec, job *v1.PodSpec, log *logrus.Entry) error {
 	containers := podSpec.Containers
-	volumes := &podSpec.Volumes
-	tolerations := &podSpec.Tolerations
 	for _, e1 := range preset.Env {
 		for i := range containers {
-			for _, e2 := range containers[i].Env {
-				if e1.Name == e2.Name {
-					return fmt.Errorf("env var duplicated in pod spec: %s", e1.Name)
-				}
+			match := func(e2 v1.EnvVar) bool { return e1.Name == e2.Name }
+			if skip, err := checkPresetOverride(containers[i].Env, job.Containers[i].Env, match, "env var", e1.Name, log); err != nil {
+				return err
+			} else if skip {
+				continue
 			}
 			containers[i].Env = append(containers[i].Env, e1)
 		}
 	}
-	for _, v1 := range preset.Volumes {
-		for _, v2 := range *volumes {
-			if v1.Name == v2.Name {
-				return fmt.Errorf("volume duplicated in pod spec: %s", v1.Name)
-			}
+	for _, vol := range preset.Volumes {
+		match := func(v2 v1.Volume) bool { return vol.Name == v2.Name }
+		if skip, err := checkPresetOverride(podSpec.Volumes, job.Volumes, match, "volume", vol.Name, log); err != nil {
+			return err
+		} else if skip {
+			continue
 		}
-		*volumes = append(*volumes, v1)
+		podSpec.Volumes = append(podSpec.Volumes, vol)
 	}
 	for _, vm1 := range preset.VolumeMounts {
 		for i := range containers {
-			for _, vm2 := range containers[i].VolumeMounts {
-				if vm1.Name == vm2.Name {
-					return fmt.Errorf("volume mount duplicated in pod spec: %s", vm1.Name)
-				}
+			match := func(vm2 v1.VolumeMount) bool { return vm1.Name == vm2.Name }
+			if skip, err := checkPresetOverride(containers[i].VolumeMounts, job.Containers[i].VolumeMounts, match, "volume mount", vm1.Name, log); err != nil {
+				return err
+			} else if skip {
+				continue
 			}
 			containers[i].VolumeMounts = append(containers[i].VolumeMounts, vm1)
 		}
 	}
 
 	for _, t1 := range preset.Tolerations {
-		for _, t2 := range *tolerations {
-			if cmp.Equal(t1, t2) {
-				return fmt.Errorf("toleration duplicated in pod spec: %v", t1)
-			}
+		match := func(t2 v1.Toleration) bool { return cmp.Equal(t1, t2) }
+		if skip, err := checkPresetOverride(podSpec.Tolerations, job.Tolerations, match, "toleration", fmt.Sprintf("%v", t1), log); err != nil {
+			return err
+		} else if skip {
+			continue
 		}
-		*tolerations = append(*tolerations, t1)
+		podSpec.Tolerations = append(podSpec.Tolerations, t1)
 	}
 
 	if preset.Affinity != nil {
-		if err := mergeAffinity(preset.Affinity, podSpec); err != nil {
+		if err := mergeAffinity(preset.Affinity, podSpec, job, log); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
+// checkPresetOverride returns skip=true if the value is already set on the job itself,
+// and an error if it was already set by another preset.
+func checkPresetOverride[T any](current, job []T, match func(T) bool, kind, name string, log *logrus.Entry) (skip bool, err error) {
+	if !slices.ContainsFunc(current, match) {
+		return false, nil
+	}
+	if !slices.ContainsFunc(job, match) {
+		return false, fmt.Errorf("%s duplicated in pod spec: %s", kind, name)
+	}
+	log.Warnf("Job overrides %s %s set by preset.", kind, name)
+	return true, nil
+}
+
 // mergeAffinity merges a copy of affinity into the podSpec's affinity.
-func mergeAffinity(affinity *v1.Affinity, podSpec *v1.PodSpec) error {
+func mergeAffinity(affinity *v1.Affinity, podSpec, job *v1.PodSpec, log *logrus.Entry) error {
 	src := affinity.DeepCopy()
 	if podSpec.Affinity == nil {
 		podSpec.Affinity = src
@@ -136,10 +154,14 @@ func mergeAffinity(affinity *v1.Affinity, podSpec *v1.PodSpec) error {
 		} else {
 			// Node selector terms are ORed, so combining them would loosen the constraint.
 			if src.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution != nil {
-				if dst.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution != nil {
+				switch {
+				case dst.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution == nil:
+					dst.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution = src.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution
+				case job.Affinity != nil && job.Affinity.NodeAffinity != nil && job.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution != nil:
+					log.Warn("Job overrides required node affinity set by preset.")
+				default:
 					return errors.New("required node affinity duplicated in pod spec")
 				}
-				dst.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution = src.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution
 			}
 			dst.NodeAffinity.PreferredDuringSchedulingIgnoredDuringExecution = append(
 				dst.NodeAffinity.PreferredDuringSchedulingIgnoredDuringExecution,

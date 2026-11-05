@@ -433,7 +433,7 @@ func TestMergePreset(t *testing.T) {
 			},
 		},
 		{
-			name:      "conflicting volume name for podspec",
+			name:      "job overrides preset volume",
 			jobLabels: map[string]string{"foo": "bar"},
 			pod:       &coreapi.PodSpec{Volumes: []coreapi.Volume{{Name: "baz"}}},
 			presets: []Preset{
@@ -442,7 +442,7 @@ func TestMergePreset(t *testing.T) {
 					Volumes: []coreapi.Volume{{Name: "baz"}},
 				},
 			},
-			shouldError: true,
+			numVol: 1,
 		},
 		{
 			name:      "non conflicting volume name",
@@ -469,13 +469,40 @@ func TestMergePreset(t *testing.T) {
 			numEnv: 1,
 		},
 		{
-			name:      "conflicting env",
+			name:      "job overrides preset env",
 			jobLabels: map[string]string{"foo": "bar"},
-			pod:       &coreapi.PodSpec{Containers: []coreapi.Container{{Env: []coreapi.EnvVar{{Name: "baz"}}}}},
+			pod:       &coreapi.PodSpec{Containers: []coreapi.Container{{Env: []coreapi.EnvVar{{Name: "baz", Value: "job"}}}}},
+			presets: []Preset{
+				{
+					Labels: map[string]string{"foo": "bar"},
+					Env:    []coreapi.EnvVar{{Name: "baz", Value: "preset"}},
+				},
+			},
+			numEnv: 1,
+		},
+		{
+			name:      "job overrides preset volume mount",
+			jobLabels: map[string]string{"foo": "bar"},
+			pod:       &coreapi.PodSpec{Containers: []coreapi.Container{{VolumeMounts: []coreapi.VolumeMount{{Name: "baz"}}}}},
+			presets: []Preset{
+				{
+					Labels:       map[string]string{"foo": "bar"},
+					VolumeMounts: []coreapi.VolumeMount{{Name: "baz"}, {Name: "qux"}},
+				},
+			},
+			numVolMounts: 2,
+		},
+		{
+			name:      "conflicting env between presets",
+			jobLabels: map[string]string{"foo": "bar"},
+			pod:       &coreapi.PodSpec{Containers: []coreapi.Container{{}}},
 			presets: []Preset{
 				{
 					Labels: map[string]string{"foo": "bar"},
 					Env:    []coreapi.EnvVar{{Name: "baz"}},
+				},
+				{
+					Env: []coreapi.EnvVar{{Name: "baz"}},
 				},
 			},
 			shouldError: true,
@@ -583,7 +610,7 @@ func TestMergePreset(t *testing.T) {
 			numVol: 1,
 		},
 		{
-			name:      "default preset conflicts with job",
+			name:      "job overrides default preset",
 			jobLabels: map[string]string{"foo": "bar"},
 			pod:       &coreapi.PodSpec{Volumes: []coreapi.Volume{{Name: "baz"}}},
 			presets: []Preset{
@@ -591,13 +618,27 @@ func TestMergePreset(t *testing.T) {
 					Volumes: []coreapi.Volume{{Name: "baz"}},
 				},
 			},
-			shouldError: true,
+			numVol: 1,
 		},
 		{
-			name:      "duplicate tolerations",
+			name:      "job overrides preset toleration",
 			jobLabels: map[string]string{"foo": "bar"},
 			pod:       &coreapi.PodSpec{Tolerations: []coreapi.Toleration{{Key: "kubernetes.io/arch", Operator: coreapi.TolerationOpEqual, Value: "arm64", Effect: coreapi.TaintEffectNoSchedule}}},
 			presets: []Preset{
+				{
+					Tolerations: []coreapi.Toleration{{Key: "kubernetes.io/arch", Operator: coreapi.TolerationOpEqual, Value: "arm64", Effect: coreapi.TaintEffectNoSchedule}},
+				},
+			},
+			numTolerations: 1,
+		},
+		{
+			name:      "duplicate tolerations between presets",
+			jobLabels: map[string]string{"foo": "bar"},
+			pod:       &coreapi.PodSpec{},
+			presets: []Preset{
+				{
+					Tolerations: []coreapi.Toleration{{Key: "kubernetes.io/arch", Operator: coreapi.TolerationOpEqual, Value: "arm64", Effect: coreapi.TaintEffectNoSchedule}},
+				},
 				{
 					Tolerations: []coreapi.Toleration{{Key: "kubernetes.io/arch", Operator: coreapi.TolerationOpEqual, Value: "arm64", Effect: coreapi.TaintEffectNoSchedule}},
 				},
@@ -818,11 +859,20 @@ func TestMergePresetAffinity(t *testing.T) {
 			}},
 		},
 		{
-			name: "duplicate required node affinity",
+			name: "job overrides preset required node affinity",
 			pod:  &coreapi.PodSpec{Affinity: &coreapi.Affinity{NodeAffinity: &coreapi.NodeAffinity{RequiredDuringSchedulingIgnoredDuringExecution: requiredArch("amd64")}}},
 			presets: []Preset{{
 				Affinity: &coreapi.Affinity{NodeAffinity: &coreapi.NodeAffinity{RequiredDuringSchedulingIgnoredDuringExecution: requiredArch("arm64")}},
 			}},
+			expected: &coreapi.Affinity{NodeAffinity: &coreapi.NodeAffinity{RequiredDuringSchedulingIgnoredDuringExecution: requiredArch("amd64")}},
+		},
+		{
+			name: "duplicate required node affinity between presets",
+			pod:  &coreapi.PodSpec{},
+			presets: []Preset{
+				{Affinity: &coreapi.Affinity{NodeAffinity: &coreapi.NodeAffinity{RequiredDuringSchedulingIgnoredDuringExecution: requiredArch("amd64")}}},
+				{Affinity: &coreapi.Affinity{NodeAffinity: &coreapi.NodeAffinity{RequiredDuringSchedulingIgnoredDuringExecution: requiredArch("arm64")}}},
+			},
 			shouldError: true,
 		},
 	}
