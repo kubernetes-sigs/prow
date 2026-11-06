@@ -363,6 +363,25 @@ deck:
     skip_storage_path_validation: false
     # Spyglass specifies which viewers will be used for which artifacts when viewing a job in Deck.
     spyglass:
+        # AdditionalHistoryBuckets is a list of extra storage buckets that deck scans
+        # when rendering job history, merged by build ID with the primary bucket from
+        # the URL. If a bucket requires dedicated credentials, reference the Kubernetes
+        # secret that holds them via GCSCredentialsSecret or S3CredentialsSecret.
+        additional_history_buckets:
+            - # Bucket is the storage URI, e.g. "gs://my-bucket" or "s3://my-bucket".
+              bucket: ' '
+              # GCSCredentialsSecret selects the key within a Kubernetes secret that holds
+              # GCS credentials for this bucket. Mutually exclusive with S3CredentialsSecret.
+              gcs_credentials_secret:
+                key: ' '
+                name: ' '
+                optional: false
+              # S3CredentialsSecret selects the key within a Kubernetes secret that holds
+              # S3 credentials for this bucket. Mutually exclusive with GCSCredentialsSecret.
+              s3_credentials_secret:
+                key: ' '
+                name: ' '
+                optional: false
         # If set, Announcement is used as a Go HTML template string to be displayed at the top of
         # each spyglass page. Using HTML in the template is acceptable.
         # Currently the only variable available is .ArtifactPath, which contains the GCS path for the job artifacts.
