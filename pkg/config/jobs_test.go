@@ -397,6 +397,9 @@ func TestRunAgainstBranch(t *testing.T) {
 }
 
 func TestMergePreset(t *testing.T) {
+	jobVolume := coreapi.Volume{Name: "baz", VolumeSource: coreapi.VolumeSource{EmptyDir: &coreapi.EmptyDirVolumeSource{}}}
+	presetVolume := coreapi.Volume{Name: "baz", VolumeSource: coreapi.VolumeSource{Secret: &coreapi.SecretVolumeSource{SecretName: "preset"}}}
+
 	tcs := []struct {
 		name      string
 		jobLabels map[string]string
@@ -408,6 +411,8 @@ func TestMergePreset(t *testing.T) {
 		numVol         int
 		numVolMounts   int
 		numTolerations int
+		// expectedPod, if set, is compared against the resulting pod spec.
+		expectedPod *coreapi.PodSpec
 	}{
 		{
 			name:      "one volume",
@@ -435,14 +440,15 @@ func TestMergePreset(t *testing.T) {
 		{
 			name:      "job overrides preset volume",
 			jobLabels: map[string]string{"foo": "bar"},
-			pod:       &coreapi.PodSpec{Volumes: []coreapi.Volume{{Name: "baz"}}},
+			pod:       &coreapi.PodSpec{Volumes: []coreapi.Volume{jobVolume}},
 			presets: []Preset{
 				{
 					Labels:  map[string]string{"foo": "bar"},
-					Volumes: []coreapi.Volume{{Name: "baz"}},
+					Volumes: []coreapi.Volume{presetVolume},
 				},
 			},
-			numVol: 1,
+			numVol:      1,
+			expectedPod: &coreapi.PodSpec{Volumes: []coreapi.Volume{jobVolume}},
 		},
 		{
 			name:      "non conflicting volume name",
@@ -478,19 +484,24 @@ func TestMergePreset(t *testing.T) {
 					Env:    []coreapi.EnvVar{{Name: "baz", Value: "preset"}},
 				},
 			},
-			numEnv: 1,
+			numEnv:      1,
+			expectedPod: &coreapi.PodSpec{Containers: []coreapi.Container{{Env: []coreapi.EnvVar{{Name: "baz", Value: "job"}}}}},
 		},
 		{
 			name:      "job overrides preset volume mount",
 			jobLabels: map[string]string{"foo": "bar"},
-			pod:       &coreapi.PodSpec{Containers: []coreapi.Container{{VolumeMounts: []coreapi.VolumeMount{{Name: "baz"}}}}},
+			pod:       &coreapi.PodSpec{Containers: []coreapi.Container{{VolumeMounts: []coreapi.VolumeMount{{Name: "baz", MountPath: "/job"}}}}},
 			presets: []Preset{
 				{
 					Labels:       map[string]string{"foo": "bar"},
-					VolumeMounts: []coreapi.VolumeMount{{Name: "baz"}, {Name: "qux"}},
+					VolumeMounts: []coreapi.VolumeMount{{Name: "baz", MountPath: "/preset"}, {Name: "qux", MountPath: "/qux"}},
 				},
 			},
 			numVolMounts: 2,
+			expectedPod: &coreapi.PodSpec{Containers: []coreapi.Container{{VolumeMounts: []coreapi.VolumeMount{
+				{Name: "baz", MountPath: "/job"},
+				{Name: "qux", MountPath: "/qux"},
+			}}}},
 		},
 		{
 			name:      "conflicting env between presets",
@@ -612,16 +623,17 @@ func TestMergePreset(t *testing.T) {
 		{
 			name:      "job overrides default preset",
 			jobLabels: map[string]string{"foo": "bar"},
-			pod:       &coreapi.PodSpec{Volumes: []coreapi.Volume{{Name: "baz"}}},
+			pod:       &coreapi.PodSpec{Volumes: []coreapi.Volume{jobVolume}},
 			presets: []Preset{
 				{
-					Volumes: []coreapi.Volume{{Name: "baz"}},
+					Volumes: []coreapi.Volume{presetVolume},
 				},
 			},
-			numVol: 1,
+			numVol:      1,
+			expectedPod: &coreapi.PodSpec{Volumes: []coreapi.Volume{jobVolume}},
 		},
 		{
-			name:      "job overrides preset toleration",
+			name:      "identical job toleration is deduplicated",
 			jobLabels: map[string]string{"foo": "bar"},
 			pod:       &coreapi.PodSpec{Tolerations: []coreapi.Toleration{{Key: "kubernetes.io/arch", Operator: coreapi.TolerationOpEqual, Value: "arm64", Effect: coreapi.TaintEffectNoSchedule}}},
 			presets: []Preset{
@@ -630,6 +642,21 @@ func TestMergePreset(t *testing.T) {
 				},
 			},
 			numTolerations: 1,
+		},
+		{
+			name:      "job toleration with same key does not replace preset toleration",
+			jobLabels: map[string]string{"foo": "bar"},
+			pod:       &coreapi.PodSpec{Tolerations: []coreapi.Toleration{{Key: "dedicated", Operator: coreapi.TolerationOpEqual, Value: "job", Effect: coreapi.TaintEffectNoSchedule}}},
+			presets: []Preset{
+				{
+					Tolerations: []coreapi.Toleration{{Key: "dedicated", Operator: coreapi.TolerationOpEqual, Value: "preset", Effect: coreapi.TaintEffectNoSchedule}},
+				},
+			},
+			numTolerations: 2,
+			expectedPod: &coreapi.PodSpec{Tolerations: []coreapi.Toleration{
+				{Key: "dedicated", Operator: coreapi.TolerationOpEqual, Value: "job", Effect: coreapi.TaintEffectNoSchedule},
+				{Key: "dedicated", Operator: coreapi.TolerationOpEqual, Value: "preset", Effect: coreapi.TaintEffectNoSchedule},
+			}},
 		},
 		{
 			name:      "duplicate tolerations between presets",
@@ -755,6 +782,11 @@ func TestMergePreset(t *testing.T) {
 			}
 			if tc.shouldError {
 				return
+			}
+			if tc.expectedPod != nil {
+				if diff := cmp.Diff(tc.expectedPod, tc.pod); diff != "" {
+					t.Errorf("unexpected pod spec (-want +got):\n%s", diff)
+				}
 			}
 			if len(tc.pod.Volumes) != tc.numVol {
 				t.Errorf("wrong number of volumes for podspec. Got %d, expected %d.", len(tc.pod.Volumes), tc.numVol)

@@ -73,7 +73,7 @@ func presetMatches(preset Preset, labels map[string]string) bool {
 
 // applyPreset adds the contents of the preset to the podSpec without checking labels.
 // Values set on the job itself (job is the spec before any preset was applied) take
-// precedence over the preset with a warning; conflicts between presets are errors.
+// precedence over the preset; conflicts between presets are errors.
 func applyPreset(preset Preset, podSpec, job *v1.PodSpec, log *logrus.Entry) error {
 	containers := podSpec.Containers
 	for _, e1 := range preset.Env {
@@ -110,10 +110,12 @@ func applyPreset(preset Preset, podSpec, job *v1.PodSpec, log *logrus.Entry) err
 
 	for _, t1 := range preset.Tolerations {
 		match := func(t2 v1.Toleration) bool { return cmp.Equal(t1, t2) }
-		if skip, err := checkPresetOverride(podSpec.Tolerations, job.Tolerations, match, "toleration", fmt.Sprintf("%v", t1), log); err != nil {
-			return err
-		} else if skip {
+		// Tolerations have no name to override by; an identical one on the job is just deduplicated.
+		if slices.ContainsFunc(job.Tolerations, match) {
 			continue
+		}
+		if slices.ContainsFunc(podSpec.Tolerations, match) {
+			return fmt.Errorf("toleration duplicated in pod spec: %v", t1)
 		}
 		podSpec.Tolerations = append(podSpec.Tolerations, t1)
 	}
@@ -135,7 +137,7 @@ func checkPresetOverride[T any](current, job []T, match func(T) bool, kind, name
 	if !slices.ContainsFunc(job, match) {
 		return false, fmt.Errorf("%s duplicated in pod spec: %s", kind, name)
 	}
-	log.Warnf("Job overrides %s %s set by preset.", kind, name)
+	log.Infof("Job overrides %s %s set by preset.", kind, name)
 	return true, nil
 }
 
@@ -158,7 +160,7 @@ func mergeAffinity(affinity *v1.Affinity, podSpec, job *v1.PodSpec, log *logrus.
 				case dst.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution == nil:
 					dst.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution = src.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution
 				case job.Affinity != nil && job.Affinity.NodeAffinity != nil && job.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution != nil:
-					log.Warn("Job overrides required node affinity set by preset.")
+					log.Info("Job overrides required node affinity set by preset.")
 				default:
 					return errors.New("required node affinity duplicated in pod spec")
 				}

@@ -136,6 +136,20 @@ presets:
   - name: bar
     mountPath: /etc/bar
     readOnly: true
+  tolerations:             # list of valid Kubernetes Tolerations
+  - key: dedicated
+    operator: Equal
+    value: foo
+    effect: NoSchedule
+  affinity:                # a valid Kubernetes Affinity, merged into the job's affinity (see below)
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: kubernetes.io/arch
+            operator: In
+            values:
+            - arm64
 ```
 
 And to use the preset, add corresponding label in prow job definition like:
@@ -158,6 +172,22 @@ like:
   volumeMounts:
     # etc...
 ```
+
+A preset's `affinity` is merged into the job's affinity:
+
+- Preferred scheduling terms (node, pod and pod anti-affinity) are appended.
+- Required pod affinity and pod anti-affinity terms are appended, so the pod
+  must satisfy all of them.
+- Required node affinity can only be set once, because its node selector terms
+  are ORed and combining them would loosen the constraint.
+
+Values set directly on the job take precedence over values from a preset: an
+env var, volume or volume mount with the same name, or a required node affinity,
+that the job already defines is kept, the preset's value is ignored, and an
+informational message is logged. Tolerations are not overridden this way: a
+preset toleration identical to one on the job is deduplicated, and any other
+preset toleration is added alongside the job's.
+Collisions between two presets applied to the same job are still an error.
 
 ## Standard Triggering and Execution Behavior for Jobs
 

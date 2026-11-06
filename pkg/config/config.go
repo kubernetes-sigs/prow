@@ -3042,7 +3042,7 @@ func resolvePresets(name string, labels map[string]string, spec *v1.PodSpec, pre
 // applyPresetWithIncludes applies the preset and, recursively, all presets it includes.
 // chain holds the label pairs of the include path leading here and is used to detect cycles.
 func applyPresetWithIncludes(preset Preset, all []Preset, spec, job *v1.PodSpec, log *logrus.Entry, chain []string) error {
-	if err := applyPreset(preset, spec, job, log); err != nil {
+	if err := applyPreset(preset, spec, job, log.WithField("preset", labels.FormatLabels(preset.Labels))); err != nil {
 		return err
 	}
 	// Sort for deterministic application order.
