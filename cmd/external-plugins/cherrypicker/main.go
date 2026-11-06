@@ -49,6 +49,7 @@ type options struct {
 	allowAll          bool
 	issueOnConflict   bool
 	labelPrefix       string
+	squashCommits     bool
 }
 
 func (o *options) Validate() error {
@@ -72,6 +73,7 @@ func gatherOptions() options {
 	fs.BoolVar(&o.prowAssignments, "use-prow-assignments", true, "Use prow commands to assign cherrypicked PRs.")
 	fs.BoolVar(&o.allowAll, "allow-all", false, "Allow anybody to use automated cherrypicks by skipping GitHub organization membership checks.")
 	fs.BoolVar(&o.issueOnConflict, "create-issue-on-conflict", false, "Create a GitHub issue and assign it to the requestor on cherrypick conflict.")
+	fs.BoolVar(&o.squashCommits, "squash-commits", false, "Apply each cherrypicked PR as a single squashed commit (the PR's net diff) instead of replaying every commit with `git am`.")
 	fs.StringVar(&o.labelPrefix, "label-prefix", defaultLabelPrefix, "Set a custom label prefix.")
 	for _, group := range []flagutil.OptionGroup{&o.github, &o.instrumentationOptions} {
 		group.AddFlags(fs)
@@ -136,6 +138,7 @@ func main() {
 		allowAll:        o.allowAll,
 		issueOnConflict: o.issueOnConflict,
 		labelPrefix:     o.labelPrefix,
+		squashCommits:   o.squashCommits,
 
 		bare:     &http.Client{},
 		patchURL: "https://patch-diff.githubusercontent.com",
