@@ -242,6 +242,13 @@ func dumpOrgConfig(client dumpClient, orgName string, ignoreSecretTeams bool, ig
 	drp := github.RepoPermissionLevel(meta.DefaultRepositoryPermission)
 	out.Metadata.DefaultRepositoryPermission = &drp
 	out.Metadata.MembersCanCreateRepositories = &meta.MembersCanCreateRepositories
+	out.Metadata.MembersCanCreatePublicRepositories = &meta.MembersCanCreatePublicRepositories
+	out.Metadata.MembersCanCreatePrivateRepositories = &meta.MembersCanCreatePrivateRepositories
+	if meta.Plan.Name == github.EnterprisePlan {
+		out.Metadata.MembersCanCreateInternalRepositories = meta.MembersCanCreateInternalRepositories
+	}
+	out.Metadata.MembersCanForkPrivateRepositories = &meta.MembersCanForkPrivateRepositories
+	out.Metadata.WebCommitSignoffRequired = &meta.WebCommitSignoffRequired
 
 	var runningAsAdmin bool
 	runningAs, err := client.BotUser()
@@ -1112,6 +1119,26 @@ func configureOrgMeta(client orgMetadataClient, orgName string, want org.Metadat
 	change = updateBool(&cur.HasOrganizationProjects, want.HasOrganizationProjects) || change
 	change = updateBool(&cur.HasRepositoryProjects, want.HasRepositoryProjects) || change
 	change = updateBool(&cur.MembersCanCreateRepositories, want.MembersCanCreateRepositories) || change
+	change = updateBool(&cur.MembersCanCreatePublicRepositories, want.MembersCanCreatePublicRepositories) || change
+	change = updateBool(&cur.MembersCanCreatePrivateRepositories, want.MembersCanCreatePrivateRepositories) || change
+	// MembersCanCreateInternalRepositories is only accepted by GitHub on
+	// enterprise orgs: GET returns false on other plans and PATCH rejects any
+	// value with a 422, so clear it to avoid sending it on non-enterprise orgs.
+	if cur.Plan.Name == github.EnterprisePlan {
+		if cur.MembersCanCreateInternalRepositories == nil {
+			cur.MembersCanCreateInternalRepositories = want.MembersCanCreateInternalRepositories
+			change = change || want.MembersCanCreateInternalRepositories != nil
+		} else {
+			change = updateBool(cur.MembersCanCreateInternalRepositories, want.MembersCanCreateInternalRepositories) || change
+		}
+	} else {
+		if want.MembersCanCreateInternalRepositories != nil {
+			logrus.Warnf("ignoring members_can_create_internal_repositories for org %s: plan %q is not %q", orgName, cur.Plan.Name, github.EnterprisePlan)
+		}
+		cur.MembersCanCreateInternalRepositories = nil
+	}
+	change = updateBool(&cur.MembersCanForkPrivateRepositories, want.MembersCanForkPrivateRepositories) || change
+	change = updateBool(&cur.WebCommitSignoffRequired, want.WebCommitSignoffRequired) || change
 	if change {
 		if _, err := client.EditOrg(orgName, *cur); err != nil {
 			return fmt.Errorf("failed to edit %s metadata: %w", orgName, err)
