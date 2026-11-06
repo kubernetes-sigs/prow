@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/sirupsen/logrus"
 	pipelinev1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
 
 	v1 "k8s.io/api/core/v1"
@@ -48,12 +49,16 @@ type Preset struct {
 	Volumes      []v1.Volume       `json:"volumes"`
 	VolumeMounts []v1.VolumeMount  `json:"volumeMounts"`
 	Tolerations  []v1.Toleration   `json:"tolerations,omitempty"`
-	// IncludePresets pulls the env, volumes, volumeMounts and tolerations of
+	// IncludePresets pulls the env, volumes, volumeMounts, tolerations and affinity of
 	// other presets into this one. Each entry is a label pair (label: value)
 	// that identifies the included preset by one of its labels. The labels of
 	// included presets are not used for matching jobs. Included presets may
 	// themselves include other presets.
 	IncludePresets map[string]string `json:"includePresets,omitempty"`
+	// Affinity is merged into the pod spec affinity. Preferred terms and pod
+	// (anti-)affinity required terms are appended; required node affinity may
+	// only be set once.
+	Affinity *v1.Affinity `json:"affinity,omitempty"`
 }
 
 // presetMatches returns whether all labels of the preset are set on the job.
@@ -67,46 +72,129 @@ func presetMatches(preset Preset, labels map[string]string) bool {
 }
 
 // applyPreset adds the contents of the preset to the podSpec without checking labels.
-func applyPreset(preset Preset, podSpec *v1.PodSpec) error {
+// Values set on the job itself (job is the spec before any preset was applied) take
+// precedence over the preset; conflicts between presets are errors.
+func applyPreset(preset Preset, podSpec, job *v1.PodSpec, log *logrus.Entry) error {
 	containers := podSpec.Containers
-	volumes := &podSpec.Volumes
-	tolerations := &podSpec.Tolerations
 	for _, e1 := range preset.Env {
 		for i := range containers {
-			for _, e2 := range containers[i].Env {
-				if e1.Name == e2.Name {
-					return fmt.Errorf("env var duplicated in pod spec: %s", e1.Name)
-				}
+			match := func(e2 v1.EnvVar) bool { return e1.Name == e2.Name }
+			if skip, err := checkPresetOverride(containers[i].Env, job.Containers[i].Env, match, "env var", e1.Name, log); err != nil {
+				return err
+			} else if skip {
+				continue
 			}
 			containers[i].Env = append(containers[i].Env, e1)
 		}
 	}
-	for _, v1 := range preset.Volumes {
-		for _, v2 := range *volumes {
-			if v1.Name == v2.Name {
-				return fmt.Errorf("volume duplicated in pod spec: %s", v1.Name)
-			}
+	for _, vol := range preset.Volumes {
+		match := func(v2 v1.Volume) bool { return vol.Name == v2.Name }
+		if skip, err := checkPresetOverride(podSpec.Volumes, job.Volumes, match, "volume", vol.Name, log); err != nil {
+			return err
+		} else if skip {
+			continue
 		}
-		*volumes = append(*volumes, v1)
+		podSpec.Volumes = append(podSpec.Volumes, vol)
 	}
 	for _, vm1 := range preset.VolumeMounts {
 		for i := range containers {
-			for _, vm2 := range containers[i].VolumeMounts {
-				if vm1.Name == vm2.Name {
-					return fmt.Errorf("volume mount duplicated in pod spec: %s", vm1.Name)
-				}
+			match := func(vm2 v1.VolumeMount) bool { return vm1.Name == vm2.Name }
+			if skip, err := checkPresetOverride(containers[i].VolumeMounts, job.Containers[i].VolumeMounts, match, "volume mount", vm1.Name, log); err != nil {
+				return err
+			} else if skip {
+				continue
 			}
 			containers[i].VolumeMounts = append(containers[i].VolumeMounts, vm1)
 		}
 	}
 
 	for _, t1 := range preset.Tolerations {
-		for _, t2 := range *tolerations {
-			if cmp.Equal(t1, t2) {
-				return fmt.Errorf("toleration duplicated in pod spec: %v", t1)
-			}
+		match := func(t2 v1.Toleration) bool { return cmp.Equal(t1, t2) }
+		// Tolerations have no name to override by; an identical one on the job is just deduplicated.
+		if slices.ContainsFunc(job.Tolerations, match) {
+			continue
 		}
-		*tolerations = append(*tolerations, t1)
+		if slices.ContainsFunc(podSpec.Tolerations, match) {
+			return fmt.Errorf("toleration duplicated in pod spec: %v", t1)
+		}
+		podSpec.Tolerations = append(podSpec.Tolerations, t1)
+	}
+
+	if preset.Affinity != nil {
+		if err := mergeAffinity(preset.Affinity, podSpec, job, log); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// checkPresetOverride returns skip=true if the value is already set on the job itself,
+// and an error if it was already set by another preset.
+func checkPresetOverride[T any](current, job []T, match func(T) bool, kind, name string, log *logrus.Entry) (skip bool, err error) {
+	if !slices.ContainsFunc(current, match) {
+		return false, nil
+	}
+	if !slices.ContainsFunc(job, match) {
+		return false, fmt.Errorf("%s duplicated in pod spec: %s", kind, name)
+	}
+	log.Infof("Job overrides %s %s set by preset.", kind, name)
+	return true, nil
+}
+
+// mergeAffinity merges a copy of affinity into the podSpec's affinity.
+func mergeAffinity(affinity *v1.Affinity, podSpec, job *v1.PodSpec, log *logrus.Entry) error {
+	src := affinity.DeepCopy()
+	if podSpec.Affinity == nil {
+		podSpec.Affinity = src
+		return nil
+	}
+	dst := podSpec.Affinity
+
+	if src.NodeAffinity != nil {
+		if dst.NodeAffinity == nil {
+			dst.NodeAffinity = src.NodeAffinity
+		} else {
+			// Node selector terms are ORed, so combining them would loosen the constraint.
+			if src.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution != nil {
+				switch {
+				case dst.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution == nil:
+					dst.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution = src.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution
+				case job.Affinity != nil && job.Affinity.NodeAffinity != nil && job.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution != nil:
+					log.Info("Job overrides required node affinity set by preset.")
+				default:
+					return errors.New("required node affinity duplicated in pod spec")
+				}
+			}
+			dst.NodeAffinity.PreferredDuringSchedulingIgnoredDuringExecution = append(
+				dst.NodeAffinity.PreferredDuringSchedulingIgnoredDuringExecution,
+				src.NodeAffinity.PreferredDuringSchedulingIgnoredDuringExecution...)
+		}
+	}
+
+	if src.PodAffinity != nil {
+		if dst.PodAffinity == nil {
+			dst.PodAffinity = src.PodAffinity
+		} else {
+			dst.PodAffinity.RequiredDuringSchedulingIgnoredDuringExecution = append(
+				dst.PodAffinity.RequiredDuringSchedulingIgnoredDuringExecution,
+				src.PodAffinity.RequiredDuringSchedulingIgnoredDuringExecution...)
+			dst.PodAffinity.PreferredDuringSchedulingIgnoredDuringExecution = append(
+				dst.PodAffinity.PreferredDuringSchedulingIgnoredDuringExecution,
+				src.PodAffinity.PreferredDuringSchedulingIgnoredDuringExecution...)
+		}
+	}
+
+	if src.PodAntiAffinity != nil {
+		if dst.PodAntiAffinity == nil {
+			dst.PodAntiAffinity = src.PodAntiAffinity
+		} else {
+			dst.PodAntiAffinity.RequiredDuringSchedulingIgnoredDuringExecution = append(
+				dst.PodAntiAffinity.RequiredDuringSchedulingIgnoredDuringExecution,
+				src.PodAntiAffinity.RequiredDuringSchedulingIgnoredDuringExecution...)
+			dst.PodAntiAffinity.PreferredDuringSchedulingIgnoredDuringExecution = append(
+				dst.PodAntiAffinity.PreferredDuringSchedulingIgnoredDuringExecution,
+				src.PodAntiAffinity.PreferredDuringSchedulingIgnoredDuringExecution...)
+		}
 	}
 	return nil
 }

@@ -3023,9 +3023,14 @@ func validateDecoration(container v1.Container, config *prowapi.DecorationConfig
 }
 
 func resolvePresets(name string, labels map[string]string, spec *v1.PodSpec, presets []Preset) error {
+	if spec == nil {
+		return nil
+	}
+	job := spec.DeepCopy()
+	log := logrus.WithField("job", name)
 	for _, preset := range presets {
-		if spec != nil && presetMatches(preset, labels) {
-			if err := applyPresetWithIncludes(preset, presets, spec, nil); err != nil {
+		if presetMatches(preset, labels) {
+			if err := applyPresetWithIncludes(preset, presets, spec, job, log, nil); err != nil {
 				return fmt.Errorf("job %s failed to merge presets for podspec: %w", name, err)
 			}
 		}
@@ -3036,8 +3041,8 @@ func resolvePresets(name string, labels map[string]string, spec *v1.PodSpec, pre
 
 // applyPresetWithIncludes applies the preset and, recursively, all presets it includes.
 // chain holds the label pairs of the include path leading here and is used to detect cycles.
-func applyPresetWithIncludes(preset Preset, all []Preset, spec *v1.PodSpec, chain []string) error {
-	if err := applyPreset(preset, spec); err != nil {
+func applyPresetWithIncludes(preset Preset, all []Preset, spec, job *v1.PodSpec, log *logrus.Entry, chain []string) error {
+	if err := applyPreset(preset, spec, job, log.WithField("preset", labels.FormatLabels(preset.Labels))); err != nil {
 		return err
 	}
 	// Sort for deterministic application order.
@@ -3055,7 +3060,7 @@ func applyPresetWithIncludes(preset Preset, all []Preset, spec *v1.PodSpec, chai
 		if !ok {
 			return fmt.Errorf("included preset with label %q not found", pair)
 		}
-		if err := applyPresetWithIncludes(included, all, spec, append(slices.Clone(chain), pair)); err != nil {
+		if err := applyPresetWithIncludes(included, all, spec, job, log, append(slices.Clone(chain), pair)); err != nil {
 			return err
 		}
 	}
