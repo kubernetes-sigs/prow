@@ -109,6 +109,22 @@ func TestOptions(t *testing.T) {
 			args: []string{"--config-path=foo", "--dump=frogger"},
 		},
 		{
+			name: "reject report-path with dump",
+			args: []string{"--dump=frogger", "--report-path=/tmp/report.json"},
+		},
+		{
+			name: "allow report-path with config",
+			args: []string{"--config-path=foo", "--report-path=/tmp/report.json"},
+			expected: &options{
+				config:       "foo",
+				minAdmins:    defaultMinAdmins,
+				requireSelf:  true,
+				maximumDelta: defaultDelta,
+				reportPath:   "/tmp/report.json",
+				logLevel:     "info",
+			},
+		},
+		{
 			name: "reject --fix-team-members without --fix-teams",
 			args: []string{"--config-path=foo", "--fix-team-members"},
 		},
@@ -268,6 +284,11 @@ func (c *fakeClient) RemoveOrgMembership(org, user string) error {
 func (c *fakeClient) UpdateOrgMembership(org, user string, admin bool) (*github.OrgMembership, error) {
 	if user == "fail" {
 		return nil, errors.New("injected update org failure")
+	}
+	if user == "ghost" {
+		// Simulate a login that no longer exists (deleted account or typo): the
+		// PUT 404s, which configureOrgMembers swallows without crashing.
+		return nil, github.NewNotFound()
 	}
 	var state string
 	if c.members.Has(user) || c.admins.Has(user) {
@@ -890,7 +911,7 @@ func TestConfigureOrgMembers(t *testing.T) {
 				failedInvites:      tc.failedInvites,
 			}
 
-			err := configureOrgMembers(tc.opt, fc, fakeOrg, tc.config, sets.New[string](tc.invitations...), tc.failedInvites)
+			err := configureOrgMembers(tc.opt, fc, fakeOrg, tc.config, sets.New[string](tc.invitations...), tc.failedInvites, nil)
 			switch {
 			case err != nil:
 				if !tc.err {
@@ -1328,7 +1349,7 @@ func TestConfigureTeams(t *testing.T) {
 			if tc.delta == 0 {
 				tc.delta = 1
 			}
-			actual, ignored, _, err := configureTeams(fc, orgName, tc.config, tc.delta, tc.ignoreSecretTeams, tc.ignoreEnterpriseTeams)
+			actual, ignored, _, err := configureTeams(fc, orgName, tc.config, tc.delta, tc.ignoreSecretTeams, tc.ignoreEnterpriseTeams, nil)
 			switch {
 			case err != nil:
 				if !tc.err {
@@ -1367,6 +1388,7 @@ func TestConfigureTeams(t *testing.T) {
 func TestConfigureTeam(t *testing.T) {
 	old := "old value"
 	cur := "current value"
+	empty := ""
 	fail := "fail"
 	pfail := org.Privacy(fail)
 	whatev := "whatever"
@@ -1520,12 +1542,34 @@ func TestConfigureTeam(t *testing.T) {
 			},
 			err: true,
 		},
+		{
+			// github.Team.Description is omitempty, so EditTeam cannot clear a
+			// description to empty; peribolos must not patch (or report) it.
+			name:     "do not patch team when description cleared to empty",
+			teamName: whatev,
+			parent:   nil,
+			config: org.Team{
+				TeamMetadata: org.TeamMetadata{
+					Description: &empty,
+				},
+			},
+			github: github.Team{
+				ID:          6,
+				Name:        whatev,
+				Description: old,
+			},
+			expected: github.Team{
+				ID:          6,
+				Name:        whatev,
+				Description: old,
+			},
+		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			fc := makeFakeTeamClient(tc.github)
-			_, err := configureTeam(fc, fakeOrg, tc.teamName, tc.config, tc.github, tc.parent)
+			_, err := configureTeam(fc, fakeOrg, tc.teamName, tc.config, tc.github, tc.parent, nil)
 			switch {
 			case err != nil:
 				if !tc.err {
@@ -1560,7 +1604,7 @@ func TestConfigureTeamReturnsUpdatedTeamOnRename(t *testing.T) {
 	t.Run("rename returns updated team with new slug", func(t *testing.T) {
 		fc := &renamingEditTeamClient{}
 		gt := github.Team{ID: 10, Name: "Old Name", Slug: "old-name"}
-		updated, err := configureTeam(fc, fakeOrg, "New Name", org.Team{}, gt, nil)
+		updated, err := configureTeam(fc, fakeOrg, "New Name", org.Team{}, gt, nil, nil)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -1581,7 +1625,7 @@ func TestConfigureTeamReturnsUpdatedTeamOnRename(t *testing.T) {
 	t.Run("no change returns nil", func(t *testing.T) {
 		fc := &renamingEditTeamClient{}
 		gt := github.Team{ID: 11, Name: "Same", Slug: "same"}
-		updated, err := configureTeam(fc, fakeOrg, "Same", org.Team{}, gt, nil)
+		updated, err := configureTeam(fc, fakeOrg, "Same", org.Team{}, gt, nil, nil)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -1688,7 +1732,7 @@ func TestConfigureTeamMembers(t *testing.T) {
 				newAdmins:  sets.Set[string]{},
 				newMembers: sets.Set[string]{},
 			}
-			err := configureTeamMembers(fc, "", gt, tc.team, tc.ignoreInvitees)
+			err := configureTeamMembers(fc, "", gt.Name, gt, tc.team, tc.ignoreInvitees, nil)
 			switch {
 			case err != nil:
 				if !tc.err {
@@ -2034,7 +2078,7 @@ func TestConfigureOrgMeta(t *testing.T) {
 			fc := fakeOrgClient{
 				current: tc.have,
 			}
-			err := configureOrgMeta(&fc, tc.orgName, tc.want)
+			err := configureOrgMeta(&fc, tc.orgName, tc.want, nil)
 			switch {
 			case err != nil:
 				if !tc.err {
@@ -3549,7 +3593,7 @@ func TestDumpConfigRoundTripsEnterpriseMemberOnRegularTeam(t *testing.T) {
 		enterpriseTeams: map[string][]github.TeamMember{"ent-security": {{Login: "ent-direct"}}},
 	}
 	opt := options{ignoreEnterpriseTeams: true, maximumDelta: 1, minAdmins: 1}
-	if err := configureOrgMembers(opt, applyFake, orgName, *dumped, sets.Set[string]{}, nil); err != nil {
+	if err := configureOrgMembers(opt, applyFake, orgName, *dumped, sets.Set[string]{}, nil, nil); err != nil {
 		t.Fatalf("re-applying the dumped config failed (round-trip broken): %v", err)
 	}
 
@@ -4204,7 +4248,7 @@ func TestConfigureTeamRepos(t *testing.T) {
 			failUpdate: testCase.failUpdate,
 			failRemove: testCase.failRemove,
 		}
-		err := configureTeamRepos(&client, testCase.githubTeams, testCase.teamName, "org", testCase.team)
+		err := configureTeamRepos(&client, testCase.githubTeams, testCase.teamName, "org", testCase.team, nil)
 		if err == nil && testCase.expectedErr {
 			t.Errorf("%s: expected an error but got none", testCase.name)
 		}
@@ -4669,9 +4713,9 @@ func TestConfigureRepos(t *testing.T) {
 			fc := makeFakeRepoClient(t, tc.repos...)
 			var err error
 			if len(tc.orgNameOverride) > 0 {
-				err = configureRepos(tc.opts, fc, tc.orgNameOverride, tc.orgConfig)
+				err = configureRepos(tc.opts, fc, tc.orgNameOverride, tc.orgConfig, nil)
 			} else {
-				err = configureRepos(tc.opts, fc, orgName, tc.orgConfig)
+				err = configureRepos(tc.opts, fc, orgName, tc.orgConfig, nil)
 			}
 			if err != nil && !tc.expectError {
 				t.Errorf("%s: unexpected error: %v", tc.description, err)
@@ -5089,7 +5133,7 @@ func TestConfigureCollaborators(t *testing.T) {
 			// Set up existing collaborators
 			maps.Copy(client.collaborators, tc.existingCollaborators)
 
-			err := configureCollaborators(client, "test-org", "test-repo", tc.repo)
+			err := configureCollaborators(client, "test-org", "test-repo", tc.repo, nil)
 
 			if tc.expectedErr && err == nil {
 				t.Errorf("Expected error but got none")
@@ -5244,7 +5288,7 @@ func TestConfigureCollaboratorsRemovePendingInvitations(t *testing.T) {
 		// Note: "remove-pending" is NOT in the config, so their invitation should be removed
 	}
 
-	err := configureCollaborators(client, "test-org", "test-repo", repo)
+	err := configureCollaborators(client, "test-org", "test-repo", repo, nil)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -5321,7 +5365,7 @@ func TestConfigureCollaboratorsInvitationManagement(t *testing.T) {
 		},
 	}
 
-	err := configureCollaborators(client, "test-org", "test-repo", repo)
+	err := configureCollaborators(client, "test-org", "test-repo", repo, nil)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -5384,7 +5428,7 @@ func TestConfigureCollaboratorsInvitationPermissionChecking(t *testing.T) {
 		},
 	}
 
-	err := configureCollaborators(client, "test-org", "test-repo", repo)
+	err := configureCollaborators(client, "test-org", "test-repo", repo, nil)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -5506,7 +5550,7 @@ func TestConfigureCollaboratorsLargeSet(t *testing.T) {
 	}
 
 	repo := org.Repo{Collaborators: desired}
-	if err := configureCollaborators(client, "org", "repo", repo); err != nil {
+	if err := configureCollaborators(client, "org", "repo", repo, nil); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -5550,7 +5594,7 @@ func TestConfigureCollaboratorsCorrectAPIEndpoints(t *testing.T) {
 		},
 	}
 
-	err := configureCollaborators(client, "test-org", "test-repo", repo)
+	err := configureCollaborators(client, "test-org", "test-repo", repo, nil)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -5603,7 +5647,7 @@ func TestConfigureCollaboratorsInvitationVsCollaboratorRemoval(t *testing.T) {
 		},
 	}
 
-	err := configureCollaborators(client, "test-org", "test-repo", repo)
+	err := configureCollaborators(client, "test-org", "test-repo", repo, nil)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -5638,7 +5682,7 @@ func TestConfigureCollaborators_Idempotent_NoChangeForDirectCollaborator(t *test
 		},
 	}
 
-	err := configureCollaborators(client, "test-org", "test-repo", repo)
+	err := configureCollaborators(client, "test-org", "test-repo", repo, nil)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -5669,7 +5713,7 @@ func TestConfigureCollaborators_PermissionMatrix_TransitionsExistingCollaborator
 
 				repo := org.Repo{Collaborators: map[string]github.RepoPermissionLevel{"user": to}}
 
-				err := configureCollaborators(client, "org", "repo", repo)
+				err := configureCollaborators(client, "org", "repo", repo, nil)
 				if err != nil {
 					t.Fatalf("unexpected error: %v", err)
 				}
@@ -5711,7 +5755,7 @@ func TestConfigureCollaborators_PermissionMatrix_PendingInvitationUpdates(t *tes
 
 				repo := org.Repo{Collaborators: map[string]github.RepoPermissionLevel{"user": to}}
 
-				err := configureCollaborators(client, "org", "repo", repo)
+				err := configureCollaborators(client, "org", "repo", repo, nil)
 				if err != nil {
 					t.Fatalf("unexpected error: %v", err)
 				}
@@ -5749,7 +5793,7 @@ func TestConfigureOrgRoles(t *testing.T) {
 		githubTeams := map[string]github.Team{}
 		invitees := sets.Set[string]{}
 
-		err := configureOrgRoles(client, "test-org", orgConfig, githubTeams, nil, nil, invitees)
+		err := configureOrgRoles(client, "test-org", orgConfig, githubTeams, nil, nil, invitees, nil)
 		if err == nil {
 			t.Fatal("Expected error for non-existent role, but got none")
 		}
@@ -5783,7 +5827,7 @@ func TestConfigureOrgRoles(t *testing.T) {
 		githubTeams := map[string]github.Team{}
 		invitees := sets.Set[string]{}
 
-		err := configureOrgRoles(client, "test-org", orgConfig, githubTeams, nil, nil, invitees)
+		err := configureOrgRoles(client, "test-org", orgConfig, githubTeams, nil, nil, invitees, nil)
 		if err != nil {
 			t.Errorf("Expected case-insensitive role matching to succeed, got error: %v", err)
 		}
@@ -5818,7 +5862,7 @@ func TestConfigureOrgRoles(t *testing.T) {
 		githubTeams := map[string]github.Team{}
 		invitees := sets.Set[string]{}
 
-		err := configureOrgRoles(client, "test-org", orgConfig, githubTeams, nil, nil, invitees)
+		err := configureOrgRoles(client, "test-org", orgConfig, githubTeams, nil, nil, invitees, nil)
 		if err != nil {
 			t.Errorf("Unexpected error: %v", err)
 		}
@@ -5869,7 +5913,7 @@ func TestConfigureOrgRoles(t *testing.T) {
 		githubTeams := map[string]github.Team{}
 		invitees := sets.Set[string]{}
 
-		err := configureOrgRoles(client, "test-org", orgConfig, githubTeams, nil, nil, invitees)
+		err := configureOrgRoles(client, "test-org", orgConfig, githubTeams, nil, nil, invitees, nil)
 		if err != nil {
 			t.Errorf("Unexpected error: %v", err)
 		}
@@ -6198,7 +6242,7 @@ func TestConfigureRoleTeamAssignments(t *testing.T) {
 				removeTeamRoleErr:    tc.removeErr,
 			}
 
-			err := configureRoleTeamAssignments(client, "test-org", tc.roleName, tc.roleID, tc.wantTeams, tc.githubTeams, tc.ignoredTeamSlugs, tc.ignoredSecretTeamSlugs)
+			err := configureRoleTeamAssignments(client, "test-org", tc.roleName, tc.roleID, tc.wantTeams, tc.githubTeams, tc.ignoredTeamSlugs, tc.ignoredSecretTeamSlugs, nil)
 
 			if tc.expectError && err == nil {
 				t.Error("Expected error but got none")
@@ -6247,6 +6291,7 @@ func TestConfigureRoleTeamAssignmentsSecretTeamNotLogged(t *testing.T) {
 		map[string]github.Team{},
 		sets.New[string](secretSlug, enterpriseSlug),
 		sets.New[string](secretSlug),
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -6401,7 +6446,7 @@ func TestConfigureRoleUserAssignments(t *testing.T) {
 			}
 			invitees := sets.Set[string]{}
 
-			err := configureRoleUserAssignments(client, "test-org", tc.roleName, tc.roleID, tc.wantUsers, invitees)
+			err := configureRoleUserAssignments(client, "test-org", tc.roleName, tc.roleID, tc.wantUsers, invitees, nil)
 
 			if tc.expectError && err == nil {
 				t.Error("Expected error but got none")
@@ -6432,7 +6477,7 @@ func TestConfigureRoleUserAssignmentsSkipsPendingInvitees(t *testing.T) {
 	// User has a pending invitation to the org
 	invitees := sets.New[string]("pending-user")
 
-	err := configureRoleUserAssignments(client, "test-org", "security-manager", 1, []string{"pending-user", "existing-user"}, invitees)
+	err := configureRoleUserAssignments(client, "test-org", "security-manager", 1, []string{"pending-user", "existing-user"}, invitees, nil)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -6474,7 +6519,7 @@ func TestConfigureRoleUserAssignmentsSkipsIndirect(t *testing.T) {
 	}
 
 	// Config wants no users — only direct and mixed assignments should be removed
-	err := configureRoleUserAssignments(client, "test-org", "test-role", 1, []string{}, sets.Set[string]{})
+	err := configureRoleUserAssignments(client, "test-org", "test-role", 1, []string{}, sets.Set[string]{}, nil)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -6490,7 +6535,7 @@ func TestConfigureRoleTeamAssignmentsErrors(t *testing.T) {
 		client := &fakeOrgRolesClient{
 			listTeamsWithRoleErr: fmt.Errorf("api error"),
 		}
-		err := configureRoleTeamAssignments(client, "test-org", "test-role", 1, []string{"team"}, map[string]github.Team{}, nil, nil)
+		err := configureRoleTeamAssignments(client, "test-org", "test-role", 1, []string{"team"}, map[string]github.Team{}, nil, nil, nil)
 		if err == nil {
 			t.Error("Expected error but got none")
 		}
@@ -6504,7 +6549,7 @@ func TestConfigureRoleTeamAssignmentsErrors(t *testing.T) {
 		githubTeams := map[string]github.Team{
 			"my-team": {ID: 1, Slug: "my-team"},
 		}
-		err := configureRoleTeamAssignments(client, "test-org", "test-role", 1, []string{"my-team"}, githubTeams, nil, nil)
+		err := configureRoleTeamAssignments(client, "test-org", "test-role", 1, []string{"my-team"}, githubTeams, nil, nil, nil)
 		if err == nil {
 			t.Error("Expected error but got none")
 		}
@@ -6517,7 +6562,7 @@ func TestConfigureRoleTeamAssignmentsErrors(t *testing.T) {
 			},
 			removeTeamRoleErr: fmt.Errorf("remove failed"),
 		}
-		err := configureRoleTeamAssignments(client, "test-org", "test-role", 1, []string{}, map[string]github.Team{}, nil, nil)
+		err := configureRoleTeamAssignments(client, "test-org", "test-role", 1, []string{}, map[string]github.Team{}, nil, nil, nil)
 		if err == nil {
 			t.Error("Expected error but got none")
 		}
@@ -6530,7 +6575,7 @@ func TestConfigureRoleUserAssignmentsErrors(t *testing.T) {
 		client := &fakeOrgRolesClient{
 			listUsersWithRoleErr: fmt.Errorf("api error"),
 		}
-		err := configureRoleUserAssignments(client, "test-org", "test-role", 1, []string{"user"}, sets.Set[string]{})
+		err := configureRoleUserAssignments(client, "test-org", "test-role", 1, []string{"user"}, sets.Set[string]{}, nil)
 		if err == nil {
 			t.Error("Expected error but got none")
 		}
@@ -6541,7 +6586,7 @@ func TestConfigureRoleUserAssignmentsErrors(t *testing.T) {
 			usersWithRole:     map[int][]github.OrganizationRoleAssignment{1: {}},
 			assignUserRoleErr: fmt.Errorf("assign failed"),
 		}
-		err := configureRoleUserAssignments(client, "test-org", "test-role", 1, []string{"user"}, sets.Set[string]{})
+		err := configureRoleUserAssignments(client, "test-org", "test-role", 1, []string{"user"}, sets.Set[string]{}, nil)
 		if err == nil {
 			t.Error("Expected error but got none")
 		}
@@ -6554,7 +6599,7 @@ func TestConfigureRoleUserAssignmentsErrors(t *testing.T) {
 			},
 			removeUserRoleErr: fmt.Errorf("remove failed"),
 		}
-		err := configureRoleUserAssignments(client, "test-org", "test-role", 1, []string{}, sets.Set[string]{})
+		err := configureRoleUserAssignments(client, "test-org", "test-role", 1, []string{}, sets.Set[string]{}, nil)
 		if err == nil {
 			t.Error("Expected error but got none")
 		}
@@ -6585,7 +6630,7 @@ func TestConfigureOrgRolesValidatesBeforeMutating(t *testing.T) {
 		},
 	}
 
-	err := configureOrgRoles(client, "test-org", orgConfig, map[string]github.Team{}, nil, nil, sets.Set[string]{})
+	err := configureOrgRoles(client, "test-org", orgConfig, map[string]github.Team{}, nil, nil, sets.Set[string]{}, nil)
 	if err == nil {
 		t.Fatal("Expected error for non-existent role")
 	}
