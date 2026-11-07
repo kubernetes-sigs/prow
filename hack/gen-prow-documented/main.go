@@ -120,4 +120,8 @@ func main() {
 			os.Exit(1)
 		}
 	}
+	if err := genMetrics(*rootDir); err != nil {
+		logrus.WithError(err).WithField("fixture", docPath).Error("Failed generating.")
+		os.Exit(1)
+	}
 }
