@@ -60,6 +60,11 @@ type Interactor interface {
 	MergeAndCheckout(baseSHA string, mergeStrategy string, headSHAs ...string) error
 	// Am calls `git am`
 	Am(path string) error
+	// Apply calls `git apply --3way --index`
+	Apply(path string) error
+	// CommitWithAuthor commits the already-staged index with the given message,
+	// overriding the author, and optionally adding a Signed-off-by trailer.
+	CommitWithAuthor(message, author string, signoff bool) error
 	// Fetch calls `git fetch arg...`
 	Fetch(arg ...string) error
 	// FetchRef fetches the refspec
@@ -72,6 +77,11 @@ type Interactor interface {
 	Config(args ...string) error
 	// Diff runs `git diff`
 	Diff(head, sha string) (changes []string, err error)
+	// MergeBase returns the best common ancestor of two commitlikes
+	MergeBase(commitlike1, commitlike2 string) (string, error)
+	// BinaryDiff returns the full diff (including binary file contents) between
+	// two commitlikes, suitable for `git apply`
+	BinaryDiff(from, to string) ([]byte, error)
 	// MergeCommitsExistBetween determines if merge commits exist between target and HEAD
 	MergeCommitsExistBetween(target, head string) (bool, error)
 	// ShowRef returns the commit for a commitlike. Unlike rev-parse it does not require a checkout.
@@ -442,6 +452,58 @@ func (i *interactor) Am(path string) error {
 	return errors.New(string(bytes.TrimPrefix(out, []byte("The copy of the patch that failed is found in: .git/rebase-apply/patch"))))
 }
 
+// Apply applies the patch in the given path onto the current index using a
+// three-way merge (`git apply --3way --index`). On failure it resets the index
+// and working tree so no partial state is left behind, then returns an error.
+func (i *interactor) Apply(path string) error {
+	i.logger.Infof("Applying diff at %s", path)
+	out, err := i.executor.Run("apply", "--3way", "--index", path)
+	if err == nil {
+		return nil
+	}
+	i.logger.WithError(err).Infof("Diff apply failed with output: %s", string(out))
+	if resetOut, resetErr := i.executor.Run("reset", "--hard", "HEAD"); resetErr != nil {
+		i.logger.WithError(resetErr).Warningf("Resetting after failed apply failed with output: %s", string(resetOut))
+	}
+	return errors.New(string(out))
+}
+
+// CommitWithAuthor creates a commit from the already-staged index with the
+// given message. When author is non-empty it is passed to `--author` ("Name
+// <email>"), mirroring GitHub's squash-merge which attributes the commit to the
+// PR author. When signoff is true it adds a Signed-off-by trailer for the
+// committer (needed for DCO on squashed cherry-picks, since the original
+// per-commit sign-offs are lost on squash).
+func (i *interactor) CommitWithAuthor(message, author string, signoff bool) error {
+	i.logger.Info("Committing staged changes")
+	// Pass the message via a file, not argv: a long squashed message can exceed
+	// the per-argument limit (128 KiB on Linux) and fail with "argument list
+	// too long" before git runs.
+	f, err := os.CreateTemp(i.dir, "commit-msg-*")
+	if err != nil {
+		return fmt.Errorf("error creating commit message file: %w", err)
+	}
+	defer os.Remove(f.Name())
+	if _, err := f.WriteString(message); err != nil {
+		f.Close()
+		return fmt.Errorf("error writing commit message file: %w", err)
+	}
+	if err := f.Close(); err != nil {
+		return fmt.Errorf("error closing commit message file: %w", err)
+	}
+	args := []string{"commit", "--file", f.Name()}
+	if author != "" {
+		args = append(args, "--author", author)
+	}
+	if signoff {
+		args = append(args, "--signoff")
+	}
+	if out, err := i.executor.Run(args...); err != nil {
+		return fmt.Errorf("error committing: %w. output: %s", err, string(out))
+	}
+	return nil
+}
+
 // FetchCommits only fetches those commits which we want, and only if they are
 // missing.
 func (i *interactor) FetchCommits(commitSHAs []string) error {
@@ -585,6 +647,29 @@ func (i *interactor) Diff(head, sha string) ([]string, error) {
 		changes = append(changes, scan.Text())
 	}
 	return changes, nil
+}
+
+// MergeBase returns the best common ancestor of two commitlikes (`git merge-base`).
+func (i *interactor) MergeBase(commitlike1, commitlike2 string) (string, error) {
+	i.logger.Infof("Finding the merge-base of %q and %q", commitlike1, commitlike2)
+	out, err := i.executor.Run("merge-base", commitlike1, commitlike2)
+	if err != nil {
+		return "", fmt.Errorf("error finding merge-base of %s and %s: %w. output: %s", commitlike1, commitlike2, err, string(out))
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+// BinaryDiff returns the full `git diff` between two commitlikes, including
+// binary file contents (`--binary`) so the output can be replayed with
+// `git apply`. The flags neutralize diff config (external drivers, textconv,
+// color, context, prefixes) that would otherwise make the patch unapplyable.
+func (i *interactor) BinaryDiff(from, to string) ([]byte, error) {
+	i.logger.Infof("Diffing %q..%q with binary", from, to)
+	out, err := i.executor.Run("diff", "--binary", "--no-color", "--no-ext-diff", "--no-textconv", "-U3", "--src-prefix=a/", "--dst-prefix=b/", from, to)
+	if err != nil {
+		return nil, fmt.Errorf("error diffing %s..%s: %w. output: %s", from, to, err, string(out))
+	}
+	return out, nil
 }
 
 // MergeCommitsExistBetween runs 'git log <target>..<head> --merged' to verify

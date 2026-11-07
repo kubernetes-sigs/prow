@@ -1316,6 +1316,87 @@ func TestInteractor_Am(t *testing.T) {
 	}
 }
 
+func TestInteractor_Apply(t *testing.T) {
+	var testCases = []struct {
+		name          string
+		path          string
+		responses     map[string]execResponse
+		expectedCalls [][]string
+		expectedErr   bool
+	}{
+		{
+			name: "happy case",
+			path: "my/changes.diff",
+			responses: map[string]execResponse{
+				"apply --3way --index my/changes.diff": {
+					out: []byte(`ok`),
+				},
+			},
+			expectedCalls: [][]string{
+				{"apply", "--3way", "--index", "my/changes.diff"},
+			},
+			expectedErr: false,
+		},
+		{
+			name: "apply fails but reset succeeds",
+			path: "my/changes.diff",
+			responses: map[string]execResponse{
+				"apply --3way --index my/changes.diff": {
+					err: errors.New("oops"),
+				},
+				"reset --hard HEAD": {
+					out: []byte(`ok`),
+				},
+			},
+			expectedCalls: [][]string{
+				{"apply", "--3way", "--index", "my/changes.diff"},
+				{"reset", "--hard", "HEAD"},
+			},
+			expectedErr: true,
+		},
+		{
+			name: "apply fails and reset fails",
+			path: "my/changes.diff",
+			responses: map[string]execResponse{
+				"apply --3way --index my/changes.diff": {
+					err: errors.New("oops"),
+				},
+				"reset --hard HEAD": {
+					err: errors.New("oops"),
+				},
+			},
+			expectedCalls: [][]string{
+				{"apply", "--3way", "--index", "my/changes.diff"},
+				{"reset", "--hard", "HEAD"},
+			},
+			expectedErr: true,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			e := fakeExecutor{
+				records:   [][]string{},
+				responses: testCase.responses,
+			}
+			i := interactor{
+				executor: &e,
+				logger:   logrus.WithField("test", testCase.name),
+			}
+			actualErr := i.Apply(testCase.path)
+			if testCase.expectedErr && actualErr == nil {
+				t.Errorf("%s: expected an error but got none", testCase.name)
+			}
+			if !testCase.expectedErr && actualErr != nil {
+				t.Errorf("%s: expected no error but got one: %v", testCase.name, actualErr)
+			}
+			if actual, expected := e.records, testCase.expectedCalls; !reflect.DeepEqual(actual, expected) {
+				t.Errorf("%s: got incorrect git calls: %v", testCase.name, diff.Diff(actual, expected))
+			}
+		})
+	}
+}
+
 func TestInteractor_RemoteUpdate(t *testing.T) {
 	var testCases = []struct {
 		name          string

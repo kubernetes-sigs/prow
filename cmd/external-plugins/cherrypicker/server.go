@@ -18,6 +18,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -58,6 +59,7 @@ type githubClient interface {
 	EnsureFork(forkingUser, org, repo string) (string, error)
 	GetPullRequest(org, repo string, number int) (*github.PullRequest, error)
 	GetPullRequestPatch(org, repo string, number int) ([]byte, error)
+	ListPullRequestCommits(org, repo string, number int) ([]github.RepositoryCommit, error)
 	GetPullRequests(org, repo string) ([]github.PullRequest, error)
 	GetRepo(owner, name string) (github.FullRepo, error)
 	IsMember(org, user string) (bool, error)
@@ -104,6 +106,9 @@ type Server struct {
 	allowAll bool
 	// Create an issue on cherrypick conflict.
 	issueOnConflict bool
+	// Apply the PR as a single squashed commit instead of replaying every
+	// commit with `git am`.
+	squashCommits bool
 	// Set a custom label prefix.
 	labelPrefix string
 
@@ -629,11 +634,16 @@ func (s *Server) handle(logger logrus.FieldLogger, requester string, comment *gi
 	}
 	logger.WithField("duration", time.Since(startClone)).Info("Cloned and checked out target branch.")
 
-	// Fetch the patch from GitHub
-	localPath, err := s.getPatch(org, repo, targetBranch, num)
-	if err != nil {
-		logger.WithError(err).Errorf("Failed to get patch for %s/%s#%d", org, repo, num)
-		return s.createComment(logger, org, repo, num, comment, fmt.Sprintf("Failed to get PR patch from GitHub. This PR will need to be manually cherrypicked.\n<details><summary>Error message</summary>%v</details>", err))
+	// The normal path replays the PR's commits with `git am`, so fetch the
+	// per-commit mbox patch. The squash path instead applies the PR's net diff
+	// and fetches what it needs itself.
+	var localPath string
+	if !s.squashCommits {
+		localPath, err = s.getPatch(org, repo, targetBranch, num)
+		if err != nil {
+			logger.WithError(err).Errorf("Failed to get patch for %s/%s#%d", org, repo, num)
+			return s.createComment(logger, org, repo, num, comment, fmt.Sprintf("Failed to get PR patch from GitHub. This PR will need to be manually cherrypicked.\n<details><summary>Error message</summary>%v</details>", err))
+		}
 	}
 
 	if err := r.Config("user.name", s.botUser.Login); err != nil {
@@ -675,8 +685,20 @@ func (s *Server) handle(logger logrus.FieldLogger, requester string, comment *gi
 	titleTargetBranchIndicator := fmt.Sprintf(titleTargetBranchIndicatorTemplate, targetBranch)
 	title = fmt.Sprintf("%s%s", titleTargetBranchIndicator, omitBaseBranchFromTitle(title, baseBranch))
 
-	// Apply the patch.
-	if err := r.Am(localPath); err != nil {
+	// Apply the patch: either replay every commit with `git am`, or apply the
+	// PR's net diff as a single squashed commit when squashCommits is enabled.
+	var applyErr error
+	if s.squashCommits {
+		applyErr = s.applySquashed(logger, r, org, repo, num, baseBranch, title)
+	} else {
+		applyErr = r.Am(localPath)
+	}
+	if errors.Is(applyErr, errSquashMetadata) {
+		logger.WithError(applyErr).Warn("failed to fetch PR metadata for squash")
+		resp := fmt.Sprintf("Failed to cherry-pick #%d: could not fetch PR metadata from GitHub. This PR will need to be manually cherrypicked.\n<details><summary>Error message</summary>%v</details>", num, applyErr)
+		return s.createComment(logger, org, repo, num, comment, resp)
+	}
+	if err := applyErr; err != nil {
 		errs := []error{fmt.Errorf("failed to `git am`: %w", err)}
 		logger.WithError(err).Warn("failed to apply PR on top of target branch")
 		resp := fmt.Sprintf("#%d failed to apply on top of branch %q:\n```\n%v\n```", num, targetBranch, err)
@@ -828,6 +850,251 @@ func (s *Server) getPatch(org, repo, targetBranch string, num int) (string, erro
 	}
 
 	return localPath, nil
+}
+
+// errSquashMetadata marks a failure to fetch PR authorship metadata, as opposed
+// to a diff that does not apply. The caller reports it plainly instead of as a
+// cherry-pick conflict.
+var errSquashMetadata = errors.New("failed to fetch PR metadata for squash")
+
+// applySquashed applies the PR's net change as a single commit, mirroring
+// GitHub's squash-merge. It diffs GitHub's three-dot PR diff, the merge-base of
+// the PR's base commit (`pr.Base.SHA`) and the head to the head, and applies it
+// with `git apply --3way`. So a multi-commit PR whose commits rewrite the same
+// lines is resolved once against the target branch instead of per commit (the
+// point of #1011). The merge-base excludes base-branch commits the PR does not
+// contain (so they are not reverted) and is correct for PRs merged with a merge
+// commit. `--binary` carries binary file contents. The commit is attributed to
+// the PR author with other authors kept as Co-authored-by trailers.
+func (s *Server) applySquashed(logger logrus.FieldLogger, r git.RepoClient, org, repo string, num int, baseBranch, title string) error {
+	// Fetch authorship metadata before touching the tree so a GitHub error
+	// aborts the cherry-pick instead of committing with the bot as author and
+	// only the title as the message.
+	commits, err := s.ghc.ListPullRequestCommits(org, repo, num)
+	if err != nil {
+		return fmt.Errorf("%w: list commits for #%d: %v", errSquashMetadata, num, err)
+	}
+	pr, err := s.ghc.GetPullRequest(org, repo, num)
+	if err != nil {
+		return fmt.Errorf("%w: get PR #%d: %v", errSquashMetadata, num, err)
+	}
+	// ListPullRequestCommits caps at 250 and returns the newest ones without an
+	// error. On a larger PR the oldest commits are missing, so authorship and
+	// the bullet list would be wrong; bail out rather than mis-attribute.
+	if pr == nil || pr.Base.SHA == "" {
+		return fmt.Errorf("%w: PR #%d missing base SHA", errSquashMetadata, num)
+	}
+	if len(commits) < pr.Commits {
+		return fmt.Errorf("%w: #%d has %d commits but only %d returned (GitHub caps at 250)", errSquashMetadata, num, pr.Commits, len(commits))
+	}
+
+	// Fetch the base branch (so pr.Base.SHA and its history are present) and the
+	// PR head, then diff from their merge-base to the head: GitHub's three-dot PR
+	// diff. This excludes base commits the PR does not contain and works when the
+	// PR was merged with a merge commit.
+	if err := r.FetchRef(baseBranch); err != nil {
+		return fmt.Errorf("failed to fetch base branch %q: %w", baseBranch, err)
+	}
+	if err := r.FetchRef(fmt.Sprintf("pull/%d/head", num)); err != nil {
+		return fmt.Errorf("failed to fetch PR #%d head: %w", num, err)
+	}
+	head, err := r.RevParse("FETCH_HEAD")
+	if err != nil {
+		return fmt.Errorf("failed to resolve PR #%d head: %w", num, err)
+	}
+	base, err := r.MergeBase(pr.Base.SHA, strings.TrimSpace(head))
+	if err != nil {
+		return fmt.Errorf("failed to find merge-base of PR #%d: %w", num, err)
+	}
+	diff, err := r.BinaryDiff(base, strings.TrimSpace(head))
+	if err != nil {
+		return fmt.Errorf("failed to diff PR #%d net change: %w", num, err)
+	}
+	diffPath := fmt.Sprintf("/tmp/%s_%s_%d.squash.diff", org, repo, num)
+	if err := os.WriteFile(diffPath, diff, 0644); err != nil {
+		return fmt.Errorf("failed to write diff for PR #%d: %w", num, err)
+	}
+	defer os.Remove(diffPath)
+
+	// Apply the net change as one staged tree. On conflict Apply resets the
+	// tree and returns an error, so the caller reports a normal failed apply.
+	if err := r.Apply(diffPath); err != nil {
+		return err
+	}
+
+	// Attribute the commit to the PR author, mirroring GitHub's squash-merge on
+	// the main branch (not the bot that runs the cherry-pick).
+	author := primaryAuthor(commits, pr.User.Login)
+
+	message := squashCommitMessage(title, commits, author)
+	// `-s` adds the bot's Signed-off-by for DCO; the per-commit sign-offs are
+	// lost on squash.
+	return r.CommitWithAuthor(message, author, true)
+}
+
+// primaryAuthor returns the "Name <email>" to attribute the squashed commit to:
+// the commit whose GitHub login matches the PR author, else the oldest commit's
+// author (commits are returned oldest first).
+func primaryAuthor(commits []github.RepositoryCommit, prAuthorLogin string) string {
+	if prAuthorLogin != "" {
+		for _, c := range commits {
+			if strings.EqualFold(c.Author.Login, prAuthorLogin) && c.Commit.Author.Name != "" {
+				return authorOf(c)
+			}
+		}
+	}
+	for _, c := range commits {
+		if c.Commit.Author.Name != "" {
+			return authorOf(c)
+		}
+	}
+	return ""
+}
+
+func authorOf(c github.RepositoryCommit) string {
+	return fmt.Sprintf("%s <%s>", c.Commit.Author.Name, c.Commit.Author.Email)
+}
+
+// squashCommitMessage builds the message for the squashed commit. A
+// single-commit PR keeps its original message verbatim; a multi-commit PR uses
+// the PR title as the subject plus a bullet per original commit. Every author
+// other than the primary (commit) author, plus any existing Co-authored-by
+// trailers, is merged into a single trailer block so GitHub still credits them.
+func squashCommitMessage(title string, commits []github.RepositoryCommit, primary string) string {
+	var base string
+	if len(commits) == 1 {
+		base = strings.TrimRight(commits[0].Commit.Message, "\n")
+	} else {
+		base = title
+		if bodies := commitBullets(commits); bodies != "" {
+			base += "\n\n" + bodies
+		}
+	}
+	return appendCoAuthors(base, coAuthoredByTrailers(commits, primary))
+}
+
+// commitBullets renders each original commit as a bullet (subject plus its body
+// indented two spaces), oldest first (the order GitHub returns them). It matches
+// the kueue cherry-pick script's `git log --reverse --format='* %s%n%w(0,2,2)%b'`
+// byte for byte: blank runs inside a body collapse to a single indented blank
+// line, and commits are separated by one bare blank line.
+func commitBullets(commits []github.RepositoryCommit) string {
+	var blocks []string
+	for _, c := range commits {
+		msg := strings.TrimRight(c.Commit.Message, "\n")
+		if strings.TrimSpace(msg) == "" {
+			continue
+		}
+		subject, body, _ := strings.Cut(msg, "\n")
+		block := append([]string{"* " + subject}, indentBody(body)...)
+		blocks = append(blocks, strings.Join(block, "\n"))
+	}
+	return strings.Join(blocks, "\n\n")
+}
+
+// indentBody renders a commit body the way git's `%w(0,2,2)%b` does: the single
+// blank line separating subject from body is dropped, every content line is
+// indented two spaces, and each run of blank lines becomes one indented blank
+// line. Leading and trailing blank runs are dropped.
+func indentBody(body string) []string {
+	body = strings.Trim(strings.TrimPrefix(body, "\n"), "\n")
+	if body == "" {
+		return nil
+	}
+	var out []string
+	prevBlank := false
+	for line := range strings.SplitSeq(body, "\n") {
+		if strings.TrimSpace(line) == "" {
+			if !prevBlank {
+				out = append(out, "  ")
+			}
+			prevBlank = true
+			continue
+		}
+		out = append(out, "  "+line)
+		prevBlank = false
+	}
+	return out
+}
+
+// coAuthoredByTrailers returns the deduplicated, sorted Co-authored-by trailers
+// for every commit author and every existing Co-authored-by trailer, excluding
+// the primary author (who is the commit author, not a co-author).
+func coAuthoredByTrailers(commits []github.RepositoryCommit, primary string) []string {
+	primaryTrailer := "co-authored-by: " + strings.ToLower(primary)
+	set := sets.New[string]()
+	for _, c := range commits {
+		if name := c.Commit.Author.Name; name != "" {
+			set.Insert(fmt.Sprintf("Co-authored-by: %s <%s>", name, c.Commit.Author.Email))
+		}
+		for line := range strings.SplitSeq(c.Commit.Message, "\n") {
+			trimmed := strings.TrimSpace(line)
+			if strings.HasPrefix(strings.ToLower(trimmed), "co-authored-by:") {
+				set.Insert(trimmed)
+			}
+		}
+	}
+	var out []string
+	for _, t := range sets.List(set) {
+		if strings.ToLower(t) == primaryTrailer {
+			continue
+		}
+		out = append(out, t)
+	}
+	return out
+}
+
+// appendCoAuthors merges the trailers into the message, skipping any already
+// present. If the message's last paragraph is already a trailer block they join
+// it, otherwise they start a new block, so a verbatim single-commit message's
+// existing trailers are not split into two blocks.
+func appendCoAuthors(base string, trailers []string) string {
+	if len(trailers) == 0 {
+		return base
+	}
+	base = strings.TrimRight(base, "\n")
+	// Dedup only against the message's final trailer block. Scanning the whole
+	// message would match a `Co-authored-by:` line that is now an indented
+	// bullet body, and wrongly drop a still-needed trailer.
+	existing := sets.New[string]()
+	for _, line := range lastTrailerBlock(base) {
+		existing.Insert(strings.ToLower(line))
+	}
+	var add []string
+	for _, t := range trailers {
+		if !existing.Has(strings.ToLower(t)) {
+			add = append(add, t)
+		}
+	}
+	if len(add) == 0 {
+		return base
+	}
+	sep := "\n\n"
+	if len(existing) > 0 {
+		sep = "\n"
+	}
+	return base + sep + strings.Join(add, "\n")
+}
+
+// lastTrailerBlock returns the lines of the message's final paragraph when every
+// one looks like a git trailer ("Key: value"), else nil. Indented lines (e.g.
+// bullet bodies) are not trailers, so a bullet block returns nil.
+func lastTrailerBlock(message string) []string {
+	para := message
+	if idx := strings.LastIndex(message, "\n\n"); idx >= 0 {
+		para = message[idx+2:]
+	}
+	lines := strings.Split(strings.TrimSpace(para), "\n")
+	if len(lines) == 0 || lines[0] == "" {
+		return nil
+	}
+	for _, line := range lines {
+		key, _, ok := strings.Cut(line, ": ")
+		if !ok || key == "" || strings.ContainsAny(key, " \t") {
+			return nil
+		}
+	}
+	return lines
 }
 
 func normalize(input string) string {
