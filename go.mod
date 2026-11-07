@@ -62,7 +62,7 @@ require (
 	go4.org v0.0.0-20201209231011-d4a079459e60
 	gocloud.dev v0.47.0
 	golang.org/x/lint v0.0.0-20241112194109-818c5a804067
-	golang.org/x/net v0.61.0
+	golang.org/x/net v0.62.0
 	golang.org/x/oauth2 v0.37.0
 	golang.org/x/sync v0.24.0
 	golang.org/x/text v0.43.0
