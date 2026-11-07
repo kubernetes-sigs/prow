@@ -154,6 +154,7 @@ type fakeClient struct {
 	usesAppsAuth     bool
 	nextCheckRunID   int64
 	listCheckRunsErr error
+	botUser          string
 	app              *github.App
 	getAppErr        error
 
@@ -336,6 +337,10 @@ func (c *fakeClient) ListTeamMembersBySlug(org, teamSlug, role string) ([]github
 		}, nil
 	}
 	return []github.TeamMember{}, nil
+}
+
+func (c *fakeClient) BotUserChecker() (func(candidate string) bool, error) {
+	return func(candidate string) bool { return candidate != "" && candidate == c.botUser }, nil
 }
 
 func (c *fakeClient) Create(_ context.Context, pj *prowapi.ProwJob, _ metav1.CreateOptions) (*prowapi.ProwJob, error) {
@@ -1867,6 +1872,272 @@ func TestHandleStickyOverride(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestHandleGenericCommentRationale(t *testing.T) {
+	standardPolicy := plugins.RequireRationale{
+		fakeOrg + "/" + fakeRepo: {
+			"override": {MinLength: 20},
+		},
+	}
+	failedStatus := github.Status{Context: "job-a", State: github.StatusFailure, Description: "Build failed"}
+
+	tests := []struct {
+		name                     string
+		body                     string
+		user                     string
+		number                   int
+		issueState               string
+		action                   github.GenericCommentEventAction
+		pluginConfig             plugins.Configuration
+		wantStatuses             []github.Status
+		wantCommentSubstring     string
+		botUser                  string
+		wantNoComments           bool
+		unwantedCommentSubstring string
+	}{
+		{
+			name:         "When the repo has no rationale policy, it should preserve existing override behavior",
+			body:         "/override job-a",
+			user:         adminUser,
+			wantStatuses: []github.Status{{Context: "job-a", State: github.StatusSuccess, Description: statusDescription(adminUser)}},
+		},
+		{
+			name:                 "When rationale is required and /override has none, it should comment without changing statuses",
+			body:                 "/override job-a",
+			user:                 adminUser,
+			pluginConfig:         plugins.Configuration{RequireRationale: standardPolicy},
+			wantStatuses:         []github.Status{failedStatus},
+			wantCommentSubstring: "Rationale required for `/override` in this repository. No status or check-run was updated.",
+		},
+		{
+			name:                 "When invalid /override is combined with /override-cancel, it should block before either status mutation",
+			body:                 "/override-cancel job-a\n/override job-a",
+			user:                 adminUser,
+			pluginConfig:         plugins.Configuration{RequireRationale: standardPolicy},
+			wantStatuses:         []github.Status{failedStatus},
+			wantCommentSubstring: "Rationale required for `/override`",
+		},
+		{
+			name:                 "When a rationale after -- is shorter than the minimum, it should comment without changing statuses",
+			body:                 "/override job-a -- retry",
+			pluginConfig:         plugins.Configuration{RequireRationale: standardPolicy},
+			wantStatuses:         []github.Status{failedStatus},
+			wantCommentSubstring: "got 5 non-whitespace Unicode code points; need at least 20",
+		},
+		{
+			name:         "When a rationale after -- meets the minimum, it should override the contexts before it",
+			body:         "/override job-a -- CI outage on AWS e2e resolved",
+			pluginConfig: plugins.Configuration{RequireRationale: standardPolicy},
+			wantStatuses: []github.Status{{Context: "job-a", State: github.StatusSuccess, Description: statusDescription(adminUser)}},
+		},
+		{
+			name:                 "When a second /override in the comment has no rationale, it should block every override",
+			body:                 "/override job-a -- CI outage on AWS e2e resolved\n/override job-a",
+			pluginConfig:         plugins.Configuration{RequireRationale: standardPolicy},
+			wantStatuses:         []github.Status{failedStatus},
+			wantCommentSubstring: "Rationale required for `/override` in this repository. No status or check-run was updated.",
+		},
+		{
+			name:                 "When the next line starts with / but is not a known command, it should not count as a rationale",
+			body:                 "/override job-a\n/lgtm! CI outage on AWS e2e resolved",
+			pluginConfig:         plugins.Configuration{RequireRationale: standardPolicy},
+			wantStatuses:         []github.Status{failedStatus},
+			wantCommentSubstring: "Rationale required for `/override`",
+		},
+		{
+			name:         "When the rationale is on the next line, it should perform the existing override",
+			body:         "/override job-a\r\nCI outage on AWS e2e resolved",
+			pluginConfig: plugins.Configuration{RequireRationale: standardPolicy},
+			wantStatuses: []github.Status{{Context: "job-a", State: github.StatusSuccess, Description: statusDescription(adminUser)}},
+		},
+		{
+			name:                 "When the repo has no rationale policy, a -- should keep its existing meaning",
+			body:                 "/override job-a -- CI outage on AWS e2e resolved",
+			wantStatuses:         []github.Status{failedStatus},
+			wantCommentSubstring: "The following unknown contexts/checkruns were given",
+		},
+		{
+			name:         "When Prow's own bot runs /override, it should not require rationale",
+			body:         "/override job-a",
+			botUser:      adminUser,
+			pluginConfig: plugins.Configuration{RequireRationale: standardPolicy},
+			wantStatuses: []github.Status{{Context: "job-a", State: github.StatusSuccess, Description: statusDescription(adminUser)}},
+		},
+		{
+			name:                 "When an unauthorized user runs /override without rationale, it should get the unauthorized response",
+			body:                 "/override job-a",
+			user:                 "stranger",
+			pluginConfig:         plugins.Configuration{RequireRationale: standardPolicy},
+			wantStatuses:         []github.Status{failedStatus},
+			wantCommentSubstring: "stranger unauthorized: /override is restricted to",
+		},
+		{
+			name:                 "When the PR cannot be fetched for a protected /override, it should fail closed",
+			body:                 "/override job-a -- CI outage on AWS e2e resolved",
+			number:               -1,
+			pluginConfig:         plugins.Configuration{RequireRationale: standardPolicy},
+			wantStatuses:         []github.Status{failedStatus},
+			wantCommentSubstring: "Cannot get PR #-1",
+		},
+		{
+			name:                     "When /override-cancel is used alone in a protected repo, it should not require rationale",
+			body:                     "/override-cancel job-a",
+			pluginConfig:             plugins.Configuration{RequireRationale: standardPolicy},
+			wantStatuses:             []github.Status{failedStatus},
+			unwantedCommentSubstring: "Rationale",
+		},
+		{
+			name:           "When /override is on a closed PR, it should not post a rationale comment",
+			body:           "/override job-a",
+			issueState:     "closed",
+			pluginConfig:   plugins.Configuration{RequireRationale: standardPolicy},
+			wantStatuses:   []github.Status{failedStatus},
+			wantNoComments: true,
+		},
+		{
+			name:           "When an /override comment is edited, it should not post a rationale comment",
+			body:           "/override job-a",
+			action:         github.GenericCommentActionEdited,
+			pluginConfig:   plugins.Configuration{RequireRationale: standardPolicy},
+			wantStatuses:   []github.Status{failedStatus},
+			wantNoComments: true,
+		},
+		{
+			name: "When /override-sticky is configured alongside /override rationale, it should retain existing behavior",
+			body: "/override-sticky job-a",
+			user: adminUser,
+			pluginConfig: plugins.Configuration{
+				RequireRationale: standardPolicy,
+			},
+			wantStatuses: []github.Status{{Context: "job-a", State: github.StatusSuccess, Description: stickyStatusDescription(adminUser)}},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if test.user == "" {
+				test.user = adminUser
+			}
+			if test.number == 0 {
+				test.number = fakePR
+			}
+			if test.issueState == "" {
+				test.issueState = "open"
+			}
+			if test.action == "" {
+				test.action = github.GenericCommentActionCreated
+			}
+			client := &fakeClient{
+				statuses: []github.Status{failedStatus},
+				jobs:     sets.New[string](),
+				botUser:  test.botUser,
+			}
+			event := github.GenericCommentEvent{
+				IsPR:       true,
+				IssueState: test.issueState,
+				Action:     test.action,
+				Body:       test.body,
+				Number:     test.number,
+				User:       github.User{Login: test.user},
+				Repo:       github.Repo{Owner: github.User{Login: fakeOrg}, Name: fakeRepo},
+			}
+
+			err := handleGenericCommentWithClient(client, logrus.NewEntry(logrus.New()), &test.pluginConfig, &event)
+			if err != nil {
+				t.Fatalf("handle generic comment: %v", err)
+			}
+			if diff := cmp.Diff(test.wantStatuses, client.statuses); diff != "" {
+				t.Errorf("status mutation mismatch (-want +got):\n%s", diff)
+			}
+			if test.wantCommentSubstring != "" && !strings.Contains(strings.Join(client.comments, "\n"), test.wantCommentSubstring) {
+				t.Errorf("comments %q do not contain %q", client.comments, test.wantCommentSubstring)
+			}
+			if len(client.jobs) != 0 {
+				t.Errorf("unexpected ProwJob contexts created: %v", sets.List(client.jobs))
+			}
+			if test.wantNoComments && len(client.comments) != 0 {
+				t.Errorf("comments: got %q, want none", client.comments)
+			}
+			if test.unwantedCommentSubstring != "" && strings.Contains(strings.Join(client.comments, "\n"), test.unwantedCommentSubstring) {
+				t.Errorf("comments %q unexpectedly contain %q", client.comments, test.unwantedCommentSubstring)
+			}
+		})
+	}
+
+	t.Run("When the bot's own rationale error comment is processed, it should not override the example context", func(t *testing.T) {
+		exampleStatus := github.Status{Context: "pull-e2e-aws", State: github.StatusFailure, Description: "Build failed"}
+		client := &fakeClient{
+			statuses: []github.Status{exampleStatus},
+			jobs:     sets.New[string](),
+		}
+		settings, _ := (&plugins.Configuration{RequireRationale: standardPolicy}).RequireRationaleFor(fakeOrg, fakeRepo, "override")
+		response := plugins.RationaleErrorComment("/override", "No status or check-run was updated.", settings, &plugins.RationaleValidationError{Kind: plugins.RationaleErrorMissing})
+		event := github.GenericCommentEvent{
+			IsPR:       true,
+			IssueState: "open",
+			Action:     github.GenericCommentActionCreated,
+			// An authorized bot account replaying its own response is the worst case.
+			Body:   plugins.FormatResponseRaw("/override pull-e2e-aws", "https://github.com/fake-org/fake-repo/pull/33#issuecomment-1", adminUser, response),
+			Number: fakePR,
+			User:   github.User{Login: adminUser},
+			Repo:   github.Repo{Owner: github.User{Login: fakeOrg}, Name: fakeRepo},
+		}
+		pluginConfig := plugins.Configuration{RequireRationale: standardPolicy}
+
+		if err := handleGenericCommentWithClient(client, logrus.NewEntry(logrus.New()), &pluginConfig, &event); err != nil {
+			t.Fatalf("handle generic comment: %v", err)
+		}
+		if diff := cmp.Diff([]github.Status{exampleStatus}, client.statuses); diff != "" {
+			t.Errorf("status mutation mismatch (-want +got):\n%s", diff)
+		}
+		if len(client.comments) != 0 {
+			t.Errorf("comments: got %q, want none", client.comments)
+		}
+	})
+
+	t.Run("When rationale is rejected, it should not update check runs", func(t *testing.T) {
+		checkRuns := &github.CheckRunList{
+			CheckRuns: []github.CheckRun{{
+				ID:         1,
+				Name:       "job-a",
+				Status:     "completed",
+				Conclusion: "failure",
+			}},
+		}
+		wantCheckRuns := &github.CheckRunList{
+			CheckRuns: []github.CheckRun{{
+				ID:         1,
+				Name:       "job-a",
+				Status:     "completed",
+				Conclusion: "failure",
+			}},
+		}
+		client := &fakeClient{
+			statuses:     []github.Status{failedStatus},
+			jobs:         sets.New[string](),
+			checkruns:    checkRuns,
+			usesAppsAuth: true,
+		}
+		event := github.GenericCommentEvent{
+			IsPR:       true,
+			IssueState: "open",
+			Action:     github.GenericCommentActionCreated,
+			Body:       "/override job-a",
+			Number:     fakePR,
+			User:       github.User{Login: adminUser},
+			Repo:       github.Repo{Owner: github.User{Login: fakeOrg}, Name: fakeRepo},
+		}
+		pluginConfig := plugins.Configuration{RequireRationale: standardPolicy}
+
+		if err := handleGenericCommentWithClient(client, logrus.NewEntry(logrus.New()), &pluginConfig, &event); err != nil {
+			t.Fatalf("handle generic comment: %v", err)
+		}
+		if diff := cmp.Diff(wantCheckRuns, client.checkruns); diff != "" {
+			t.Errorf("check run mutation mismatch (-want +got):\n%s", diff)
+		}
+	})
+
 }
 
 func TestHandleStickyCancel(t *testing.T) {
