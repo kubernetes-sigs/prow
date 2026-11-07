@@ -17,6 +17,7 @@ limitations under the License.
 package config
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -3915,18 +3916,33 @@ func TestReadJobConfigsMultiplePaths(t *testing.T) {
 }
 
 func TestReadJobConfigsFileAndDirectory(t *testing.T) {
+	ignored := json.RawMessage(`{"owner":"test-platform"}`)
 	testCases := []struct {
-		name          string
-		directory     map[string]string
-		file          string
-		expected      []string
-		expectedError string
+		name                    string
+		directory               map[string]string
+		file                    string
+		expected                []string
+		expectedDecorateAllJobs bool
+		expectedProwIgnored     *json.RawMessage
+		expectedError           string
 	}{
 		{
 			name:      "a file and a directory are merged",
 			directory: map[string]string{"a.yaml": periodicJobConfig("in-directory")},
 			file:      periodicJobConfig("in-file"),
 			expected:  []string{"in-directory", "in-file"},
+		},
+		{
+			name: "an empty directory and a file preserve file-level settings",
+			file: `decorate_all_jobs: true
+prow_ignored:
+  owner: test-platform
+periodics:
+- name: in-file
+`,
+			expected:                []string{"in-file"},
+			expectedDecorateAllJobs: true,
+			expectedProwIgnored:     &ignored,
 		},
 		{
 			name:          "the basename of a file is unique across the paths too",
@@ -3959,6 +3975,12 @@ func TestReadJobConfigsFileAndDirectory(t *testing.T) {
 			}
 			if diff := cmp.Diff(sets.New(tc.expected...), periodicNames(actual.Periodics)); diff != "" {
 				t.Errorf("unexpected jobs (-want +got):\n%s", diff)
+			}
+			if diff := cmp.Diff(tc.expectedDecorateAllJobs, actual.DecorateAllJobs); diff != "" {
+				t.Errorf("unexpected decoration default (-want +got):\n%s", diff)
+			}
+			if diff := cmp.Diff(tc.expectedProwIgnored, actual.ProwIgnored); diff != "" {
+				t.Errorf("unexpected ignored metadata (-want +got):\n%s", diff)
 			}
 		})
 	}
