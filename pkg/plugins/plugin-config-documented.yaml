@@ -503,6 +503,11 @@ owners:
         "":
             owners: ' '
             owners_aliases: ' '
+    # IgnoreMergeCommits is a list of org and org/repo strings specifying
+    # repos where the owners-label plugin should skip labeling on any
+    # pull request push that contains merge commits.
+    ignore_merge_commits:
+        - ""
     # LabelsDenyList holds a list of labels that should not be present in any
     # OWNERS file, preventing their automatic addition by the owners-label plugin.
     # This check is performed by the verify-owners plugin.
