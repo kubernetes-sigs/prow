@@ -318,6 +318,28 @@ func Test_getJobHistory(t *testing.T) {
 			},
 			Content: []byte("{\"timestamp\": 1587738205,\"passed\": true,\"result\": \"SUCCESS\",\"revision\": \"b62656cde943aef3bcd1a18064aecff8b0f30a0c\"}"),
 		},
+		// extra-bucket: an older build for the same logs job
+		{
+			ObjectAttrs: fakestorage.ObjectAttrs{
+				BucketName: "extra-bucket",
+				Name:       "logs/post-cluster-api-provider-openstack-push-images/latest-build.txt",
+			},
+			Content: []byte("1200000000000000000"),
+		},
+		{
+			ObjectAttrs: fakestorage.ObjectAttrs{
+				BucketName: "extra-bucket",
+				Name:       "logs/post-cluster-api-provider-openstack-push-images/1200000000000000000/started.json",
+			},
+			Content: []byte("{\"timestamp\": 1577836800,\"repos\": {\"kubernetes-sigs/cluster-api-provider-openstack\": \"master:aaa111\"},\"repo-version\": \"aaa111\",\"Pending\": false}"),
+		},
+		{
+			ObjectAttrs: fakestorage.ObjectAttrs{
+				BucketName: "extra-bucket",
+				Name:       "logs/post-cluster-api-provider-openstack-push-images/1200000000000000000/finished.json",
+			},
+			Content: []byte("{\"timestamp\": 1577837400,\"passed\": true,\"result\": \"SUCCESS\",\"revision\": \"aaa111\"}"),
+		},
 	}
 	wantedPRLogsJobHistoryTemplate := jobHistoryTemplate{
 		Name:         "pr-logs/directory/pull-test-infra-bazel",
@@ -378,11 +400,43 @@ func Test_getJobHistory(t *testing.T) {
 		},
 	})
 
+	extraBucket := blobStorageBucket{
+		name:            "extra-bucket",
+		storageProvider: providers.GS,
+		Opener:          io.NewGCSOpener(fakeGCSClient),
+	}
+	wantedMergedLogsJobHistoryTemplate := jobHistoryTemplate{
+		Name:         "logs/post-cluster-api-provider-openstack-push-images",
+		ResultsShown: 2,
+		ResultsTotal: 2,
+		Builds: []buildData{
+			{
+				index:        0,
+				SpyglassLink: "/view/gs/kubernetes-jenkins/logs/post-cluster-api-provider-openstack-push-images/1253687771944456193",
+				ID:           "1253687771944456193",
+				Started:      time.Unix(1587737470, 0),
+				Duration:     735000000000,
+				Result:       "SUCCESS",
+				commitHash:   "b62656cde943aef3bcd1a18064aecff8b0f30a0c",
+			},
+			{
+				index:        1,
+				SpyglassLink: "/view/gs/extra-bucket/logs/post-cluster-api-provider-openstack-push-images/1200000000000000000",
+				ID:           "1200000000000000000",
+				Started:      time.Unix(1577836800, 0),
+				Duration:     600000000000,
+				Result:       "SUCCESS",
+				commitHash:   "aaa111",
+			},
+		},
+	}
+
 	tests := []struct {
-		name    string
-		url     string
-		want    jobHistoryTemplate
-		wantErr string
+		name              string
+		url               string
+		additionalBuckets []blobStorageBucket
+		want              jobHistoryTemplate
+		wantErr           string
 	}{
 		{
 			name: "get job history pr-logs (old format)",
@@ -409,12 +463,18 @@ func Test_getJobHistory(t *testing.T) {
 			url:  "https://prow.k8s.io/job-history/gs/kubernetes-jenkins-old/logs/post-cluster-api-provider-openstack-push-images",
 			want: wantedLogsJobHistoryTemplate,
 		},
+		{
+			name:              "get job history logs merged with additional bucket",
+			url:               "https://prow.k8s.io/job-history/gs/kubernetes-jenkins/logs/post-cluster-api-provider-openstack-push-images",
+			additionalBuckets: []blobStorageBucket{extraBucket},
+			want:              wantedMergedLogsJobHistoryTemplate,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			jobURL, _ := url.Parse(tt.url)
-			got, err := getJobHistory(context.Background(), jobURL, ca.Config, io.NewGCSOpener(fakeGCSClient))
+			got, err := getJobHistory(context.Background(), jobURL, ca.Config, io.NewGCSOpener(fakeGCSClient), tt.additionalBuckets)
 			var actualErr string
 			if err != nil {
 				actualErr = err.Error()
