@@ -155,6 +155,48 @@ func TestUnionStrings(t *testing.T) {
 	}
 }
 
+func TestUnionStringPtrs(t *testing.T) {
+	cases := []struct {
+		name     string
+		parent   *[]string
+		child    *[]string
+		expected *[]string
+	}{
+		{
+			name: "both unset stays unset",
+		},
+		{
+			name:     "explicit empty child is kept",
+			child:    &[]string{},
+			expected: &[]string{},
+		},
+		{
+			name:     "all parent items",
+			parent:   &[]string{"hi", "there"},
+			expected: &[]string{"hi", "there"},
+		},
+		{
+			name:     "all child items",
+			child:    &[]string{"hi", "there"},
+			expected: &[]string{"hi", "there"},
+		},
+		{
+			name:     "both child and parent items, no duplicates",
+			child:    &[]string{"hi", "world"},
+			parent:   &[]string{"hi", "there"},
+			expected: &[]string{"hi", "there", "world"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			actual := unionStringPtrs(tc.parent, tc.child)
+			if !reflect.DeepEqual(actual, tc.expected) {
+				t.Errorf("actual %v != expected %v", actual, tc.expected)
+			}
+		})
+	}
+}
+
 func TestApply(test *testing.T) {
 	t := true
 	f := false
