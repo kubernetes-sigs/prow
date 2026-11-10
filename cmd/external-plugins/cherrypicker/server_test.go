@@ -45,7 +45,16 @@ type fghc struct {
 	pr       *github.PullRequest
 	isMember bool
 	// per-user override of isMember
-	members map[string]bool
+	members        map[string]bool
+	isCollaborator bool
+	// per-user override of isCollaborator
+	collaborators map[string]bool
+	// per-user error injection for IsMember / IsCollaborator
+	memberErr       map[string]error
+	collaboratorErr map[string]error
+	// per-user call counters; nil unless a test opts in
+	memberCalls       map[string]int
+	collaboratorCalls map[string]int
 
 	diff       []byte
 	patch      []byte
@@ -119,10 +128,31 @@ func (f *fghc) CreateComment(org, repo string, number int, comment string) error
 func (f *fghc) IsMember(org, user string) (bool, error) {
 	f.Lock()
 	defer f.Unlock()
+	if f.memberCalls != nil {
+		f.memberCalls[user]++
+	}
+	if err := f.memberErr[user]; err != nil {
+		return false, err
+	}
 	if ok, found := f.members[user]; found {
 		return ok, nil
 	}
 	return f.isMember, nil
+}
+
+func (f *fghc) IsCollaborator(org, repo, user string) (bool, error) {
+	f.Lock()
+	defer f.Unlock()
+	if f.collaboratorCalls != nil {
+		f.collaboratorCalls[user]++
+	}
+	if err := f.collaboratorErr[user]; err != nil {
+		return false, err
+	}
+	if ok, found := f.collaborators[user]; found {
+		return ok, nil
+	}
+	return f.isCollaborator, nil
 }
 
 func (f *fghc) GetRepo(owner, name string) (github.FullRepo, error) {
@@ -1454,6 +1484,338 @@ func TestHandlePullRequestLabelAdded_NonMemberRejected(t *testing.T) {
 	}
 }
 
+func TestIsAuthorized(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name               string
+		allowAll           bool
+		allowCollaborators bool
+		members            map[string]bool
+		collaborators      map[string]bool
+		user               string
+		want               bool
+		// expected per-user API call counts, asserting short-circuit behavior
+		wantMemberCalls int
+		wantCollabCalls int
+	}{
+		{
+			name:            "allow-all authorizes anyone without any lookup",
+			allowAll:        true,
+			user:            "outsider",
+			want:            true,
+			wantMemberCalls: 0,
+			wantCollabCalls: 0,
+		},
+		{
+			name:            "org member authorized without collaborator lookup",
+			members:         map[string]bool{"member": true},
+			user:            "member",
+			want:            true,
+			wantMemberCalls: 1,
+			wantCollabCalls: 0,
+		},
+		{
+			name:            "collaborator not looked up without --allow-collaborators",
+			members:         map[string]bool{"collab": false},
+			collaborators:   map[string]bool{"collab": true},
+			user:            "collab",
+			want:            false,
+			wantMemberCalls: 1,
+			wantCollabCalls: 0,
+		},
+		{
+			name:               "collaborator authorized with --allow-collaborators",
+			allowCollaborators: true,
+			members:            map[string]bool{"collab": false},
+			collaborators:      map[string]bool{"collab": true},
+			user:               "collab",
+			want:               true,
+			wantMemberCalls:    1,
+			wantCollabCalls:    1,
+		},
+		{
+			name:               "non-member non-collaborator rejected with --allow-collaborators",
+			allowCollaborators: true,
+			members:            map[string]bool{"outsider": false},
+			collaborators:      map[string]bool{"outsider": false},
+			user:               "outsider",
+			want:               false,
+			wantMemberCalls:    1,
+			wantCollabCalls:    1,
+		},
+		{
+			name:               "member authorized without consulting collaborator status",
+			allowCollaborators: true,
+			members:            map[string]bool{"member": true},
+			collaborators:      map[string]bool{},
+			user:               "member",
+			want:               true,
+			wantMemberCalls:    1,
+			wantCollabCalls:    0,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ghc := &fghc{
+				members:           tc.members,
+				collaborators:     tc.collaborators,
+				memberCalls:       map[string]int{},
+				collaboratorCalls: map[string]int{},
+			}
+			s := &Server{
+				ghc:                ghc,
+				allowAll:           tc.allowAll,
+				allowCollaborators: tc.allowCollaborators,
+			}
+			got, err := s.isAuthorized("foo", "bar", tc.user)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tc.want {
+				t.Fatalf("isAuthorized(%q) = %v, want %v", tc.user, got, tc.want)
+			}
+			if ghc.memberCalls[tc.user] != tc.wantMemberCalls {
+				t.Errorf("IsMember(%q) called %d times, want %d", tc.user, ghc.memberCalls[tc.user], tc.wantMemberCalls)
+			}
+			if ghc.collaboratorCalls[tc.user] != tc.wantCollabCalls {
+				t.Errorf("IsCollaborator(%q) called %d times, want %d", tc.user, ghc.collaboratorCalls[tc.user], tc.wantCollabCalls)
+			}
+		})
+	}
+}
+
+func TestHandleIssueCommentAuthorization(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name               string
+		allowAll           bool
+		allowCollaborators bool
+		members            map[string]bool
+		collaborators      map[string]bool
+		memberErr          map[string]error
+		collaboratorErr    map[string]error
+		commenter          string
+		wantAck            bool   // expect the "once the present PR merges" acknowledgement
+		wantRejectContains string // expect a rejection comment containing this substring
+		wantErr            bool   // expect an error and no comment
+	}{
+		{
+			name:      "org member authorized",
+			members:   map[string]bool{"member": true},
+			commenter: "member",
+			wantAck:   true,
+		},
+		{
+			name:               "non-member rejected (members only)",
+			members:            map[string]bool{"outsider": false},
+			commenter:          "outsider",
+			wantRejectContains: "only [foo]",
+		},
+		{
+			name:               "collaborator authorized with --allow-collaborators",
+			allowCollaborators: true,
+			members:            map[string]bool{"collab": false},
+			collaborators:      map[string]bool{"collab": true},
+			commenter:          "collab",
+			wantAck:            true,
+		},
+		{
+			name:               "non-member non-collaborator rejected with collaborator-aware message",
+			allowCollaborators: true,
+			members:            map[string]bool{"outsider": false},
+			collaborators:      map[string]bool{"outsider": false},
+			commenter:          "outsider",
+			wantRejectContains: "org members or repo collaborators",
+		},
+		{
+			name:      "allow-all authorizes anyone",
+			allowAll:  true,
+			commenter: "outsider",
+			wantAck:   true,
+		},
+		{
+			name:      "membership check error propagates without a comment",
+			memberErr: map[string]error{"flaky": errors.New("github is down")},
+			commenter: "flaky",
+			wantErr:   true,
+		},
+		{
+			name:               "collaborator check error propagates without a comment",
+			allowCollaborators: true,
+			members:            map[string]bool{"flaky": false},
+			collaboratorErr:    map[string]error{"flaky": errors.New("github is down")},
+			commenter:          "flaky",
+			wantErr:            true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			iNumber := fakePR.GetPRNumber()
+			ghc := &fghc{
+				pr: &github.PullRequest{
+					Base:   github.PullRequestBranch{Ref: "master"},
+					Merged: false,
+				},
+				members:         tc.members,
+				collaborators:   tc.collaborators,
+				memberErr:       tc.memberErr,
+				collaboratorErr: tc.collaboratorErr,
+			}
+			s := &Server{
+				botUser:            &github.UserData{Login: "ci-robot"},
+				ghc:                ghc,
+				log:                logrus.StandardLogger().WithField("client", "cherrypicker"),
+				allowAll:           tc.allowAll,
+				allowCollaborators: tc.allowCollaborators,
+			}
+
+			ic := github.IssueCommentEvent{
+				Action: github.IssueCommentActionCreated,
+				Repo: github.Repo{
+					Owner:    github.User{Login: "foo"},
+					Name:     "bar",
+					FullName: "foo/bar",
+				},
+				Issue: github.Issue{
+					Number:      iNumber,
+					State:       "open",
+					PullRequest: &struct{}{},
+				},
+				Comment: github.IssueComment{
+					User: github.User{Login: tc.commenter},
+					Body: "/cherrypick release-1.9",
+				},
+			}
+
+			_, err := s.handleIssueComment(logrus.NewEntry(logrus.StandardLogger()), ic)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("expected an error, got nil")
+				}
+				if len(ghc.comments) != 0 {
+					t.Fatalf("expected no comment on error, got %v", ghc.comments)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(ghc.comments) != 1 {
+				t.Fatalf("expected exactly one comment, got %v", ghc.comments)
+			}
+			if tc.wantRejectContains != "" {
+				if !strings.Contains(ghc.comments[0], tc.wantRejectContains) {
+					t.Fatalf("expected rejection containing %q, got %v", tc.wantRejectContains, ghc.comments[0])
+				}
+				return
+			}
+			if tc.wantAck && !strings.Contains(ghc.comments[0], "once the present PR merges") {
+				t.Fatalf("expected cherry-pick acknowledgement, got %v", ghc.comments[0])
+			}
+		})
+	}
+}
+
+func TestHandlePullRequestLabelAdded_Collaborator(t *testing.T) {
+	t.Parallel()
+
+	botUser := &github.UserData{Login: "ci-robot"}
+
+	testCases := []struct {
+		name               string
+		allowCollaborators bool
+		members            map[string]bool
+		collaborators      map[string]bool
+		labeler            github.User
+		prAuthor           string
+		wantRequester      string // non-empty => expect the "once the present PR merges" ack to this user
+		wantRejectContains string // non-empty => expect a rejection comment containing this substring
+	}{
+		{
+			name:               "collaborator labeler allowed when --allow-collaborators is set",
+			allowCollaborators: true,
+			members:            map[string]bool{"dev": false, "collab": false},
+			collaborators:      map[string]bool{"collab": true},
+			labeler:            github.User{Login: "collab"},
+			prAuthor:           "dev",
+			wantRequester:      "collab",
+		},
+		{
+			name:               "collaborator labeler rejected without --allow-collaborators",
+			allowCollaborators: false,
+			members:            map[string]bool{"dev": false, "collab": false},
+			collaborators:      map[string]bool{"collab": true},
+			labeler:            github.User{Login: "collab"},
+			prAuthor:           "dev",
+			wantRejectContains: "only [foo]",
+		},
+		{
+			name:               "non-member non-collaborator rejected with collaborator-aware message",
+			allowCollaborators: true,
+			members:            map[string]bool{"dev": false, "outsider": false},
+			collaborators:      map[string]bool{},
+			labeler:            github.User{Login: "outsider"},
+			prAuthor:           "dev",
+			wantRejectContains: "org members or repo collaborators",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			prNumber := fakePR.GetPRNumber()
+			ghc := &fghc{
+				members:       tc.members,
+				collaborators: tc.collaborators,
+			}
+			s := &Server{
+				botUser:            botUser,
+				ghc:                ghc,
+				labelPrefix:        defaultLabelPrefix,
+				allowCollaborators: tc.allowCollaborators,
+			}
+
+			event := github.PullRequestEvent{
+				Action: github.PullRequestActionLabeled,
+				Label:  github.Label{Name: "cherrypick/release-1.9"},
+				Sender: tc.labeler,
+				PullRequest: github.PullRequest{
+					Number: prNumber,
+					Merged: false,
+					User:   github.User{Login: tc.prAuthor},
+					Base: github.PullRequestBranch{
+						Ref: "master",
+						Repo: github.Repo{
+							Owner: github.User{Login: "foo"},
+							Name:  "bar",
+						},
+					},
+				},
+			}
+
+			if _, err := s.handlePullRequest(logrus.NewEntry(logrus.StandardLogger()), event); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(ghc.comments) != 1 {
+				t.Fatalf("expected exactly one comment, got %v", ghc.comments)
+			}
+			if tc.wantRejectContains != "" {
+				if !strings.Contains(ghc.comments[0], tc.wantRejectContains) {
+					t.Fatalf("expected rejection containing %q, got %v", tc.wantRejectContains, ghc.comments[0])
+				}
+				return
+			}
+			want := fmt.Sprintf("@%s once the present PR merges", tc.wantRequester)
+			if !strings.Contains(ghc.comments[0], want) {
+				t.Fatalf("expected %q in comment, got %v", want, ghc.comments[0])
+			}
+		})
+	}
+}
+
 type threadUnsafeFGHC struct {
 	*fghc
 	orgRepoCountCalled int
@@ -1604,6 +1966,130 @@ func TestHandlePullRequestLabelAdded_Requester(t *testing.T) {
 	}
 }
 
+func TestCherryPickPRClosedCollaboratorErrorV2(t *testing.T) {
+	t.Parallel()
+	testCherryPickPRClosedCollaboratorError(localgit.NewV2, t)
+}
+
+// testCherryPickPRClosedCollaboratorError verifies that a transient
+// IsCollaborator error for one requester does not abort the whole batch: the
+// other (authorized) requester's cherry-pick is still created.
+func testCherryPickPRClosedCollaboratorError(clients localgit.Clients, t *testing.T) {
+	prNumber := fakePR.GetPRNumber()
+	lg, c := makeFakeRepoWithCommit(clients, t)
+	for _, branch := range []string{"release-1.5", "release-1.6"} {
+		if err := lg.CheckoutNewBranch("foo", "bar", branch); err != nil {
+			t.Fatalf("Checking out pull branch: %v", err)
+		}
+	}
+
+	botUser := &github.UserData{Login: "ci-robot", Email: "ci-robot@users.noreply.github.com"}
+	ghc := &fghc{
+		// No org members; both requesters are non-member collaborators.
+		prComments: []github.IssueComment{
+			{User: github.User{Login: "collab-ok"}, Body: "/cherrypick release-1.5"},
+			{User: github.User{Login: "collab-err"}, Body: "/cherrypick release-1.6"},
+		},
+		collaborators: map[string]bool{"collab-ok": true},
+		// collab-err's collaborator lookup fails transiently.
+		collaboratorErr: map[string]error{"collab-err": errors.New("github is down")},
+		patch:           patch,
+	}
+	s := &Server{
+		botUser:            botUser,
+		gc:                 c,
+		pusher:             fakePusher{},
+		ghc:                ghc,
+		tokenGenerator:     func() []byte { return []byte("sha=abcdefg") },
+		log:                logrus.StandardLogger().WithField("client", "cherrypicker"),
+		prowAssignments:    true,
+		allowCollaborators: true,
+	}
+
+	event := github.PullRequestEvent{
+		Action: github.PullRequestActionClosed,
+		PullRequest: github.PullRequest{
+			Base: github.PullRequestBranch{
+				Ref:  "master",
+				Repo: github.Repo{Owner: github.User{Login: "foo"}, Name: "bar"},
+			},
+			Number:   prNumber,
+			Merged:   true,
+			MergeSHA: new(string),
+			Title:    "This is a fix for Y",
+			User:     github.User{Login: "author"},
+		},
+	}
+
+	if _, err := s.handlePullRequest(logrus.NewEntry(logrus.StandardLogger()), event); err != nil {
+		t.Fatalf("a transient collaborator-check error must not abort the batch, got: %v", err)
+	}
+	if len(ghc.prs) != 1 {
+		t.Fatalf("expected exactly 1 cherry-pick PR (collab-ok's), got %d: %+v", len(ghc.prs), ghc.prs)
+	}
+	if got := ghc.prs[0].Base.Ref; got != "release-1.5" {
+		t.Fatalf("expected the cherry-pick PR to target release-1.5, got %q", got)
+	}
+}
+
+// TestCherryPickPRClosedMemoizesCollaboratorLookups verifies that, within one
+// closed-PR event, a user's collaborator status is fetched at most once even
+// when consulted via both the comment-requester filter and the label requester.
+func TestCherryPickPRClosedMemoizesCollaboratorLookups(t *testing.T) {
+	t.Parallel()
+
+	prNumber := fakePR.GetPRNumber()
+	botUser := &github.UserData{Login: "ci-robot"}
+	ghc := &fghc{
+		// "outsider" is the PR author, a comment requester, and the label
+		// fallback requester, so it is consulted on multiple paths.
+		prComments: []github.IssueComment{
+			{User: github.User{Login: "outsider"}, Body: "/cherrypick release-1.5"},
+		},
+		prLabels: []github.Label{{Name: "cherrypick/release-1.6"}},
+		prEvents: []github.ListedIssueEvent{{
+			Event: github.IssueActionLabeled,
+			Actor: github.User{Login: "triager"},
+			Label: github.Label{Name: "cherrypick/release-1.6"},
+		}},
+		// Nobody is a collaborator, so every request is rejected and no git
+		// work happens; we only care about the lookup call counts.
+		collaborators:     map[string]bool{},
+		collaboratorCalls: map[string]int{},
+	}
+	s := &Server{
+		botUser:            botUser,
+		ghc:                ghc,
+		log:                logrus.StandardLogger().WithField("client", "cherrypicker"),
+		labelPrefix:        defaultLabelPrefix,
+		allowCollaborators: true,
+	}
+
+	event := github.PullRequestEvent{
+		Action: github.PullRequestActionClosed,
+		PullRequest: github.PullRequest{
+			Base: github.PullRequestBranch{
+				Ref:  "master",
+				Repo: github.Repo{Owner: github.User{Login: "foo"}, Name: "bar"},
+			},
+			Number:   prNumber,
+			Merged:   true,
+			MergeSHA: new(string),
+			User:     github.User{Login: "outsider"},
+		},
+	}
+
+	if _, err := s.handlePullRequest(logrus.NewEntry(logrus.StandardLogger()), event); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(ghc.prs) != 0 {
+		t.Fatalf("expected no cherry-pick PRs, got %d", len(ghc.prs))
+	}
+	if got := ghc.collaboratorCalls["outsider"]; got != 1 {
+		t.Errorf("IsCollaborator(outsider) called %d times, want 1 (memoized across requester filter and label fallback)", got)
+	}
+}
+
 func TestCherryPickPRClosedLabelRequesterV2(t *testing.T) {
 	t.Parallel()
 	testCherryPickPRClosedLabelRequester(localgit.NewV2, t)
@@ -1625,11 +2111,13 @@ func testCherryPickPRClosedLabelRequester(clients localgit.Clients, t *testing.T
 	}
 
 	testCases := []struct {
-		name       string
-		author     string
-		orgMembers []string
-		events     []github.ListedIssueEvent
-		assignee   string // empty means no cherry-pick PR is expected
+		name               string
+		author             string
+		orgMembers         []string
+		collaborators      []string
+		allowCollaborators bool
+		events             []github.ListedIssueEvent
+		assignee           string // empty means no cherry-pick PR is expected
 	}{
 		{
 			name:       "member labeler is assigned",
@@ -1682,6 +2170,31 @@ func testCherryPickPRClosedLabelRequester(clients localgit.Clients, t *testing.T
 			orgMembers: []string{"dev"},
 			assignee:   "dev",
 		},
+		{
+			name:               "collaborator labeler assigned with --allow-collaborators",
+			author:             "outsider",
+			orgMembers:         []string{"dev"},
+			collaborators:      []string{"collab"},
+			allowCollaborators: true,
+			events:             []github.ListedIssueEvent{labeled(github.User{Login: "collab"})},
+			assignee:           "collab",
+		},
+		{
+			name:          "collaborator labeler rejected without --allow-collaborators",
+			author:        "outsider",
+			orgMembers:    []string{"dev"},
+			collaborators: []string{"collab"},
+			events:        []github.ListedIssueEvent{labeled(github.User{Login: "collab"})},
+		},
+		{
+			name:               "collaborator author fallback with --allow-collaborators",
+			author:             "collab",
+			orgMembers:         []string{"dev"},
+			collaborators:      []string{"collab"},
+			allowCollaborators: true,
+			events:             []github.ListedIssueEvent{labeled(github.User{Login: "triager"})},
+			assignee:           "collab",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -1691,11 +2204,16 @@ func testCherryPickPRClosedLabelRequester(clients localgit.Clients, t *testing.T
 			for _, m := range tc.orgMembers {
 				members = append(members, github.TeamMember{Login: m})
 			}
+			collaborators := map[string]bool{}
+			for _, co := range tc.collaborators {
+				collaborators[co] = true
+			}
 			ghc := &fghc{
-				orgMembers: members,
-				prLabels:   []github.Label{{Name: "cherrypick/release-1.5"}},
-				prEvents:   tc.events,
-				patch:      patch,
+				orgMembers:    members,
+				collaborators: collaborators,
+				prLabels:      []github.Label{{Name: "cherrypick/release-1.5"}},
+				prEvents:      tc.events,
+				patch:         patch,
 			}
 			s := &Server{
 				botUser:        botUser,
@@ -1705,8 +2223,9 @@ func testCherryPickPRClosedLabelRequester(clients localgit.Clients, t *testing.T
 				tokenGenerator: func() []byte { return []byte("sha=abcdefg") },
 				log:            logrus.StandardLogger().WithField("client", "cherrypicker"),
 
-				prowAssignments: true,
-				labelPrefix:     defaultLabelPrefix,
+				prowAssignments:    true,
+				allowCollaborators: tc.allowCollaborators,
+				labelPrefix:        defaultLabelPrefix,
 			}
 
 			event := github.PullRequestEvent{
