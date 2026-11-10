@@ -859,6 +859,8 @@ func TestSyncPendingJob(t *testing.T) {
 		ExpectedReport                bool
 		ExpectedURL                   string
 		ExpectedBuildID               string
+		ExpectedPodRevivalCount       int
+		ExpectedRevivedBuildID        string
 		ExpectedPodRunningTimeout     *metav1.Duration
 		ExpectedPodPendingTimeout     *metav1.Duration
 		ExpectedPodUnscheduledTimeout *metav1.Duration
@@ -913,8 +915,9 @@ func TestSyncPendingJob(t *testing.T) {
 					},
 				},
 			},
-			ExpectedState:   prowapi.PendingState,
-			ExpectedNumPods: 0,
+			ExpectedState:           prowapi.PendingState,
+			ExpectedNumPods:         0,
+			ExpectedPodRevivalCount: 1,
 		},
 		{
 			Name: "delete pod in unknown state with gcsreporter finalizer",
@@ -943,8 +946,9 @@ func TestSyncPendingJob(t *testing.T) {
 					},
 				},
 			},
-			ExpectedState:   prowapi.PendingState,
-			ExpectedNumPods: 0,
+			ExpectedState:           prowapi.PendingState,
+			ExpectedNumPods:         0,
+			ExpectedPodRevivalCount: 1,
 		},
 		{
 			Name: "succeeded pod",
@@ -1114,9 +1118,10 @@ func TestSyncPendingJob(t *testing.T) {
 					},
 				},
 			},
-			ExpectedComplete: false,
-			ExpectedState:    prowapi.PendingState,
-			ExpectedNumPods:  0,
+			ExpectedComplete:        false,
+			ExpectedState:           prowapi.PendingState,
+			ExpectedNumPods:         0,
+			ExpectedPodRevivalCount: 1,
 		},
 		{
 			Name: "delete evicted pod and remove its k8sreporter finalizer",
@@ -1146,9 +1151,10 @@ func TestSyncPendingJob(t *testing.T) {
 					},
 				},
 			},
-			ExpectedComplete: false,
-			ExpectedState:    prowapi.PendingState,
-			ExpectedNumPods:  0,
+			ExpectedComplete:        false,
+			ExpectedState:           prowapi.PendingState,
+			ExpectedNumPods:         0,
+			ExpectedPodRevivalCount: 1,
 		},
 		{
 			Name: "don't delete evicted pod w/ error_on_eviction, complete PJ instead",
@@ -1211,10 +1217,121 @@ func TestSyncPendingJob(t *testing.T) {
 					},
 				},
 			},
-			ExpectedComplete: true,
-			ExpectedState:    prowapi.ErrorState,
-			ExpectedNumPods:  1,
-			ExpectedURL:      "boop-42/error",
+			ExpectedComplete:        true,
+			ExpectedState:           prowapi.ErrorState,
+			ExpectedNumPods:         1,
+			ExpectedURL:             "boop-42/error",
+			ExpectedPodRevivalCount: maxRevivals,
+		},
+		{
+			Name: "evicted pod increments the persisted revival count",
+			PJ: prowapi.ProwJob{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "boop-42",
+					Namespace: "prowjobs",
+				},
+				Spec: prowapi.ProwJobSpec{
+					PodSpec: &v1.PodSpec{Containers: []v1.Container{{Name: "test-name", Env: []v1.EnvVar{}}}},
+				},
+				Status: prowapi.ProwJobStatus{
+					PodRevivalCount: 1,
+					State:           prowapi.PendingState,
+					PodName:         "boop-42",
+					BuildID:         "2",
+				},
+			},
+			Pods: []v1.Pod{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "boop-42",
+						Namespace: "pods",
+						Labels:    map[string]string{kube.ProwBuildIDLabel: "2"},
+					},
+					Status: v1.PodStatus{
+						Phase:  v1.PodFailed,
+						Reason: Evicted,
+					},
+				},
+			},
+			ExpectedComplete:        false,
+			ExpectedState:           prowapi.PendingState,
+			ExpectedNumPods:         0,
+			ExpectedPodRevivalCount: 2,
+			ExpectedRevivedBuildID:  "2",
+		},
+		{
+			Name: "evicted pod that was already counted is not counted again",
+			PJ: prowapi.ProwJob{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "boop-42",
+					Namespace:   "prowjobs",
+					Annotations: map[string]string{kube.RevivedBuildIDAnnotation: "2"},
+				},
+				Spec: prowapi.ProwJobSpec{
+					PodSpec: &v1.PodSpec{Containers: []v1.Container{{Name: "test-name", Env: []v1.EnvVar{}}}},
+				},
+				Status: prowapi.ProwJobStatus{
+					PodRevivalCount: 2,
+					State:           prowapi.PendingState,
+					PodName:         "boop-42",
+					BuildID:         "2",
+				},
+			},
+			Pods: []v1.Pod{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "boop-42",
+						Namespace: "pods",
+						Labels:    map[string]string{kube.ProwBuildIDLabel: "2"},
+					},
+					Status: v1.PodStatus{
+						Phase:  v1.PodFailed,
+						Reason: Evicted,
+					},
+				},
+			},
+			ExpectedComplete:        false,
+			ExpectedState:           prowapi.PendingState,
+			ExpectedNumPods:         0,
+			ExpectedPodRevivalCount: 2,
+			ExpectedRevivedBuildID:  "2",
+		},
+		{
+			Name: "evicted pod that was counted as the last allowed revival is still revived",
+			PJ: prowapi.ProwJob{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "boop-42",
+					Namespace:   "prowjobs",
+					Annotations: map[string]string{kube.RevivedBuildIDAnnotation: "4"},
+				},
+				Spec: prowapi.ProwJobSpec{
+					PodSpec: &v1.PodSpec{Containers: []v1.Container{{Name: "test-name", Env: []v1.EnvVar{}}}},
+				},
+				Status: prowapi.ProwJobStatus{
+					PodRevivalCount: maxRevivals,
+					State:           prowapi.PendingState,
+					PodName:         "boop-42",
+					BuildID:         "4",
+				},
+			},
+			Pods: []v1.Pod{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "boop-42",
+						Namespace: "pods",
+						Labels:    map[string]string{kube.ProwBuildIDLabel: "4"},
+					},
+					Status: v1.PodStatus{
+						Phase:  v1.PodFailed,
+						Reason: Evicted,
+					},
+				},
+			},
+			ExpectedComplete:        false,
+			ExpectedState:           prowapi.PendingState,
+			ExpectedNumPods:         0,
+			ExpectedPodRevivalCount: maxRevivals,
+			ExpectedRevivedBuildID:  "4",
 		},
 		{
 			// TODO: this test case tests the current behavior, but the behavior
@@ -1711,9 +1828,10 @@ func TestSyncPendingJob(t *testing.T) {
 					},
 				},
 			},
-			ExpectedState:    prowapi.PendingState,
-			ExpectedComplete: false,
-			ExpectedNumPods:  0,
+			ExpectedState:           prowapi.PendingState,
+			ExpectedComplete:        false,
+			ExpectedNumPods:         0,
+			ExpectedPodRevivalCount: 1,
 		},
 	}
 
@@ -1789,6 +1907,12 @@ func TestSyncPendingJob(t *testing.T) {
 			}
 			if tc.ExpectedBuildID != "" && actual.Status.BuildID != tc.ExpectedBuildID {
 				t.Errorf("expected BuildID %q, got %q", tc.ExpectedBuildID, actual.Status.BuildID)
+			}
+			if actual.Status.PodRevivalCount != tc.ExpectedPodRevivalCount {
+				t.Errorf("expected PodRevivalCount %d, got %d", tc.ExpectedPodRevivalCount, actual.Status.PodRevivalCount)
+			}
+			if got := actual.Annotations[kube.RevivedBuildIDAnnotation]; got != tc.ExpectedRevivedBuildID {
+				t.Errorf("expected %s annotation %q, got %q", kube.RevivedBuildIDAnnotation, tc.ExpectedRevivedBuildID, got)
 			}
 			if actual.Spec.DecorationConfig != nil && actual.Spec.DecorationConfig.PodRunningTimeout != nil &&
 				tc.ExpectedPodRunningTimeout.Duration != actual.Spec.DecorationConfig.PodRunningTimeout.Duration {
