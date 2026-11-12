@@ -19,6 +19,7 @@ The following configuration fields are available:
 * `status_update_period`: The field specifies how often Tide will update GitHub status contexts.
    Defaults to the value of `sync_period`.
 * `queries`: List of queries (described below).
+* `query_presets`: Named query fragments that queries can explicitly reference.
 * `merge_method`: A key/value pair of an `org/repo` as the key and merge method to override
    the default method of merge as value. Valid options are `squash`, `rebase`, and `merge`.
    Defaults to `merge`.
@@ -60,6 +61,7 @@ It can consist of the following dictionary of fields:
 * `excludedBranches`: List of branches that get excluded when querying the `repos`.
 * `includedBranches`: List of branches that get included when querying the `repos`.
 * `author`: The author of the PR.
+* `presets`: Names of query presets to combine with the fields supplied here.
 * `reviewApprovedRequired`: If set, each PR in the query must have at
   least one [approved GitHub pull request
   review](https://help.github.com/articles/about-pull-request-reviews/)
@@ -83,6 +85,44 @@ The field to search token correspondence is based on the following mapping:
 
 Every PR that needs to be rebased or is failing required statuses is filtered from the pool before processing
 
+
+### Query presets
+
+Use `query_presets` to share merge criteria across queries and repositories.
+Define them in the main Prow configuration:
+
+```yaml
+tide:
+  query_presets:
+  - name: common
+    labels: [approved, lgtm]
+    missingLabels: [do-not-merge/hold]
+  - name: backport
+    labels: [backport-risk-assessed, verified]
+```
+
+Queries reference presets by name. For example, a repository's supplemental file
+can combine both presets with its own criteria:
+
+```yaml
+tide:
+  queries:
+  - presets: [common, backport]
+    repos: [openshift/cluster-version-operator]
+    includedBranches: [release-5.1]
+    labels: [staff-eng-approved]
+```
+
+Names are case-sensitive and must be nonempty and unique across all loaded files.
+unknown names and repeated references within a query are errors. Presets cannot
+include other presets.
+
+`labels`, `missingLabels`, `includedBranches`, and `excludedBranches` are unioned
+across the referenced presets and inline fields, including each entry once.
+
+Each of `author`, `milestone`, and `reviewApprovedRequired` may be explicitly set
+by at most one referenced preset or the inline query. Equal values still
+conflict. Empty strings and `reviewApprovedRequired: false` count as set values.
 
 ### Context Policy Options
 

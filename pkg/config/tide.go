@@ -273,6 +273,10 @@ type TideGitHubConfig struct {
 	// specify the set of PRs that meet merge requirements. These are the authored
 	// queries; runtime consumers must use ResolvedQueries instead.
 	Queries []TideQuerySpec `json:"queries,omitempty"`
+	// QueryPresets defines reusable query fragments, referenced explicitly by name
+	// in Queries. Definitions alone do not enable Tide for any repository.
+	// Repository and organization selectors must be supplied inline in queries.
+	QueryPresets []TideQueryPreset `json:"query_presets,omitempty"`
 
 	resolvedQueries TideQueries
 
@@ -372,6 +376,7 @@ func (t *Tide) mergeFrom(additional *Tide) error {
 	// have code to de-duplicate them down the line to not
 	// increase token usage needlessly.
 	t.Queries = append(t.Queries, additional.Queries...)
+	t.QueryPresets = append(t.QueryPresets, additional.QueryPresets...)
 
 	var errs []error
 	if err := t.ContextOptions.mergeFrom(additional.ContextOptions); err != nil {
@@ -666,7 +671,41 @@ func (t *Tide) GetTargetURL(repo OrgRepo) string {
 
 // TideQuerySpec is the authored configuration of a Tide query. Loading config
 // prepares independent TideQuery values for runtime use.
-type TideQuerySpec TideQuery
+type TideQuerySpec struct {
+	TideQueryFragment `json:",inline"`
+	// Presets lists query presets to combine with the inline fields. List fields
+	// are unioned; scalar fields may be explicitly set by only one source.
+	Presets []string `json:"presets,omitempty"`
+
+	// Organization and repository selectors are required inline in queries and
+	// cannot be supplied by presets.
+	Orgs          []string `json:"orgs,omitempty"`
+	Repos         []string `json:"repos,omitempty"`
+	ExcludedRepos []string `json:"excludedRepos,omitempty"`
+}
+
+// TideQueryPreset defines a named set of reusable merge criteria.
+type TideQueryPreset struct {
+	// Name must be nonempty and unique across the loaded configuration.
+	Name              string `json:"name"`
+	TideQueryFragment `json:",inline"`
+}
+
+// TideQueryFragment holds merge criteria that may be shared through a preset or
+// supplied inline. Organization and repository selectors belong to TideQuerySpec.
+// Scalar pointers distinguish omitted values from explicit empty strings or false.
+type TideQueryFragment struct {
+	Author *string `json:"author,omitempty"`
+
+	Labels        []string `json:"labels,omitempty"`
+	MissingLabels []string `json:"missingLabels,omitempty"`
+
+	ExcludedBranches []string `json:"excludedBranches,omitempty"`
+	IncludedBranches []string `json:"includedBranches,omitempty"`
+
+	Milestone              *string `json:"milestone,omitempty"`
+	ReviewApprovedRequired *bool   `json:"reviewApprovedRequired,omitempty"`
+}
 
 // TideQuery is a resolved query turned into a GitHub search query. See the docs for details:
 // https://help.github.com/articles/searching-issues-and-pull-requests/

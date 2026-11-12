@@ -3498,14 +3498,14 @@ func StringsToOrgRepos(vs []string) []OrgRepo {
 func (pc *ProwConfig) mergeFrom(additional *ProwConfig) error {
 	emptyReference := &ProwConfig{
 		BranchProtection:     additional.BranchProtection,
-		Tide:                 Tide{TideGitHubConfig: TideGitHubConfig{MergeType: additional.Tide.MergeType, Queries: additional.Tide.Queries, ContextOptions: additional.Tide.ContextOptions}},
+		Tide:                 Tide{TideGitHubConfig: TideGitHubConfig{MergeType: additional.Tide.MergeType, Queries: additional.Tide.Queries, QueryPresets: additional.Tide.QueryPresets, ContextOptions: additional.Tide.ContextOptions}},
 		SlackReporterConfigs: additional.SlackReporterConfigs,
 		Plank:                Plank{JobQueueCapacities: additional.Plank.JobQueueCapacities},
 	}
 
 	var errs []error
 	if diff := cmp.Diff(additional, emptyReference, DefaultDiffOpts...); diff != "" {
-		errs = append(errs, fmt.Errorf("only 'branch-protection', 'slack_reporter_configs', 'tide.merge_method', 'tide.queries', 'tide.context_options' and 'plank.job_queue_capacities' may be set via additional config, all other fields have no merging logic yet. Diff: %s", diff))
+		errs = append(errs, fmt.Errorf("only 'branch-protection', 'slack_reporter_configs', 'tide.merge_method', 'tide.queries', 'tide.query_presets', 'tide.context_options' and 'plank.job_queue_capacities' may be set via additional config, all other fields have no merging logic yet. Diff: %s", diff))
 	}
 	if err := pc.BranchProtection.merge(&additional.BranchProtection); err != nil {
 		errs = append(errs, fmt.Errorf("failed to merge branch protection config: %w", err))

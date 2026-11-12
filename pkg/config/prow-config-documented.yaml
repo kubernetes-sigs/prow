@@ -1633,7 +1633,7 @@ tide:
     # specify the set of PRs that meet merge requirements. These are the authored
     # queries; runtime consumers must use ResolvedQueries instead.
     queries:
-        - author: ' '
+        - author: ""
           excludedBranches:
             - ""
           excludedRepos:
@@ -1642,14 +1642,37 @@ tide:
             - ""
           labels:
             - ""
-          milestone: ' '
+          milestone: ""
           missingLabels:
             - ""
+          # Organization and repository selectors are required inline in queries and
+          # cannot be supplied by presets.
           orgs:
+            - ""
+          # Presets lists query presets to combine with the inline fields. List fields
+          # are unioned; scalar fields may be explicitly set by only one source.
+          presets:
             - ""
           repos:
             - ""
-          reviewApprovedRequired: true
+          reviewApprovedRequired: false
+    # QueryPresets defines reusable query fragments, referenced explicitly by name
+    # in Queries. Definitions alone do not enable Tide for any repository.
+    # Repository and organization selectors must be supplied inline in queries.
+    query_presets:
+        - author: ""
+          excludedBranches:
+            - ""
+          includedBranches:
+            - ""
+          labels:
+            - ""
+          milestone: ""
+          missingLabels:
+            - ""
+          # Name must be nonempty and unique across the loaded configuration.
+          name: ' '
+          reviewApprovedRequired: false
     # RebaseLabel is an optional label that is used to identify PRs that should
     # always be rebased and merged.
     # Leave this blank to disable this feature.

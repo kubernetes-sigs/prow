@@ -1109,9 +1109,12 @@ func TestHandleConfig(t *testing.T) {
 
 func TestHandleConfigShowsResolvedTideQueries(t *testing.T) {
 	const source = `tide:
+  query_presets:
+  - name: common
+    labels: [lgtm, approved]
   queries:
   - repos: [org/first]
-    labels: [lgtm, approved]
+    presets: [common]
   - repos: [org/second]
     labels: [approved, lgtm]
 `
@@ -1123,6 +1126,7 @@ func TestHandleConfigShowsResolvedTideQueries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Serving resolved queries must leave the authored snapshot intact.
 	before, err := yaml.Marshal(cfg)
 	if err != nil {
 		t.Fatal(err)
@@ -1140,13 +1144,23 @@ func TestHandleConfigShowsResolvedTideQueries(t *testing.T) {
 		}
 		var response struct {
 			Tide struct {
-				Queries config.TideQueries `json:"queries"`
+				Queries []struct {
+					config.TideQuery `json:",inline"`
+					Presets          json.RawMessage `json:"presets"`
+				} `json:"queries"`
 			} `json:"tide"`
 		}
 		if err := yaml.Unmarshal(rr.Body.Bytes(), &response); err != nil {
 			t.Fatal(err)
 		}
-		if diff := cmp.Diff(want, response.Tide.Queries); diff != "" {
+		got := make(config.TideQueries, len(response.Tide.Queries))
+		for i, query := range response.Tide.Queries {
+			if query.Presets != nil {
+				t.Errorf("response query %d contains a presets field: %s", i, query.Presets)
+			}
+			got[i] = query.TideQuery
+		}
+		if diff := cmp.Diff(want, got); diff != "" {
 			t.Errorf("runtime queries differ (-want +got): %s", diff)
 		}
 	}
