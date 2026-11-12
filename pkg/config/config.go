@@ -93,6 +93,7 @@ const (
 
 var DefaultDiffOpts []cmp.Option = []cmp.Option{
 	cmpopts.IgnoreFields(TideBranchMergeType{}, "Regexpr"),
+	cmpopts.IgnoreFields(TideGitHubConfig{}, "resolvedQueries"),
 	cmpopts.IgnoreUnexported(Gerrit{}),
 }
 
@@ -1926,7 +1927,7 @@ func loadConfig(prowConfig string, jobConfigs []string, additionalProwConfigDirs
 	}
 
 	nc.AllRepos = sets.Set[string]{}
-	for _, query := range nc.Tide.Queries {
+	for _, query := range nc.Tide.ResolvedQueries() {
 		for _, repo := range query.Repos {
 			nc.AllRepos.Insert(repo)
 		}
@@ -1937,10 +1938,10 @@ func loadConfig(prowConfig string, jobConfigs []string, additionalProwConfigDirs
 	nc.ProwYAMLGetter = prowYAMLGetter
 	nc.ProwYAMLGetterWithDefaults = prowYAMLGetterWithDefaults
 
-	if deduplicatedTideQueries, err := nc.deduplicateTideQueries(nc.Tide.Queries); err != nil {
+	if deduplicatedTideQueries, err := nc.deduplicateTideQueries(nc.Tide.ResolvedQueries()); err != nil {
 		logrus.WithError(err).Error("failed to deduplicate tide queriees")
 	} else {
-		nc.Tide.Queries = deduplicatedTideQueries
+		nc.Tide.resolvedQueries = deduplicatedTideQueries
 	}
 
 	if nc.InRepoConfig.AllowedClusters == nil {
@@ -2839,10 +2840,8 @@ func parseProwConfig(c *Config) error {
 		c.Tide.MergeTemplate[name] = templates
 	}
 
-	for i, tq := range c.Tide.Queries {
-		if err := tq.Validate(); err != nil {
-			return fmt.Errorf("tide query (index %d) is invalid: %w", i, err)
-		}
+	if err := c.Tide.resolveQueries(); err != nil {
+		return err
 	}
 
 	for key, policy := range c.Tide.GitHubMergeBlocksPolicyMap {

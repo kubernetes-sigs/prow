@@ -819,7 +819,7 @@ func TestValidateStrictBranches(t *testing.T) {
 			config: config.ProwConfig{
 				Tide: config.Tide{
 					TideGitHubConfig: config.TideGitHubConfig{
-						Queries: []config.TideQuery{
+						Queries: []config.TideQuerySpec{
 							{
 								Orgs: []string{"kubernetes"},
 							},
@@ -854,7 +854,7 @@ func TestValidateStrictBranches(t *testing.T) {
 			config: config.ProwConfig{
 				Tide: config.Tide{
 					TideGitHubConfig: config.TideGitHubConfig{
-						Queries: []config.TideQuery{
+						Queries: []config.TideQuerySpec{
 							{
 								Orgs:          []string{"kubernetes"},
 								ExcludedRepos: []string{"kubernetes/test-infra"},
@@ -890,7 +890,7 @@ func TestValidateStrictBranches(t *testing.T) {
 			config: config.ProwConfig{
 				Tide: config.Tide{
 					TideGitHubConfig: config.TideGitHubConfig{
-						Queries: []config.TideQuery{
+						Queries: []config.TideQuerySpec{
 							{
 								Repos: []string{"kubernetes/test-infra"},
 							},
@@ -925,7 +925,7 @@ func TestValidateStrictBranches(t *testing.T) {
 			config: config.ProwConfig{
 				Tide: config.Tide{
 					TideGitHubConfig: config.TideGitHubConfig{
-						Queries: []config.TideQuery{
+						Queries: []config.TideQuerySpec{
 							{
 								Orgs: []string{"kubernetes"},
 							},
@@ -960,7 +960,7 @@ func TestValidateStrictBranches(t *testing.T) {
 			config: config.ProwConfig{
 				Tide: config.Tide{
 					TideGitHubConfig: config.TideGitHubConfig{
-						Queries: []config.TideQuery{
+						Queries: []config.TideQuerySpec{
 							{
 								Repos: []string{"kubernetes/test-infra"},
 							},
@@ -990,7 +990,7 @@ func TestValidateStrictBranches(t *testing.T) {
 			config: config.ProwConfig{
 				Tide: config.Tide{
 					TideGitHubConfig: config.TideGitHubConfig{
-						Queries: []config.TideQuery{
+						Queries: []config.TideQuerySpec{
 							{
 								Orgs: []string{"kubernetes", "k8s"},
 							},
@@ -1020,7 +1020,7 @@ func TestValidateStrictBranches(t *testing.T) {
 			config: config.ProwConfig{
 				Tide: config.Tide{
 					TideGitHubConfig: config.TideGitHubConfig{
-						Queries: []config.TideQuery{
+						Queries: []config.TideQuerySpec{
 							{
 								Repos: []string{"kubernetes/kubernetes"},
 							},
@@ -1057,7 +1057,7 @@ func TestValidateStrictBranches(t *testing.T) {
 			config: config.ProwConfig{
 				Tide: config.Tide{
 					TideGitHubConfig: config.TideGitHubConfig{
-						Queries: []config.TideQuery{
+						Queries: []config.TideQuerySpec{
 							{
 								Repos:            []string{"kubernetes/test-infra"},
 								IncludedBranches: []string{"master"},
@@ -1099,7 +1099,7 @@ func TestValidateStrictBranches(t *testing.T) {
 			config: config.ProwConfig{
 				Tide: config.Tide{
 					TideGitHubConfig: config.TideGitHubConfig{
-						Queries: []config.TideQuery{
+						Queries: []config.TideQuerySpec{
 							{
 								Repos: []string{"kubernetes/test-infra"},
 							},
@@ -1138,7 +1138,20 @@ func TestValidateStrictBranches(t *testing.T) {
 		t.Run(testcases[i].name, func(t *testing.T) {
 			tc := testcases[i]
 			t.Parallel()
-			err := validateStrictBranches(tc.config)
+			data, err := yaml.Marshal(config.ProwConfig{Tide: tc.config.Tide})
+			if err != nil {
+				t.Fatal(err)
+			}
+			path := filepath.Join(t.TempDir(), "config.yaml")
+			if err := os.WriteFile(path, data, 0600); err != nil {
+				t.Fatal(err)
+			}
+			loaded, err := config.Load(path, nil, nil, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			tc.config.Tide = loaded.Tide
+			err = validateStrictBranches(tc.config)
 			if err == nil && len(tc.errItems) > 0 {
 				t.Errorf("Expected errors for the following items, but didn't see an error: %v.", tc.errItems)
 			} else if err != nil && len(tc.errItems) == 0 {

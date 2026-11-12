@@ -30,6 +30,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"strconv"
@@ -677,17 +678,15 @@ func TestTide(t *testing.T) {
 		fmt.Fprint(w, string(b))
 	}))
 	ca := &config.Agent{}
-	ca.Set(&config.Config{
-		ProwConfig: config.ProwConfig{
-			Tide: config.Tide{
-				TideGitHubConfig: config.TideGitHubConfig{
-					Queries: []config.TideQuery{
-						{Repos: []string{"prowapi.netes/test-infra"}},
-					},
-				},
-			},
-		},
-	})
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(configPath, []byte("tide:\n  queries:\n  - repos: [prowapi.netes/test-infra]\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.Load(configPath, nil, nil, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ca.Set(cfg)
 	ta := tideAgent{
 		path: s.URL,
 		hiddenRepos: func() []string {
@@ -1011,7 +1010,7 @@ func TestHandleConfig(t *testing.T) {
 			},
 			Tide: config.Tide{
 				TideGitHubConfig: config.TideGitHubConfig{
-					Queries: []config.TideQuery{
+					Queries: []config.TideQuerySpec{
 						{Repos: []string{"prowapi.netes/test-infra"}},
 					},
 				},

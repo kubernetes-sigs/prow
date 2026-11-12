@@ -449,7 +449,7 @@ tide:
 			if err := yaml.Unmarshal([]byte(testCase.yamlConfig), &config); err != nil {
 				t.Fatalf("unmarshal error: %v", err)
 			}
-			if diff := cmp.Diff(&testCase.wantConfig, &config); diff != "" {
+			if diff := cmp.Diff(&testCase.wantConfig, &config, DefaultDiffOpts...); diff != "" {
 				t.Errorf("merge method configurations differ: %s", diff)
 			}
 		})

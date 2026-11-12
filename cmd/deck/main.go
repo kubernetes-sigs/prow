@@ -1335,7 +1335,7 @@ func handleRemoteLens(lens config.LensFileConfig, w http.ResponseWriter, r *http
 func handleTidePools(cfg config.Getter, ta *tideAgent, log *logrus.Entry) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		setHeadersNoCaching(w)
-		queryConfigs := ta.filterQueries(cfg().Tide.Queries)
+		queryConfigs := ta.filterQueries(cfg().Tide.ResolvedQueries())
 		queries := make([]string, 0, len(queryConfigs))
 		for _, qc := range queryConfigs {
 			queries = append(queries, qc.Query())

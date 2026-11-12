@@ -1630,7 +1630,8 @@ tide:
         - labels:
             - ""
     # Queries represents a list of GitHub search queries that collectively
-    # specify the set of PRs that meet merge requirements.
+    # specify the set of PRs that meet merge requirements. These are the authored
+    # queries; runtime consumers must use ResolvedQueries instead.
     queries:
         - author: ' '
           excludedBranches:

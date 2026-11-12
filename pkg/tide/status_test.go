@@ -2384,9 +2384,9 @@ func TestStatusControllerSearch(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ghc := &fgc{prs: tc.prs}
 			cfg := func() *config.Config {
-				return &config.Config{ProwConfig: config.ProwConfig{Tide: config.Tide{
+				return &config.Config{ProwConfig: config.ProwConfig{Tide: loadTideConfig(t, config.Tide{
 					MaxQueryConcurrency: tc.maxQueryConcurrency,
-					TideGitHubConfig:    config.TideGitHubConfig{Queries: config.TideQueries{{Orgs: []string{"org-a", "org-b", "org-c"}}}}}}}
+					TideGitHubConfig:    config.TideGitHubConfig{Queries: []config.TideQuerySpec{{Orgs: []string{"org-a", "org-b", "org-c"}}}}})}}
 			}
 			ctx := context.Background()
 			mgr := newFakeManager(t, ctx)

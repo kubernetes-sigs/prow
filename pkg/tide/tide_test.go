@@ -24,6 +24,8 @@ import (
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"sort"
@@ -50,6 +52,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/apimachinery/pkg/util/sets"
 	fakectrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/yaml"
 
 	prowapi "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 	"sigs.k8s.io/prow/pkg/config"
@@ -68,6 +71,23 @@ func init() {
 }
 
 var defaultBranch = localgit.DefaultBranch("")
+
+func loadTideConfig(t *testing.T, tide config.Tide) config.Tide {
+	t.Helper()
+	data, err := yaml.Marshal(config.ProwConfig{Tide: tide, LogLevel: logrus.GetLevel().String()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(path, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.Load(path, nil, nil, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return cfg.Tide
+}
 
 func testPullsMatchList(t *testing.T, test string, actual []CodeReviewCommon, expected []int) {
 	if len(actual) != len(expected) {
@@ -2607,9 +2627,8 @@ func TestSync(t *testing.T) {
 			tideConfig: &config.Tide{
 				MaxGoroutines: 4,
 				TideGitHubConfig: config.TideGitHubConfig{
-					Queries: []config.TideQuery{{
-						Orgs:  []string{string(mergeableA.Repository.Owner.Login), string(faultyOrg.Repository.Owner.Login)},
-						Repos: []string{string(mergeableA.Repository.Name), string(faultyOrg.Repository.Name)},
+					Queries: []config.TideQuerySpec{{
+						Orgs: []string{string(mergeableA.Repository.Owner.Login), string(faultyOrg.Repository.Owner.Login)},
 					}},
 					StatusUpdatePeriod: &metav1.Duration{Duration: time.Second * 0},
 					BlockerLabel:       "merge-blocker",
@@ -2643,16 +2662,15 @@ func TestSync(t *testing.T) {
 				},
 			}
 
-			tideConfig := config.Tide{
+			tideConfig := loadTideConfig(t, config.Tide{
 				MaxGoroutines: 4,
 				TideGitHubConfig: config.TideGitHubConfig{
-					Queries:            []config.TideQuery{{}},
+					Queries:            []config.TideQuerySpec{{Orgs: []string{"org"}}},
 					StatusUpdatePeriod: &metav1.Duration{Duration: time.Second * 0},
-					BlockerLabel:       "merge-blocker",
 				},
-			}
+			})
 			if tc.tideConfig != nil {
-				tideConfig = *tc.tideConfig
+				tideConfig = loadTideConfig(t, *tc.tideConfig)
 			}
 
 			ca := &config.Agent{}
@@ -4969,9 +4987,9 @@ func TestQueryShardsByOrgWhenAppsAuthIsEnabledOnly(t *testing.T) {
 			ghc := &fgc{prs: tc.prs}
 			provider := &GitHubProvider{
 				cfg: func() *config.Config {
-					return &config.Config{ProwConfig: config.ProwConfig{Tide: config.Tide{
+					return &config.Config{ProwConfig: config.ProwConfig{Tide: loadTideConfig(t, config.Tide{
 						MaxQueryConcurrency: tc.maxQueryConcurrency,
-						TideGitHubConfig:    config.TideGitHubConfig{Queries: []config.TideQuery{{Orgs: []string{"org", "other-org", "third-org"}}}}}}}
+						TideGitHubConfig:    config.TideGitHubConfig{Queries: []config.TideQuerySpec{{Orgs: []string{"org", "other-org", "third-org"}}}}})}}
 				},
 				ghc:                ghc,
 				usesGitHubAppsAuth: tc.usesGitHubAppsAuth,
@@ -5005,8 +5023,8 @@ func TestQueryIgnoresMergedPRs(t *testing.T) {
 	merged.Merged = true
 	provider := &GitHubProvider{
 		cfg: func() *config.Config {
-			return &config.Config{ProwConfig: config.ProwConfig{Tide: config.Tide{
-				TideGitHubConfig: config.TideGitHubConfig{Queries: []config.TideQuery{{Orgs: []string{"org"}}}}}}}
+			return &config.Config{ProwConfig: config.ProwConfig{Tide: loadTideConfig(t, config.Tide{
+				TideGitHubConfig: config.TideGitHubConfig{Queries: []config.TideQuerySpec{{Orgs: []string{"org"}}}}})}}
 		},
 		ghc:    &fgc{prs: map[string][]PullRequest{"": {*open, *merged}}},
 		logger: logrus.WithField("test", t.Name()),
@@ -5506,15 +5524,16 @@ func TestSetTideStatusSuccess(t *testing.T) {
 // 4. Tide creates a batch of the first and the second PR
 func TestBatchPickingConsidersPRThatIsCurrentlyBeingSeriallyRetested(t *testing.T) {
 	t.Parallel()
+	tideConfig := loadTideConfig(t, config.Tide{
+		MaxGoroutines: 1,
+		TideGitHubConfig: config.TideGitHubConfig{
+			Queries: []config.TideQuerySpec{{Orgs: []string{"org"}}},
+		},
+	})
 	configGetter := func() *config.Config {
 		return &config.Config{
 			ProwConfig: config.ProwConfig{
-				Tide: config.Tide{
-					MaxGoroutines: 1,
-					TideGitHubConfig: config.TideGitHubConfig{
-						Queries: config.TideQueries{{}},
-					},
-				},
+				Tide: tideConfig,
 			},
 			JobConfig: config.JobConfig{PresubmitsStatic: map[string][]config.Presubmit{
 				"/": {{AlwaysRun: true, Reporter: config.Reporter{Context: "mandatory-job"}}},
@@ -5789,15 +5808,16 @@ func TestIsBatchCandidateEligible(t *testing.T) {
 // 4. Tide will again trigger serial retests for the passing PR (The runs from step 1 will be deleted by Plank)
 func TestSerialRetestingConsidersPRThatIsCurrentlyBeingSRetested(t *testing.T) {
 	t.Parallel()
+	tideConfig := loadTideConfig(t, config.Tide{
+		MaxGoroutines: 1,
+		TideGitHubConfig: config.TideGitHubConfig{
+			Queries: []config.TideQuerySpec{{Orgs: []string{"org"}}},
+		},
+	})
 	configGetter := func() *config.Config {
 		return &config.Config{
 			ProwConfig: config.ProwConfig{
-				Tide: config.Tide{
-					MaxGoroutines: 1,
-					TideGitHubConfig: config.TideGitHubConfig{
-						Queries: config.TideQueries{{}},
-					},
-				},
+				Tide: tideConfig,
 			},
 			JobConfig: config.JobConfig{PresubmitsStatic: map[string][]config.Presubmit{
 				"/": {{AlwaysRun: true, Reporter: config.Reporter{Context: "mandatory-job"}}},
