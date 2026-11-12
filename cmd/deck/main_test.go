@@ -975,6 +975,14 @@ func Test_gatherOptions(t *testing.T) {
 }
 
 func TestHandleConfig(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(configPath, []byte("tide:\n  queries:\n  - repos: [prowapi.netes/test-infra]\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := config.Load(configPath, nil, nil, "")
+	if err != nil {
+		t.Fatal(err)
+	}
 	trueVal := true
 	c := config.Config{
 		JobConfig: config.JobConfig{
@@ -1008,13 +1016,7 @@ func TestHandleConfig(t *testing.T) {
 					},
 				},
 			},
-			Tide: config.Tide{
-				TideGitHubConfig: config.TideGitHubConfig{
-					Queries: []config.TideQuerySpec{
-						{Repos: []string{"prowapi.netes/test-infra"}},
-					},
-				},
-			},
+			Tide: loaded.Tide,
 		},
 	}
 	cWithDisabledCluster := config.Config{
@@ -1103,6 +1105,58 @@ func TestHandleConfig(t *testing.T) {
 		})
 	}
 
+}
+
+func TestHandleConfigShowsResolvedTideQueries(t *testing.T) {
+	const source = `tide:
+  queries:
+  - repos: [org/first]
+    labels: [lgtm, approved]
+  - repos: [org/second]
+    labels: [approved, lgtm]
+`
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(configPath, []byte(source), 0600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.Load(configPath, nil, nil, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := yaml.Marshal(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := handleConfig(func() *config.Config { return cfg }, logrus.WithField("handler", "/config"))
+	want := config.TideQueries{{
+		Repos:  []string{"org/first", "org/second"},
+		Labels: []string{"approved", "lgtm"},
+	}}
+	for range 2 {
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/config", nil))
+		if rr.Code != http.StatusOK {
+			t.Fatalf("unexpected status %d: %s", rr.Code, rr.Body.String())
+		}
+		var response struct {
+			Tide struct {
+				Queries config.TideQueries `json:"queries"`
+			} `json:"tide"`
+		}
+		if err := yaml.Unmarshal(rr.Body.Bytes(), &response); err != nil {
+			t.Fatal(err)
+		}
+		if diff := cmp.Diff(want, response.Tide.Queries); diff != "" {
+			t.Errorf("runtime queries differ (-want +got): %s", diff)
+		}
+	}
+	after, err := yaml.Marshal(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff(string(before), string(after)); diff != "" {
+		t.Errorf("serving config changed its authored representation (-before +after): %s", diff)
+	}
 }
 
 func TestHandlePluginConfig(t *testing.T) {
