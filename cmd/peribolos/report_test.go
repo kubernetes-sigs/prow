@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"maps"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -591,10 +592,7 @@ func TestConfigureCollaboratorsReportNoneAndEmpty(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			client := &fakeCollaboratorClient{collaborators: map[string]github.RepoPermissionLevel{}}
-			for u, p := range tc.current {
-				client.collaborators[u] = p
-			}
+			client := &fakeCollaboratorClient{collaborators: maps.Clone(tc.current)}
 			report := newChangeReport(true)
 			if err := configureCollaborators(client, orgName, repoName, org.Repo{Collaborators: tc.want}, report); err != nil {
 				t.Fatalf("configureCollaborators: %v", err)
@@ -602,10 +600,7 @@ func TestConfigureCollaboratorsReportNoneAndEmpty(t *testing.T) {
 			if diff := cmp.Diff(tc.expect, report.output().Changes); diff != "" {
 				t.Errorf("recorded changes mismatch (-want +got):\n%s", diff)
 			}
-			got := sets.New[string]()
-			for u := range client.collaborators {
-				got.Insert(u)
-			}
+			got := sets.KeySet(client.collaborators)
 			if !got.Equal(tc.expectCollaborators) {
 				t.Errorf("resulting collaborators = %v, want %v", sets.List(got), sets.List(tc.expectCollaborators))
 			}
