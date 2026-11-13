@@ -50,11 +50,21 @@ const (
 // change is a single applied (or, in dry-run, planned) mutation.
 //
 // Recording rule, applied at every site: a change is recorded only after its
-// mutating API call returns a nil error, never before. In dry-run the GitHub
-// client is a no-op that returns nil without calling the API, so every planned
-// change is recorded; in confirm mode a call that fails records nothing, so the
-// report lists exactly the mutations that took effect. See recordOnSuccess,
-// which enforces this for the plain-call sites.
+// mutating API call returns a nil error, never before. In confirm mode a call
+// that fails records nothing, so the report lists exactly the mutations that
+// took effect. See recordOnSuccess, which enforces this for the plain-call sites.
+//
+// In dry-run the mutating calls are no-ops that return nil, so the report is a
+// best-effort plan, not a guaranteed account of what --confirm would do. It can
+// diverge wherever a later reconciliation step reads live state that an earlier
+// skipped mutation would have changed: dependent reads on an object the run
+// would create 404 (a new team's members and child teams are dropped; a new
+// team's repos or a new repo's collaborators abort the org), a repo renamed via
+// previously has its collaborator listing 404 and abort, and a cascading delete
+// is reported twice (removing an org member also records the team_member removals
+// --confirm would cascade; deleting a team also records the org_role_team removal
+// it would cascade). See the change report section in
+// site/content/en/docs/components/cli-tools/peribolos.md.
 type change struct {
 	// Kind is the type of object changed (see the kind* constants).
 	Kind string `json:"kind"`
@@ -101,13 +111,29 @@ type change struct {
 // concurrent use. A nil *changeReport is a valid no-op recorder, so callers (and
 // tests) that do not care about reporting may pass nil.
 type changeReport struct {
-	mu      sync.Mutex
-	dryRun  bool
-	changes []change
+	mu         sync.Mutex
+	dryRun     bool
+	incomplete bool
+	changes    []change
 }
 
 func newChangeReport(dryRun bool) *changeReport {
 	return &changeReport{dryRun: dryRun}
+}
+
+// markIncomplete flags that the run did not reconcile everything it set out to,
+// so the report is a partial record rather than a full plan or account. It is
+// set when a dry-run downgrades a reconciliation error to a warning and
+// continues, and when an org run aborts. It surfaces as "complete": false in the
+// output so a consumer parsing the JSON can tell (a dry-run that swallows an
+// error still exits 0). A nil receiver is a no-op.
+func (r *changeReport) markIncomplete() {
+	if r == nil {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.incomplete = true
 }
 
 // record appends c. Callers only record real mutations, so no-ops never reach
@@ -192,8 +218,9 @@ func (r *changeReport) recordMemberRemove(kind, org, scope, user string, have me
 //
 //   - Backward-compatible changes (adding a new field to reportOutput or change,
 //     or a new kind/action value) do NOT bump the version. Consumers MUST ignore
-//     object properties with unrecognized names so they keep working against
-//     newer peribolos versions.
+//     object properties with unrecognized names, and MUST tolerate unrecognized
+//     kind and action values (including new keys in the summary map), so they
+//     keep working against newer peribolos versions.
 //   - Breaking changes (renaming/removing a field, or changing the meaning of an
 //     existing one) bump the major version. Consumers MUST reject a
 //     schema_version whose major they do not recognize.
@@ -202,10 +229,15 @@ const reportSchemaVersion = "v1"
 // reportOutput is the machine-readable form written by --report-path. See
 // reportSchemaVersion for the consumer compatibility contract.
 type reportOutput struct {
-	SchemaVersion string               `json:"schema_version"`
-	DryRun        bool                 `json:"dry_run"`
-	Summary       map[changeAction]int `json:"summary"`
-	Changes       []change             `json:"changes"`
+	SchemaVersion string `json:"schema_version"`
+	DryRun        bool   `json:"dry_run"`
+	// Complete is false when the run did not reconcile everything it set out to,
+	// so the report may be missing changes: a dry-run that downgraded a
+	// reconciliation error to a warning (and still exited 0), or an org run that
+	// aborted. It is always present so consumers never see a missing key.
+	Complete bool                 `json:"complete"`
+	Summary  map[changeAction]int `json:"summary"`
+	Changes  []change             `json:"changes"`
 }
 
 // output returns a deterministic snapshot: changes sorted by (kind, org, scope,
@@ -217,6 +249,7 @@ func (r *changeReport) output() reportOutput {
 		// summary keys present so consumers never see a missing key.
 		return reportOutput{
 			SchemaVersion: reportSchemaVersion,
+			Complete:      true,
 			Summary:       map[changeAction]int{actionAdd: 0, actionUpdate: 0, actionRemove: 0},
 		}
 	}
@@ -249,7 +282,7 @@ func (r *changeReport) output() reportOutput {
 	for _, c := range sorted {
 		summary[c.Action]++
 	}
-	return reportOutput{SchemaVersion: reportSchemaVersion, DryRun: r.dryRun, Summary: summary, Changes: sorted}
+	return reportOutput{SchemaVersion: reportSchemaVersion, DryRun: r.dryRun, Complete: !r.incomplete, Summary: summary, Changes: sorted}
 }
 
 // writeJSONReport writes the machine-readable report. Registered secrets are censored.

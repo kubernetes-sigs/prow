@@ -103,7 +103,7 @@ func (o *options) parseArgs(flags *flag.FlagSet, args []string) error {
 	flags.BoolVar(&o.fixOrgRoles, "fix-org-roles", false, "Assign/remove organization roles to teams and users if set")
 	flags.BoolVar(&o.allowRepoArchival, "allow-repo-archival", false, "If set, archiving repos is allowed while updating repos")
 	flags.BoolVar(&o.allowRepoPublish, "allow-repo-publish", false, "If set, changing repository visibility to public is allowed while updating repos")
-	flags.StringVar(&o.reportPath, "report-path", "", "If set, write a machine-readable JSON report (versioned via schema_version) of all planned (dry-run) or applied (--confirm) changes to this file. Nothing is written to stdout or the log stream; if unset, no report is produced.")
+	flags.StringVar(&o.reportPath, "report-path", "", "If set, write a machine-readable JSON report (versioned via schema_version) of planned (dry-run, best-effort) or applied (--confirm) changes to this file. The dry-run plan can diverge for objects the run would create or rename. Nothing is written to stdout or the log stream; if unset, no report is produced.")
 	flags.StringVar(&o.logLevel, "log-level", logrus.InfoLevel.String(), fmt.Sprintf("Logging level, one of %v", logrus.AllLevels))
 	o.github.AddCustomizedFlags(flags, flagutil.ThrottlerDefaults(defaultTokens, defaultBurst))
 	if err := flags.Parse(args); err != nil {
@@ -236,7 +236,11 @@ func main() {
 	// Write the report before exiting, even when an org failed: a --confirm run may
 	// have already applied changes to earlier orgs, and the report is the record of
 	// what it did. os.Exit (via Fatalf) skips deferred calls, so this must run
-	// explicitly before the fatal below.
+	// explicitly before the fatal below. An aborted run left later orgs
+	// unreconciled, so flag the report as incomplete.
+	if configErr != nil {
+		report.markIncomplete()
+	}
 	emitReport(reportFile, report)
 
 	if configErr != nil {
@@ -1670,6 +1674,32 @@ func configureCollaborators(client collaboratorClient, orgName, repoName string,
 		wantPermission := collaboratorInfo.permission
 		wantUser := wantedCollaborators.originalName(normalizedUser)
 
+		// A permission of "none" means "no direct access": reconcile it as a
+		// removal of any existing direct access or pending invitation, recorded as
+		// a remove. When there is nothing to remove there is no change to make or
+		// record (otherwise a converged config would re-record an add every run).
+		if wantPermission == github.None {
+			if currentInfo, exists := currentCollaborators.collaborators[normalizedUser]; exists {
+				actions[wantUser] = plannedChange{perm: github.None, change: change{Kind: kindCollaborator, Org: orgName, Scope: repoName, Target: normalizedUser, Action: actionRemove, Before: string(currentInfo.permission)}}
+				logrus.Infof("Will remove direct collaborator %s from %s/%s (configured as none)", wantUser, orgName, repoName)
+			} else if pendingPermission, hasPendingInvitation := pendingInvitations[normalizedUser]; hasPendingInvitation {
+				actions[wantUser] = plannedChange{perm: github.None, change: change{Kind: kindCollaborator, Org: orgName, Scope: repoName, Target: normalizedUser, Action: actionRemove, Before: string(pendingPermission)}}
+				logrus.Infof("Will remove pending invitation for %s on %s/%s (configured as none)", wantUser, orgName, repoName)
+			}
+			continue
+		}
+		// An empty or otherwise unrecognized permission is not a valid target
+		// state (an empty value can slip past RepoPermissionLevel validation as a
+		// null YAML value). Skip it rather than issue a no-op call or record a
+		// phantom change.
+		switch wantPermission {
+		case github.Read, github.Triage, github.Write, github.Maintain, github.Admin:
+			// valid target permission; handled below
+		default:
+			logrus.Warnf("Ignoring collaborator %s on %s/%s: unrecognized permission %q", wantUser, orgName, repoName, wantPermission)
+			continue
+		}
+
 		if currentInfo, exists := currentCollaborators.collaborators[normalizedUser]; exists && currentInfo.permission == wantPermission {
 			// Permission is already correct
 			continue
@@ -1796,6 +1826,10 @@ func configureTeamAndMembers(opt options, client github.Client, githubTeams map[
 		if opt.confirm {
 			return fmt.Errorf("failed to update %s members: %w", name, err)
 		}
+		// Dry-run: downgrade to a warning and continue so one unreadable team does
+		// not fail the whole plan. This team's members and child teams are dropped
+		// from the report, so flag it as incomplete (the run still exits 0).
+		report.markIncomplete()
 		logrus.WithError(err).Warnf("failed to update %s members: %s", name, err)
 		return nil
 	}
@@ -1904,6 +1938,25 @@ func configureTeamRepos(client teamRepoClient, githubTeams map[string]github.Tea
 	// apply succeeds, so the two cannot drift apart (see the change recording rule).
 	actions := map[string]plannedChange{}
 	for wantRepo, wantPermission := range want {
+		// A permission of "none" means "no access": reconcile it as a removal of
+		// any existing access, recorded as a remove, and record nothing when there
+		// is no access to remove (otherwise a converged config re-records an add
+		// every run). An empty or unrecognized permission is not a valid target
+		// (an empty value can slip past RepoPermissionLevel validation as a null
+		// YAML value); skip it rather than issue a no-op call or record a phantom.
+		if wantPermission == github.None {
+			if havePermission, haveRepo := have[wantRepo]; haveRepo {
+				actions[wantRepo] = plannedChange{perm: github.None, change: change{Kind: kindTeamRepo, Org: orgName, Scope: name, Target: wantRepo, Action: actionRemove, Before: string(havePermission)}}
+			}
+			continue
+		}
+		switch wantPermission {
+		case github.Read, github.Triage, github.Write, github.Maintain, github.Admin:
+			// valid target permission; handled below
+		default:
+			logrus.Warnf("Ignoring team %s(%s) repo %s: unrecognized permission %q", name, orgName, wantRepo, wantPermission)
+			continue
+		}
 		if havePermission, haveRepo := have[wantRepo]; haveRepo && havePermission == wantPermission {
 			// nothing to do
 			continue

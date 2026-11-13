@@ -193,12 +193,15 @@ See `go run ./cmd/peribolos --help` for the full and current list of settings th
 
 A change is recorded only after its mutating call succeeds, and `--confirm` only gates that mutating call, not the decision to make it. Under `--confirm` the report therefore lists exactly the changes that were applied: a call that fails records nothing.
 
-In dry-run every mutating call is a no-op that succeeds, so the report is a best-effort *plan* rather than a guaranteed account of what `--confirm` would do. For existing objects the plan matches what `--confirm` would apply, but for objects the run would create it can diverge, because dry-run still reads current state from GitHub while the skipped mutations return synthesized results:
+In dry-run every mutating call is a no-op that succeeds, so the report is a best-effort *plan* rather than a guaranteed account of what `--confirm` would do. Dry-run still reads live state from GitHub while the skipped mutations return synthesized results, so the plan can diverge wherever a later step reads state that an earlier skipped mutation would have changed:
 
 * A new team's members and child teams are omitted, because listing the members of a team that does not exist yet fails and that team is skipped.
-* A run that also reconciles a new team's repos (`--fix-team-repos`) or a new repo's collaborators (`--fix-collaborators`) stops at that object, because the same listing fails.
+* A run that also reconciles a new team's repos (`--fix-team-repos`), a new repo's collaborators (`--fix-collaborators`), or a repo renamed via `previously` under `--fix-collaborators`, aborts the whole run at that object, because the collaborator or team-repo listing fails against a name GitHub does not have yet.
 * A new repo with a `default_branch` set is reported with an extra `update` that `--confirm` applies only if the branch differs from the one GitHub assigns on creation.
 * A newly invited user who is also given an org role is reported with an `org_role_user` add that `--confirm` skips while the invitation is pending.
+* A cascading delete is reported twice: removing an org member also reports the `team_member` removal from each of their teams, and deleting a team also reports its `org_role_team` removal, both of which `--confirm` performs implicitly as a cascade of the parent delete.
+
+When the run did not reconcile everything it set out to (one of the skipped cases above, or an org that aborted), the top-level `complete` field is `false` so a consumer can tell the report may be missing changes; otherwise it is `true`.
 
 Example:
 
@@ -206,6 +209,7 @@ Example:
 {
   "schema_version": "v1",
   "dry_run": true,
+  "complete": true,
   "summary": { "add": 2, "update": 1, "remove": 0 },
   "changes": [
     { "kind": "org_member", "org": "my-org", "target": "alice", "action": "add", "after": "admin" },
@@ -231,7 +235,7 @@ Each entry in `changes` has:
 
 The report carries a top-level `schema_version` (currently `v1`) so tooling can consume it safely across peribolos versions:
 
-* Backward-compatible changes (a new field, or a new `kind`/`action` value) do **not** bump the version. Consumers **must** ignore properties with names they do not recognize so they keep working against newer peribolos versions.
+* Backward-compatible changes (a new field, or a new `kind`/`action` value) do **not** bump the version. Consumers **must** ignore properties with names they do not recognize, and **must** tolerate unrecognized `kind` and `action` values (including new keys in `summary`), so they keep working against newer peribolos versions.
 * Breaking changes (renaming or removing a field, or changing the meaning of an existing one) bump the major version. Consumers **must** reject a `schema_version` whose major they do not recognize.
 
 [`config.yaml`]: https://github.com/kubernetes/test-infra/blob/master/config/prow/config.yaml

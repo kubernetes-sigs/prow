@@ -412,8 +412,10 @@ func TestConfigureOrgMembersDoesNotRecordSwallowed404(t *testing.T) {
 // path. It also verifies that the current membership is matched after login
 // normalization (GitHub returns mixed-case logins) so a role change is reported
 // as an update, not an add. Like the org-member path, recording follows a
-// successful mutation; the fake client succeeds, so in dry-run (a no-op client
-// returning nil) the same changes are recorded.
+// successful mutation; the fake client succeeds on every call (reads included),
+// so this path records the same changes a no-op dry-run client would. It does
+// not exercise the dry-run divergences a live run has for objects it would
+// create, rename or cascade-delete (see the change doc comment).
 func TestConfigureTeamMembersRecordsChanges(t *testing.T) {
 	client := &fakeClient{
 		// Current state (GitHub casing): maintainers come from admins, members from
@@ -453,8 +455,10 @@ func TestConfigureTeamMembersRecordsChanges(t *testing.T) {
 // records add/remove for both team and user role assignments (scope is the role
 // name), and that a user with a pending org invitation is skipped rather than
 // recorded, mirroring the assignment logic. Recording follows a successful
-// mutation; the fake client succeeds, so in dry-run (a no-op client returning
-// nil) the same changes are recorded.
+// mutation; the fake client succeeds on every call, so this path records the
+// same changes a no-op dry-run client would. The skipped user here is seeded as
+// an explicit invitee; it does not exercise the dry-run divergence where a user
+// invited earlier in the same run lacks pending state (see the change doc comment).
 func TestConfigureOrgRolesRecordsChanges(t *testing.T) {
 	client := &fakeOrgRolesClient{
 		roles: []github.OrganizationRole{{ID: 1, Name: "security-manager"}},
@@ -521,5 +525,134 @@ func TestChangedRepoFields(t *testing.T) {
 	}
 	if got := changedRepoFields(github.RepoUpdateRequest{}); len(got) != 0 {
 		t.Errorf("empty delta should report no fields, got %v", got)
+	}
+}
+
+// TestReportComplete pins the complete flag: a fresh report is complete, a report
+// marked incomplete reports complete=false, and a nil recorder is a complete no-op.
+func TestReportComplete(t *testing.T) {
+	r := newChangeReport(true)
+	if out := r.output(); !out.Complete {
+		t.Errorf("fresh report: Complete = false, want true")
+	}
+	r.markIncomplete()
+	if out := r.output(); out.Complete {
+		t.Errorf("after markIncomplete: Complete = true, want false")
+	}
+
+	var nilReport *changeReport
+	nilReport.markIncomplete() // must not panic
+	if out := nilReport.output(); !out.Complete {
+		t.Errorf("nil report: Complete = false, want true")
+	}
+}
+
+// TestConfigureCollaboratorsReportNoneAndEmpty pins how a collaborator configured
+// as "none" or with an empty/invalid permission is reported. A "none" collaborator
+// is recorded as a remove when there is access to remove, and nothing otherwise
+// (so a converged config yields an empty report instead of re-recording an add
+// every run); an empty/unrecognized permission records nothing and makes no call.
+func TestConfigureCollaboratorsReportNoneAndEmpty(t *testing.T) {
+	const orgName, repoName = "org", "repo"
+	for _, tc := range []struct {
+		name                string
+		current             map[string]github.RepoPermissionLevel
+		want                map[string]github.RepoPermissionLevel
+		expect              []change
+		expectCollaborators sets.Set[string]
+	}{
+		{
+			name:                "none on a current collaborator records a remove",
+			current:             map[string]github.RepoPermissionLevel{"alice": github.Write},
+			want:                map[string]github.RepoPermissionLevel{"alice": github.None},
+			expect:              []change{{Kind: kindCollaborator, Org: orgName, Scope: repoName, Target: "alice", Action: actionRemove, Before: "write"}},
+			expectCollaborators: sets.New[string](),
+		},
+		{
+			name:                "none on a non-collaborator records nothing",
+			current:             map[string]github.RepoPermissionLevel{},
+			want:                map[string]github.RepoPermissionLevel{"alice": github.None},
+			expect:              []change{},
+			expectCollaborators: sets.New[string](),
+		},
+		{
+			name:                "empty permission records nothing and makes no change",
+			current:             map[string]github.RepoPermissionLevel{},
+			want:                map[string]github.RepoPermissionLevel{"alice": ""},
+			expect:              []change{},
+			expectCollaborators: sets.New[string](),
+		},
+		{
+			name:                "empty permission leaves a current collaborator untouched",
+			current:             map[string]github.RepoPermissionLevel{"alice": github.Write},
+			want:                map[string]github.RepoPermissionLevel{"alice": ""},
+			expect:              []change{},
+			expectCollaborators: sets.New[string]("alice"),
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			client := &fakeCollaboratorClient{collaborators: map[string]github.RepoPermissionLevel{}}
+			for u, p := range tc.current {
+				client.collaborators[u] = p
+			}
+			report := newChangeReport(true)
+			if err := configureCollaborators(client, orgName, repoName, org.Repo{Collaborators: tc.want}, report); err != nil {
+				t.Fatalf("configureCollaborators: %v", err)
+			}
+			if diff := cmp.Diff(tc.expect, report.output().Changes); diff != "" {
+				t.Errorf("recorded changes mismatch (-want +got):\n%s", diff)
+			}
+			got := sets.New[string]()
+			for u := range client.collaborators {
+				got.Insert(u)
+			}
+			if !got.Equal(tc.expectCollaborators) {
+				t.Errorf("resulting collaborators = %v, want %v", sets.List(got), sets.List(tc.expectCollaborators))
+			}
+		})
+	}
+}
+
+// TestConfigureTeamReposReportNoneAndEmpty pins the same none/empty-permission
+// reporting rules for team repo permissions as for collaborators.
+func TestConfigureTeamReposReportNoneAndEmpty(t *testing.T) {
+	const orgName, teamName = "org", "team"
+	writePerms := github.RepoPermissions{Pull: true, Triage: true, Push: true}
+	for _, tc := range []struct {
+		name     string
+		existing []github.Repo
+		want     map[string]github.RepoPermissionLevel
+		expect   []change
+	}{
+		{
+			name:     "none on a current team repo records a remove",
+			existing: []github.Repo{{Name: "repo1", Permissions: writePerms}},
+			want:     map[string]github.RepoPermissionLevel{"repo1": github.None},
+			expect:   []change{{Kind: kindTeamRepo, Org: orgName, Scope: teamName, Target: "repo1", Action: actionRemove, Before: "write"}},
+		},
+		{
+			name:     "none on a repo the team lacks records nothing",
+			existing: nil,
+			want:     map[string]github.RepoPermissionLevel{"repo1": github.None},
+			expect:   []change{},
+		},
+		{
+			name:     "empty permission records nothing",
+			existing: nil,
+			want:     map[string]github.RepoPermissionLevel{"repo1": ""},
+			expect:   []change{},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			client := &fakeTeamRepoClient{repos: map[string][]github.Repo{teamName: tc.existing}}
+			report := newChangeReport(true)
+			githubTeams := map[string]github.Team{teamName: {ID: 1, Slug: teamName}}
+			if err := configureTeamRepos(client, githubTeams, teamName, orgName, org.Team{Repos: tc.want}, report); err != nil {
+				t.Fatalf("configureTeamRepos: %v", err)
+			}
+			if diff := cmp.Diff(tc.expect, report.output().Changes); diff != "" {
+				t.Errorf("recorded changes mismatch (-want +got):\n%s", diff)
+			}
+		})
 	}
 }
