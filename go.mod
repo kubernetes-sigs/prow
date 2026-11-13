@@ -1,6 +1,6 @@
 module sigs.k8s.io/prow
 
-go 1.26.4
+go 1.26.9
 
 require (
 	cloud.google.com/go/auth v0.24.1
@@ -8,7 +8,7 @@ require (
 	cloud.google.com/go/pubsub/v2 v2.7.0
 	cloud.google.com/go/secretmanager v1.23.0
 	cloud.google.com/go/storage v1.70.0
-	github.com/GoogleCloudPlatform/testgrid v0.0.176
+	github.com/GoogleCloudPlatform/testgrid v0.0.178
 	github.com/NYTimes/gziphandler v1.1.1
 	github.com/andygrunwald/go-gerrit v1.2.0
 	github.com/andygrunwald/go-jira v1.17.0
