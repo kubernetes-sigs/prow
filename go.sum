@@ -57,8 +57,8 @@ github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/cloudmock v0
 github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/cloudmock v0.61.0/go.mod h1:ifhe5teRNcbxg9p353DhOkOgczzL/IBLYFqT1cm1zpM=
 github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.61.0 h1:KhpL26/GviYITHMCEGGqT/l50siFaBCBBKrjv6Z0G/k=
 github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.61.0/go.mod h1:sg6Wqbl0BKKZ5zKnQj2q0qic/3ziF894SCx1LpbX37Y=
-github.com/GoogleCloudPlatform/testgrid v0.0.176 h1:RF00+dBqwjQfHSBrtR1YOePbNW6ezpWRMlqNdjpKAvI=
-github.com/GoogleCloudPlatform/testgrid v0.0.176/go.mod h1:4yUPTTrkliiLlPJqzKHry0orAB3fBDUJRBJOqwlzpVc=
+github.com/GoogleCloudPlatform/testgrid v0.0.178 h1:Zh+Xq9nsh7MmGkjDDHlee/XdBwvsPkv7tGHL3p3l19M=
+github.com/GoogleCloudPlatform/testgrid v0.0.178/go.mod h1:tQt2AsfMywx9Mv6THtJi1rYINCESlRA9bwNdwdpjnwQ=
 github.com/Masterminds/semver/v3 v3.4.0 h1:Zog+i5UMtVoCU8oKka5P7i9q9HgrJeGzI9SA1Xbatp0=
 github.com/Masterminds/semver/v3 v3.4.0/go.mod h1:4V+yj/TJE1HU9XfppCwVMZq3I84lprf4nC11bSS5beM=
 github.com/Microsoft/go-winio v0.5.2/go.mod h1:WpS1mjBmmwHBEWmogvA2mj8546UReBk4v8QkMxJ6pZY=
