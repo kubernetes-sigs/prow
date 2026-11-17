@@ -205,7 +205,7 @@ func submittedReview(review github.Review) bool {
 }
 
 func reviewComment(review github.Review) github.IssueComment {
-	return github.IssueComment{Body: review.Body, User: review.User, HTMLURL: review.HTMLURL}
+	return github.IssueComment{Body: review.Body, User: review.User, HTMLURL: review.HTMLURL, CreatedAt: review.SubmittedAt}
 }
 
 func (s *Server) handleReview(log logrus.FieldLogger, event github.ReviewEvent) (logrus.FieldLogger, error) {
@@ -489,6 +489,8 @@ func (s *Server) handlePullRequestClosed(log logrus.FieldLogger, pre github.Pull
 			comments = append(comments, reviewComment(review))
 		}
 	}
+
+	slices.SortStableFunc(comments, func(a, b github.IssueComment) int { return a.CreatedAt.Compare(b.CreatedAt) })
 
 	// requester -> target branch -> issue comment
 	requesterToComments := make(map[string]map[string]*github.IssueComment)

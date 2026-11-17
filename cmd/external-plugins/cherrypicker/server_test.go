@@ -23,6 +23,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/sirupsen/logrus"
@@ -327,9 +328,13 @@ func TestReviewRequests(t *testing.T) {
 		Review:      github.Review{User: github.User{Login: "reviewer"}, State: github.ReviewStateApproved, HTMLURL: "https://example.com/review/1", Body: "/cherry-pick release-1 release-2\n/cherrypick main"},
 	}
 	for _, state := range []github.ReviewState{"approved", "changes_requested", "commented"} {
+		count := len(ghc.comments)
 		event.Review.State = state
 		if _, err := s.handleReview(log, event); err != nil {
 			t.Fatal(err)
+		}
+		if len(ghc.comments) != count+1 {
+			t.Fatalf("state %s: expected one additional response, got %d", state, len(ghc.comments)-count)
 		}
 		response := ghc.comments[len(ghc.comments)-1]
 		for _, want := range []string{"@reviewer", event.Review.HTMLURL, "release-1", "main"} {
@@ -399,6 +404,48 @@ func TestReviewOnMergedPR(t *testing.T) {
 		if !strings.Contains(comment, event.Review.HTMLURL) {
 			t.Errorf("missing review permalink: %s", comment)
 		}
+	}
+}
+
+func TestMergeReviewCommentChronology(t *testing.T) {
+	lg, clients := makeFakeRepoWithCommit(localgit.NewV2, t)
+	if err := lg.CheckoutNewBranch("foo", "bar", "release-1"); err != nil {
+		t.Fatal(err)
+	}
+	old := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	newer := old.Add(time.Hour)
+	for _, tc := range []struct {
+		name                                        string
+		commentTime, reviewTime                     time.Time
+		commentBody, reviewBody, wantChain, wantURL string
+	}{
+		{"newer comment", newer, old, "/cherrypick release-1 comment-next", "/cherrypick release-1 review-next", "comment-next", "https://example.com/comment"},
+		{"newer review", old, newer, "/cherrypick release-1 comment-next", "/cherrypick release-1 review-next", "review-next", "https://example.com/review"},
+		{"later empty chain", old, newer, "/cherrypick release-1 comment-next", "/cherrypick release-1", "comment-next", "https://example.com/review"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			num := fakePR.GetPRNumber()
+			ghc := &fghc{
+				orgMembers: []github.TeamMember{{Login: "reviewer"}}, patch: patch,
+				prComments: []github.IssueComment{{User: github.User{Login: "reviewer"}, Body: tc.commentBody, HTMLURL: "https://example.com/comment", CreatedAt: tc.commentTime}},
+				prReviews:  []github.Review{{User: github.User{Login: "reviewer"}, State: github.ReviewStateApproved, Body: tc.reviewBody, HTMLURL: "https://example.com/review", SubmittedAt: tc.reviewTime}},
+			}
+			s := &Server{ghc: ghc, gc: clients, pusher: fakePusher{}, botUser: &github.UserData{Login: "bot", Email: "bot@example.com"}}
+			event := github.PullRequestEvent{Action: github.PullRequestActionClosed, PullRequest: github.PullRequest{Number: num, Merged: true, MergeSHA: new(string), Title: "Fix", Base: github.PullRequestBranch{Ref: "main", Repo: github.Repo{Owner: github.User{Login: "foo"}, Name: "bar"}}}}
+			if _, err := s.handlePullRequest(logrus.NewEntry(logrus.StandardLogger()), event); err != nil {
+				t.Fatal(err)
+			}
+			if len(ghc.prs) != 1 {
+				t.Fatalf("got %d PRs, want 1", len(ghc.prs))
+			}
+			wantBody := fmt.Sprintf("This is an automated cherry-pick of #%d\n\n/cherrypick %s", num, tc.wantChain)
+			if ghc.prs[0].Body != wantBody {
+				t.Errorf("PR body = %q, want %q", ghc.prs[0].Body, wantBody)
+			}
+			if len(ghc.comments) != 1 || !strings.Contains(ghc.comments[0], "In response to [this]("+tc.wantURL+"):") {
+				t.Errorf("response = %v, want permalink %s", ghc.comments, tc.wantURL)
+			}
+		})
 	}
 }
 
