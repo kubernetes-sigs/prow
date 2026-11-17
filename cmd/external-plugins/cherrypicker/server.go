@@ -63,6 +63,7 @@ type githubClient interface {
 	IsMember(org, user string) (bool, error)
 	ListIssueComments(org, repo string, number int) ([]github.IssueComment, error)
 	ListIssueEvents(org, repo string, number int) ([]github.ListedIssueEvent, error)
+	ListReviews(org, repo string, number int) ([]github.Review, error)
 	GetIssueLabels(org, repo string, number int) ([]github.Label, error)
 	ListOrgMembers(org, role string) ([]github.TeamMember, error)
 }
@@ -74,7 +75,7 @@ func HelpProvider(_ []config.OrgRepo) (*pluginhelp.PluginHelp, error) {
 	}
 	pluginHelp.AddCommand(pluginhelp.Command{
 		Usage:       "/cherrypick [branch]",
-		Description: "Cherrypick a PR to a different branch. This command works both in merged PRs (the cherrypick PR is opened immediately) and open PRs (the cherrypick PR opens as soon as the original PR merges). If multiple branches are specified, separated by a space, a cherrypick for the first branch will be created with a comment to cherrypick the remaining branches after the first merges.",
+		Description: "Cherrypick a PR to a different branch from its body, an issue comment, or a submitted review body. This command works both in merged PRs (the cherrypick PR is opened immediately) and open PRs (the cherrypick PR opens as soon as the original PR merges). If multiple branches are specified, separated by a space, a cherrypick for the first branch will be created with a comment to cherrypick the remaining branches after the first merges.",
 		Featured:    true,
 		// depends on how the cherrypick server runs; needs auth by default (--allow-all=false)
 		WhoCanUse: "Members of the trusted organization for the repo.",
@@ -168,6 +169,16 @@ func (s *Server) handleEvent(eventType, eventGUID string, payload []byte) error 
 				log.WithError(err).Info("Cherry-pick failed.")
 			}
 		}()
+	case "pull_request_review":
+		var review github.ReviewEvent
+		if err := json.Unmarshal(payload, &review); err != nil {
+			return err
+		}
+		go func() {
+			if log, err := s.handleReview(l, review); err != nil {
+				log.WithError(err).Info("Cherry-pick failed.")
+			}
+		}()
 	case "pull_request":
 		var pr github.PullRequestEvent
 		if err := json.Unmarshal(payload, &pr); err != nil {
@@ -182,6 +193,31 @@ func (s *Server) handleEvent(eventType, eventGUID string, payload []byte) error 
 		l.Debugf("skipping event of type %q", eventType)
 	}
 	return nil
+}
+
+func submittedReview(review github.Review) bool {
+	switch github.ReviewState(strings.ToUpper(string(review.State))) {
+	case github.ReviewStateApproved, github.ReviewStateChangesRequested, github.ReviewStateCommented, github.ReviewStateDismissed:
+		return true
+	default:
+		return false
+	}
+}
+
+func reviewComment(review github.Review) github.IssueComment {
+	return github.IssueComment{Body: review.Body, User: review.User, HTMLURL: review.HTMLURL}
+}
+
+func (s *Server) handleReview(log logrus.FieldLogger, event github.ReviewEvent) (logrus.FieldLogger, error) {
+	if event.Action != github.ReviewActionSubmitted || !submittedReview(event.Review) || strings.EqualFold(string(event.Review.State), string(github.ReviewStateDismissed)) {
+		return log, nil
+	}
+	return s.handleIssueComment(log, github.IssueCommentEvent{
+		Action:  github.IssueCommentActionCreated,
+		Repo:    event.Repo,
+		Issue:   github.Issue{Number: event.PullRequest.Number, State: event.PullRequest.State, PullRequest: &struct{}{}},
+		Comment: reviewComment(event.Review),
+	})
 }
 
 func (s *Server) handleIssueComment(log logrus.FieldLogger, ic github.IssueCommentEvent) (logrus.FieldLogger, error) {
@@ -444,6 +480,16 @@ func (s *Server) handlePullRequestClosed(log logrus.FieldLogger, pre github.Pull
 		return log, fmt.Errorf("failed to list comments: %w", err)
 	}
 
+	reviews, err := s.ghc.ListReviews(org, repo, num)
+	if err != nil {
+		return log, fmt.Errorf("failed to list reviews: %w", err)
+	}
+	for _, review := range reviews {
+		if submittedReview(review) {
+			comments = append(comments, reviewComment(review))
+		}
+	}
+
 	// requester -> target branch -> issue comment
 	requesterToComments := make(map[string]map[string]*github.IssueComment)
 	// target branch -> chain branches (eg. "release-1.6" -> []string{"release-1.5", "release-1.4"})
@@ -459,15 +505,11 @@ func (s *Server) handlePullRequestClosed(log logrus.FieldLogger, pre github.Pull
 	for _, comment := range comments {
 		commands := parseComment(comment)
 
-		for targetBranch, chainedBranches := range commands {
+		for targetBranch := range commands {
 			if requesterToComments[comment.User.Login] == nil {
 				requesterToComments[comment.User.Login] = make(map[string]*github.IssueComment)
 			}
 			requesterToComments[comment.User.Login][targetBranch] = &comment
-
-			if len(chainedBranches) > 0 {
-				targetBranchToChainBranches[targetBranch] = chainedBranches
-			}
 		}
 	}
 	labels, err := s.ghc.GetIssueLabels(org, repo, num)
@@ -499,6 +541,16 @@ func (s *Server) handlePullRequestClosed(log logrus.FieldLogger, pre github.Pull
 		for requester := range requesterToComments {
 			if !isMember(requester) {
 				delete(requesterToComments, requester)
+			}
+		}
+	}
+	for _, comment := range comments {
+		if _, allowed := requesterToComments[comment.User.Login]; !allowed {
+			continue
+		}
+		for target, chain := range parseComment(comment) {
+			if len(chain) > 0 {
+				targetBranchToChainBranches[target] = chain
 			}
 		}
 	}

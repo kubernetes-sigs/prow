@@ -52,6 +52,8 @@ type fghc struct {
 	comments   []string
 	prs        []github.PullRequest
 	prComments []github.IssueComment
+	prReviews  []github.Review
+	reviewsErr error
 	prLabels   []github.Label
 	prEvents   []github.ListedIssueEvent
 	orgMembers []github.TeamMember
@@ -214,6 +216,12 @@ func (f *fghc) ListIssueComments(org, repo string, number int) ([]github.IssueCo
 	return f.prComments, nil
 }
 
+func (f *fghc) ListReviews(org, repo string, number int) ([]github.Review, error) {
+	f.Lock()
+	defer f.Unlock()
+	return f.prReviews, f.reviewsErr
+}
+
 func (f *fghc) GetIssueLabels(org, repo string, number int) ([]github.Label, error) {
 	f.Lock()
 	defer f.Unlock()
@@ -306,6 +314,101 @@ func makeFakeRepoWithCommit(clients localgit.Clients, t *testing.T) (*localgit.L
 func TestCherryPickICV2(t *testing.T) {
 	t.Parallel()
 	testCherryPickIC(localgit.NewV2, t)
+}
+
+func TestReviewRequests(t *testing.T) {
+	log := logrus.NewEntry(logrus.StandardLogger())
+	ghc := &fghc{pr: &github.PullRequest{Base: github.PullRequestBranch{Ref: "main"}}, members: map[string]bool{"reviewer": true, "author": true}}
+	s := &Server{ghc: ghc, log: log}
+	event := github.ReviewEvent{
+		Action:      github.ReviewActionSubmitted,
+		Repo:        github.Repo{Owner: github.User{Login: "foo"}, Name: "bar"},
+		PullRequest: github.PullRequest{Number: 1, State: "open", User: github.User{Login: "author"}},
+		Review:      github.Review{User: github.User{Login: "reviewer"}, State: github.ReviewStateApproved, HTMLURL: "https://example.com/review/1", Body: "/cherry-pick release-1 release-2\n/cherrypick main"},
+	}
+	for _, state := range []github.ReviewState{"approved", "changes_requested", "commented"} {
+		event.Review.State = state
+		if _, err := s.handleReview(log, event); err != nil {
+			t.Fatal(err)
+		}
+		response := ghc.comments[len(ghc.comments)-1]
+		for _, want := range []string{"@reviewer", event.Review.HTMLURL, "release-1", "main"} {
+			if !strings.Contains(response, want) {
+				t.Errorf("response %q missing %q", response, want)
+			}
+		}
+	}
+	event.Review.User.Login = "outsider"
+	if _, err := s.handleReview(log, event); err != nil || !strings.Contains(ghc.comments[len(ghc.comments)-1], "only [foo]") {
+		t.Fatalf("non-member review: comments %v, error %v", ghc.comments, err)
+	}
+	event.Review.User.Login = "reviewer"
+	event.PullRequest.State = "closed"
+	if _, err := s.handleReview(log, event); err != nil || !strings.Contains(ghc.comments[len(ghc.comments)-1], "cannot cherry-pick an unmerged PR") {
+		t.Fatalf("closed unmerged review: comments %v, error %v", ghc.comments, err)
+	}
+	event.PullRequest.State = "open"
+	event.Review.Body = "/cherrypick main"
+	if _, err := s.handleReview(log, event); err != nil || !strings.Contains(ghc.comments[len(ghc.comments)-1], "base branch") {
+		t.Fatalf("base branch review: comments %v, error %v", ghc.comments, err)
+	}
+	count := len(ghc.comments)
+	for _, action := range []github.ReviewEventAction{github.ReviewActionEdited, github.ReviewActionDismissed} {
+		event.Action = action
+		if _, err := s.handleReview(log, event); err != nil {
+			t.Fatal(err)
+		}
+	}
+	event.Action = github.ReviewActionSubmitted
+	for _, state := range []github.ReviewState{github.ReviewStatePending, github.ReviewStateDismissed} {
+		event.Review.State = state
+		if _, err := s.handleReview(log, event); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(ghc.comments) != count {
+		t.Fatal("ignored review generated a response")
+	}
+	if err := s.handleEvent("pull_request_review", "guid", []byte("invalid")); err == nil {
+		t.Fatal("review event was not decoded")
+	}
+}
+
+func TestReviewOnMergedPR(t *testing.T) {
+	lg, clients := makeFakeRepoWithCommit(localgit.NewV2, t)
+	for _, branch := range []string{"release-1", "release-2"} {
+		if err := lg.CheckoutNewBranch("foo", "bar", branch); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ghc := &fghc{pr: &github.PullRequest{Base: github.PullRequestBranch{Ref: "main"}, Merged: true, Title: "Fix"}, patch: patch, members: map[string]bool{"reviewer": true}}
+	s := &Server{ghc: ghc, gc: clients, pusher: fakePusher{}, botUser: &github.UserData{Login: "bot", Email: "bot@example.com"}, prowAssignments: true}
+	event := github.ReviewEvent{Action: github.ReviewActionSubmitted, Repo: github.Repo{Owner: github.User{Login: "foo"}, Name: "bar"}, PullRequest: github.PullRequest{Number: fakePR.GetPRNumber(), State: "closed"}, Review: github.Review{User: github.User{Login: "reviewer"}, State: github.ReviewStateCommented, HTMLURL: "https://example.com/review/2", Body: "/cherry-pick release-1 next\n/cherrypick release-2"}}
+	if _, err := s.handleReview(logrus.NewEntry(logrus.StandardLogger()), event); err != nil {
+		t.Fatal(err)
+	}
+	if len(ghc.prs) != 2 {
+		t.Fatalf("got %d PRs", len(ghc.prs))
+	}
+	for _, pr := range ghc.prs {
+		if !strings.Contains(pr.Body, "/assign reviewer") || (pr.Base.Ref == "release-1" && !strings.Contains(pr.Body, "/cherrypick next")) {
+			t.Errorf("unexpected PR: %+v", pr)
+		}
+	}
+	for _, comment := range ghc.comments {
+		if !strings.Contains(comment, event.Review.HTMLURL) {
+			t.Errorf("missing review permalink: %s", comment)
+		}
+	}
+}
+
+func TestReviewListingError(t *testing.T) {
+	want := errors.New("reviews unavailable")
+	s := &Server{ghc: &fghc{reviewsErr: want}}
+	_, err := s.handlePullRequestClosed(logrus.NewEntry(logrus.StandardLogger()), github.PullRequestEvent{PullRequest: github.PullRequest{Merged: true, MergeSHA: new(string)}})
+	if !errors.Is(err, want) {
+		t.Fatalf("got %v, want review listing error", err)
+	}
 }
 
 func testCherryPickIC(clients localgit.Clients, t *testing.T) {
@@ -489,7 +592,7 @@ func TestCherryPickPRV2(t *testing.T) {
 func testCherryPickPR(clients localgit.Clients, t *testing.T) {
 	prNumber := fakePR.GetPRNumber()
 	lg, c := makeFakeRepoWithCommit(clients, t)
-	expectedBranches := []string{"release-1.5", "release-1.6", "release-1.8", "release-1.3", "release-1.12", "release-1.13"}
+	expectedBranches := []string{"release-1.5", "release-1.6", "release-1.8", "release-1.3", "release-1.12", "release-1.13", "release-1.14", "release-1.16", "dismissed"}
 	for _, branch := range expectedBranches {
 		if err := lg.CheckoutNewBranch("foo", "bar", branch); err != nil {
 			t.Fatalf("Checking out pull branch: %v", err)
@@ -508,6 +611,15 @@ func testCherryPickPR(clients localgit.Clients, t *testing.T) {
 				Login: "merge-bot",
 			},
 		},
+		prReviews: []github.Review{
+			{User: github.User{Login: "approver"}, State: github.ReviewStateApproved, HTMLURL: "https://example.com/review/1", Body: "/cherry-pick release-1.14 release-1.15\n/cherrypick release-1.8\n/cherrypick release-1.13\n/cherrypick release-1.16"},
+			{User: github.User{Login: "fan"}, State: github.ReviewStateCommented, Body: "/cherrypick unauthorized\n/cherrypick release-1.14 unwanted"},
+			{User: github.User{Login: "approver"}, State: github.ReviewStatePending, Body: "/cherrypick pending"},
+			{User: github.User{Login: "approver"}, State: github.ReviewStateDismissed, Body: "/cherrypick dismissed"},
+			{User: github.User{Login: "approver"}, State: github.ReviewStateCommented, Body: "Command removed"},
+			{User: github.User{Login: "approver"}, State: github.ReviewStateCommented, Body: ""},
+		},
+		prLabels: []github.Label{{Name: "cherrypick/release-1.14"}},
 		prComments: []github.IssueComment{
 			{
 				User: github.User{
@@ -611,6 +723,7 @@ func testCherryPickPR(clients localgit.Clients, t *testing.T) {
 		log:            logrus.StandardLogger().WithField("client", "cherrypicker"),
 
 		prowAssignments: false,
+		labelPrefix:     defaultLabelPrefix,
 	}
 
 	if _, err := s.handlePullRequest(logrus.NewEntry(logrus.StandardLogger()), pr); err != nil {
@@ -625,6 +738,9 @@ func testCherryPickPR(clients localgit.Clients, t *testing.T) {
 		}
 		if branch == "release-1.12" {
 			expectedBody = fmt.Sprintf("%s\n\n/cherrypick release-1.11 release-1.10 release-1.9", expectedBody)
+		}
+		if branch == "release-1.14" {
+			expectedBody = fmt.Sprintf("%s\n\n/cherrypick release-1.15", expectedBody)
 		}
 		expectedHead := fmt.Sprintf(botUser.Login+":"+cherryPickBranchFmt, prNumber, branch)
 		expectedLabels := s.labels
@@ -650,6 +766,9 @@ func testCherryPickPR(clients localgit.Clients, t *testing.T) {
 	}
 	if len(seenBranches) != len(expectedBranches) {
 		t.Fatalf("Expected to see PRs for %d branches, got %d (%v)", len(expectedBranches), len(seenBranches), seenBranches)
+	}
+	if !strings.Contains(strings.Join(ghc.comments, "\n"), "https://example.com/review/1") {
+		t.Error("merge replay response missing review permalink")
 	}
 }
 
