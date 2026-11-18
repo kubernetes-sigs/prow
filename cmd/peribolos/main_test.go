@@ -4204,7 +4204,7 @@ func TestConfigureTeamRepos(t *testing.T) {
 			failUpdate: testCase.failUpdate,
 			failRemove: testCase.failRemove,
 		}
-		err := configureTeamRepos(&client, testCase.githubTeams, testCase.teamName, "org", testCase.team)
+		err := configureTeamRepos(&client, testCase.githubTeams, testCase.teamName, "org", testCase.team, nil)
 		if err == nil && testCase.expectedErr {
 			t.Errorf("%s: expected an error but got none", testCase.name)
 		}
@@ -4218,8 +4218,9 @@ func TestConfigureTeamRepos(t *testing.T) {
 }
 
 type fakeRepoClient struct {
-	t     *testing.T
-	repos map[string]github.FullRepo
+	t           *testing.T
+	repos       map[string]github.FullRepo
+	updateCalls map[string]int
 }
 
 func (f fakeRepoClient) GetRepo(owner, name string) (github.FullRepo, error) {
@@ -4272,21 +4273,20 @@ func updateIfSet[T any](have, want *T) {
 }
 
 func (f fakeRepoClient) UpdateRepo(owner, name string, want github.RepoUpdateRequest) (*github.FullRepo, error) {
+	f.updateCalls[name]++
 	if name == "fail" {
 		return nil, fmt.Errorf("injected UpdateRepo failure")
 	}
-	if want.Archived != nil && !*want.Archived {
-		f.t.Errorf("UpdateRepo() called to unarchive a repo (not supported by API)")
-		return nil, fmt.Errorf("UpdateRepo() called to unarchive a repo (not supported by API)")
-	}
-
 	have, exists := f.repos[name]
 	if !exists {
 		f.t.Errorf("UpdateRepo() called on repo that does not exists")
 		return nil, fmt.Errorf("UpdateRepo() called on repo that does not exist")
 	}
 
-	if have.Archived {
+	// Archived repos are read-only, with a single exception: a request that sets
+	// archived:false unarchives the repo, and GitHub applies any other fields in
+	// that same request too. Any update that leaves the repo archived is rejected.
+	if have.Archived && (want.Archived == nil || *want.Archived) {
 		return nil, fmt.Errorf("Repository was archived so is read-only.")
 	}
 
@@ -4312,8 +4312,9 @@ func (f fakeRepoClient) UpdateRepo(owner, name string, want github.RepoUpdateReq
 
 func makeFakeRepoClient(t *testing.T, repos ...github.FullRepo) fakeRepoClient {
 	fc := fakeRepoClient{
-		repos: make(map[string]github.FullRepo, len(repos)),
-		t:     t,
+		repos:       make(map[string]github.FullRepo, len(repos)),
+		updateCalls: make(map[string]int),
+		t:           t,
 	}
 	for _, repo := range repos {
 		fc.repos[repo.Name] = repo
@@ -4358,8 +4359,9 @@ func TestConfigureRepos(t *testing.T) {
 		orgNameOverride string
 		repos           []github.FullRepo
 
-		expectError   bool
-		expectedRepos []github.Repo
+		expectError     bool
+		expectNoUpdates bool
+		expectedRepos   []github.Repo
 	}{
 		{
 			description:   "survives empty config",
@@ -4456,25 +4458,48 @@ func TestConfigureRepos(t *testing.T) {
 			expectedRepos: []github.Repo{failRepo},
 		},
 		{
-			// https://developer.github.com/v3/repos/#edit
-			// "Note: You cannot unarchive repositories through the API."
-			// Archived repositories are read-only, and updates fail with 403:
-			// "Repository was archived so is read-only."
-			description: "request to unarchive a repo fails, repo is read-only",
+			description: "request to unarchive a repo is skipped (warn, not fatal) when not allowed",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
 					oldName: {Archived: &no, Description: &updated},
 				},
 			},
 			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Archived: true, Description: "OLD"}}},
-			expectError:   true,
+			expectError:   false,
 			expectedRepos: []github.Repo{{Name: oldName, Archived: true, Description: "OLD"}},
 		},
 		{
-			// https://developer.github.com/v3/repos/#edit
-			// "Note: You cannot unarchive repositories through the API."
-			// Archived repositories are read-only, and updates fail with 403:
-			// "Repository was archived so is read-only."
+			description: "request to unarchive a repo succeeds when allowed",
+			opts: options{
+				allowRepoUnarchival: true,
+			},
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					oldName: {Archived: &no},
+				},
+			},
+			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Archived: true}}},
+			expectError:   false,
+			expectedRepos: []github.Repo{{Name: oldName, Archived: false}},
+		},
+		{
+			description: "unarchival and other field changes are applied in a single request",
+			opts: options{
+				allowRepoUnarchival: true,
+			},
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					oldName: {Archived: &no, Description: &updated},
+				},
+			},
+			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Archived: true, Description: "OLD"}}},
+			expectError:   false,
+			expectedRepos: []github.Repo{{Name: oldName, Archived: false, Description: updated}},
+		},
+		{
+			// An archived repo that stays archived is left untouched: its other
+			// fields are read-only in GitHub, so the description drift is skipped
+			// rather than attempted (which would fail with a 403).
 			description: "no field changes on archived repo",
 			orgConfig: org.Config{
 				Repos: map[string]org.Repo{
@@ -4484,6 +4509,17 @@ func TestConfigureRepos(t *testing.T) {
 			repos:         []github.FullRepo{{Repo: github.Repo{Name: oldName, Archived: true, Description: "OLD"}}},
 			expectError:   false,
 			expectedRepos: []github.Repo{{Name: oldName, Archived: true, Description: "OLD"}},
+		},
+		{
+			description: "omitting archived skips updates to an archived repo",
+			orgConfig: org.Config{
+				Repos: map[string]org.Repo{
+					oldName: {Description: &updated},
+				},
+			},
+			repos:           []github.FullRepo{{Repo: github.Repo{Name: oldName, Archived: true, Description: "OLD"}}},
+			expectNoUpdates: true,
+			expectedRepos:   []github.Repo{{Name: oldName, Archived: true, Description: "OLD"}},
 		},
 		{
 			description: "request to archive repo fails when not allowed, but updates other fields",
@@ -4669,15 +4705,19 @@ func TestConfigureRepos(t *testing.T) {
 			fc := makeFakeRepoClient(t, tc.repos...)
 			var err error
 			if len(tc.orgNameOverride) > 0 {
-				err = configureRepos(tc.opts, fc, tc.orgNameOverride, tc.orgConfig)
+				_, err = configureRepos(tc.opts, fc, tc.orgNameOverride, tc.orgConfig)
 			} else {
-				err = configureRepos(tc.opts, fc, orgName, tc.orgConfig)
+				_, err = configureRepos(tc.opts, fc, orgName, tc.orgConfig)
 			}
 			if err != nil && !tc.expectError {
 				t.Errorf("%s: unexpected error: %v", tc.description, err)
 			}
 			if err == nil && tc.expectError {
 				t.Errorf("%s: expected error, got none", tc.description)
+			}
+
+			if tc.expectNoUpdates && len(fc.updateCalls) != 0 {
+				t.Errorf("unexpected UpdateRepo calls: %v", fc.updateCalls)
 			}
 
 			reposAfter, err := fc.GetRepos(orgName, isOrg)
@@ -4689,6 +4729,108 @@ func TestConfigureRepos(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestConfigureOrgArchivedRepoPermissions(t *testing.T) {
+	const repoName = "sample"
+	for _, tc := range []struct {
+		name           string
+		fixRepos       bool
+		allowArchive   bool
+		allowUnarchive bool
+		startArchived  bool
+		wantArchived   bool
+	}{
+		{name: "unarchival skipped", fixRepos: true, startArchived: true},
+		{name: "unarchival allowed", fixRepos: true, startArchived: true, allowUnarchive: true},
+		{name: "permission reconciliation only", startArchived: true},
+		{name: "archive this run", fixRepos: true, allowArchive: true, wantArchived: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			client := &archivedRepoOrgClient{
+				repos: makeFakeRepoClient(t,
+					github.FullRepo{Repo: github.Repo{Name: repoName, Archived: tc.startArchived}},
+					github.FullRepo{Repo: github.Repo{Name: "unmanaged-archived", Archived: true}},
+				),
+			}
+			config := org.Config{
+				Repos: map[string]org.Repo{
+					repoName: {Archived: &tc.wantArchived, Collaborators: map[string]github.RepoPermissionLevel{"contributor": github.Read}},
+				},
+				Teams: map[string]org.Team{
+					"developers": {Repos: map[string]github.RepoPermissionLevel{repoName: github.Read}},
+				},
+			}
+			opts := options{
+				fixRepos: tc.fixRepos, allowRepoArchival: tc.allowArchive, allowRepoUnarchival: tc.allowUnarchive,
+				fixCollaborators: true, fixTeams: true, fixTeamRepos: true,
+			}
+			if err := configureOrg(opts, client, "test-org", config); err != nil {
+				t.Fatal(err)
+			}
+
+			var wantWrites []string
+			if tc.allowUnarchive {
+				wantWrites = []string{repoName}
+			}
+			if diff := cmp.Diff(wantWrites, client.collaboratorWrites); diff != "" {
+				t.Errorf("collaborator writes (-want +got): %s", diff)
+			}
+			if diff := cmp.Diff(wantWrites, client.teamWrites); diff != "" {
+				t.Errorf("team repo writes (-want +got): %s", diff)
+			}
+		})
+	}
+}
+
+type archivedRepoOrgClient struct {
+	github.Client
+	repos              fakeRepoClient
+	collaboratorWrites []string
+	teamWrites         []string
+}
+
+func (c *archivedRepoOrgClient) GetRepos(owner string, isUser bool) ([]github.Repo, error) {
+	return c.repos.GetRepos(owner, isUser)
+}
+
+func (c *archivedRepoOrgClient) GetRepo(owner, repo string) (github.FullRepo, error) {
+	return c.repos.GetRepo(owner, repo)
+}
+
+func (c *archivedRepoOrgClient) UpdateRepo(owner, repo string, update github.RepoUpdateRequest) (*github.FullRepo, error) {
+	return c.repos.UpdateRepo(owner, repo, update)
+}
+
+func (*archivedRepoOrgClient) ListDirectCollaboratorsWithPermissions(string, string) (map[string]github.RepoPermissionLevel, error) {
+	return nil, nil
+}
+
+func (*archivedRepoOrgClient) ListRepoInvitations(string, string) ([]github.CollaboratorRepoInvitation, error) {
+	return nil, nil
+}
+
+func (c *archivedRepoOrgClient) AddCollaborator(owner, repo, user string, permission github.RepoPermissionLevel) error {
+	c.collaboratorWrites = append(c.collaboratorWrites, repo)
+	return nil
+}
+
+func (*archivedRepoOrgClient) ListTeams(string) ([]github.Team, error) {
+	return []github.Team{{ID: 1, Name: "developers", Slug: "developers"}}, nil
+}
+
+func (*archivedRepoOrgClient) ListTeamReposBySlug(string, string) ([]github.Repo, error) {
+	return []github.Repo{{Name: "unmanaged-archived", Archived: true}}, nil
+}
+
+func (c *archivedRepoOrgClient) UpdateTeamRepoBySlug(owner, team, repo string, permission github.TeamPermission) error {
+	c.teamWrites = append(c.teamWrites, repo)
+	return nil
+}
+
+func (c *archivedRepoOrgClient) RemoveTeamRepoBySlug(owner, team, repo string) error {
+	c.teamWrites = append(c.teamWrites, repo)
+	return nil
 }
 
 func TestValidateRepos(t *testing.T) {
