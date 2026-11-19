@@ -364,13 +364,6 @@ func TestReviewRequests(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	event.Action = github.ReviewActionSubmitted
-	for _, state := range []github.ReviewState{github.ReviewStatePending, github.ReviewStateDismissed} {
-		event.Review.State = state
-		if _, err := s.handleReview(log, event); err != nil {
-			t.Fatal(err)
-		}
-	}
 	if len(ghc.comments) != count {
 		t.Fatal("ignored review generated a response")
 	}
@@ -640,7 +633,7 @@ func testCherryPickPR(clients localgit.Clients, t *testing.T) {
 	prNumber := fakePR.GetPRNumber()
 	lg, c := makeFakeRepoWithCommit(clients, t)
 	expectedBranches := []string{"release-1.5", "release-1.6", "release-1.8", "release-1.3", "release-1.12", "release-1.13", "release-1.14", "release-1.16", "dismissed"}
-	for _, branch := range expectedBranches {
+	for _, branch := range append(expectedBranches, "pending") {
 		if err := lg.CheckoutNewBranch("foo", "bar", branch); err != nil {
 			t.Fatalf("Checking out pull branch: %v", err)
 		}

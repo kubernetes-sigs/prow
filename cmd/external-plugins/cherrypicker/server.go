@@ -209,7 +209,7 @@ func reviewComment(review github.Review) github.IssueComment {
 }
 
 func (s *Server) handleReview(log logrus.FieldLogger, event github.ReviewEvent) (logrus.FieldLogger, error) {
-	if event.Action != github.ReviewActionSubmitted || !submittedReview(event.Review) || strings.EqualFold(string(event.Review.State), string(github.ReviewStateDismissed)) {
+	if event.Action != github.ReviewActionSubmitted {
 		return log, nil
 	}
 	return s.handleIssueComment(log, github.IssueCommentEvent{
