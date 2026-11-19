@@ -50,6 +50,7 @@ import (
 	"sigs.k8s.io/prow/pkg/config"
 	kubernetesreporterapi "sigs.k8s.io/prow/pkg/crier/reporters/gcs/kubernetes/api"
 	"sigs.k8s.io/prow/pkg/flagutil"
+	"sigs.k8s.io/prow/pkg/github"
 	"sigs.k8s.io/prow/pkg/io"
 	"sigs.k8s.io/prow/pkg/io/providers"
 	"sigs.k8s.io/prow/pkg/kube"
@@ -106,7 +107,13 @@ func Add(
 	totURL string,
 	additionalSelector string,
 ) error {
-	return add(mgr, buildClusters, knownClusters, cfg, opener, totURL, additionalSelector, nil, nil, 10, "")
+	return add(mgr, buildClusters, knownClusters, cfg, opener, totURL, additionalSelector, nil, nil, 10, "", nil)
+}
+
+// AddWithGitHubClient adds Plank with a read-only GitHub client used to refresh
+// the base SHA of queued PR presubmits before their test pods are created.
+func AddWithGitHubClient(mgr controllerruntime.Manager, buildClusters map[string]cluster.Cluster, knownClusters map[string]rest.Config, cfg config.Getter, opener io.Opener, totURL, additionalSelector string, ghc github.Client) error {
+	return add(mgr, buildClusters, knownClusters, cfg, opener, totURL, additionalSelector, nil, nil, 10, "", ghc)
 }
 
 func add(
@@ -121,6 +128,7 @@ func add(
 	predicateCallback func(bool),
 	numWorkers int,
 	controllerName string,
+	githubClient github.Client,
 ) error {
 	pjPredicate := prowJobPredicate(predicateCallback)
 
@@ -146,6 +154,7 @@ func add(
 		WithOptions(controller.Options{MaxConcurrentReconciles: numWorkers})
 
 	r := newReconciler(ctx, mgr.GetClient(), overwriteReconcile, cfg, opener, totURL)
+	r.githubClient = githubClient
 	for buildClusterName, buildCluster := range buildClusters {
 		r.log.WithFields(logrus.Fields{
 			"buildCluster": buildClusterName,
@@ -217,6 +226,7 @@ func newReconciler(ctx context.Context, pjClient ctrlruntimeclient.Client, overw
 
 type reconciler struct {
 	pjClient           ctrlruntimeclient.Client
+	githubClient       github.Client
 	buildClients       map[string]buildClient
 	overwriteReconcile reconcile.Func
 	log                *logrus.Entry
@@ -728,6 +738,27 @@ func (r *reconciler) syncTriggeredJob(ctx context.Context, pj *prowv1.ProwJob) (
 		if !canExecuteConcurrently {
 			return &reconcile.Result{RequeueAfter: 10 * time.Second}, nil
 		}
+
+		updated, err := r.refreshQueuedPresubmitBase(pj)
+		if err != nil {
+			pj.Status.State = prowv1.ErrorState
+			pj.SetComplete()
+			pj.Status.Description = fmt.Sprintf("Failed to refresh presubmit base SHA: %v", err)
+			r.log.WithFields(pjutil.ProwJobFields(pj)).WithError(err).Error("Failed to refresh queued presubmit base SHA.")
+			if patchErr := r.pjClient.Patch(ctx, pj.DeepCopy(), ctrlruntimeclient.MergeFrom(prevPJ)); patchErr != nil {
+				return nil, fmt.Errorf("patch failed presubmit base refresh: %w", patchErr)
+			}
+			return nil, nil
+		}
+		if updated {
+			// Persist the refreshed refs before creating a pod. The next reconcile
+			// will build the pod and clone script from the same metadata Tide sees.
+			if err := r.pjClient.Patch(ctx, pj.DeepCopy(), ctrlruntimeclient.MergeFrom(prevPJ)); err != nil {
+				return nil, fmt.Errorf("patch refreshed presubmit base: %w", err)
+			}
+			return &reconcile.Result{RequeueAfter: time.Second}, nil
+		}
+
 		// We haven't started the pod yet. Do so.
 		id, pn, err = r.startPod(ctx, pj)
 		if err != nil {
@@ -782,6 +813,29 @@ func (r *reconciler) syncTriggeredJob(ctx context.Context, pj *prowv1.ProwJob) (
 	}
 
 	return nil, nil
+}
+
+func (r *reconciler) refreshQueuedPresubmitBase(pj *prowv1.ProwJob) (bool, error) {
+	if r.githubClient == nil || pj.Spec.Type != prowv1.PresubmitJob || pj.Spec.Refs == nil || len(pj.Spec.Refs.Pulls) == 0 || pj.Spec.Refs.BaseRef == "" {
+		return false, nil
+	}
+
+	refs := pj.Spec.Refs
+	baseSHA, err := r.githubClient.GetRef(refs.Org, refs.Repo, "heads/"+refs.BaseRef)
+	if err != nil {
+		return false, fmt.Errorf("refresh base SHA for %s/%s#%d: %w", refs.Org, refs.Repo, refs.Pulls[0].Number, err)
+	}
+	if baseSHA == "" {
+		return false, fmt.Errorf("refresh base SHA for %s/%s#%d returned an empty SHA", refs.Org, refs.Repo, refs.Pulls[0].Number)
+	}
+	if refs.BaseSHA == baseSHA {
+		return false, nil
+	}
+
+	refs.BaseSHA = baseSHA
+	refs.BaseLink = fmt.Sprintf("%s/commit/%s", refs.RepoLink, baseSHA)
+	r.log.WithFields(pjutil.ProwJobFields(pj)).WithField("baseSHA", baseSHA).Info("Refreshed queued presubmit base SHA.")
+	return true, nil
 }
 
 // syncAbortedJob syncs jobs that got aborted because their result isn't needed anymore,
