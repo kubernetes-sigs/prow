@@ -76,6 +76,7 @@ func main() {
 	//  AddRepoLabel(org, repo, label, description, color string) error # fmt.Sprintf("/repos/%s/%s/labels", org, repo),
 	r.Path("/").Handler(response(defaultHandler()))
 	r.Path("/user").Handler(response(userHandler(ghClient)))
+	r.Path("/repos/{org}/{repo}/git/refs/{ref:.*}").Handler(response(refHandler))
 	r.Path("/repos/{org}/{repo}/statuses/{sha}").Handler(response(statusHandler(ghClient)))
 	r.Path("/repos/{org}/{repo}/commits/{sha}/status").Queries("per_page", "{page}").Handler(response(statusHandler(ghClient)))
 	r.Path("/repos/{org}/{repo}/issues").Handler(response(issueHandler(ghClient)))
@@ -92,6 +93,14 @@ func main() {
 	// setup done, actually start the server
 	server := &http.Server{Addr: ":8888", Handler: r}
 	interrupts.ListenAndServe(server, 5*time.Second)
+}
+
+func refHandler(r *http.Request) (any, int, error) {
+	vars := mux.Vars(r)
+	if r.Method != http.MethodGet {
+		return "", http.StatusMethodNotAllowed, nil
+	}
+	return fmt.Sprintf(`{"ref":"refs/%s","object":{"sha":"%s"}}`, vars["ref"], fakegithub.TestRef), http.StatusOK, nil
 }
 
 func unmarshal(r *http.Request, data any) error {
