@@ -17,6 +17,7 @@ limitations under the License.
 package org
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -60,19 +61,10 @@ type RepoCreateOptions struct {
 //
 // See https://developer.github.com/v3/repos/#edit
 type Repo struct {
-	Description              *string                `json:"description,omitempty"`
-	HomePage                 *string                `json:"homepage,omitempty"`
-	Visibility               *github.RepoVisibility `json:"visibility,omitempty"`
-	HasIssues                *bool                  `json:"has_issues,omitempty"`
-	HasProjects              *bool                  `json:"has_projects,omitempty"`
-	HasWiki                  *bool                  `json:"has_wiki,omitempty"`
-	AllowSquashMerge         *bool                  `json:"allow_squash_merge,omitempty"`
-	AllowMergeCommit         *bool                  `json:"allow_merge_commit,omitempty"`
-	AllowRebaseMerge         *bool                  `json:"allow_rebase_merge,omitempty"`
-	SquashMergeCommitTitle   *string                `json:"squash_merge_commit_title,omitempty"`
-	SquashMergeCommitMessage *string                `json:"squash_merge_commit_message,omitempty"`
-	// DeleteBranchOnMerge enables GitHub's "Automatically delete head branches" setting
-	DeleteBranchOnMerge *bool `json:"delete_branch_on_merge,omitempty"`
+	RepoSettings
+	Description *string                `json:"description,omitempty"`
+	HomePage    *string                `json:"homepage,omitempty"`
+	Visibility  *github.RepoVisibility `json:"visibility,omitempty"`
 
 	DefaultBranch *string `json:"default_branch,omitempty"`
 	Archived      *bool   `json:"archived,omitempty"`
@@ -118,14 +110,82 @@ func (r *Repo) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// RepoSettings declares settings shared by repository configs and org-level defaults.
+// Repository-specific metadata, permissions, visibility and archival are not defaultable.
+type RepoSettings struct {
+	AllowSquashMerge         *bool   `json:"allow_squash_merge,omitempty"`
+	AllowMergeCommit         *bool   `json:"allow_merge_commit,omitempty"`
+	AllowRebaseMerge         *bool   `json:"allow_rebase_merge,omitempty"`
+	SquashMergeCommitTitle   *string `json:"squash_merge_commit_title,omitempty"`
+	SquashMergeCommitMessage *string `json:"squash_merge_commit_message,omitempty"`
+	// DeleteBranchOnMerge enables GitHub's "Automatically delete head branches" setting.
+	DeleteBranchOnMerge *bool `json:"delete_branch_on_merge,omitempty"`
+	HasIssues           *bool `json:"has_issues,omitempty"`
+	HasProjects         *bool `json:"has_projects,omitempty"`
+	HasWiki             *bool `json:"has_wiki,omitempty"`
+}
+
+// RepoDefaults declares the settings supported by org-level repository defaults.
+// It is separate from RepoSettings so strict decoding does not affect Repo parsing.
+type RepoDefaults RepoSettings
+
+// UnmarshalJSON rejects unsupported settings rather than silently ignoring them.
+func (r *RepoDefaults) UnmarshalJSON(data []byte) error {
+	var settings RepoSettings
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&settings); err != nil {
+		return fmt.Errorf("repo_defaults: %w", err)
+	}
+	*r = RepoDefaults(settings)
+	return nil
+}
+
+// WithDefaults returns a copy of the repo with unset settings filled from defaults.
+// Explicit repository values, including false, take precedence. Neither input is modified.
+func (r Repo) WithDefaults(defaults *RepoDefaults) Repo {
+	if defaults == nil {
+		return r
+	}
+	if r.AllowSquashMerge == nil {
+		r.AllowSquashMerge = defaults.AllowSquashMerge
+	}
+	if r.AllowMergeCommit == nil {
+		r.AllowMergeCommit = defaults.AllowMergeCommit
+	}
+	if r.AllowRebaseMerge == nil {
+		r.AllowRebaseMerge = defaults.AllowRebaseMerge
+	}
+	if r.SquashMergeCommitTitle == nil {
+		r.SquashMergeCommitTitle = defaults.SquashMergeCommitTitle
+	}
+	if r.SquashMergeCommitMessage == nil {
+		r.SquashMergeCommitMessage = defaults.SquashMergeCommitMessage
+	}
+	if r.DeleteBranchOnMerge == nil {
+		r.DeleteBranchOnMerge = defaults.DeleteBranchOnMerge
+	}
+	if r.HasIssues == nil {
+		r.HasIssues = defaults.HasIssues
+	}
+	if r.HasProjects == nil {
+		r.HasProjects = defaults.HasProjects
+	}
+	if r.HasWiki == nil {
+		r.HasWiki = defaults.HasWiki
+	}
+	return r
+}
+
 // Config declares org metadata as well as its people and teams.
 type Config struct {
 	Metadata
-	Teams   map[string]Team `json:"teams,omitempty"`
-	Members []string        `json:"members,omitempty"`
-	Admins  []string        `json:"admins,omitempty"`
-	Repos   map[string]Repo `json:"repos,omitempty"`
-	Roles   map[string]Role `json:"roles,omitempty"`
+	RepoDefaults *RepoDefaults   `json:"repo_defaults,omitempty"`
+	Teams        map[string]Team `json:"teams,omitempty"`
+	Members      []string        `json:"members,omitempty"`
+	Admins       []string        `json:"admins,omitempty"`
+	Repos        map[string]Repo `json:"repos,omitempty"`
+	Roles        map[string]Role `json:"roles,omitempty"`
 }
 
 // Role declares the desired team and user assignments for a single organization
