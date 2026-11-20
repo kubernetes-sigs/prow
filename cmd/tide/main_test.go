@@ -173,7 +173,7 @@ func TestProvider(t *testing.T) {
 			name:     "only-github-config",
 			provider: "",
 			tideConfig: config.Tide{TideGitHubConfig: config.TideGitHubConfig{
-				Queries: config.TideQueries{
+				Queries: []config.TideQuerySpec{
 					{},
 				},
 			}},
@@ -184,7 +184,7 @@ func TestProvider(t *testing.T) {
 			provider: "",
 			tideConfig: config.Tide{
 				TideGitHubConfig: config.TideGitHubConfig{
-					Queries: config.TideQueries{
+					Queries: []config.TideQuerySpec{
 						{},
 					},
 				},
@@ -213,7 +213,7 @@ func TestProvider(t *testing.T) {
 			provider: "gerrit",
 			tideConfig: config.Tide{
 				TideGitHubConfig: config.TideGitHubConfig{
-					Queries: config.TideQueries{
+					Queries: []config.TideQuerySpec{
 						{},
 					},
 				},
@@ -225,7 +225,7 @@ func TestProvider(t *testing.T) {
 			provider: "foobar",
 			tideConfig: config.Tide{
 				TideGitHubConfig: config.TideGitHubConfig{
-					Queries: config.TideQueries{
+					Queries: []config.TideQuerySpec{
 						{},
 					},
 				},

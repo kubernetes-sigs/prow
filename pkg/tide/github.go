@@ -90,7 +90,7 @@ func (gi *GitHubProvider) blockers() (blockers.Blockers, error) {
 	}
 
 	gi.logger.WithField("blocker_label", label).Debug("Searching for blocker issues")
-	orgExcepts, repos := gi.cfg().Tide.Queries.OrgExceptionsAndRepos()
+	orgExcepts, repos := gi.cfg().Tide.ResolvedQueries().OrgExceptionsAndRepos()
 	orgs := make([]string, 0, len(orgExcepts))
 	for org := range orgExcepts {
 		orgs = append(orgs, org)
@@ -113,7 +113,7 @@ func (gi *GitHubProvider) Query() (map[string]CodeReviewCommon, error) {
 		g.SetLimit(limit)
 	}
 
-	for i, query := range gi.cfg().Tide.Queries {
+	for i, query := range gi.cfg().Tide.ResolvedQueries() {
 
 		// Use org-sharded queries only when GitHub apps auth is in use
 		var queries map[string]string

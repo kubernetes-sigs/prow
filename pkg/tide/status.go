@@ -437,7 +437,7 @@ func (sc *statusController) setStatuses(all []CodeReviewCommon, pool map[string]
 	c := sc.config()
 	// queryMap caches which queries match a repo.
 	// Make a new one each sync loop as queries will change.
-	queryMap := c.Tide.Queries.QueryMap()
+	queryMap := c.Tide.ResolvedQueries().QueryMap()
 	processed := sets.New[string]()
 
 	process := func(pr *CodeReviewCommon) {
@@ -639,7 +639,7 @@ func (sc *statusController) sync(pool map[string]CodeReviewCommon, blocks blocke
 
 func (sc *statusController) search() []CodeReviewCommon {
 	const controller = "status"
-	rawQueries := sc.config().Tide.Queries
+	rawQueries := sc.config().Tide.ResolvedQueries()
 	if len(rawQueries) == 0 {
 		return nil
 	}

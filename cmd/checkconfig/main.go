@@ -523,7 +523,7 @@ func strictBranchesConfig(c config.ProwConfig) (*orgRepoConfig, error) {
 
 func validateStrictBranches(c config.ProwConfig) error {
 	const explanation = "See #5: https://docs.prow.k8s.io/docs/components/core/tide/maintainers/#best-practices Also note that this validation is imperfect, see the check-config code for details"
-	if len(c.Tide.Queries) == 0 {
+	if len(c.Tide.ResolvedQueries()) == 0 {
 		// Short circuit here so that we can allow global level branchprotector
 		// 'strict: true' if Tide is not enabled.
 		// Ignoring the case where Tide is enabled only on orgs/repos specifically
@@ -537,7 +537,7 @@ func validateStrictBranches(c config.ProwConfig) error {
 	// known instances and make this validation much simpler.
 
 	// Assumes if any branch is managed by Tide, the whole repo is.
-	overallTideConfig := newOrgRepoConfig(c.Tide.Queries.OrgExceptionsAndRepos())
+	overallTideConfig := newOrgRepoConfig(c.Tide.ResolvedQueries().OrgExceptionsAndRepos())
 	// Assumes if any branch is strict the repo is strict.
 	strictBranchConfig, err := strictBranchesConfig(c)
 	if err != nil {
@@ -708,7 +708,7 @@ func validateTideRequirements(cfg *config.Config, pcfg *plugins.Configuration, i
 		// For each plugin determine the subset of tide queries that match and then
 		// the orgs and repos that the subset matches.
 		var matchingQueries config.TideQueries
-		for _, query := range cfg.Tide.Queries {
+		for _, query := range cfg.Tide.ResolvedQueries() {
 			if p.matcher.matches(p.label, query) {
 				matchingQueries = append(matchingQueries, query)
 			}
@@ -722,7 +722,7 @@ func validateTideRequirements(cfg *config.Config, pcfg *plugins.Configuration, i
 		populateConfig(&needsRebaseConfig)
 	}
 
-	overallTideConfig := newOrgRepoConfig(cfg.Tide.Queries.OrgExceptionsAndRepos())
+	overallTideConfig := newOrgRepoConfig(cfg.Tide.ResolvedQueries().OrgExceptionsAndRepos())
 
 	// Now actually execute the checks we just configured.
 	var validationErrs []error
@@ -1007,7 +1007,7 @@ func validateDecorationConfig(cfg *config.Config) error {
 
 func validateNeedsOkToTestLabel(cfg *config.Config) error {
 	var queryErrors []error
-	for i, query := range cfg.Tide.Queries {
+	for i, query := range cfg.Tide.ResolvedQueries() {
 		for _, label := range query.Labels {
 			if label == lgtm.LGTMLabel {
 				for _, label := range query.MissingLabels {

@@ -30,6 +30,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"strconv"
@@ -677,17 +678,15 @@ func TestTide(t *testing.T) {
 		fmt.Fprint(w, string(b))
 	}))
 	ca := &config.Agent{}
-	ca.Set(&config.Config{
-		ProwConfig: config.ProwConfig{
-			Tide: config.Tide{
-				TideGitHubConfig: config.TideGitHubConfig{
-					Queries: []config.TideQuery{
-						{Repos: []string{"prowapi.netes/test-infra"}},
-					},
-				},
-			},
-		},
-	})
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(configPath, []byte("tide:\n  queries:\n  - repos: [prowapi.netes/test-infra]\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.Load(configPath, nil, nil, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ca.Set(cfg)
 	ta := tideAgent{
 		path: s.URL,
 		hiddenRepos: func() []string {
@@ -976,6 +975,14 @@ func Test_gatherOptions(t *testing.T) {
 }
 
 func TestHandleConfig(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(configPath, []byte("tide:\n  queries:\n  - repos: [prowapi.netes/test-infra]\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := config.Load(configPath, nil, nil, "")
+	if err != nil {
+		t.Fatal(err)
+	}
 	trueVal := true
 	c := config.Config{
 		JobConfig: config.JobConfig{
@@ -1009,13 +1016,7 @@ func TestHandleConfig(t *testing.T) {
 					},
 				},
 			},
-			Tide: config.Tide{
-				TideGitHubConfig: config.TideGitHubConfig{
-					Queries: []config.TideQuery{
-						{Repos: []string{"prowapi.netes/test-infra"}},
-					},
-				},
-			},
+			Tide: loaded.Tide,
 		},
 	}
 	cWithDisabledCluster := config.Config{
@@ -1104,6 +1105,72 @@ func TestHandleConfig(t *testing.T) {
 		})
 	}
 
+}
+
+func TestHandleConfigShowsResolvedTideQueries(t *testing.T) {
+	const source = `tide:
+  query_presets:
+  - name: common
+    labels: [lgtm, approved]
+  queries:
+  - repos: [org/first]
+    presets: [common]
+  - repos: [org/second]
+    labels: [approved, lgtm]
+`
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(configPath, []byte(source), 0600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.Load(configPath, nil, nil, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Serving resolved queries must leave the authored snapshot intact.
+	before, err := yaml.Marshal(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := handleConfig(func() *config.Config { return cfg }, logrus.WithField("handler", "/config"))
+	want := config.TideQueries{{
+		Repos:  []string{"org/first", "org/second"},
+		Labels: []string{"approved", "lgtm"},
+	}}
+	for range 2 {
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/config", nil))
+		if rr.Code != http.StatusOK {
+			t.Fatalf("unexpected status %d: %s", rr.Code, rr.Body.String())
+		}
+		var response struct {
+			Tide struct {
+				Queries []struct {
+					config.TideQuery `json:",inline"`
+					Presets          json.RawMessage `json:"presets"`
+				} `json:"queries"`
+			} `json:"tide"`
+		}
+		if err := yaml.Unmarshal(rr.Body.Bytes(), &response); err != nil {
+			t.Fatal(err)
+		}
+		got := make(config.TideQueries, len(response.Tide.Queries))
+		for i, query := range response.Tide.Queries {
+			if query.Presets != nil {
+				t.Errorf("response query %d contains a presets field: %s", i, query.Presets)
+			}
+			got[i] = query.TideQuery
+		}
+		if diff := cmp.Diff(want, got); diff != "" {
+			t.Errorf("runtime queries differ (-want +got): %s", diff)
+		}
+	}
+	after, err := yaml.Marshal(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff(string(before), string(after)); diff != "" {
+		t.Errorf("serving config changed its authored representation (-before +after): %s", diff)
+	}
 }
 
 func TestHandlePluginConfig(t *testing.T) {

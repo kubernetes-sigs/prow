@@ -270,8 +270,15 @@ type TideGitHubConfig struct {
 	// Defaults to the value of SyncPeriod.
 	StatusUpdatePeriod *metav1.Duration `json:"status_update_period,omitempty"`
 	// Queries represents a list of GitHub search queries that collectively
-	// specify the set of PRs that meet merge requirements.
-	Queries TideQueries `json:"queries,omitempty"`
+	// specify the set of PRs that meet merge requirements. These are the authored
+	// queries; runtime consumers must use ResolvedQueries instead.
+	Queries []TideQuerySpec `json:"queries,omitempty"`
+	// QueryPresets defines reusable query fragments, referenced explicitly by name
+	// in Queries. Definitions alone do not enable Tide for any repository.
+	// Repository and organization selectors must be supplied inline in queries.
+	QueryPresets []TideQueryPreset `json:"query_presets,omitempty"`
+
+	resolvedQueries TideQueries
 
 	// A key/value pair of an org/repo as the key and merge method to override
 	// the default method of merge. Valid options are squash, rebase, and merge.
@@ -349,6 +356,12 @@ type TideGitHubConfig struct {
 	DisplayAllQueriesInStatus bool `json:"display_all_tide_queries_in_status,omitempty"`
 }
 
+// ResolvedQueries returns the queries prepared by Load or LoadStrict, including
+// query deduplication. Like the rest of a loaded Config, they must not be modified.
+func (t *TideGitHubConfig) ResolvedQueries() TideQueries {
+	return t.resolvedQueries
+}
+
 // TideGerritConfig contains all Gerrit related configurations for tide.
 type TideGerritConfig struct {
 	Queries GerritOrgRepoConfigs `json:"queries"`
@@ -363,6 +376,7 @@ func (t *Tide) mergeFrom(additional *Tide) error {
 	// have code to de-duplicate them down the line to not
 	// increase token usage needlessly.
 	t.Queries = append(t.Queries, additional.Queries...)
+	t.QueryPresets = append(t.QueryPresets, additional.QueryPresets...)
 
 	var errs []error
 	if err := t.ContextOptions.mergeFrom(additional.ContextOptions); err != nil {
@@ -655,7 +669,45 @@ func (t *Tide) GetTargetURL(repo OrgRepo) string {
 	return t.TargetURLs["*"]
 }
 
-// TideQuery is turned into a GitHub search query. See the docs for details:
+// TideQuerySpec is the authored configuration of a Tide query. Loading config
+// prepares independent TideQuery values for runtime use.
+type TideQuerySpec struct {
+	TideQueryFragment `json:",inline"`
+	// Presets lists query presets to combine with the inline fields. List fields
+	// are unioned; scalar fields may be explicitly set by only one source.
+	Presets []string `json:"presets,omitempty"`
+
+	// Organization and repository selectors are required inline in queries and
+	// cannot be supplied by presets.
+	Orgs          []string `json:"orgs,omitempty"`
+	Repos         []string `json:"repos,omitempty"`
+	ExcludedRepos []string `json:"excludedRepos,omitempty"`
+}
+
+// TideQueryPreset defines a named set of reusable merge criteria.
+type TideQueryPreset struct {
+	// Name must be nonempty and unique across the loaded configuration.
+	Name              string `json:"name"`
+	TideQueryFragment `json:",inline"`
+}
+
+// TideQueryFragment holds merge criteria that may be shared through a preset or
+// supplied inline. Organization and repository selectors belong to TideQuerySpec.
+// Scalar pointers distinguish omitted values from explicit empty strings or false.
+type TideQueryFragment struct {
+	Author *string `json:"author,omitempty"`
+
+	Labels        []string `json:"labels,omitempty"`
+	MissingLabels []string `json:"missingLabels,omitempty"`
+
+	ExcludedBranches []string `json:"excludedBranches,omitempty"`
+	IncludedBranches []string `json:"includedBranches,omitempty"`
+
+	Milestone              *string `json:"milestone,omitempty"`
+	ReviewApprovedRequired *bool   `json:"reviewApprovedRequired,omitempty"`
+}
+
+// TideQuery is a resolved query turned into a GitHub search query. See the docs for details:
 // https://help.github.com/articles/searching-issues-and-pull-requests/
 type TideQuery struct {
 	Author string `json:"author,omitempty"`
@@ -880,6 +932,23 @@ func (qm *QueryMap) ForRepo(repo OrgRepo) TideQueries {
 	return res
 }
 
+func tideQueryListDuplicates(field string, list []string) error {
+	dups := sets.New[string]()
+	seen := sets.New[string]()
+	for _, elem := range list {
+		if seen.Has(elem) {
+			dups.Insert(elem)
+		} else {
+			seen.Insert(elem)
+		}
+	}
+	dupCount := len(list) - seen.Len()
+	if dupCount == 0 {
+		return nil
+	}
+	return fmt.Errorf("%q contains %d duplicate entries: %s", field, dupCount, strings.Join(sets.List(dups), ", "))
+}
+
 // Validate returns an error if the query has any errors.
 //
 // Examples include:
@@ -888,23 +957,6 @@ func (qm *QueryMap) ForRepo(repo OrgRepo) TideQueries {
 // * a label that is in both the labels and missing_labels section
 // * a branch that is in both included and excluded branch set.
 func (tq *TideQuery) Validate() error {
-	duplicates := func(field string, list []string) error {
-		dups := sets.New[string]()
-		seen := sets.New[string]()
-		for _, elem := range list {
-			if seen.Has(elem) {
-				dups.Insert(elem)
-			} else {
-				seen.Insert(elem)
-			}
-		}
-		dupCount := len(list) - seen.Len()
-		if dupCount == 0 {
-			return nil
-		}
-		return fmt.Errorf("%q contains %d duplicate entries: %s", field, dupCount, strings.Join(sets.List(dups), ", "))
-	}
-
 	orgs := sets.New[string]()
 	for o := range tq.Orgs {
 		if strings.Contains(tq.Orgs[o], "/") {
@@ -915,7 +967,7 @@ func (tq *TideQuery) Validate() error {
 		}
 		orgs.Insert(tq.Orgs[o])
 	}
-	if err := duplicates("orgs", tq.Orgs); err != nil {
+	if err := tideQueryListDuplicates("orgs", tq.Orgs); err != nil {
 		return err
 	}
 
@@ -928,7 +980,7 @@ func (tq *TideQuery) Validate() error {
 			return fmt.Errorf("repos[%d]: %q is already included via org: %q", r, tq.Repos[r], parts[0])
 		}
 	}
-	if err := duplicates("repos", tq.Repos); err != nil {
+	if err := tideQueryListDuplicates("repos", tq.Repos); err != nil {
 		return err
 	}
 
@@ -946,27 +998,31 @@ func (tq *TideQuery) Validate() error {
 		}
 		// Note: At this point we also know that this excludedRepo is not found in 'repos'.
 	}
-	if err := duplicates("excludedRepos", tq.ExcludedRepos); err != nil {
+	if err := tideQueryListDuplicates("excludedRepos", tq.ExcludedRepos); err != nil {
 		return err
 	}
 
+	return tq.validateCriteria()
+}
+
+func (tq *TideQuery) validateCriteria() error {
 	if invalids := sets.New[string](tq.Labels...).Intersection(sets.New[string](tq.MissingLabels...)); len(invalids) > 0 {
 		return fmt.Errorf("the labels: %q are both required and forbidden", sets.List(invalids))
 	}
-	if err := duplicates("labels", tq.Labels); err != nil {
+	if err := tideQueryListDuplicates("labels", tq.Labels); err != nil {
 		return err
 	}
-	if err := duplicates("missingLabels", tq.MissingLabels); err != nil {
+	if err := tideQueryListDuplicates("missingLabels", tq.MissingLabels); err != nil {
 		return err
 	}
 
 	if len(tq.ExcludedBranches) > 0 && len(tq.IncludedBranches) > 0 {
 		return errors.New("both 'includedBranches' and 'excludedBranches' are specified ('excludedBranches' have no effect)")
 	}
-	if err := duplicates("includedBranches", tq.IncludedBranches); err != nil {
+	if err := tideQueryListDuplicates("includedBranches", tq.IncludedBranches); err != nil {
 		return err
 	}
-	if err := duplicates("excludedBranches", tq.ExcludedBranches); err != nil {
+	if err := tideQueryListDuplicates("excludedBranches", tq.ExcludedBranches); err != nil {
 		return err
 	}
 

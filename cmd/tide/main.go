@@ -175,7 +175,7 @@ func main() {
 		logrus.WithError(err).Fatal("Error constructing mgr.")
 	}
 
-	if cfg().Tide.Gerrit != nil && cfg().Tide.Queries.QueryMap() != nil && o.providerName == "" {
+	if cfg().Tide.Gerrit != nil && cfg().Tide.ResolvedQueries().QueryMap() != nil && o.providerName == "" {
 		logrus.Fatal("Both github and gerrit are configured in tide config but provider is not set.")
 	}
 
@@ -306,7 +306,7 @@ func provider(wantProvider string, tideConfig config.Tide) string {
 		return wantProvider
 	}
 	// Default to GitHub if GitHub queries are configured
-	if len([]config.TideQuery(tideConfig.Queries)) > 0 {
+	if len(tideConfig.Queries) > 0 {
 		return githubProviderName
 	}
 	if tideConfig.Gerrit != nil && len([]config.GerritOrgRepoConfig(tideConfig.Gerrit.Queries)) > 0 {
