@@ -36,16 +36,21 @@ type FullConfig struct {
 //
 // See https://developer.github.com/v3/orgs/#edit-an-organization
 type Metadata struct {
-	BillingEmail                 *string                     `json:"billing_email,omitempty"`
-	Company                      *string                     `json:"company,omitempty"`
-	Email                        *string                     `json:"email,omitempty"`
-	Name                         *string                     `json:"name,omitempty"`
-	Description                  *string                     `json:"description,omitempty"`
-	Location                     *string                     `json:"location,omitempty"`
-	HasOrganizationProjects      *bool                       `json:"has_organization_projects,omitempty"`
-	HasRepositoryProjects        *bool                       `json:"has_repository_projects,omitempty"`
-	DefaultRepositoryPermission  *github.RepoPermissionLevel `json:"default_repository_permission,omitempty"`
-	MembersCanCreateRepositories *bool                       `json:"members_can_create_repositories,omitempty"`
+	BillingEmail                         *string                     `json:"billing_email,omitempty"`
+	Company                              *string                     `json:"company,omitempty"`
+	Email                                *string                     `json:"email,omitempty"`
+	Name                                 *string                     `json:"name,omitempty"`
+	Description                          *string                     `json:"description,omitempty"`
+	Location                             *string                     `json:"location,omitempty"`
+	HasOrganizationProjects              *bool                       `json:"has_organization_projects,omitempty"`
+	HasRepositoryProjects                *bool                       `json:"has_repository_projects,omitempty"`
+	DefaultRepositoryPermission          *github.RepoPermissionLevel `json:"default_repository_permission,omitempty"`
+	MembersCanCreateRepositories         *bool                       `json:"members_can_create_repositories,omitempty"`
+	MembersCanCreatePublicRepositories   *bool                       `json:"members_can_create_public_repositories,omitempty"`
+	MembersCanCreatePrivateRepositories  *bool                       `json:"members_can_create_private_repositories,omitempty"`
+	MembersCanCreateInternalRepositories *bool                       `json:"members_can_create_internal_repositories,omitempty"`
+	MembersCanForkPrivateRepositories    *bool                       `json:"members_can_fork_private_repositories,omitempty"`
+	WebCommitSignoffRequired             *bool                       `json:"web_commit_signoff_required,omitempty"`
 }
 
 // RepoCreateOptions declares options for creating new repos
