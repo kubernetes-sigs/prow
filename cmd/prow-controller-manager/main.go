@@ -215,7 +215,11 @@ func main() {
 	}
 
 	if enabledControllersSet.Has(plank.ControllerName) {
-		if err := plank.Add(mgr, buildClusters, knownClusters, cfg, opener, o.totURL, o.selector); err != nil {
+		githubClient, err := o.github.GitHubClient(o.dryRun)
+		if err != nil {
+			logrus.WithError(err).Fatal("Failed to construct GitHub client for Plank")
+		}
+		if err := plank.AddWithGitHubClient(mgr, buildClusters, knownClusters, cfg, opener, o.totURL, o.selector, githubClient); err != nil {
 			logrus.WithError(err).Fatal("Failed to add plank to manager")
 		}
 	}
