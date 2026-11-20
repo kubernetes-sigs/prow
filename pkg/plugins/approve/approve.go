@@ -81,10 +81,11 @@ type state struct {
 	branch string
 	number int
 
-	body      string
-	author    string
-	assignees []github.User
-	htmlURL   string
+	body         string
+	author       string
+	assignees    []github.User
+	htmlURL      string
+	changedFiles int
 }
 
 func init() {
@@ -198,14 +199,15 @@ func handleGenericComment(log *logrus.Entry, ghc githubClient, oc ownersClient, 
 		githubConfig,
 		opts,
 		&state{
-			org:       ce.Repo.Owner.Login,
-			repo:      ce.Repo.Name,
-			branch:    pr.Base.Ref,
-			number:    ce.Number,
-			body:      ce.IssueBody,
-			author:    ce.IssueAuthor.Login,
-			assignees: ce.Assignees,
-			htmlURL:   ce.IssueHTMLURL,
+			org:          ce.Repo.Owner.Login,
+			repo:         ce.Repo.Name,
+			branch:       pr.Base.Ref,
+			number:       ce.Number,
+			body:         ce.IssueBody,
+			author:       ce.IssueAuthor.Login,
+			assignees:    ce.Assignees,
+			htmlURL:      ce.IssueHTMLURL,
+			changedFiles: pr.ChangedFiles,
 		},
 	)
 }
@@ -271,14 +273,15 @@ func handleReview(log *logrus.Entry, ghc githubClient, oc ownersClient, githubCo
 		githubConfig,
 		opts,
 		&state{
-			org:       re.Repo.Owner.Login,
-			repo:      re.Repo.Name,
-			branch:    re.PullRequest.Base.Ref,
-			number:    re.PullRequest.Number,
-			body:      re.PullRequest.Body,
-			author:    re.PullRequest.User.Login,
-			assignees: re.PullRequest.Assignees,
-			htmlURL:   re.PullRequest.HTMLURL,
+			org:          re.Repo.Owner.Login,
+			repo:         re.Repo.Name,
+			branch:       re.PullRequest.Base.Ref,
+			number:       re.PullRequest.Number,
+			body:         re.PullRequest.Body,
+			author:       re.PullRequest.User.Login,
+			assignees:    re.PullRequest.Assignees,
+			htmlURL:      re.PullRequest.HTMLURL,
+			changedFiles: re.PullRequest.ChangedFiles,
 		},
 	)
 }
@@ -329,14 +332,15 @@ func handlePullRequest(log *logrus.Entry, ghc githubClient, oc ownersClient, git
 		githubConfig,
 		config.ApproveFor(pre.Repo.Owner.Login, pre.Repo.Name),
 		&state{
-			org:       pre.Repo.Owner.Login,
-			repo:      pre.Repo.Name,
-			branch:    pre.PullRequest.Base.Ref,
-			number:    pre.Number,
-			body:      pre.PullRequest.Body,
-			author:    pre.PullRequest.User.Login,
-			assignees: pre.PullRequest.Assignees,
-			htmlURL:   pre.PullRequest.HTMLURL,
+			org:          pre.Repo.Owner.Login,
+			repo:         pre.Repo.Name,
+			branch:       pre.PullRequest.Base.Ref,
+			number:       pre.Number,
+			body:         pre.PullRequest.Body,
+			author:       pre.PullRequest.User.Login,
+			assignees:    pre.PullRequest.Assignees,
+			htmlURL:      pre.PullRequest.HTMLURL,
+			changedFiles: pre.PullRequest.ChangedFiles,
 		},
 	)
 }
@@ -357,6 +361,34 @@ func findAssociatedIssue(body, org string) (int, error) {
 		return 0, err
 	}
 	return v, nil
+}
+
+// getFilenames returns the list of changed filenames for a PR. If the GitHub API
+// returns fewer files than expectedFiles (indicating the 3000-file cap was hit),
+// it returns (nil, true, nil) to signal truncation.
+func getFilenames(ghc githubClient, org, repo string, number, expectedFiles int) ([]string, bool, error) {
+	changes, err := ghc.GetPullRequestChanges(org, repo, number)
+	if err != nil {
+		return nil, false, err
+	}
+	filenames := make([]string, 0, len(changes))
+	for _, change := range changes {
+		filenames = append(filenames, change.Filename)
+	}
+	if expectedFiles > 0 && len(filenames) < expectedFiles {
+		return nil, true, nil
+	}
+	return filenames, false, nil
+}
+
+func truncationWarningMessage(changedFiles int) string {
+	return fmt.Sprintf("[%s] This PR is **NOT APPROVED**\n\n"+
+		"This pull request changes %d files, which exceeds the GitHub API limit of 3000 files. "+
+		"The approve plugin cannot determine the complete list of changed files, so automated "+
+		"approval cannot be safely calculated.\n\n"+
+		"A repository administrator must manually apply the `approved` label after verifying "+
+		"all OWNERS requirements are satisfied.",
+		approvers.ApprovalNotificationName, changedFiles)
 }
 
 // handle is the workhorse the will actually make updates to the PR.
@@ -385,13 +417,9 @@ func handle(log *logrus.Entry, ghc githubClient, repo approvers.Repo, githubConf
 	}
 
 	start := time.Now()
-	changes, err := ghc.GetPullRequestChanges(pr.org, pr.repo, pr.number)
+	filenames, truncated, err := getFilenames(ghc, pr.org, pr.repo, pr.number, pr.changedFiles)
 	if err != nil {
 		return fetchErr("PR file changes", err)
-	}
-	var filenames []string
-	for _, change := range changes {
-		filenames = append(filenames, change.Filename)
 	}
 	issueLabels, err := ghc.GetIssueLabels(pr.org, pr.repo, pr.number)
 	if err != nil {
@@ -421,6 +449,39 @@ func handle(log *logrus.Entry, ghc githubClient, repo approvers.Repo, githubConf
 		return fetchErr("reviews", err)
 	}
 	log.WithField("duration", time.Since(start).String()).Debug("Completed github functions in handle")
+
+	if truncated {
+		log.Warningf("File list truncated for %s/%s#%d (%d files reported, API returned fewer), requiring manual approval.", pr.org, pr.repo, pr.number, pr.changedFiles)
+
+		msg := truncationWarningMessage(pr.changedFiles)
+		commentsFromIssueComments := commentsFromIssueComments(issueComments)
+		notifications := filterComments(commentsFromIssueComments, notificationMatcher(botUserChecker))
+		latestNotification := getLast(notifications)
+		if latestNotification == nil || !strings.Contains(latestNotification.Body, msg) {
+			for _, notif := range notifications {
+				if err := ghc.DeleteComment(pr.org, pr.repo, notif.ID); err != nil {
+					log.WithError(err).Errorf("Failed to delete comment from %s/%s#%d, ID: %d.", pr.org, pr.repo, pr.number, notif.ID)
+				}
+			}
+			if err := ghc.CreateComment(pr.org, pr.repo, pr.number, msg); err != nil {
+				log.WithError(err).Errorf("Failed to create truncation warning comment on %s/%s#%d.", pr.org, pr.repo, pr.number)
+			}
+		}
+
+		if hasApprovedLabel {
+			humanApproved, err := ghc.WasLabelAddedByHuman(pr.org, pr.repo, pr.number, labels.Approved)
+			if err != nil {
+				log.WithError(err).Errorf("Failed to check if %s label was added by human, preserving existing label state.", labels.Approved)
+				return nil
+			}
+			if !humanApproved {
+				if err := ghc.RemoveLabel(pr.org, pr.repo, pr.number, labels.Approved); err != nil {
+					log.WithError(err).Errorf("Failed to remove %q label from %s/%s#%d.", labels.Approved, pr.org, pr.repo, pr.number)
+				}
+			}
+		}
+		return nil
+	}
 
 	start = time.Now()
 	approversHandler := approvers.NewApprovers(
