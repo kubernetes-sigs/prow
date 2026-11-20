@@ -64,7 +64,7 @@ func helpProvider(config *plugins.Configuration, _ []config.OrgRepo) (*pluginhel
 		Description: "Add a dog image to the issue or PR",
 		Featured:    false,
 		WhoCanUse:   "Anyone",
-		Examples:    []string{"/woof", "/bark", "/this-is-{fine|not-fine|unbearable}"},
+		Examples: []string{"/woof", "/bark", "/this-is-fine", "/this-is-not-fine", "/this-is-unbearable"},
 	})
 	return pluginHelp, nil
 }
