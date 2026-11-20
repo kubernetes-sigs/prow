@@ -275,6 +275,142 @@ func TestTriggerFor(t *testing.T) {
 	}
 }
 
+func TestRequireRationaleFor(t *testing.T) {
+	config := Configuration{
+		RequireRationale: RequireRationale{
+			"org/repo": {
+				"retest":   {},
+				"override": {MinLength: 30},
+			},
+		},
+	}
+	if err := config.Validate(); err != nil {
+		t.Fatalf("validate config: %v", err)
+	}
+
+	tests := []struct {
+		name        string
+		org         string
+		repo        string
+		command     string
+		wantFound   bool
+		wantMinimum int
+	}{
+		{
+			name:        "When a repo has a command policy, it should return the configured minimum",
+			org:         "org",
+			repo:        "repo",
+			command:     "override",
+			wantFound:   true,
+			wantMinimum: 30,
+		},
+		{
+			name:        "When a repo policy omits its minimum, it should use the default",
+			org:         "org",
+			repo:        "repo",
+			command:     "retest",
+			wantFound:   true,
+			wantMinimum: 20,
+		},
+		{
+			name:    "When a repo is not configured, it should not require rationale",
+			org:     "org",
+			repo:    "other-repo",
+			command: "retest",
+		},
+		{
+			name:    "When a command is not configured, it should not require rationale",
+			org:     "org",
+			repo:    "repo",
+			command: "test",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			settings, found := config.RequireRationaleFor(test.org, test.repo, test.command)
+			if found != test.wantFound {
+				t.Fatalf("found policy: got %t, want %t", found, test.wantFound)
+			}
+			if found && settings.MinLength != test.wantMinimum {
+				t.Errorf("minimum length: got %d, want %d", settings.MinLength, test.wantMinimum)
+			}
+		})
+	}
+}
+
+func TestValidateRequireRationaleConfig(t *testing.T) {
+	var config Configuration
+	if err := yaml.Unmarshal([]byte(`
+require_rationale:
+  org/repo:
+    retest: {}
+    retest-required:
+      min_length: 30
+    override:
+      min_length: 25
+`), &config); err != nil {
+		t.Fatalf("unmarshal rationale config: %v", err)
+	}
+	if err := config.Validate(); err != nil {
+		t.Fatalf("validate rationale config: %v", err)
+	}
+
+	settings, found := config.RequireRationaleFor("org", "repo", "retest")
+	if !found {
+		t.Fatal("expected repo retest rationale policy")
+	}
+	if settings.MinLength != defaultRationaleMinLength {
+		t.Errorf("default minimum length: got %d, want %d", settings.MinLength, defaultRationaleMinLength)
+	}
+	for command, want := range map[string]int{"retest-required": 30, "override": 25} {
+		settings, found := config.RequireRationaleFor("org", "repo", command)
+		if !found {
+			t.Fatalf("expected repo %s rationale policy", command)
+		}
+		if settings.MinLength != want {
+			t.Errorf("%s minimum length: got %d, want %d", command, settings.MinLength, want)
+		}
+	}
+
+	tests := []struct {
+		name        string
+		policy      RequireRationale
+		wantErrPart string
+	}{
+		{
+			name: "When a policy key is not a repo, it should be rejected",
+			policy: RequireRationale{
+				"org": {"retest": {}},
+			},
+			wantErrPart: "must be in org/repo format",
+		},
+		{
+			name: "When a command is unsupported, it should be rejected",
+			policy: RequireRationale{
+				"org/repo": {"test": {}},
+			},
+			wantErrPart: "unsupported command",
+		},
+		{
+			name: "When a minimum length is negative, it should be rejected",
+			policy: RequireRationale{
+				"org/repo": {"retest": {MinLength: -1}},
+			},
+			wantErrPart: "min_length must not be negative",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := (&Configuration{RequireRationale: test.policy}).Validate()
+			if err == nil || !strings.Contains(err.Error(), test.wantErrPart) {
+				t.Fatalf("validation error: got %v, want it to contain %q", err, test.wantErrPart)
+			}
+		})
+	}
+}
+
 func TestSetApproveDefaults(t *testing.T) {
 	c := &Configuration{
 		Approve: []Approve{
@@ -2388,6 +2524,39 @@ func TestMergeFrom(t *testing.T) {
 			},
 			supplementalConfigs: []Configuration{{MilestoneApplier: map[string]BranchToMilestone{"foo/bar": {"main": "v1.0"}}}},
 			errorExpected:       true,
+		},
+		{
+			name: "RequireRationale config gets merged",
+			in: Configuration{
+				RequireRationale: RequireRationale{
+					"foo/bar": {"retest": {MinLength: 25}},
+				},
+			},
+			supplementalConfigs: []Configuration{{
+				RequireRationale: RequireRationale{
+					"foo/baz": {"override": {MinLength: 30}},
+				},
+			}},
+			expected: Configuration{
+				RequireRationale: RequireRationale{
+					"foo/bar": {"retest": {MinLength: 25}},
+					"foo/baz": {"override": {MinLength: 30}},
+				},
+			},
+		},
+		{
+			name: "RequireRationale configs cannot be duplicated",
+			in: Configuration{
+				RequireRationale: RequireRationale{
+					"foo/bar": {"retest": {MinLength: 25}},
+				},
+			},
+			supplementalConfigs: []Configuration{{
+				RequireRationale: RequireRationale{
+					"foo/bar": {"override": {MinLength: 30}},
+				},
+			}},
+			errorExpected: true,
 		},
 	}
 
