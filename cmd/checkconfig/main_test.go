@@ -784,21 +784,31 @@ func TestValidateUnknownFieldsAllSupplementalConfig(t *testing.T) {
 			if err := os.Mkdir(supplementalDir, 0700); err != nil {
 				t.Fatal(err)
 			}
-			if err := os.WriteFile(filepath.Join(supplementalDir, "queues"+suffix), []byte(`plank:
+			shardPath := filepath.Join(supplementalDir, "queues"+suffix)
+			const shard = `plank:
   job_queue_capacities:
     supplemental: 1
-`), 0600); err != nil {
+`
+			if err := os.WriteFile(shardPath, []byte(shard), 0600); err != nil {
 				t.Fatal(err)
 			}
-			if err := validate(options{
+			opts := options{
 				config: configflagutil.ConfigOptions{
 					ConfigPath:                            configPath,
 					SupplementalProwConfigDirs:            flagutil.NewStrings(supplementalDir),
 					SupplementalProwConfigsFileNameSuffix: suffix,
 				},
 				warnings: flagutil.NewStrings(unknownFieldsAllWarning),
-			}); err != nil {
+			}
+			if err := validate(opts); err != nil {
 				t.Fatalf("validation failed: %v", err)
+			}
+			if err := os.WriteFile(shardPath, []byte(shard+"  unknown_shard_field: true\n"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			if err := validate(opts); err == nil || !strings.Contains(err.Error(), shardPath) ||
+				!strings.Contains(err.Error(), `unknown field "unknown_shard_field"`) {
+				t.Errorf("validation error = %v, want unknown_shard_field reported in %s", err, shardPath)
 			}
 		})
 	}

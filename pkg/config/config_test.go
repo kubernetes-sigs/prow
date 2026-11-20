@@ -8724,6 +8724,52 @@ func loadConfigYaml(prowConfigYaml string, t *testing.T, supplementalProwConfigs
 	return Load(prowConfig, nil, supplementalProwConfigDirs, "_prowconfig.yaml")
 }
 
+func TestLoadStrictSupplementalProwConfig(t *testing.T) {
+	root := t.TempDir()
+	configPath := filepath.Join(root, "config.yaml")
+	if err := os.WriteFile(configPath, []byte("{}\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	supplementalDir := filepath.Join(root, "supplemental")
+	const suffix = "_custom.yaml"
+	const shard = `branch-protection:
+  allow_disabled_job_policies: true
+  unknown_shard_field: true
+`
+	for _, name := range []string{"ignored_prowconfig.yaml", "..ignored_custom.yaml", "..data/ignored_custom.yaml"} {
+		path := filepath.Join(supplementalDir, name)
+		if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(shard), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	dirs := []string{supplementalDir}
+	if _, err := LoadStrict(configPath, nil, dirs, suffix); err != nil {
+		t.Fatalf("LoadStrict with ignored files: %v", err)
+	}
+
+	shardPath := filepath.Join(supplementalDir, "org", "settings"+suffix)
+	if err := os.Mkdir(filepath.Dir(shardPath), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(shardPath, []byte(shard), 0600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(configPath, nil, dirs, suffix)
+	if err != nil {
+		t.Fatalf("Load with an unknown shard field: %v", err)
+	}
+	if enabled := cfg.BranchProtection.AllowDisabledJobPolicies; enabled == nil || !*enabled {
+		t.Error("Load did not merge the known shard field")
+	}
+	if _, err := LoadStrict(configPath, nil, dirs, suffix); err == nil ||
+		!strings.Contains(err.Error(), shardPath) || !strings.Contains(err.Error(), `unknown field "unknown_shard_field"`) {
+		t.Errorf("LoadStrict error = %v, want unknown_shard_field reported in %s", err, shardPath)
+	}
+}
+
 func TestProwConfigMerging(t *testing.T) {
 	t.Parallel()
 	testCases := []struct {
