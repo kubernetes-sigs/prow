@@ -1891,7 +1891,7 @@ func loadConfig(prowConfig string, jobConfigs []string, additionalProwConfigDirs
 
 			fileStart := time.Now()
 			var cfg ProwConfig
-			if err := yamlToConfig(path, &cfg); err != nil {
+			if err := yamlToConfig(path, &cfg, yamlOpts...); err != nil {
 				errs = append(errs, err)
 				return nil
 			}
