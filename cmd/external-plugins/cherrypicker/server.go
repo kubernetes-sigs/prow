@@ -22,7 +22,6 @@ import (
 	"net/http"
 	"os"
 	"regexp"
-	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -46,7 +45,9 @@ var cherryPickRe = regexp.MustCompile(`(?m)^(?:/cherrypick|/cherry-pick)\s+(.+)$
 var releaseNoteRe = regexp.MustCompile(`(?s)(?:Release note\*\*:\s*(?:<!--[^<>]*-->\s*)?` + "```(?:release-note)?|```release-note)(.+?)```")
 var titleTargetBranchIndicatorTemplate = `[%s] `
 
-var notOrgMemberMessageTemplate = "only [%s](https://github.com/orgs/%s/people) org members may request cherry picks. If you are already part of the org, make sure to [change](https://github.com/orgs/%s/people?query=%s) your membership to public. Otherwise you can still do the cherry-pick manually. "
+// notAuthorizedMessageTemplate is the rejection comment body. Its %s verbs are,
+// in order: org, org, the eligible-group phrase, org, and the rejected user.
+var notAuthorizedMessageTemplate = "only [%s](https://github.com/orgs/%s/people) %s may request cherry picks. If you are already part of the org, make sure to [change](https://github.com/orgs/%s/people?query=%s) your membership to public. Otherwise you can still do the cherry-pick manually. "
 
 type githubClient interface {
 	AddLabel(org, repo string, number int, label string) error
@@ -60,6 +61,7 @@ type githubClient interface {
 	GetPullRequestPatch(org, repo string, number int) ([]byte, error)
 	GetPullRequests(org, repo string) ([]github.PullRequest, error)
 	GetRepo(owner, name string) (github.FullRepo, error)
+	IsCollaborator(org, repo, user string) (bool, error)
 	IsMember(org, user string) (bool, error)
 	ListIssueComments(org, repo string, number int) ([]github.IssueComment, error)
 	ListIssueEvents(org, repo string, number int) ([]github.ListedIssueEvent, error)
@@ -77,7 +79,7 @@ func HelpProvider(_ []config.OrgRepo) (*pluginhelp.PluginHelp, error) {
 		Description: "Cherrypick a PR to a different branch. This command works both in merged PRs (the cherrypick PR is opened immediately) and open PRs (the cherrypick PR opens as soon as the original PR merges). If multiple branches are specified, separated by a space, a cherrypick for the first branch will be created with a comment to cherrypick the remaining branches after the first merges.",
 		Featured:    true,
 		// depends on how the cherrypick server runs; needs auth by default (--allow-all=false)
-		WhoCanUse: "Members of the trusted organization for the repo.",
+		WhoCanUse: "Members of the trusted organization for the repo. Repo collaborators are also allowed when the server runs with --allow-collaborators.",
 		Examples:  []string{"/cherrypick release-3.9", "/cherry-pick release-1.15", "/cherrypick release-1.6 release-1.5 release-1.4"},
 	})
 	return pluginHelp, nil
@@ -102,6 +104,8 @@ type Server struct {
 	prowAssignments bool
 	// Allow anybody to do cherrypicks.
 	allowAll bool
+	// Allow repo collaborators (in addition to org members) to do cherrypicks.
+	allowCollaborators bool
 	// Create an issue on cherrypick conflict.
 	issueOnConflict bool
 	// Set a custom label prefix.
@@ -232,17 +236,9 @@ func (s *Server) handleIssueComment(log logrus.FieldLogger, ic github.IssueComme
 
 	// PR is not yet done, inform the user we will remember their instructions and create PRs later.
 	if ic.Issue.State != "closed" {
-		if !s.allowAll {
-			// Only members should be able to do cherry-picks.
-			ok, err := s.ghc.IsMember(org, commentAuthor)
-			if err != nil {
-				return log, err
-			}
-			if !ok {
-				resp := fmt.Sprintf(notOrgMemberMessageTemplate, org, org, org, commentAuthor)
-				log.Info(resp)
-				return log, s.ghc.CreateComment(org, repo, num, plugins.FormatICResponse(ic.Comment, resp))
-			}
+		// Only authorized users should be able to do cherry-picks.
+		if handled, err := s.rejectUnauthorizedComment(log, org, repo, num, ic.Comment, commentAuthor); handled {
+			return log, err
 		}
 
 		var branchNames []string
@@ -271,17 +267,9 @@ func (s *Server) handleIssueComment(log logrus.FieldLogger, ic github.IssueComme
 		return log, s.ghc.CreateComment(org, repo, num, plugins.FormatICResponse(ic.Comment, resp))
 	}
 
-	if !s.allowAll {
-		// Only org members should be able to do cherry-picks.
-		ok, err := s.ghc.IsMember(org, commentAuthor)
-		if err != nil {
-			return log, err
-		}
-		if !ok {
-			resp := fmt.Sprintf(notOrgMemberMessageTemplate, org, org, org, commentAuthor)
-			log.Info(resp)
-			return log, s.ghc.CreateComment(org, repo, num, plugins.FormatICResponse(ic.Comment, resp))
-		}
+	// Only authorized users should be able to do cherry-picks.
+	if handled, err := s.rejectUnauthorizedComment(log, org, repo, num, ic.Comment, commentAuthor); handled {
+		return log, err
 	}
 
 	// If the user requested multiple cherry-picks and one of them was invalid, warn them about it.
@@ -359,29 +347,29 @@ func (s *Server) handlePullRequestLabelAdded(log logrus.FieldLogger, pre github.
 	prAuthor := pr.User.Login
 	labeler := pre.Sender
 
-	membership := map[string]bool{}
+	authorized := map[string]bool{}
 	if !s.allowAll {
 		for _, user := range []string{prAuthor, labeler.Login} {
-			if _, done := membership[user]; done || user == "" {
+			if _, done := authorized[user]; done || user == "" {
 				continue
 			}
-			ok, err := s.ghc.IsMember(org, user)
+			ok, err := s.isAuthorized(org, repo, user)
 			if err != nil {
 				return log, err
 			}
-			membership[user] = ok
+			authorized[user] = ok
 		}
 	}
 	requester, allowed := s.labelRequester(prAuthor, labeler, func(user string) bool {
-		return s.allowAll || membership[user]
+		return s.allowAll || authorized[user]
 	})
 	if !allowed {
-		// Only org members should be able to do cherry-picks.
+		// Only authorized users should be able to do cherry-picks.
 		rejected := prAuthor
 		if labeler.Login != "" {
 			rejected = labeler.Login
 		}
-		resp := fmt.Sprintf(notOrgMemberMessageTemplate, org, org, org, rejected)
+		resp := s.notAuthorizedMessage(org, rejected)
 		if err := s.createComment(log, org, repo, num, nil, resp); err != nil {
 			log.WithError(err).WithField("response", resp).Error("Failed to create comment.")
 		}
@@ -483,21 +471,45 @@ func (s *Server) handlePullRequestClosed(log logrus.FieldLogger, pre github.Pull
 	if len(requesterToComments) == 0 && len(cherrypickLabels) == 0 {
 		return log, nil
 	}
-	// Figure out membership.
-	isMember := func(string) bool { return true }
+	// Resolve authorization for the queued requesters. Org membership is fetched
+	// in bulk; non-members fall back to a memoized per-user collaborator lookup
+	// (only when --allow-collaborators is set). A failed collaborator lookup is
+	// logged and treated as unauthorized so one error cannot drop the batch.
+	authorized := func(string) bool { return true }
 	if !s.allowAll {
 		// TODO: Possibly cache this.
 		members, err := s.ghc.ListOrgMembers(org, "all")
 		if err != nil {
 			return log, err
 		}
-		isMember = func(user string) bool {
-			return slices.ContainsFunc(members, func(member github.TeamMember) bool {
-				return user == member.Login
-			})
+		memberLogins := sets.New[string]()
+		for _, member := range members {
+			memberLogins.Insert(member.Login)
+		}
+		collaborators := map[string]bool{}
+		authorized = func(user string) bool {
+			if user == "" {
+				return false
+			}
+			if memberLogins.Has(user) {
+				return true
+			}
+			if !s.allowCollaborators {
+				return false
+			}
+			if ok, done := collaborators[user]; done {
+				return ok
+			}
+			ok, err := s.ghc.IsCollaborator(org, repo, user)
+			if err != nil {
+				log.WithError(err).WithField("user", user).Warn("Failed to check collaborator status, treating as unauthorized.")
+				ok = false
+			}
+			collaborators[user] = ok
+			return ok
 		}
 		for requester := range requesterToComments {
-			if !isMember(requester) {
+			if !authorized(requester) {
 				delete(requesterToComments, requester)
 			}
 		}
@@ -516,7 +528,7 @@ func (s *Server) handlePullRequestClosed(log logrus.FieldLogger, pre github.Pull
 		}
 	}
 	for _, label := range cherrypickLabels {
-		requester, allowed := s.labelRequester(pr.User.Login, labelers[label], isMember)
+		requester, allowed := s.labelRequester(pr.User.Login, labelers[label], authorized)
 		if !allowed {
 			continue
 		}
@@ -564,15 +576,15 @@ func (s *Server) handlePullRequestClosed(log logrus.FieldLogger, pre github.Pull
 
 // labelRequester returns the user a label-initiated cherry-pick is attributed to
 // (and assigned to) and whether the request is allowed. The user who added the
-// label is preferred when they are an org member and not a bot; otherwise the PR
-// author is used. The request is allowed if either of them is an org member, as
+// label is preferred when they are authorized and not a bot; otherwise the PR
+// author is used. The request is allowed if either of them is authorized, as
 // adding a label already requires write access to the repo.
-func (s *Server) labelRequester(prAuthor string, labeler github.User, isMember func(string) bool) (string, bool) {
-	labelerOK := labeler.Login != "" && isMember(labeler.Login)
+func (s *Server) labelRequester(prAuthor string, labeler github.User, isAuthorized func(string) bool) (string, bool) {
+	labelerOK := labeler.Login != "" && isAuthorized(labeler.Login)
 	if labelerOK && !s.isBot(labeler) {
 		return labeler.Login, true
 	}
-	return prAuthor, labelerOK || isMember(prAuthor)
+	return prAuthor, labelerOK || isAuthorized(prAuthor)
 }
 
 func (s *Server) isBot(u github.User) bool {
@@ -580,6 +592,57 @@ func (s *Server) isBot(u github.User) bool {
 		return true
 	}
 	return s.botUser != nil && github.NormLogin(u.Login) == github.NormLogin(s.botUser.Login)
+}
+
+// isAuthorized reports whether user may request cherry-picks in org/repo. Org
+// members are always authorized; repo collaborators are authorized when
+// --allow-collaborators is set; everyone is authorized when --allow-all is set.
+func (s *Server) isAuthorized(org, repo, user string) (bool, error) {
+	if s.allowAll {
+		return true, nil
+	}
+	member, err := s.ghc.IsMember(org, user)
+	if err != nil {
+		return false, fmt.Errorf("failed to check org membership for %q: %w", user, err)
+	}
+	if member {
+		return true, nil
+	}
+	if !s.allowCollaborators {
+		return false, nil
+	}
+	collaborator, err := s.ghc.IsCollaborator(org, repo, user)
+	if err != nil {
+		return false, fmt.Errorf("failed to check collaborator status for %q: %w", user, err)
+	}
+	return collaborator, nil
+}
+
+// notAuthorizedMessage returns the comment body used to reject an unauthorized
+// cherry-pick request, tailored to whether collaborators are allowed.
+func (s *Server) notAuthorizedMessage(org, user string) string {
+	eligible := "org members"
+	if s.allowCollaborators {
+		eligible = "org members or repo collaborators"
+	}
+	return fmt.Sprintf(notAuthorizedMessageTemplate, org, org, eligible, org, user)
+}
+
+// rejectUnauthorizedComment posts the not-authorized reply when commentAuthor
+// may not request cherry-picks. handled is true when the caller should stop
+// processing the comment: either a reply was posted (err is the result of
+// posting it) or the authorization check itself failed (err is non-nil).
+func (s *Server) rejectUnauthorizedComment(log logrus.FieldLogger, org, repo string, num int, comment github.IssueComment, commentAuthor string) (handled bool, err error) {
+	authorized, err := s.isAuthorized(org, repo, commentAuthor)
+	if err != nil {
+		return true, err
+	}
+	if authorized {
+		return false, nil
+	}
+	resp := s.notAuthorizedMessage(org, commentAuthor)
+	log.Info(resp)
+	return true, s.ghc.CreateComment(org, repo, num, plugins.FormatICResponse(comment, resp))
 }
 
 var cherryPickBranchFmt = "cherry-pick-%d-to-%s"
