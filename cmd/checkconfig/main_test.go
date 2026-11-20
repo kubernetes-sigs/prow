@@ -764,6 +764,46 @@ presubmits:
 	}
 }
 
+// Strict validation must load the same supplemental configuration as the initial load.
+func TestValidateUnknownFieldsAllSupplementalConfig(t *testing.T) {
+	for _, suffix := range []string{"_prowconfig.yaml", "_custom.yaml"} {
+		t.Run(suffix, func(t *testing.T) {
+			root := t.TempDir()
+			configPath := filepath.Join(root, "config.yaml")
+			if err := os.WriteFile(configPath, []byte(`periodics:
+- name: supplemental-queue
+  interval: 1h
+  job_queue_name: supplemental
+  spec:
+    containers:
+    - image: alpine
+`), 0600); err != nil {
+				t.Fatal(err)
+			}
+			supplementalDir := filepath.Join(root, "supplemental")
+			if err := os.Mkdir(supplementalDir, 0700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(supplementalDir, "queues"+suffix), []byte(`plank:
+  job_queue_capacities:
+    supplemental: 1
+`), 0600); err != nil {
+				t.Fatal(err)
+			}
+			if err := validate(options{
+				config: configflagutil.ConfigOptions{
+					ConfigPath:                            configPath,
+					SupplementalProwConfigDirs:            flagutil.NewStrings(supplementalDir),
+					SupplementalProwConfigsFileNameSuffix: suffix,
+				},
+				warnings: flagutil.NewStrings(unknownFieldsAllWarning),
+			}); err != nil {
+				t.Fatalf("validation failed: %v", err)
+			}
+		})
+	}
+}
+
 func TestValidateStrictBranches(t *testing.T) {
 	trueVal := true
 	falseVal := false
