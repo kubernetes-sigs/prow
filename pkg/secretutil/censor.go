@@ -18,11 +18,14 @@ limitations under the License.
 package secretutil
 
 import (
+	"bytes"
 	"encoding/base64"
+	"encoding/json"
 	"strings"
 	"sync"
 
 	"go4.org/bytereplacer"
+	"gopkg.in/ini.v1"
 )
 
 // Censorer knows how to replace sensitive data from input.
@@ -98,7 +101,7 @@ func (c *ReloadingCensorer) Refresh(secrets ...string) {
 			largestSecret = len(s)
 		}
 	}
-	for _, secret := range secrets {
+	for _, secret := range expandStructuredSecrets(secrets) {
 		toEncode := []string{secret}
 		if trimmed := strings.TrimSpace(secret); trimmed != secret {
 			secret = trimmed
@@ -129,6 +132,83 @@ func (c *ReloadingCensorer) Refresh(secrets ...string) {
 	c.Replacer = bytereplacer.New(replacements...)
 	c.largestSecret = largestSecret
 	c.Unlock()
+}
+
+// expandStructuredSecrets returns the given secrets followed by the individual
+// values found in the ones that are JSON documents or INI files. A job that
+// prints just one field of such a file would otherwise leak it, since only the
+// complete file content was registered. Secrets that are not valid JSON or INI
+// are returned unchanged.
+func expandStructuredSecrets(secrets []string) []string {
+	expanded := make([]string, 0, len(secrets))
+	for _, secret := range secrets {
+		expanded = append(expanded, secret)
+		if values := jsonStringValues(secret); values != nil {
+			expanded = append(expanded, values...)
+		} else {
+			expanded = append(expanded, iniValues(secret)...)
+		}
+	}
+	return expanded
+}
+
+// jsonStringValues returns all string values of a JSON object or array, or nil
+// if the input is not one.
+func jsonStringValues(input string) []string {
+	trimmed := strings.TrimSpace(input)
+	if !strings.HasPrefix(trimmed, "{") && !strings.HasPrefix(trimmed, "[") {
+		return nil
+	}
+	decoder := json.NewDecoder(bytes.NewReader([]byte(trimmed)))
+	var parsed interface{}
+	if err := decoder.Decode(&parsed); err != nil || decoder.More() {
+		return nil
+	}
+	var values []string
+	var walk func(v interface{})
+	walk = func(v interface{}) {
+		switch typed := v.(type) {
+		case string:
+			values = append(values, typed)
+		case []interface{}:
+			for _, item := range typed {
+				walk(item)
+			}
+		case map[string]interface{}:
+			for _, item := range typed {
+				walk(item)
+			}
+		}
+	}
+	walk(parsed)
+	return values
+}
+
+// iniValues returns all values of an INI document, or nil if the input does not
+// look like one: every non-empty line has to be a comment, a section header or
+// a key=value pair.
+func iniValues(input string) []string {
+	for _, line := range strings.Split(input, "\n") {
+		line = strings.TrimSpace(line)
+		switch {
+		case line == "", strings.HasPrefix(line, "#"), strings.HasPrefix(line, ";"):
+		case strings.HasPrefix(line, "[") && strings.HasSuffix(line, "]"):
+		case strings.Contains(line, "="):
+		default:
+			return nil
+		}
+	}
+	cfg, err := ini.Load([]byte(input))
+	if err != nil {
+		return nil
+	}
+	var values []string
+	for _, section := range cfg.Sections() {
+		for _, key := range section.Keys() {
+			values = append(values, key.Value())
+		}
+	}
+	return values
 }
 
 // AdaptCensorer returns a func that censors without touching the input, to
