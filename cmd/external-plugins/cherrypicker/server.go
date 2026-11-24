@@ -475,6 +475,8 @@ func (s *Server) handlePullRequestClosed(log logrus.FieldLogger, pre github.Pull
 	// in bulk; non-members fall back to a memoized per-user collaborator lookup
 	// (only when --allow-collaborators is set). A failed collaborator lookup is
 	// logged and treated as unauthorized so one error cannot drop the batch.
+	lookupFailures := sets.New[string]()
+	notifyUsers := sets.New[string]()
 	authorized := func(string) bool { return true }
 	if !s.allowAll {
 		// TODO: Possibly cache this.
@@ -503,6 +505,7 @@ func (s *Server) handlePullRequestClosed(log logrus.FieldLogger, pre github.Pull
 			ok, err := s.ghc.IsCollaborator(org, repo, user)
 			if err != nil {
 				log.WithError(err).WithField("user", user).Warn("Failed to check collaborator status, treating as unauthorized.")
+				lookupFailures.Insert(user)
 				ok = false
 			}
 			collaborators[user] = ok
@@ -510,6 +513,9 @@ func (s *Server) handlePullRequestClosed(log logrus.FieldLogger, pre github.Pull
 		}
 		for requester := range requesterToComments {
 			if !authorized(requester) {
+				if lookupFailures.Has(requester) {
+					notifyUsers.Insert(requester)
+				}
 				delete(requesterToComments, requester)
 			}
 		}
@@ -530,6 +536,11 @@ func (s *Server) handlePullRequestClosed(log logrus.FieldLogger, pre github.Pull
 	for _, label := range cherrypickLabels {
 		requester, allowed := s.labelRequester(pr.User.Login, labelers[label], authorized)
 		if !allowed {
+			for _, user := range []string{pr.User.Login, labelers[label].Login} {
+				if lookupFailures.Has(user) {
+					notifyUsers.Insert(user)
+				}
+			}
 			continue
 		}
 		if requesterToComments[requester] == nil {
@@ -537,14 +548,17 @@ func (s *Server) handlePullRequestClosed(log logrus.FieldLogger, pre github.Pull
 		}
 		requesterToComments[requester][label[len(s.labelPrefix):]] = nil // leave this nil which indicates a label-initiated cherry-pick
 	}
-	if len(requesterToComments) == 0 {
-		return log, nil
+	var errs []error
+	for user := range notifyUsers {
+		resp := fmt.Sprintf("@%s I couldn't verify your collaborator access while processing cherry-picks at merge time. Please retry `/cherrypick` with the desired target branches on this merged PR.", user)
+		if err := s.ghc.CreateComment(org, repo, num, resp); err != nil {
+			errs = append(errs, fmt.Errorf("failed to notify %s about collaborator lookup failure: %w", user, err))
+		}
 	}
 
 	// Handle multiple comments serially. Make sure to filter out
 	// comments targeting the same branch.
 	handledBranches := make(map[string]bool)
-	var errs []error
 	for requester, branches := range requesterToComments {
 		for targetBranch, ic := range branches {
 			if handledBranches[targetBranch] {

@@ -2030,6 +2030,12 @@ func testCherryPickPRClosedCollaboratorError(clients localgit.Clients, t *testin
 	if got := ghc.prs[0].Base.Ref; got != "release-1.5" {
 		t.Fatalf("expected the cherry-pick PR to target release-1.5, got %q", got)
 	}
+	for _, comment := range ghc.comments {
+		if strings.Contains(comment, "@collab-err") && strings.Contains(comment, "retry `/cherrypick`") {
+			return
+		}
+	}
+	t.Fatalf("expected retry instructions for collab-err, got %v", ghc.comments)
 }
 
 // TestCherryPickPRClosedMemoizesCollaboratorLookups verifies that, within one
