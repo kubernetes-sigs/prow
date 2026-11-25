@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
-	"strings"
 	"text/template"
 
 	"golang.org/x/net/html"
@@ -122,10 +121,12 @@ func extractDocumentDetails(name string, id int, content []byte) document {
 		switch token.Next() {
 		case html.ErrorToken:
 			doc.Content = injectHeightNotifier(doc.Content, doc.ID)
-			// Escape double quotes as we are going to put this into an iframes srcdoc attribute. We can not reference the
-			// src directly because we have to inject the height notifier.
+			// Escape the content as we are going to put this into an iframe's srcdoc attribute.
+			// We can not reference the src directly because we have to inject the height notifier.
+			// & has to be escaped as well as ", otherwise character references already in the
+			// document (e.g. a nested srcdoc's &quot;) are decoded one level too early.
 			// Ref: https://html.spec.whatwg.org/multipage/iframe-embed-object.html#attr-iframe-srcdoc
-			doc.Content = strings.ReplaceAll(doc.Content, `"`, `&quot;`)
+			doc.Content = html.EscapeString(doc.Content)
 
 			if description != "" {
 				doc.Title = doc.Title + fmt.Sprintf(` <abbr class="icon material-icons" title="%s">info</abbr>`, description)
