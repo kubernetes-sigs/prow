@@ -101,6 +101,15 @@ func TestRenderBody(t *testing.T) {
 			},
 		},
 		{
+			name: "With character references",
+			artifacts: []FakeArtifact{
+				{
+					path:    "https://s3.internal/bucket/file.html",
+					content: []byte(`<body><p>Use &lt;b&gt; for bold</p><iframe srcdoc="<p title=&quot;x&quot;>hi</p>"></iframe></body>`),
+				},
+			},
+		},
+		{
 			name: "With title",
 			artifacts: []FakeArtifact{
 				{
