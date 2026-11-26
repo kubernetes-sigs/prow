@@ -64,6 +64,7 @@ type options struct {
 	ignoreSecretTeams     bool
 	ignoreEnterpriseTeams bool
 	allowRepoArchival     bool
+	allowRepoUnarchival   bool
 	allowRepoPublish      bool
 	github                flagutil.GitHubOptions
 
@@ -100,6 +101,7 @@ func (o *options) parseArgs(flags *flag.FlagSet, args []string) error {
 	flags.BoolVar(&o.fixCollaborators, "fix-collaborators", false, "Add/remove/update repository collaborators if set")
 	flags.BoolVar(&o.fixOrgRoles, "fix-org-roles", false, "Assign/remove organization roles to teams and users if set")
 	flags.BoolVar(&o.allowRepoArchival, "allow-repo-archival", false, "If set, archiving repos is allowed while updating repos")
+	flags.BoolVar(&o.allowRepoUnarchival, "allow-repo-unarchival", false, "If set, unarchiving repos is allowed while updating repos")
 	flags.BoolVar(&o.allowRepoPublish, "allow-repo-publish", false, "If set, changing repository visibility to public is allowed while updating repos")
 	flags.StringVar(&o.logLevel, "log-level", logrus.InfoLevel.String(), fmt.Sprintf("Logging level, one of %v", logrus.AllLevels))
 	o.github.AddCustomizedFlags(flags, flagutil.ThrottlerDefaults(defaultTokens, defaultBurst))
@@ -1209,11 +1211,23 @@ func configureOrg(opt options, client github.Client, orgName string, orgConfig o
 	// Note: New invitations sent by configureOrgMembers are tracked in the invitees set,
 	// so role assignment can skip users with pending invitations without an extra API call.
 
-	// Create repositories in the org
-	if !opt.fixRepos {
+	// Track the resulting archive state for permission reconciliation, including dry runs.
+	var archivedRepos sets.Set[string]
+	if opt.fixRepos {
+		archived, err := configureRepos(opt, client, orgName, orgConfig)
+		if err != nil {
+			return fmt.Errorf("failed to configure %s repos: %w", orgName, err)
+		}
+		archivedRepos = archived
+	} else {
 		logrus.Info("Skipping org repositories configuration")
-	} else if err := configureRepos(opt, client, orgName, orgConfig); err != nil {
-		return fmt.Errorf("failed to configure %s repos: %w", orgName, err)
+		if opt.fixCollaborators || opt.fixTeamRepos {
+			repos, err := client.GetRepos(orgName, false)
+			if err != nil {
+				return fmt.Errorf("failed to get %s repos: %w", orgName, err)
+			}
+			archivedRepos = archivedRepoNames(repos)
+		}
 	}
 
 	// Configure repository collaborators
@@ -1221,6 +1235,9 @@ func configureOrg(opt options, client github.Client, orgName string, orgConfig o
 		logrus.Info("Skipping repository collaborators configuration")
 	} else {
 		for repoName, repo := range orgConfig.Repos {
+			if archivedRepos.Has(strings.ToLower(repoName)) {
+				continue
+			}
 			if err := configureCollaborators(client, orgName, repoName, repo); err != nil {
 				return fmt.Errorf("failed to configure %s/%s collaborators: %w", orgName, repoName, err)
 			}
@@ -1248,7 +1265,7 @@ func configureOrg(opt options, client github.Client, orgName string, orgConfig o
 			logrus.Infof("Skipping team repo permissions configuration")
 			continue
 		}
-		if err := configureTeamRepos(client, githubTeams, name, orgName, team); err != nil {
+		if err := configureTeamRepos(client, githubTeams, name, orgName, team, archivedRepos); err != nil {
 			return fmt.Errorf("failed to configure %s team %s repos: %w", orgName, name, err)
 		}
 	}
@@ -1361,10 +1378,10 @@ func newRepoUpdateRequest(current github.FullRepo, name string, repo org.Repo) g
 
 func sanitizeRepoDelta(opt options, delta *github.RepoUpdateRequest) []error {
 	var errs []error
-	if delta.Archived != nil && !*delta.Archived {
-		delta.Archived = nil
-		errs = append(errs, fmt.Errorf("asked to unarchive an archived repo, unsupported by GH API"))
-	}
+	// Unarchival (an archived==false delta) is gated earlier in configureRepos,
+	// where a request to unarchive without --allow-repo-unarchival is warned and
+	// skipped; an allowed unarchival flows through here untouched. A non-archived
+	// repo never produces an archived==false delta, so no guard is needed for it.
 	if delta.Archived != nil && *delta.Archived && !opt.allowRepoArchival {
 		delta.Archived = nil
 		errs = append(errs, fmt.Errorf("asked to archive a repo but this is not allowed by default (see --allow-repo-archival)"))
@@ -1377,15 +1394,26 @@ func sanitizeRepoDelta(opt options, delta *github.RepoUpdateRequest) []error {
 	return errs
 }
 
-func configureRepos(opt options, client repoClient, orgName string, orgConfig org.Config) error {
+func archivedRepoNames(repos []github.Repo) sets.Set[string] {
+	archived := sets.New[string]()
+	for _, repo := range repos {
+		if repo.Archived {
+			archived.Insert(strings.ToLower(repo.Name))
+		}
+	}
+	return archived
+}
+
+func configureRepos(opt options, client repoClient, orgName string, orgConfig org.Config) (sets.Set[string], error) {
 	if err := validateRepos(orgConfig.Repos); err != nil {
-		return err
+		return nil, err
 	}
 
 	repoList, err := client.GetRepos(orgName, false)
 	if err != nil {
-		return fmt.Errorf("failed to get repos: %w", err)
+		return nil, fmt.Errorf("failed to get repos: %w", err)
 	}
+	archived := archivedRepoNames(repoList)
 	logrus.Debugf("Found %d repositories", len(repoList))
 	byName := make(map[string]github.Repo, len(repoList))
 	for _, repo := range repoList {
@@ -1436,12 +1464,29 @@ func configureRepos(opt options, client repoClient, orgName string, orgConfig or
 		}
 
 		if existing != nil {
+			currentName := strings.ToLower(existing.Name)
 			if existing.Archived {
-				if wantRepo.Archived != nil && *wantRepo.Archived {
+				// An archived repository is read-only in GitHub: the only change the
+				// API accepts is one that unarchives it (a PATCH setting
+				// archived:false, which may carry other field updates in the same
+				// request). Any update that leaves the repo archived would be
+				// rejected with a 403, so skip those outright.
+				switch {
+				case wantRepo.Archived == nil || *wantRepo.Archived:
+					archived.Insert(currentName, strings.ToLower(wantName))
 					repoLogger.Infof("repo %q is archived, skipping changes", wantName)
 					continue
+				case !opt.allowRepoUnarchival:
+					archived.Insert(currentName, strings.ToLower(wantName))
+					repoLogger.Warnf("repo %q is archived and config requests unarchival, but this is not allowed by default (see --allow-repo-unarchival); skipping", wantName)
+					continue
 				}
+				// Unarchival requested and allowed: fall through to the normal update
+				// path. The computed delta carries archived:false alongside any other
+				// drift, and GitHub applies them together in a single request.
+				repoLogger.Infof("repo %q is archived, unarchiving", wantName)
 			}
+			archived.Delete(currentName)
 			repoLogger.Info("repo exists, considering an update")
 			delta := newRepoUpdateRequest(*existing, wantName, wantRepo)
 			if deltaErrors := sanitizeRepoDelta(opt, &delta); len(deltaErrors) > 0 {
@@ -1455,12 +1500,16 @@ func configureRepos(opt options, client repoClient, orgName string, orgConfig or
 				if _, err := client.UpdateRepo(orgName, existing.Name, delta); err != nil {
 					repoLogger.WithError(err).Error("failed to update repository")
 					allErrors = append(allErrors, err)
+					continue
+				}
+				if delta.Archived != nil && *delta.Archived {
+					archived.Insert(strings.ToLower(wantName))
 				}
 			}
 		}
 	}
 
-	return utilerrors.NewAggregate(allErrors)
+	return archived, utilerrors.NewAggregate(allErrors)
 }
 
 type collaboratorClient interface {
@@ -1729,7 +1778,7 @@ type teamRepoClient interface {
 }
 
 // configureTeamRepos updates the list of repos that the team has permissions for when necessary
-func configureTeamRepos(client teamRepoClient, githubTeams map[string]github.Team, name, orgName string, team org.Team) error {
+func configureTeamRepos(client teamRepoClient, githubTeams map[string]github.Team, name, orgName string, team org.Team, archivedRepos sets.Set[string]) error {
 	gt, ok := githubTeams[name]
 	if !ok { // configureTeams is buggy if this is the case
 		return fmt.Errorf("%s not found in id list", name)
@@ -1764,6 +1813,9 @@ func configureTeamRepos(client teamRepoClient, githubTeams map[string]github.Tea
 
 	var updateErrors []error
 	for repo, permission := range actions {
+		if archivedRepos.Has(strings.ToLower(repo)) {
+			continue
+		}
 		var err error
 		switch permission {
 		case github.None:
@@ -1786,7 +1838,7 @@ func configureTeamRepos(client teamRepoClient, githubTeams map[string]github.Tea
 	}
 
 	for childName, childTeam := range team.Children {
-		if err := configureTeamRepos(client, githubTeams, childName, orgName, childTeam); err != nil {
+		if err := configureTeamRepos(client, githubTeams, childName, orgName, childTeam, archivedRepos); err != nil {
 			updateErrors = append(updateErrors, fmt.Errorf("failed to configure %s child team %s repos: %w", orgName, childName, err))
 		}
 	}
