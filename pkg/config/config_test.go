@@ -8778,6 +8778,7 @@ func TestProwConfigMerging(t *testing.T) {
 		supplementalProwConfigs []string
 		expectedErrorSubstr     string
 		expectedProwConfig      string
+		expectedTideQueries     TideQueries
 	}{
 		{
 			name:       "Additional branch protection config gets merged in",
@@ -8936,6 +8937,10 @@ tide:
 		},
 		{
 			name: "Additional tide queries get merged in and de-duplicated",
+			expectedTideQueries: TideQueries{{
+				Labels: []string{"approved", "lgtm"},
+				Repos:  []string{"a/repo", "another/repo"},
+			}},
 			prowConfig: `
 tide:
   queries:
@@ -9009,10 +9014,14 @@ tide:
   max_goroutines: 20
   queries:
   - labels:
-    - approved
     - lgtm
+    - approved
     repos:
     - a/repo
+  - labels:
+    - lgtm
+    - approved
+    repos:
     - another/repo
   status_update_period: 1m0s
   sync_period: 1m0s
@@ -9134,6 +9143,11 @@ slack_reporter_configs:
 			}
 			if config == nil && tc.expectedProwConfig == "" {
 				return
+			}
+			if tc.expectedTideQueries != nil {
+				if diff := cmp.Diff(tc.expectedTideQueries, config.Tide.ResolvedQueries()); diff != "" {
+					t.Errorf("runtime tide queries differ (-want +got): %s", diff)
+				}
 			}
 
 			serialized, err := yaml.Marshal(config)

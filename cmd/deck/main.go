@@ -1335,7 +1335,7 @@ func handleRemoteLens(lens config.LensFileConfig, w http.ResponseWriter, r *http
 func handleTidePools(cfg config.Getter, ta *tideAgent, log *logrus.Entry) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		setHeadersNoCaching(w)
-		queryConfigs := ta.filterQueries(cfg().Tide.Queries)
+		queryConfigs := ta.filterQueries(cfg().Tide.ResolvedQueries())
 		queries := make([]string, 0, len(queryConfigs))
 		for _, qc := range queryConfigs {
 			queries = append(queries, qc.Query())
@@ -1510,7 +1510,21 @@ func handleConfig(cfg config.Getter, log *logrus.Entry) http.HandlerFunc {
 			sort.Strings(l)
 			handleSerialize(w, "disabled-clusters.yaml", l, log)
 		case "":
-			handleSerialize(w, "config.yaml", cfg(), log)
+			current := cfg()
+			// Show the queries Tide uses without changing the authored config
+			// that other callers serialize for editing or persistence.
+			type tideConfigView struct {
+				config.Tide
+				Queries config.TideQueries `json:"queries,omitempty"`
+			}
+			view := struct {
+				*config.Config
+				Tide tideConfigView `json:"tide"`
+			}{
+				Config: current,
+				Tide:   tideConfigView{Tide: current.Tide, Queries: current.Tide.ResolvedQueries()},
+			}
+			handleSerialize(w, "config.yaml", view, log)
 		default:
 			msg := fmt.Sprintf("getting config for key %s is not supported", k)
 			log.Error(msg)

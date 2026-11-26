@@ -829,7 +829,7 @@ func TestValidateStrictBranches(t *testing.T) {
 			config: config.ProwConfig{
 				Tide: config.Tide{
 					TideGitHubConfig: config.TideGitHubConfig{
-						Queries: []config.TideQuery{
+						Queries: []config.TideQuerySpec{
 							{
 								Orgs: []string{"kubernetes"},
 							},
@@ -864,7 +864,7 @@ func TestValidateStrictBranches(t *testing.T) {
 			config: config.ProwConfig{
 				Tide: config.Tide{
 					TideGitHubConfig: config.TideGitHubConfig{
-						Queries: []config.TideQuery{
+						Queries: []config.TideQuerySpec{
 							{
 								Orgs:          []string{"kubernetes"},
 								ExcludedRepos: []string{"kubernetes/test-infra"},
@@ -900,7 +900,7 @@ func TestValidateStrictBranches(t *testing.T) {
 			config: config.ProwConfig{
 				Tide: config.Tide{
 					TideGitHubConfig: config.TideGitHubConfig{
-						Queries: []config.TideQuery{
+						Queries: []config.TideQuerySpec{
 							{
 								Repos: []string{"kubernetes/test-infra"},
 							},
@@ -935,7 +935,7 @@ func TestValidateStrictBranches(t *testing.T) {
 			config: config.ProwConfig{
 				Tide: config.Tide{
 					TideGitHubConfig: config.TideGitHubConfig{
-						Queries: []config.TideQuery{
+						Queries: []config.TideQuerySpec{
 							{
 								Orgs: []string{"kubernetes"},
 							},
@@ -970,7 +970,7 @@ func TestValidateStrictBranches(t *testing.T) {
 			config: config.ProwConfig{
 				Tide: config.Tide{
 					TideGitHubConfig: config.TideGitHubConfig{
-						Queries: []config.TideQuery{
+						Queries: []config.TideQuerySpec{
 							{
 								Repos: []string{"kubernetes/test-infra"},
 							},
@@ -1000,7 +1000,7 @@ func TestValidateStrictBranches(t *testing.T) {
 			config: config.ProwConfig{
 				Tide: config.Tide{
 					TideGitHubConfig: config.TideGitHubConfig{
-						Queries: []config.TideQuery{
+						Queries: []config.TideQuerySpec{
 							{
 								Orgs: []string{"kubernetes", "k8s"},
 							},
@@ -1030,7 +1030,7 @@ func TestValidateStrictBranches(t *testing.T) {
 			config: config.ProwConfig{
 				Tide: config.Tide{
 					TideGitHubConfig: config.TideGitHubConfig{
-						Queries: []config.TideQuery{
+						Queries: []config.TideQuerySpec{
 							{
 								Repos: []string{"kubernetes/kubernetes"},
 							},
@@ -1067,10 +1067,12 @@ func TestValidateStrictBranches(t *testing.T) {
 			config: config.ProwConfig{
 				Tide: config.Tide{
 					TideGitHubConfig: config.TideGitHubConfig{
-						Queries: []config.TideQuery{
+						Queries: []config.TideQuerySpec{
 							{
-								Repos:            []string{"kubernetes/test-infra"},
-								IncludedBranches: []string{"master"},
+								Repos: []string{"kubernetes/test-infra"},
+								TideQueryFragment: config.TideQueryFragment{
+									IncludedBranches: []string{"master"},
+								},
 							},
 							{
 								Repos: []string{"kubernetes/kubernetes"},
@@ -1109,7 +1111,7 @@ func TestValidateStrictBranches(t *testing.T) {
 			config: config.ProwConfig{
 				Tide: config.Tide{
 					TideGitHubConfig: config.TideGitHubConfig{
-						Queries: []config.TideQuery{
+						Queries: []config.TideQuerySpec{
 							{
 								Repos: []string{"kubernetes/test-infra"},
 							},
@@ -1148,7 +1150,20 @@ func TestValidateStrictBranches(t *testing.T) {
 		t.Run(testcases[i].name, func(t *testing.T) {
 			tc := testcases[i]
 			t.Parallel()
-			err := validateStrictBranches(tc.config)
+			data, err := yaml.Marshal(config.ProwConfig{Tide: tc.config.Tide})
+			if err != nil {
+				t.Fatal(err)
+			}
+			path := filepath.Join(t.TempDir(), "config.yaml")
+			if err := os.WriteFile(path, data, 0600); err != nil {
+				t.Fatal(err)
+			}
+			loaded, err := config.Load(path, nil, nil, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			tc.config.Tide = loaded.Tide
+			err = validateStrictBranches(tc.config)
 			if err == nil && len(tc.errItems) > 0 {
 				t.Errorf("Expected errors for the following items, but didn't see an error: %v.", tc.errItems)
 			} else if err != nil && len(tc.errItems) == 0 {
@@ -2887,6 +2902,76 @@ func TestValidateRequiredJobAnnotations(t *testing.T) {
 			}
 			if !c.expectedErr && err != nil {
 				t.Errorf("Got error but didn't expect one: %v", err)
+			}
+		})
+	}
+}
+
+func TestSupplementalQueryPresetScope(t *testing.T) {
+	// Use relative paths, as checkconfig does with os.DirFS(".").
+	t.Chdir(t.TempDir())
+	for _, tc := range []struct {
+		name, main string
+		shards     map[string]string
+		wantError  string
+	}{
+		{
+			name:   "criteria preset preserves inline scope",
+			main:   "tide: {query_presets: [{name: common, labels: [approved]}]}",
+			shards: map[string]string{"org/repo/_prowconfig.yaml": "tide: {queries: [{repos: [org/repo], presets: [common]}]}"},
+		},
+		{
+			name:      "preset definitions belong in global config",
+			main:      "{}",
+			shards:    map[string]string{"org/repo/_prowconfig.yaml": "tide: {query_presets: [{name: unused, labels: [approved]}], queries: [{repos: [org/repo]}]}"},
+			wantError: "contains global config",
+		},
+		{
+			name: "global supplemental definition resolved before scope check",
+			main: "{}",
+			shards: map[string]string{
+				"org/repo/_prowconfig.yaml": "tide: {queries: [{repos: [org/repo], presets: [later]}]}",
+				"z-global_prowconfig.yaml":  "tide: {query_presets: [{name: later, labels: [approved]}]}",
+			},
+		},
+		{
+			name: "deduplication does not combine file scopes",
+			main: "tide: {query_presets: [{name: common, labels: [approved]}]}",
+			shards: map[string]string{
+				"org/first/_prowconfig.yaml":  "tide: {queries: [{repos: [org/first], presets: [common]}]}",
+				"org/second/_prowconfig.yaml": "tide: {queries: [{repos: [org/second], labels: [approved]}]}",
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := strings.ReplaceAll(tc.name, " ", "-")
+			write := func(path, data string) {
+				t.Helper()
+				if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(path, []byte(data), 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			mainPath := filepath.Join(dir, "config.yaml")
+			write(mainPath, tc.main)
+			root := filepath.Join(dir, "shards")
+			for path, data := range tc.shards {
+				write(filepath.Join(root, path), data)
+			}
+			_, err := config.Load(mainPath, nil, []string{root}, "_prowconfig.yaml")
+			if err != nil {
+				t.Fatal(err)
+			}
+			filesystem := os.DirFS(".")
+			err = validateAdditionalProwConfigIsInOrgRepoDirectoryStructure(filesystem, []string{root}, nil, "_prowconfig.yaml", "")
+			if tc.wantError == "" {
+				if err != nil {
+					t.Fatal(err)
+				}
+			} else if err == nil || !strings.Contains(err.Error(), tc.wantError) {
+				t.Fatalf("got %v, want error containing %q", err, tc.wantError)
 			}
 		})
 	}
