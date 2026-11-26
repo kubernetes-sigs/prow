@@ -75,6 +75,7 @@ type testcase struct {
 	RemovedLabels  []string
 	StartsExactly  string
 	Presubmits     map[string][]config.Presubmit
+	PluginConfig   *plugins.Configuration
 	IssueLabels    []string
 	IgnoreOkToTest bool
 	AddedComment   string
@@ -241,6 +242,225 @@ func TestHandleGenericComment(t *testing.T) {
 			ShouldBuild:   true,
 			StartsExactly: "pull-jib",
 			PruneHelp:     true,
+		},
+		{
+			name:         "When rationale is required and /retest has none, it should comment without creating a ProwJob",
+			Author:       "trusted-member",
+			Body:         "/ok-to-test\n/test job\n/retest",
+			State:        "open",
+			IsPR:         true,
+			AddedComment: "Rationale required for `/retest` in this repository. No CI job was queued.",
+			PluginConfig: &plugins.Configuration{
+				RequireRationale: plugins.RequireRationale{
+					"org/repo": {"retest": {}},
+				},
+			},
+		},
+		{
+			name:         "When an untrusted user runs /retest without rationale, it should get the trust message instead",
+			Author:       "untrusted-member",
+			Body:         "/retest",
+			State:        "open",
+			IsPR:         true,
+			PRAuthor:     "untrusted-member",
+			AddedComment: "Cannot trigger testing until a trusted user reviews the PR",
+			PluginConfig: &plugins.Configuration{
+				RequireRationale: plugins.RequireRationale{
+					"org/repo": {"retest": {}},
+				},
+			},
+		},
+		{
+			name:         "When a raw fenced /retest reaches the job filter, it should still require rationale",
+			Author:       "trusted-member",
+			Body:         "/test job\n```\n/retest\n```",
+			State:        "open",
+			IsPR:         true,
+			AddedComment: "Rationale required for `/retest` in this repository. No CI job was queued.",
+			PluginConfig: &plugins.Configuration{
+				RequireRationale: plugins.RequireRationale{
+					"org/repo": {"retest": {}},
+				},
+			},
+		},
+		{
+			name:         "When a same-line rationale is shorter than the minimum, /retest should comment without creating a ProwJob",
+			Author:       "trusted-member",
+			Body:         "/retest flaky",
+			State:        "open",
+			IsPR:         true,
+			AddedComment: "got 5 non-whitespace Unicode code points; need at least 20). No CI job was queued.",
+			PluginConfig: &plugins.Configuration{
+				RequireRationale: plugins.RequireRationale{
+					"org/repo": {"retest": {}},
+				},
+			},
+		},
+		{
+			name:         "When a same-line rationale starts with /, /retest should comment without creating a ProwJob",
+			Author:       "trusted-member",
+			Body:         "/retest /lgtm! looks good to me",
+			State:        "open",
+			IsPR:         true,
+			AddedComment: "Rationale for `/retest` must not start with `/`. No CI job was queued.",
+			PluginConfig: &plugins.Configuration{
+				RequireRationale: plugins.RequireRationale{
+					"org/repo": {"retest": {}},
+				},
+			},
+		},
+		{
+			name:          "When /retest has a same-line rationale, it should create the existing ProwJob",
+			Author:        "trusted-member",
+			Body:          "/retest CI outage on AWS e2e resolved",
+			State:         "open",
+			IsPR:          true,
+			ShouldBuild:   true,
+			StartsExactly: "pull-jib",
+			PruneHelp:     true,
+			AddedComment:  shouldNotAddComment,
+			PluginConfig: &plugins.Configuration{
+				RequireRationale: plugins.RequireRationale{
+					"org/repo": {"retest": {}},
+				},
+			},
+		},
+		{
+			name:          "When /retest has a rationale on the next line, it should create the existing ProwJob",
+			Author:        "trusted-member",
+			Body:          "/retest\r\nCI outage on AWS e2e resolved",
+			State:         "open",
+			IsPR:          true,
+			ShouldBuild:   true,
+			StartsExactly: "pull-jib",
+			PruneHelp:     true,
+			AddedComment:  shouldNotAddComment,
+			PluginConfig: &plugins.Configuration{
+				RequireRationale: plugins.RequireRationale{
+					"org/repo": {"retest": {}},
+				},
+			},
+		},
+		{
+			name:   "When /retest-required has a same-line rationale, it should create the existing ProwJob",
+			Author: "trusted-member",
+			Body:   "/retest-required CI outage on AWS e2e resolved",
+			State:  "open",
+			IsPR:   true,
+			Presubmits: map[string][]config.Presubmit{
+				"org/repo": {
+					{
+						JobBase:      config.JobBase{Name: "jib"},
+						Reporter:     config.Reporter{Context: "pull-jib"},
+						Trigger:      `(?m)^/test (?:.*? )?jib(?: .*?)?$`,
+						RerunCommand: `/test jib`,
+					},
+				},
+			},
+			ShouldBuild:  true,
+			PruneHelp:    true,
+			AddedComment: shouldNotAddComment,
+			PluginConfig: &plugins.Configuration{
+				RequireRationale: plugins.RequireRationale{
+					"org/repo": {"retest-required": {}},
+				},
+			},
+		},
+		{
+			name:   "When /retest-required has no rationale, it should comment without creating a ProwJob",
+			Author: "trusted-member",
+			Body:   "/retest-required",
+			State:  "open",
+			IsPR:   true,
+			Presubmits: map[string][]config.Presubmit{
+				"org/repo": {
+					{
+						JobBase:      config.JobBase{Name: "jib"},
+						Reporter:     config.Reporter{Context: "pull-jib"},
+						Trigger:      `(?m)^/test (?:.*? )?jib(?: .*?)?$`,
+						RerunCommand: `/test jib`,
+					},
+				},
+			},
+			AddedComment: "Rationale required for `/retest-required` in this repository. No CI job was queued.",
+			PluginConfig: &plugins.Configuration{
+				RequireRationale: plugins.RequireRationale{
+					"org/repo": {"retest-required": {}},
+				},
+			},
+		},
+		{
+			name:   "When a retester-style comment has a status line under /retest-required, it should create the existing ProwJob",
+			Author: "trusted-member",
+			Body:   "/retest-required\n\nRemaining retests: 2 against base HEAD abc123 and 8 for PR HEAD def456 in total\n",
+			State:  "open",
+			IsPR:   true,
+			Presubmits: map[string][]config.Presubmit{
+				"org/repo": {
+					{
+						JobBase:      config.JobBase{Name: "jib"},
+						Reporter:     config.Reporter{Context: "pull-jib"},
+						Trigger:      `(?m)^/test (?:.*? )?jib(?: .*?)?$`,
+						RerunCommand: `/test jib`,
+					},
+				},
+			},
+			ShouldBuild:  true,
+			PruneHelp:    true,
+			AddedComment: shouldNotAddComment,
+			PluginConfig: &plugins.Configuration{
+				RequireRationale: plugins.RequireRationale{
+					"org/repo": {"retest-required": {}},
+				},
+			},
+		},
+		{
+			name:   "When only /retest is protected, /retest-required should not require rationale",
+			Author: "trusted-member",
+			Body:   "/retest-required",
+			State:  "open",
+			IsPR:   true,
+			Presubmits: map[string][]config.Presubmit{
+				"org/repo": {
+					{
+						JobBase:      config.JobBase{Name: "jib"},
+						Reporter:     config.Reporter{Context: "pull-jib"},
+						Trigger:      `(?m)^/test (?:.*? )?jib(?: .*?)?$`,
+						RerunCommand: `/test jib`,
+					},
+				},
+			},
+			ShouldBuild:  true,
+			PruneHelp:    true,
+			AddedComment: shouldNotAddComment,
+			PluginConfig: &plugins.Configuration{
+				RequireRationale: plugins.RequireRationale{
+					"org/repo": {"retest": {}},
+				},
+			},
+		},
+		{
+			name:   "When /retest-required has its own minimum, it should apply it",
+			Author: "trusted-member",
+			Body:   "/retest-required CI outage on AWS e2e resolved",
+			State:  "open",
+			IsPR:   true,
+			Presubmits: map[string][]config.Presubmit{
+				"org/repo": {
+					{
+						JobBase:      config.JobBase{Name: "jib"},
+						Reporter:     config.Reporter{Context: "pull-jib"},
+						Trigger:      `(?m)^/test (?:.*? )?jib(?: .*?)?$`,
+						RerunCommand: `/test jib`,
+					},
+				},
+			},
+			AddedComment: "got 24 non-whitespace Unicode code points; need at least 30). No CI job was queued.",
+			PluginConfig: &plugins.Configuration{
+				RequireRationale: plugins.RequireRationale{
+					"org/repo": {"retest": {}, "retest-required": {MinLength: 30}},
+				},
+			},
 		},
 		{
 			name: "Retest with one running and one failed, trailing space.",
@@ -1555,6 +1775,7 @@ func TestHandleGenericComment(t *testing.T) {
 				GitHubClient:  g,
 				ProwJobClient: fakeProwJobClient.ProwV1().ProwJobs(fakeConfig.ProwJobNamespace),
 				Config:        fakeConfig,
+				PluginConfig:  tc.PluginConfig,
 				Logger:        logrus.WithField("plugin", PluginName),
 				GitClient:     nil,
 			}

@@ -202,6 +202,7 @@ type Client struct {
 	GitHubClient  githubClient
 	ProwJobClient prowJobClient
 	Config        *config.Config
+	PluginConfig  *plugins.Configuration
 	Logger        *logrus.Entry
 	GitClient     git.ClientFactory
 }
@@ -217,6 +218,7 @@ func getClient(pc plugins.Agent) Client {
 	return Client{
 		GitHubClient:  pc.GitHubClient,
 		Config:        pc.Config,
+		PluginConfig:  pc.PluginConfig,
 		ProwJobClient: pc.ProwJobClient,
 		Logger:        pc.Logger,
 		GitClient:     pc.GitClient,
