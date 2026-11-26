@@ -17,7 +17,9 @@ limitations under the License.
 package assign
 
 import (
+	"fmt"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/sirupsen/logrus"
@@ -33,7 +35,27 @@ type fakeClient struct {
 	unrequested  map[string]int
 	contributors map[string]bool
 
-	commented bool
+	commented   bool
+	lastComment string
+
+	nonMembers        map[string]bool
+	labels            []github.Label
+	getIssueLabelsErr error
+	isMemberErr       error
+}
+
+func (c *fakeClient) IsMember(org, user string) (bool, error) {
+	if c.isMemberErr != nil {
+		return false, c.isMemberErr
+	}
+	return !c.nonMembers[user], nil
+}
+
+func (c *fakeClient) GetIssueLabels(org, repo string, number int) ([]github.Label, error) {
+	if c.getIssueLabelsErr != nil {
+		return nil, c.getIssueLabelsErr
+	}
+	return c.labels, nil
 }
 
 func (c *fakeClient) UnassignIssue(owner, repo string, number int, assignees []string) error {
@@ -92,6 +114,7 @@ func (c *fakeClient) UnrequestReview(org, repo string, number int, logins []stri
 
 func (c *fakeClient) CreateComment(owner, repo string, number int, comment string) error {
 	c.commented = comment != ""
+	c.lastComment = comment
 	return nil
 }
 
@@ -165,6 +188,12 @@ func TestAssignAndReview(t *testing.T) {
 		requested   []string
 		unrequested []string
 		commented   bool
+		expectedMsg string
+		labels      []string
+		assignees   []string
+		isPR        bool
+		labelErr    error
+		memberErr   error
 	}{
 		{
 			name:      "unrelated comment",
@@ -386,14 +415,106 @@ func TestAssignAndReview(t *testing.T) {
 			commenter:   "rando",
 			unrequested: []string{"kubernetes/sig-testing-misc"},
 		},
+		{
+			name:        "non-member self-assigns unaccepted issue, assigned with guidance",
+			body:        "/assign",
+			commenter:   "newbie",
+			assigned:    []string{"newbie"},
+			commented:   true,
+			expectedMsg: "doesn't have the `triage/accepted` label",
+		},
+		{
+			name:      "non-member self-assigns accepted issue, no guidance",
+			body:      "/assign",
+			commenter: "newbie",
+			labels:    []string{"triage/accepted"},
+			assigned:  []string{"newbie"},
+		},
+		{
+			name:      "non-member self-assigns good first issue, no guidance",
+			body:      "/assign",
+			commenter: "newbie",
+			labels:    []string{"good first issue"},
+			assigned:  []string{"newbie"},
+		},
+		{
+			name:        "non-member cannot self-assign issue that already has an assignee",
+			body:        "/assign",
+			commenter:   "newbie",
+			assignees:   []string{"member"},
+			commented:   true,
+			expectedMsg: "This issue already has an assignee",
+		},
+		{
+			name:      "non-member who is already assigned can re-assign themselves",
+			body:      "/assign",
+			commenter: "newbie",
+			assignees: []string{"newbie"},
+			assigned:  []string{"newbie"},
+		},
+		{
+			name:      "org member self-assigns assigned unaccepted issue",
+			body:      "/assign",
+			commenter: "member",
+			assignees: []string{"someone"},
+			assigned:  []string{"member"},
+		},
+		{
+			name:      "non-member assigns another user, no guidance",
+			body:      "/assign @member",
+			commenter: "newbie",
+			assigned:  []string{"member"},
+		},
+		{
+			name:      "org member assigns a non-member",
+			body:      "/assign @newbie",
+			commenter: "member",
+			assignees: []string{"someone"},
+			assigned:  []string{"newbie"},
+		},
+		{
+			name:      "self-assignment on a PR is unaffected",
+			body:      "/assign",
+			commenter: "newbie",
+			isPR:      true,
+			assignees: []string{"member"},
+			assigned:  []string{"newbie"},
+		},
+		{
+			name:      "membership lookup failure fails open",
+			body:      "/assign",
+			commenter: "newbie",
+			assignees: []string{"member"},
+			memberErr: fmt.Errorf("boom"),
+			assigned:  []string{"newbie"},
+		},
+		{
+			name:      "label lookup failure fails open",
+			body:      "/assign",
+			commenter: "newbie",
+			labelErr:  fmt.Errorf("boom"),
+			assigned:  []string{"newbie"},
+		},
 	}
 	for _, tc := range testcases {
 		fc := newFakeClient([]string{"hello-world", "allow_underscore", "cjwagner", "merlin", "kubernetes/sig-testing-misc"})
+		fc.nonMembers = map[string]bool{"newbie": true}
+		for _, l := range tc.labels {
+			fc.labels = append(fc.labels, github.Label{Name: l})
+		}
+		fc.getIssueLabelsErr = tc.labelErr
+		fc.isMemberErr = tc.memberErr
+		var assignees []github.User
+		for _, a := range tc.assignees {
+			assignees = append(assignees, github.User{Login: a})
+		}
 		e := github.GenericCommentEvent{
-			Body:   tc.body,
-			User:   github.User{Login: tc.commenter},
-			Repo:   github.Repo{Name: "repo", Owner: github.User{Login: "org"}},
-			Number: 5,
+			Body:      tc.body,
+			User:      github.User{Login: tc.commenter},
+			Repo:      github.Repo{Name: "repo", Owner: github.User{Login: "org"}},
+			Number:    5,
+			IsPR:      tc.isPR,
+			Assignees: assignees,
 		}
 		if err := handle(newAssignHandler(e, fc, logrus.WithField("plugin", pluginName))); err != nil {
 			t.Errorf("For case %s, didn't expect error from handle: %v", tc.name, err)
@@ -406,6 +527,9 @@ func TestAssignAndReview(t *testing.T) {
 
 		if tc.commented != fc.commented {
 			t.Errorf("For case %s, expect commented: %v, got commented %v", tc.name, tc.commented, fc.commented)
+		}
+		if tc.expectedMsg != "" && !strings.Contains(fc.lastComment, tc.expectedMsg) {
+			t.Errorf("For case %s, expected comment to contain %q, but got %q", tc.name, tc.expectedMsg, fc.lastComment)
 		}
 
 		if len(fc.assigned) != len(tc.assigned) {
