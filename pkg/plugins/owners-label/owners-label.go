@@ -53,6 +53,7 @@ type githubClient interface {
 	GetIssueLabels(org, repo string, number int) ([]github.Label, error)
 	GetRepoLabels(owner, repo string) ([]github.Label, error)
 	GetPullRequestChanges(org, repo string, number int) ([]github.PullRequestChange, error)
+	ListPullRequestCommits(org, repo string, number int) ([]github.RepositoryCommit, error)
 }
 
 func handlePullRequest(pc plugins.Agent, pre github.PullRequestEvent) error {
@@ -65,10 +66,10 @@ func handlePullRequest(pc plugins.Agent, pre github.PullRequestEvent) error {
 		return fmt.Errorf("error loading RepoOwners: %w", err)
 	}
 
-	return handle(pc.GitHubClient, oc, pc.Logger, &pre)
+	return handle(pc.GitHubClient, oc, pc.Logger, &pre, pc.PluginConfig.IgnorePRsWithMergeCommitsFor(pre.Repo.Owner.Login, pre.Repo.Name))
 }
 
-func handle(ghc githubClient, oc ownersClient, log *logrus.Entry, pre *github.PullRequestEvent) error {
+func handle(ghc githubClient, oc ownersClient, log *logrus.Entry, pre *github.PullRequestEvent, ignorePRsWithMergeCommits bool) error {
 	org := pre.Repo.Owner.Login
 	repo := pre.Repo.Name
 	number := pre.Number
@@ -85,6 +86,20 @@ func handle(ghc githubClient, oc ownersClient, log *logrus.Entry, pre *github.Pu
 	if neededLabels.Len() == 0 {
 		// No labels requested for the given files. Return now to save API tokens.
 		return nil
+	}
+
+	// Only list commits once we know the PR would get labels, since most PRs need none.
+	if ignorePRsWithMergeCommits {
+		commits, err := ghc.ListPullRequestCommits(org, repo, number)
+		if err != nil {
+			return fmt.Errorf("error listing PR commits: %w", err)
+		}
+		for _, commit := range commits {
+			if len(commit.Parents) > 1 {
+				log.Infof("Skipping label sync for PR with merge commit %s", commit.SHA)
+				return nil
+			}
+		}
 	}
 
 	repoLabels, err := ghc.GetRepoLabels(org, repo)
