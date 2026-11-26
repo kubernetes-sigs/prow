@@ -20,9 +20,11 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/sirupsen/logrus"
+	logrustest "github.com/sirupsen/logrus/hooks/test"
 
 	"k8s.io/apimachinery/pkg/util/diff"
 )
@@ -2083,6 +2085,64 @@ func TestInteractor_ShowRef(t *testing.T) {
 			}
 			if actual, expected := e.records, testCase.expectedCalls; !reflect.DeepEqual(actual, expected) {
 				t.Errorf("%s: got incorrect git calls: %v", testCase.name, diff.Diff(actual, expected))
+			}
+		})
+	}
+}
+
+func TestInteractor_FetchDoesNotLogCredentials(t *testing.T) {
+	const (
+		token  = "ghs_supersecrettoken"
+		remote = "https://x-access-token:" + token + "@github.com/org/repo"
+		branch = "main"
+	)
+	resolver := func() (string, error) { return remote, nil }
+	testCases := []struct {
+		name  string
+		fetch func(i *interactor) error
+	}{
+		{
+			name:  "Fetch",
+			fetch: func(i *interactor) error { return i.Fetch() },
+		},
+		{
+			name:  "FetchRef",
+			fetch: func(i *interactor) error { return i.FetchRef("pull/1/head") },
+		},
+		{
+			name:  "FetchFromRemote",
+			fetch: func(i *interactor) error { return i.FetchFromRemote(resolver, branch) },
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			logger, hook := logrustest.NewNullLogger()
+			i := interactor{
+				executor: &fakeExecutor{
+					records: [][]string{},
+					responses: map[string]execResponse{
+						"fetch " + remote:                  {err: errors.New("oops")},
+						"fetch " + remote + " pull/1/head": {err: errors.New("oops")},
+						"fetch " + remote + " " + branch:   {err: errors.New("oops")},
+					},
+				},
+				remote: resolver,
+				logger: logrus.NewEntry(logger),
+			}
+			err := testCase.fetch(&i)
+			if err == nil {
+				t.Fatal("expected an error but got none")
+			}
+			if strings.Contains(err.Error(), token) {
+				t.Errorf("error contains the token: %v", err)
+			}
+			if len(hook.AllEntries()) == 0 {
+				t.Fatal("expected a log entry but got none")
+			}
+			for _, entry := range hook.AllEntries() {
+				if strings.Contains(entry.Message, token) {
+					t.Errorf("log message contains the token: %q", entry.Message)
+				}
 			}
 		})
 	}

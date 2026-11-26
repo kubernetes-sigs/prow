@@ -511,7 +511,7 @@ func (i *interactor) Fetch(arg ...string) error {
 		return fmt.Errorf("could not resolve remote for fetching: %w", err)
 	}
 	arg = append([]string{"fetch", remote}, arg...)
-	i.logger.Infof("Fetching from %s", remote)
+	i.logger.Infof("Fetching from %s", censorURLCredentials(remote))
 	if out, err := i.executor.Run(arg...); err != nil {
 		return fmt.Errorf("error fetching: %w %v", err, string(out))
 	}
@@ -524,7 +524,7 @@ func (i *interactor) FetchRef(refspec string) error {
 	if err != nil {
 		return fmt.Errorf("could not resolve remote for fetching: %w", err)
 	}
-	i.logger.Infof("Fetching %q from %s", refspec, remote)
+	i.logger.Infof("Fetching %q from %s", refspec, censorURLCredentials(remote))
 	if out, err := i.executor.Run("fetch", remote, refspec); err != nil {
 		return fmt.Errorf("error fetching %q: %w %v", refspec, err, string(out))
 	}
@@ -538,9 +538,9 @@ func (i *interactor) FetchFromRemote(remote RemoteResolver, branch string) error
 		return fmt.Errorf("couldn't get remote: %w", err)
 	}
 
-	i.logger.Infof("Fetching %s from %s", branch, r)
+	i.logger.Infof("Fetching %s from %s", branch, censorURLCredentials(r))
 	if out, err := i.executor.Run("fetch", r, branch); err != nil {
-		return fmt.Errorf("error fetching %s from %s: %w %v", branch, r, err, string(out))
+		return fmt.Errorf("error fetching %s from %s: %w %v", branch, censorURLCredentials(r), err, string(out))
 	}
 	return nil
 }
