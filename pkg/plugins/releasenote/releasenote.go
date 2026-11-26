@@ -493,23 +493,41 @@ func editReleaseNote(gc githubClient, log *logrus.Entry, ic github.IssueCommentE
 			plugins.FormatResponseRaw(ic.Comment.Body, ic.Comment.HTMLURL, user, "/release-note-edit must be used with a release note block."),
 		)
 	}
+	if len(noteMatcherRE.FindAllStringSubmatchIndex(ic.Comment.Body, -1)) != 1 {
+		return gc.CreateComment(
+			org, repo, ic.Issue.Number,
+			plugins.FormatResponseRaw(ic.Comment.Body, ic.Comment.HTMLURL, user, "/release-note-edit must be used with a single release note block."),
+		)
+	}
 
 	// 0: start of release note block
 	// 1: end of release note block
 	// 2: start of release note content
 	// 3: end of release note content
 	i := noteMatcherRE.FindStringSubmatchIndex(ic.Issue.Body)
-	if len(i) != 4 {
-		return gc.CreateComment(
-			org, repo, ic.Issue.Number,
-			plugins.FormatResponseRaw(ic.Comment.Body, ic.Comment.HTMLURL, user, "/release-note-edit must be used with a single release note block."),
-		)
+	if len(i) == 0 {
+		// If the PR body does not contain a release note block, append one instead.
+		// Preserve the body's line ending style and leave a blank line before the block.
+		lineEnding := "\n"
+		if strings.Contains(ic.Issue.Body, "\r\n") {
+			lineEnding = "\r\n"
+		}
+		separator := lineEnding + lineEnding
+		if ic.Issue.Body == "" {
+			separator = ""
+		} else if strings.HasSuffix(ic.Issue.Body, lineEnding+lineEnding) {
+			separator = ""
+		} else if strings.HasSuffix(ic.Issue.Body, lineEnding) {
+			separator = lineEnding
+		}
+		ic.Issue.Body += separator + "```release-note" + lineEnding + strings.TrimSpace(newNote) + lineEnding + "```" + lineEnding
+	} else {
+		// Splice in the contents of the new release note block to the top level comment.
+		// This accounts for all older regex matches.
+		b := []byte(ic.Issue.Body)
+		replaced := append(b[:i[2]], append([]byte("\r\n"+strings.TrimSpace(newNote)+"\r\n"), b[i[3]:]...)...)
+		ic.Issue.Body = string(replaced)
 	}
-	// Splice in the contents of the new release note block to the top level comment
-	// This accounts for all older regex matches
-	b := []byte(ic.Issue.Body)
-	replaced := append(b[:i[2]], append([]byte("\r\n"+strings.TrimSpace(newNote)+"\r\n"), b[i[3]:]...)...)
-	ic.Issue.Body = string(replaced)
 
 	_, err = gc.EditIssue(ic.Repo.Owner.Login, ic.Repo.Name, ic.Issue.Number, &ic.Issue)
 	if err != nil {
