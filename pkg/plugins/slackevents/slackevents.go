@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"sigs.k8s.io/prow/pkg/config"
 	"sigs.k8s.io/prow/pkg/github"
+	"sigs.k8s.io/prow/pkg/labels"
 	"sigs.k8s.io/prow/pkg/pluginhelp"
 	"sigs.k8s.io/prow/pkg/plugins"
 )
@@ -54,6 +55,7 @@ type client struct {
 func init() {
 	plugins.RegisterPushEventHandler(pluginName, handlePush, helpProvider)
 	plugins.RegisterGenericCommentHandler(pluginName, handleComment, helpProvider)
+	plugins.RegisterPullRequestHandler(pluginName, handlePullRequest, helpProvider)
 }
 
 func helpProvider(config *plugins.Configuration, enabledRepos []config.OrgRepo) (*pluginhelp.PluginHelp, error) {
@@ -101,6 +103,12 @@ func helpProvider(config *plugins.Configuration, enabledRepos []config.OrgRepo) 
 					},
 				},
 			},
+			CLAAlerts: []plugins.CLAAlert{
+				{
+					Repos:    []string{"org/repo1", "org/repo2"},
+					Channels: []string{"channel5"},
+				},
+			},
 		},
 	})
 	if err != nil {
@@ -108,8 +116,11 @@ func helpProvider(config *plugins.Configuration, enabledRepos []config.OrgRepo) 
 	}
 	return &pluginhelp.PluginHelp{
 			Description: `The slackevents plugin reacts to various GitHub events by commenting in Slack channels.
-<ol><li>The plugin can create comments to alert on manual merges. Manual merges are merges made by a normal user instead of a bot or trusted user.</li>
-<li>The plugin can create comments to reiterate SIG mentions like '@kubernetes/sig-testing-bugs' from GitHub.</li></ol>`,
+<ol>
+<li>The plugin can create comments to alert on manual merges. Manual merges are merges made by a normal user instead of a bot or trusted user.</li>
+<li>The plugin can send Slack alerts when a PR carrying the "cncf-cla: no" label is merged.</li>
+<li>The plugin can create comments to reiterate SIG mentions like '@kubernetes/sig-testing-bugs' from GitHub.</li>
+</ol>`,
 			Config:  configInfo,
 			Snippet: yamlSnippet,
 		},
@@ -132,6 +143,15 @@ func handlePush(pc plugins.Agent, pe github.PushEvent) error {
 		SlackClient:  pc.SlackClient,
 	}
 	return notifyOnSlackIfManualMerge(c, pe)
+}
+
+func handlePullRequest(pc plugins.Agent, pre github.PullRequestEvent) error {
+	c := client{
+		GitHubClient: pc.GitHubClient,
+		SlackConfig:  pc.PluginConfig.Slack,
+		SlackClient:  pc.SlackClient,
+	}
+	return notifyOnCLAIfMerged(c, pre)
 }
 
 func notifyOnSlackIfManualMerge(pc client, pe github.PushEvent) error {
@@ -215,6 +235,64 @@ func echoToSlack(pc client, e github.GenericCommentEvent) error {
 		msg := fmt.Sprintf("%s was mentioned by %s (<@%s>) on GitHub. (%s)\n>>>%s", sig, e.User.Login, e.User.Login, e.HTMLURL, e.Body)
 		if err := pc.SlackClient.WriteMessage(msg, sig); err != nil {
 			return fmt.Errorf("Failed to send message on slack channel: %q with message %q. Err: %w", sig, msg, err)
+		}
+	}
+	return nil
+}
+
+// notifyOnCLAIfMerged sends a Slack alert to all configured channels when a
+// PR carrying the "cncf-cla: no" label is merged. It reads labels directly
+// from the PullRequestEvent payload, which works regardless of merge strategy
+// (merge, squash, or rebase).
+func notifyOnCLAIfMerged(pc client, pre github.PullRequestEvent) error {
+	// Only act on PRs that were actually merged, not just closed.
+	if pre.Action != github.PullRequestActionClosed || !pre.PullRequest.Merged {
+		return nil
+	}
+
+	// Find the configured CLAAlert for this repository (exact org/repo match first,
+	// then org-level fallback).
+	ca := getCLAAlert(pc.SlackConfig.CLAAlerts, config.OrgRepo{
+		Org:  pre.Repo.Owner.Login,
+		Repo: pre.Repo.Name,
+	})
+	if ca == nil {
+		return nil
+	}
+
+	// Check whether the merged PR carries the "cncf-cla: no" label.
+	for _, l := range pre.PullRequest.Labels {
+		if l.Name != labels.ClaNo {
+			continue
+		}
+		msg := fmt.Sprintf(
+			"*Alert:* PR #%d merged with %q label by %s — %s",
+			pre.Number,
+			labels.ClaNo,
+			pre.PullRequest.User.Login,
+			pre.PullRequest.HTMLURL,
+		)
+		for _, ch := range ca.Channels {
+			if err := pc.SlackClient.WriteMessage(msg, ch); err != nil {
+				return fmt.Errorf("failed to post CLA alert to %s: %w", ch, err)
+			}
+		}
+		break
+	}
+	return nil
+}
+
+// getCLAAlert returns the CLAAlert config for the given repo.
+// It checks for an exact org/repo match first, then falls back to org-level.
+func getCLAAlert(alerts []plugins.CLAAlert, repo config.OrgRepo) *plugins.CLAAlert {
+	for _, a := range alerts {
+		if sets.NewString(a.Repos...).Has(repo.String()) {
+			return &a
+		}
+	}
+	for _, a := range alerts {
+		if sets.NewString(a.Repos...).Has(repo.Org) {
+			return &a
 		}
 	}
 	return nil
