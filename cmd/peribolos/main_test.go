@@ -20,11 +20,15 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"maps"
+	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -152,6 +156,18 @@ func TestOptions(t *testing.T) {
 				fixTeams:       true,
 				fixTeamMembers: true,
 				logLevel:       "debug",
+			},
+		},
+		{
+			name: "ignore enterprise team members",
+			args: []string{"--config-path=foo", "--ignore-enterprise-team-members"},
+			expected: &options{
+				config:                      "foo",
+				minAdmins:                   defaultMinAdmins,
+				requireSelf:                 true,
+				maximumDelta:                defaultDelta,
+				ignoreEnterpriseTeamMembers: true,
+				logLevel:                    "info",
 			},
 		},
 	}
@@ -1706,6 +1722,149 @@ func TestConfigureTeamMembers(t *testing.T) {
 				}
 			}
 
+		})
+	}
+}
+
+func TestConfigureOrgIgnoreEnterpriseTeamMembers(t *testing.T) {
+	const enterpriseName = "Platform SRE"
+	const enterprisePath = "/orgs/example/teams/ent:platform-sre"
+	const localPath = "/orgs/example/teams/local"
+
+	cases := []struct {
+		name                    string
+		ignoreEnterpriseMembers bool
+		members, maintainers    []string
+	}{
+		{
+			name:                    "enterprise team has empty membership config",
+			ignoreEnterpriseMembers: true,
+		},
+		{
+			name:                    "enterprise membership in config is ignored",
+			ignoreEnterpriseMembers: true,
+			members:                 []string{"new-member", "demote"},
+			maintainers:             []string{"promote"},
+		},
+		{
+			name:        "enterprise membership is reconciled by default",
+			members:     []string{"new-member", "demote"},
+			maintainers: []string{"promote"},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			type exchange struct {
+				request, response string
+			}
+			want := map[string]exchange{
+				"GET /orgs/example/invitations": {response: "[]"},
+				"GET /orgs/example/teams": {
+					response: `[
+						{"id":1,"name":"Platform SRE","slug":"ent:platform-sre","type":"enterprise"},
+						{"id":2,"name":"Local","slug":"local","type":"organization"}
+					]`,
+				},
+				"GET " + enterprisePath + "/repos":              {response: `[{"name":"app","permissions":{"pull":true}}]`},
+				"PUT " + enterprisePath + "/repos/example/app":  {request: `{"permission":"admin"}`},
+				"GET " + localPath + "/members?role=member":     {response: `[{"login":"former-local-member"}]`},
+				"GET " + localPath + "/members?role=maintainer": {response: "[]"},
+				"GET " + localPath + "/invitations":             {response: "[]"},
+				"PUT " + localPath + "/memberships/local-member": {
+					request:  `{"role":"member"}`,
+					response: `{"role":"member","state":"active"}`,
+				},
+				"DELETE " + localPath + "/memberships/former-local-member":      {},
+				"GET " + localPath + "/repos":                                   {response: "[]"},
+				"GET /orgs/example/organization-roles":                          {response: `{"roles":[{"id":3,"name":"Security manager"}]}`},
+				"GET /orgs/example/organization-roles/3/teams":                  {response: "[]"},
+				"GET /orgs/example/organization-roles/3/users":                  {response: "[]"},
+				"PUT /orgs/example/organization-roles/teams/ent:platform-sre/3": {},
+			}
+			if !tc.ignoreEnterpriseMembers {
+				want["GET "+enterprisePath+"/members?role=member"] = exchange{response: `[{"login":"promote"},{"login":"remove"}]`}
+				want["GET "+enterprisePath+"/members?role=maintainer"] = exchange{response: `[{"login":"demote"}]`}
+				want["GET "+enterprisePath+"/invitations"] = exchange{response: "[]"}
+				want["PUT "+enterprisePath+"/memberships/new-member"] = exchange{
+					request:  `{"role":"member"}`,
+					response: `{"role":"member","state":"active"}`,
+				}
+				want["PUT "+enterprisePath+"/memberships/demote"] = want["PUT "+enterprisePath+"/memberships/new-member"]
+				want["PUT "+enterprisePath+"/memberships/promote"] = exchange{
+					request:  `{"role":"maintainer"}`,
+					response: `{"role":"maintainer","state":"active"}`,
+				}
+				want["DELETE "+enterprisePath+"/memberships/remove"] = exchange{}
+			}
+
+			var mu sync.Mutex
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				key := r.Method + " " + r.URL.Path
+				if role := r.URL.Query().Get("role"); role != "" {
+					key += "?role=" + role
+				}
+
+				mu.Lock()
+				expected, ok := want[key]
+				delete(want, key)
+				mu.Unlock()
+				if !ok {
+					t.Errorf("unexpected request: %s", key)
+					http.Error(w, "unexpected request", http.StatusBadRequest)
+					return
+				}
+
+				body, err := io.ReadAll(r.Body)
+				if err != nil {
+					t.Errorf("%s: read request body: %v", key, err)
+					http.Error(w, "cannot read request body", http.StatusBadRequest)
+					return
+				}
+				if got := strings.TrimSpace(string(body)); got != expected.request {
+					t.Errorf("%s: request body = %q, want %q", key, got, expected.request)
+				}
+				if expected.response == "" {
+					w.WriteHeader(http.StatusNoContent)
+					return
+				}
+				w.Header().Set("Content-Type", "application/json")
+				fmt.Fprint(w, expected.response)
+			}))
+			defer server.Close()
+
+			client, err := github.NewClient(nil, func(body []byte) []byte { return body }, server.URL+"/graphql", server.URL)
+			if err != nil {
+				t.Fatalf("create GitHub client: %v", err)
+			}
+			opt := options{
+				confirm:                     true,
+				fixTeams:                    true,
+				fixTeamMembers:              true,
+				fixTeamRepos:                true,
+				fixOrgRoles:                 true,
+				ignoreEnterpriseTeamMembers: tc.ignoreEnterpriseMembers,
+			}
+			config := org.Config{
+				Teams: map[string]org.Team{
+					enterpriseName: {
+						Members:     tc.members,
+						Maintainers: tc.maintainers,
+						Repos:       map[string]github.RepoPermissionLevel{"app": github.Admin},
+					},
+					"Local": {Members: []string{"local-member"}},
+				},
+				Roles: map[string]org.Role{"Security manager": {Teams: []string{enterpriseName}}},
+			}
+			if err := configureOrg(opt, client, "example", config); err != nil {
+				t.Errorf("configureOrg: %v", err)
+			}
+
+			mu.Lock()
+			defer mu.Unlock()
+			if len(want) > 0 {
+				t.Errorf("expected requests were not made: %v", slices.Sorted(maps.Keys(want)))
+			}
 		})
 	}
 }
