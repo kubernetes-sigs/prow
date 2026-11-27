@@ -3,7 +3,7 @@ module sigs.k8s.io/prow
 go 1.26.9
 
 require (
-	cloud.google.com/go/auth v0.24.3
+	cloud.google.com/go/auth v0.24.4
 	cloud.google.com/go/cloudbuild v1.36.0
 	cloud.google.com/go/pubsub/v2 v2.7.0
 	cloud.google.com/go/secretmanager v1.24.0
