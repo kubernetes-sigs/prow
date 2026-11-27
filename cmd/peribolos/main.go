@@ -44,28 +44,29 @@ const (
 )
 
 type options struct {
-	config                string
-	confirm               bool
-	dump                  string
-	dumpFull              bool
-	maximumDelta          float64
-	minAdmins             int
-	requireSelf           bool
-	requiredAdmins        flagutil.Strings
-	fixOrg                bool
-	fixOrgMembers         bool
-	fixTeamMembers        bool
-	fixTeams              bool
-	fixTeamRepos          bool
-	fixRepos              bool
-	fixCollaborators      bool
-	fixOrgRoles           bool
-	ignoreInvitees        bool
-	ignoreSecretTeams     bool
-	ignoreEnterpriseTeams bool
-	allowRepoArchival     bool
-	allowRepoPublish      bool
-	github                flagutil.GitHubOptions
+	config                      string
+	confirm                     bool
+	dump                        string
+	dumpFull                    bool
+	maximumDelta                float64
+	minAdmins                   int
+	requireSelf                 bool
+	requiredAdmins              flagutil.Strings
+	fixOrg                      bool
+	fixOrgMembers               bool
+	fixTeamMembers              bool
+	fixTeams                    bool
+	fixTeamRepos                bool
+	fixRepos                    bool
+	fixCollaborators            bool
+	fixOrgRoles                 bool
+	ignoreInvitees              bool
+	ignoreSecretTeams           bool
+	ignoreEnterpriseTeams       bool
+	ignoreEnterpriseTeamMembers bool
+	allowRepoArchival           bool
+	allowRepoPublish            bool
+	github                      flagutil.GitHubOptions
 
 	logLevel string
 }
@@ -91,6 +92,7 @@ func (o *options) parseArgs(flags *flag.FlagSet, args []string) error {
 	flags.BoolVar(&o.ignoreInvitees, "ignore-invitees", false, "Do not compare missing members with active invitations (compatibility for GitHub Enterprise)")
 	flags.BoolVar(&o.ignoreSecretTeams, "ignore-secret-teams", false, "Do not dump or update secret teams if set")
 	flags.BoolVar(&o.ignoreEnterpriseTeams, "ignore-enterprise-teams", false, "Skip enterprise teams: they are not dumped or reconciled, and their members are never removed from the org. In --dump, members whose org membership comes only from an enterprise team (no direct membership, not on a regular team) are omitted from members/admins")
+	flags.BoolVar(&o.ignoreEnterpriseTeamMembers, "ignore-enterprise-team-members", false, "Skip enterprise team member and maintainer reconciliation when --fix-team-members is set")
 	flags.BoolVar(&o.fixOrg, "fix-org", false, "Change org metadata if set")
 	flags.BoolVar(&o.fixOrgMembers, "fix-org-members", false, "Add/remove org members if set")
 	flags.BoolVar(&o.fixTeams, "fix-teams", false, "Create/delete/update teams if set")
@@ -1625,6 +1627,8 @@ func configureTeamAndMembers(opt options, client github.Client, githubTeams map[
 	if !ok { // configureTeams is buggy if this is the case
 		return fmt.Errorf("%s not found in id list", name)
 	}
+	// Use the type from team matching in case the metadata update response omits it.
+	skipMembership := opt.ignoreEnterpriseTeamMembers && gt.Type == github.TeamTypeEnterprise
 
 	// Configure team metadata. If the team was patched (e.g. renamed), write the
 	// returned team back into githubTeams so later steps (team repos, role
@@ -1643,6 +1647,8 @@ func configureTeamAndMembers(opt options, client github.Client, githubTeams map[
 	// Configure team members
 	if !opt.fixTeamMembers {
 		logrus.Infof("Skipping %s member configuration", name)
+	} else if skipMembership {
+		logrus.Infof("Skipping %s member configuration: enterprise team membership is managed at the enterprise level", name)
 	} else if err = configureTeamMembers(client, orgName, gt, team, opt.ignoreInvitees); err != nil {
 		if opt.confirm {
 			return fmt.Errorf("failed to update %s members: %w", name, err)

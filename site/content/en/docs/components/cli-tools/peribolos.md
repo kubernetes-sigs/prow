@@ -185,6 +185,11 @@ This flag is designed to protect against typos in the configuration which might 
 
 * `--confirm=false` - no github mutations will be made until this flag is true. It is safe to run the binary without this flag. It will print what it would do, without actually making any changes.
 
+* `--ignore-enterprise-team-members=false` - with `--fix-team-members`, leave enterprise team members and maintainers managed at the enterprise level and continue reconciling organization team membership.
+  To manage an enterprise team's repository access, declare the team by its current name under `teams`, set `repos`, and use `--fix-teams --fix-team-members --fix-team-repos --ignore-enterprise-team-members`.
+  Leave `--ignore-enterprise-teams` disabled so Peribolos can match the team. With `--fix-teams`, declare every team you intend to keep because team reconciliation attempts to delete undeclared teams.
+  `--fix-org-members` governs organization membership separately.
+
 See `go run ./cmd/peribolos --help` for the full and current list of settings that can be configured with flags.
 
 [`config.yaml`]: https://github.com/kubernetes/test-infra/blob/master/config/prow/config.yaml
