@@ -80,7 +80,7 @@ require (
 	k8s.io/client-go v0.37.2
 	k8s.io/utils v0.0.0-20260707023825-cf1189d6abe3
 	knative.dev/pkg v0.0.0-20260622140654-39ebae2ee2dc
-	sigs.k8s.io/controller-runtime v0.25.2
+	sigs.k8s.io/controller-runtime v0.25.3
 	sigs.k8s.io/yaml v1.6.0
 )
 
