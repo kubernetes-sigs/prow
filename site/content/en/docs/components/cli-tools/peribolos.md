@@ -187,6 +187,57 @@ This flag is designed to protect against typos in the configuration which might 
 
 See `go run ./cmd/peribolos --help` for the full and current list of settings that can be configured with flags.
 
+## Change report
+
+* `--report-path=` - if set, peribolos writes a machine-readable JSON report of every change it decided on during the run to this file. The flag is opt-in: when it is unset no report is produced, and nothing is ever written to stdout or the log stream for the report, so the existing per-change log lines are unchanged. The file is created before reconciliation begins, so a bad path fails the run immediately rather than after changes have been applied. `--report-path` cannot be combined with `--dump`.
+
+A change is recorded only after its mutating call succeeds, and `--confirm` only gates that mutating call, not the decision to make it. Under `--confirm` the report therefore lists exactly the changes that were applied: a call that fails records nothing.
+
+In dry-run every mutating call is a no-op that succeeds, so the report is a best-effort *plan* rather than a guaranteed account of what `--confirm` would do. Dry-run still reads live state from GitHub while the skipped mutations return synthesized results, so the plan can diverge wherever a later step reads state that an earlier skipped mutation would have changed:
+
+* A new team's members and child teams are omitted, because listing the members of a team that does not exist yet fails and that team is skipped.
+* A run that also reconciles a new team's repos (`--fix-team-repos`), a new repo's collaborators (`--fix-collaborators`), or a repo renamed via `previously` under `--fix-collaborators`, aborts the whole run at that object, because the collaborator or team-repo listing fails against a name GitHub does not have yet.
+* A new repo with a `default_branch` set is reported with an extra `update` that `--confirm` applies only if the branch differs from the one GitHub assigns on creation.
+* A newly invited user who is also given an org role is reported with an `org_role_user` add that `--confirm` skips while the invitation is pending.
+* A cascading delete is reported twice: removing an org member also reports the `team_member` removal from each of their teams, and deleting a team also reports its `org_role_team` removal, both of which `--confirm` performs implicitly as a cascade of the parent delete.
+
+When the run did not reconcile everything it set out to (one of the skipped cases above, or an org that aborted), the top-level `complete` field is `false` so a consumer can tell the report may be missing changes; otherwise it is `true`.
+
+Example:
+
+```json
+{
+  "schema_version": "v1",
+  "dry_run": true,
+  "complete": true,
+  "summary": { "add": 2, "update": 1, "remove": 0 },
+  "changes": [
+    { "kind": "org_member", "org": "my-org", "target": "alice", "action": "add", "after": "admin" },
+    { "kind": "team", "org": "my-org", "target": "sig-foo", "action": "update", "changed_fields": ["privacy"] },
+    { "kind": "collaborator", "org": "my-org", "scope": "my-repo", "target": "bob", "action": "add", "after": "write" }
+  ]
+}
+```
+
+Each entry in `changes` has:
+
+* `kind` - the type of object changed: `org_meta`, `org_member`, `team`, `team_member`, `team_repo`, `repo`, `collaborator`, `org_role_team` or `org_role_user`.
+* `action` - `add`, `update` or `remove`.
+* `org` - the organization the change belongs to.
+* `scope` - the containing object, for nested kinds. It is empty for org-level kinds (`org_meta`, `org_member`, `team`, `repo`), the team name for `team_member` and `team_repo`, the repo name for `collaborator`, and the role name for `org_role_team` and `org_role_user`.
+* `target` - the object acted on. Its form depends on `kind`: the org name for `org_meta`; the login (normalized to lower case, so entries for one user join across kinds) for `org_member`, `team_member`, `collaborator` and `org_role_user`; the config team name for `team` add/update and the GitHub display name for `team` remove; the repo name for `team_repo` and `repo`; and the GitHub team slug for `org_role_team`.
+* `before` / `after` - for membership, collaborator and `team_repo` changes, the prior and new role or permission level (strings). Absent for the other kinds.
+* `changed_fields` - for `org_meta`, `team` and `repo` updates, the list of field names that changed. Absent for the other kinds.
+
+`before`/`after` are always scalar strings and never hold credential values; the whole report is additionally run through secret censoring before it is written.
+
+### Report versioning
+
+The report carries a top-level `schema_version` (currently `v1`) so tooling can consume it safely across peribolos versions:
+
+* Backward-compatible changes (a new field, or a new `kind`/`action` value) do **not** bump the version. Consumers **must** ignore properties with names they do not recognize, and **must** tolerate unrecognized `kind` and `action` values (including new keys in `summary`), so they keep working against newer peribolos versions.
+* Breaking changes (renaming or removing a field, or changing the meaning of an existing one) bump the major version. Consumers **must** reject a `schema_version` whose major they do not recognize.
+
 [`config.yaml`]: https://github.com/kubernetes/test-infra/blob/master/config/prow/config.yaml
 [edit team]: https://developer.github.com/v3/teams/#edit-team
 [edit org]: https://developer.github.com/v3/orgs/#edit-an-organization
