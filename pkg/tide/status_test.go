@@ -70,6 +70,8 @@ func TestExpectedStatus(t *testing.T) {
 		additionalTideQueries []config.TideQuery
 		hasApprovingReview    bool
 		singleQuery           bool
+		excluded              string
+		contextCheckerErr     bool
 
 		state string
 		desc  string
@@ -80,6 +82,42 @@ func TestExpectedStatus(t *testing.T) {
 
 			state: github.StatusSuccess,
 			desc:  statusInPool,
+		},
+		{
+			name:              "excluded from pool reports the reason",
+			labels:            neededLabels,
+			author:            "batman",
+			firstQueryAuthor:  "batman",
+			secondQueryAuthor: "batman",
+			milestone:         "v1.0",
+			inPool:            false,
+			excluded:          "Could not determine merge requirements: contexts conditional are defined as required and required if present",
+
+			state: github.StatusError,
+			desc:  fmt.Sprintf(statusNotInPool, " Could not determine merge requirements: contexts conditional are defined as required and required if present"),
+		},
+		{
+			name:              "excluded from pool reports the reason even if the context checker cannot be set up",
+			labels:            neededLabels,
+			author:            "batman",
+			firstQueryAuthor:  "batman",
+			secondQueryAuthor: "batman",
+			milestone:         "v1.0",
+			inPool:            false,
+			excluded:          "Could not determine merge requirements: contexts conditional are defined as required and required if present",
+			contextCheckerErr: true,
+
+			state: github.StatusError,
+			desc:  fmt.Sprintf(statusNotInPool, " Could not determine merge requirements: contexts conditional are defined as required and required if present"),
+		},
+		{
+			name:           "excluded from pool with merge conflicts reports the merge conflict",
+			inPool:         false,
+			excluded:       "Could not determine merge requirements: contexts conditional are defined as required and required if present",
+			mergeConflicts: true,
+
+			state: github.StatusError,
+			desc:  "Not mergeable. PR has a merge conflict.",
 		},
 		{
 			name:              "check truncation of label list",
@@ -814,6 +852,10 @@ func TestExpectedStatus(t *testing.T) {
 			if tc.inPool {
 				pool = map[string]CodeReviewCommon{"#0": {}}
 			}
+			var excluded map[string]string
+			if tc.excluded != "" {
+				excluded = map[string]string{"#0": tc.excluded}
+			}
 			blocks := blockers.Blockers{
 				Repo: map[blockers.OrgRepo][]blockers.Blocker{},
 			}
@@ -855,9 +897,12 @@ func TestExpectedStatus(t *testing.T) {
 				t.Fatalf("failed to get statusController: %v", err)
 			}
 			ccg := func() (contextChecker, error) {
+				if tc.contextCheckerErr {
+					return nil, errors.New("contexts conditional are defined as required and required if present")
+				}
 				return &config.TideContextPolicy{RequiredContexts: tc.requiredContexts}, nil
 			}
-			state, desc, err := sc.expectedStatus(sc.logger, queriesByRepo, CodeReviewCommonFromPullRequest(&pr), pool, ccg, blocks, tc.baseref)
+			state, desc, err := sc.expectedStatus(sc.logger, queriesByRepo, CodeReviewCommonFromPullRequest(&pr), pool, excluded, ccg, blocks, tc.baseref)
 			if err != nil {
 				t.Fatalf("error calling expectedStatus(): %v", err)
 			}
@@ -2044,7 +2089,7 @@ func TestSetStatuses(t *testing.T) {
 		if tc.inDontSetStatus {
 			sc.dontUpdateStatus = &threadSafePRSet{data: map[pullRequestIdentifier]struct{}{{}: {}}}
 		}
-		sc.setStatuses([]CodeReviewCommon{*crc}, pool, blockers.Blockers{}, nil, nil)
+		sc.setStatuses([]CodeReviewCommon{*crc}, pool, blockers.Blockers{}, nil, nil, nil)
 		if str, err := log.String(); err != nil {
 			t.Fatalf("For case %s: failed to get log output: %v", tc.name, err)
 		} else if str != initialLog {
@@ -2261,7 +2306,7 @@ func TestSetStatusRespectsRequiredContexts(t *testing.T) {
 	}
 	crc := CodeReviewCommonFromPullRequest(&pr)
 	pool := map[string]CodeReviewCommon{prKey(crc): *crc}
-	sc.setStatuses([]CodeReviewCommon{*crc}, pool, blockers.Blockers{}, nil, requiredContexts)
+	sc.setStatuses([]CodeReviewCommon{*crc}, pool, blockers.Blockers{}, nil, requiredContexts, nil)
 	if str, err := log.String(); err != nil {
 		t.Fatalf("Failed to get log output: %v", err)
 	} else if str != initialLog {
@@ -2277,6 +2322,67 @@ func TestSetStatusRespectsRequiredContexts(t *testing.T) {
 	if !exists {
 		t.Fatal("Status didn't get set")
 	}
+	if val.Description != expectedDescription {
+		t.Errorf("Expected description to be %q, was %q", expectedDescription, val.Description)
+	}
+}
+
+func TestSetStatusReportsExcludedPRs(t *testing.T) {
+	var pr PullRequest
+	pr.Commits.Nodes = []struct{ Commit Commit }{{}}
+	pr.Repository.NameWithOwner = githubql.String("org/repo")
+	pr.Number = githubql.Int(2)
+	excluded := map[string]string{"org/repo#2": "Could not determine merge requirements: contexts conditional are defined as required and required if present"}
+
+	fghc := &fgc{
+		refs: map[string]string{"/ heads/": "SHA"},
+	}
+	log := logrus.WithField("component", "tide")
+	initialLog, err := log.String()
+	if err != nil {
+		t.Fatalf("Failed to get log output before testing: %v", err)
+	}
+
+	ca := &config.Agent{}
+	ca.Set(&config.Config{})
+
+	ctx := context.Background()
+	mgr := newFakeManager(t, ctx)
+
+	sc := &statusController{
+		logger:   log,
+		ghc:      fghc,
+		config:   ca.Config,
+		pjClient: mgr.GetClient(),
+		ghProvider: &GitHubProvider{
+			ghc:          fghc,
+			mergeChecker: newMergeChecker(ca.Config, fghc),
+		},
+		statusUpdate: &statusUpdate{
+			dontUpdateStatus: &threadSafePRSet{},
+			newPoolPending:   make(chan bool),
+		},
+	}
+	crc := CodeReviewCommonFromPullRequest(&pr)
+	sc.setStatuses([]CodeReviewCommon{*crc}, map[string]CodeReviewCommon{}, blockers.Blockers{}, nil, nil, excluded)
+	if str, err := log.String(); err != nil {
+		t.Fatalf("Failed to get log output: %v", err)
+	} else if str != initialLog {
+		t.Errorf("Error setting status: %s", str)
+	}
+
+	if n := len(fghc.statuses); n != 1 {
+		t.Fatalf("expected exactly one status to be set, got %d", n)
+	}
+
+	val, exists := fghc.statuses["///tide"]
+	if !exists {
+		t.Fatal("Status didn't get set")
+	}
+	if val.State != github.StatusError {
+		t.Errorf("Expected state to be %q, was %q", github.StatusError, val.State)
+	}
+	expectedDescription := "Not mergeable. Could not determine merge requirements: contexts conditional are defined as required and required if present"
 	if val.Description != expectedDescription {
 		t.Errorf("Expected description to be %q, was %q", expectedDescription, val.Description)
 	}
