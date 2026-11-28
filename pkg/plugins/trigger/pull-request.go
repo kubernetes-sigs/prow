@@ -423,5 +423,70 @@ func buildAll(c Client, pr *github.PullRequest, eventGUID string, baseSHA string
 	if err != nil {
 		return err
 	}
-	return RunRequested(c, pr, baseSHA, toTest, eventGUID)
+	return RunRequested(c, pr, baseSHA, skipAlreadyRunning(c, pr, baseSHA, toTest), eventGUID)
+}
+
+// skipAlreadyRunning drops presubmits that already have a ProwJob running for
+// this exact head and base SHA. GitHub can deliver more than one event that
+// triggers the whole presubmit set for a single revision of a PR: a repo that
+// lists ok-to-test in .github/dependabot.yml gets two labeled events a second
+// apart, because Dependabot applies its label set twice, and each one builds
+// everything again.
+//
+// This is best effort. Two events handled concurrently can both list before
+// either creates anything, and plank aborts whichever duplicates survive that
+// race. It also only applies to jobs triggered by a pull request event; an
+// explicit /test or /retest goes through RunRequested directly and still gets
+// the new run it asked for.
+func skipAlreadyRunning(c Client, pr *github.PullRequest, baseSHA string, toTest []config.Presubmit) []config.Presubmit {
+	if len(toTest) == 0 {
+		return toTest
+	}
+
+	running, err := runningJobsForRevision(c, pr, baseSHA)
+	if err != nil {
+		// Triggering a duplicate is better than triggering nothing, so carry on
+		// with the full set, the same way a failed status lookup does above.
+		c.Logger.WithError(err).Warn("Failed to list running prowjobs; running all presubmits")
+		return toTest
+	}
+
+	var filtered []config.Presubmit
+	for _, presubmit := range toTest {
+		if running.Has(presubmit.Name) {
+			c.Logger.WithField("job", presubmit.Name).Info("Skipping job, it is already running for this revision.")
+			continue
+		}
+		filtered = append(filtered, presubmit)
+	}
+	return filtered
+}
+
+// runningJobsForRevision returns the names of the presubmits that have a
+// ProwJob for this PR which is neither complete nor aborted and which tests the
+// same head and base SHA. An aborted job does not count: plank has been told to
+// tear it down, so the revision is no longer covered.
+func runningJobsForRevision(c Client, pr *github.PullRequest, baseSHA string) (sets.Set[string], error) {
+	selector, err := labelSelectorForPR(pr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to construct label selector: %w", err)
+	}
+
+	jobs, err := c.ProwJobClient.List(context.TODO(), metav1.ListOptions{LabelSelector: selector.String()})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list prowjobs for pr: %w", err)
+	}
+
+	running := sets.New[string]()
+	for _, job := range jobs.Items {
+		if job.Complete() || job.Status.State == prowapi.AbortedState {
+			continue
+		}
+		refs := job.Spec.Refs
+		if refs == nil || refs.BaseSHA != baseSHA || len(refs.Pulls) != 1 || refs.Pulls[0].SHA != pr.Head.SHA {
+			continue
+		}
+		running.Insert(job.Spec.Job)
+	}
+	return running, nil
 }

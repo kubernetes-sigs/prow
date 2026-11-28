@@ -55,12 +55,35 @@ func digestRefs(ref prowapi.Refs) string {
 	return fmt.Sprintf("%s/%s@%s %v", ref.Org, ref.Repo, ref.BaseRef, pulls)
 }
 
+// scanOrder returns indices into jobs ordered by start time, oldest first, with
+// ties broken by name. Callers hand a list read from a cache, whose iteration
+// order is not stable between reads, and StartTime is only second-granular once
+// it has been through the API server, so jobs triggered within the same second
+// tie. Scanning in list order would then let two concurrent callers pick
+// different duplicates to abort and cancel every copy of the job. Which copy
+// of a tie survives does not matter, only that every caller picks the same one.
+func scanOrder(pjs []prowapi.ProwJob) []int {
+	order := make([]int, len(pjs))
+	for i := range order {
+		order[i] = i
+	}
+	sort.Slice(order, func(a, b int) bool {
+		x, y := &pjs[order[a]], &pjs[order[b]]
+		if !x.Status.StartTime.Equal(&y.Status.StartTime) {
+			return x.Status.StartTime.Before(&y.Status.StartTime)
+		}
+		return x.Name < y.Name
+	})
+	return order
+}
+
 // TerminateOlderJobs aborts all presubmit jobs from the given list that have a newer version. It does not set
 // the prowjob to complete. The responsible agent is expected to react to the aborted state by aborting the actual
 // test payload and then setting the ProwJob to completed.
 func TerminateOlderJobs(pjc patchClient, log *logrus.Entry, pjs []prowapi.ProwJob) error {
 	dupes := map[string]int{}
-	for i, pj := range pjs {
+	for _, i := range scanOrder(pjs) {
+		pj := pjs[i]
 		if pj.Complete() || pj.Spec.Type != prowapi.PresubmitJob {
 			continue
 		}
