@@ -22,12 +22,15 @@ import (
 	"fmt"
 	"io"
 	"math/rand"
+	"net/http"
 	"net/url"
 	"path"
 	"strings"
 	"time"
 
+	"cloud.google.com/go/storage"
 	"github.com/sirupsen/logrus"
+	"google.golang.org/api/googleapi"
 
 	"sigs.k8s.io/prow/pkg/config"
 	pkgio "sigs.k8s.io/prow/pkg/io"
@@ -127,6 +130,21 @@ func (af *StorageArtifactFetcher) newStorageJobSource(storagePath string) (*stor
 	}, nil
 }
 
+// isPermanentStorageError reports whether err from listing a bucket will not go
+// away by retrying: the bucket or object does not exist, or access is denied.
+func isPermanentStorageError(err error) bool {
+	if pkgio.IsNotExist(err) || errors.Is(err, storage.ErrBucketNotExist) {
+		return true
+	}
+	if apiErr, ok := errors.AsType[*googleapi.Error](err); ok {
+		switch apiErr.Code {
+		case http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound:
+			return true
+		}
+	}
+	return false
+}
+
 // Artifacts lists all artifacts available for the given job source
 // If no scheme is given we assume GS, e.g.:
 // * test-bucket/logs/sig-flexing/example-ci-run/403 or
@@ -155,6 +173,12 @@ func (af *StorageArtifactFetcher) artifacts(ctx context.Context, key string) ([]
 		if err != nil {
 			if err == context.Canceled {
 				return nil, err
+			}
+			if isPermanentStorageError(err) {
+				// Retrying cannot help, e.g. the bucket does not exist or Deck
+				// is not allowed to read it.
+				logrus.WithFields(fieldsForJob(src)).WithError(err).Warn("Cannot list GCS artifacts.")
+				return artifacts, fmt.Errorf("error accessing GCS artifact: %w", err)
 			}
 			logrus.WithFields(fieldsForJob(src)).WithError(err).Error("Error accessing GCS artifact.")
 			if i >= len(wait) {
