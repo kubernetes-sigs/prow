@@ -356,6 +356,7 @@ func (o *GitHubOptions) GitClientFactory(cookieFilePath string, cacheDir *string
 			return nil, fmt.Errorf("failed to get git authentication: %w", err)
 		}
 		opts.Username = func() (string, error) { return user, nil }
+		opts.GitUser = func() (string, string, error) { return user, "", nil } // pass empty email, git allows this
 		opts.Token = generator
 	}
 	// If the client is for Gerrit we're already set with the cookie filepath.
